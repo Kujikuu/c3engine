@@ -7,13 +7,15 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] Workspace scaffold + docs
 - [ ] CI-like local script: `cargo fmt --check`, `cargo clippy`, `cargo test`
 
-## M1: TQ formats (`formats/c3`)
+## M1: TQ formats [~] (`formats/c3`)
 Reference assets: `D:\Conquer2\Tools\eosource\client5065`
-- [ ] WDF / DNP package read + write
+- [x] WDF package read + write (byte-identical on c3.wdf, data.wdf)
+- [ ] DNP package
 - [ ] DDS / TGA / MSK texture loading
 - [ ] ANI index files
 - [ ] ini / dat tables (3DObj, 3DTexture, 3DMotion, 3DEffect, armor, weapon, GameMap.dat)
-- [ ] DMap (cells, heights, portals, scene objects) + PUL puzzle
+- [x] DMap (cells, heights, portals, interactive + scene layers): 144/144 client maps byte-identical
+- [ ] PUL puzzle
 - [ ] C3 chunks: PHY (mesh), MOTI (skeletal motion), PTCL (particles), camera
 - [ ] Round-trip tests on real client files for every format
 
