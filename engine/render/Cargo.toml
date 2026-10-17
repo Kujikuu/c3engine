@@ -1,0 +1,6 @@
+[package]
+name = "c3-render"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

@@ -1,0 +1,6 @@
+[package]
+name = "c3-assets"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

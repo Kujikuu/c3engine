@@ -1,0 +1,6 @@
+[package]
+name = "game-conquer"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

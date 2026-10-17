@@ -1,0 +1,6 @@
+[package]
+name = "c3-scene"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

@@ -1,0 +1,6 @@
+[package]
+name = "c3-formats-tq"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

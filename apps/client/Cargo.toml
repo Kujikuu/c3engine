@@ -1,0 +1,6 @@
+[package]
+name = "c3-client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
