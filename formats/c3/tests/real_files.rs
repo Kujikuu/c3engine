@@ -150,6 +150,29 @@ fn anis_parse_and_reparse_identically() {
 }
 
 #[test]
+fn every_packed_texture_decodes() {
+    use c3_formats_tq::texture::Image;
+    let Some(dir) = client_dir() else { return };
+    let (mut ok, mut failed) = (0, Vec::new());
+    for name in ["c3.wdf", "data.wdf"] {
+        let a = wdf::Wdf::open(dir.join(name)).unwrap();
+        for e in &a.entries {
+            let b = a.entry_bytes(e);
+            if !b.starts_with(b"DDS ") {
+                continue;
+            }
+            match Image::decode(b) {
+                Ok(img) if img.rgba.len() == (img.width * img.height * 4) as usize => ok += 1,
+                Ok(_) => failed.push(format!("{name}:{:#x} bad size", e.uid)),
+                Err(err) => failed.push(format!("{name}:{:#x} {err}", e.uid)),
+            }
+        }
+    }
+    eprintln!("dds decoded: {ok}");
+    assert!(failed.is_empty(), "{} failed, first: {:?}", failed.len(), failed.first());
+}
+
+#[test]
 fn ani_frame_paths_exist_in_packages() {
     use c3_formats_tq::ani::Ani;
     let Some(dir) = client_dir() else { return };

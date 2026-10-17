@@ -8,7 +8,8 @@ Sources: `D:\Conquer2\Tools\eosource\client5065` (assets), `...\cosource` (clien
 |---|---|---|---|
 | WDF | packed archive | **done** | `wdf.rs` |
 | DNP | packed archive | todo | |
-| DDS/TGA/MSK | textures / masks | todo | |
+| DDS/TGA | textures | **done** | `texture.rs`; client uses DXT1 (data.wdf) + DXT3, no mips |
+| MSK | masks | todo | |
 | ANI | animation/frame index (text) | **done** | `ani.rs` |
 | DMap | map cells, heights, portals, scene refs | **done** | `dmap.rs` |
 | PUL | puzzle ground tiles | **done** | `pul.rs` |

@@ -11,7 +11,9 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
 Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] WDF package read + write (byte-identical on c3.wdf, data.wdf)
 - [ ] DNP package
-- [ ] DDS / TGA / MSK texture loading
+- [x] DDS (DXT1/3/5, raw) + TGA decode: all 20,144 packed DDS decode
+- [x] ClientFs VFS (loose files first, then WDF) + `mapshot` example (map ground → PNG)
+- [ ] MSK masks
 - [x] ANI index files (51 files / 56,971 sections; GBK-safe; frame paths resolve in WDF)
 - [ ] ini / dat tables (3DObj, 3DTexture, 3DMotion, 3DEffect, armor, weapon, GameMap.dat)
 - [x] DMap (cells, heights, portals, interactive + scene layers): 144/144 client maps byte-identical
