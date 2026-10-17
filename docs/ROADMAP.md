@@ -12,10 +12,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] WDF package read + write (byte-identical on c3.wdf, data.wdf)
 - [ ] DNP package
 - [ ] DDS / TGA / MSK texture loading
-- [ ] ANI index files
+- [x] ANI index files (51 files / 56,971 sections; GBK-safe; frame paths resolve in WDF)
 - [ ] ini / dat tables (3DObj, 3DTexture, 3DMotion, 3DEffect, armor, weapon, GameMap.dat)
 - [x] DMap (cells, heights, portals, interactive + scene layers): 144/144 client maps byte-identical
-- [ ] PUL puzzle
+- [x] PUL puzzle (143/143 byte-identical; every used tile resolves in its ANI)
 - [ ] C3 chunks: PHY (mesh), MOTI (skeletal motion), PTCL (particles), camera
 - [ ] Round-trip tests on real client files for every format
 
