@@ -10,7 +10,7 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
 ## M1: TQ formats [x] (complete 2026-10-18) (`formats/c3`)
 Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] WDF package read + write (byte-identical on c3.wdf, data.wdf)
-- [x] DNP package: n/a, no .dnp files in the 5065 client
+- [x] DNP package: not implemented (no .dnp files in the 5065 client)
 - [x] DDS (DXT1/3/5, raw) + TGA decode: all 20,144 packed DDS decode
 - [x] ClientFs VFS (loose files first, then WDF) + `mapshot` example (map ground → PNG)
 - [x] MSK masks, TME terrain effects, RGN regions
@@ -32,10 +32,12 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-Order set by the user (2026-10-18, after a review): the engine must make a complete game like
-Conquer.exe in the Studio before more server work. M7 steps 1 to 6 in order, then M8 (prove +
-ship); AI integration (was M4) stays last, now M9.
-- [ ] M7 step 1: full Conquer import (client content + TQ server data, all maps)
+Order set by the user (2026-10-18): a complete engine that can truly create Conquer Online or
+an Eudemons-like game (or any of the kind) from the Studio, with everything, Unity-style and
+easy for indies. The foundation (M7) comes first, because every later step needs it.
+- [ ] M7 step 1: the game-module seam
+
+Why this order: see "Review (2026-10-18)" below.
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -94,7 +96,7 @@ Toward the Unity/UE5-style editor, in order:
       sounds, layers; click to jump), Scene (own bar: overlays, brush, zoom), Game, Inspector,
       Undo History, Project, Console (messages/errors with filters); menu bar (File/Edit/Window/
       Help), toolbar (tools, Play/Pause/Step, Layout); Play launches the game client on the open
-      map where the Scene view looks (Stop ends it); Unity-like dark theme; bundled Phosphor icon
+      map where the Scene view looks (Stop ends it; now Play runs inside the Game view, see (7)); Unity-like dark theme; bundled Phosphor icon
       font replaces every emoji. (egui_dock/egui_tiles/egui-phosphor don't support egui 0.37 yet)
 - [x] (4b) Project panel (`studio/src/browser.rs`): folder tree + grid/list (size slider), breadcrumb,
       search, lazy thumbnails for textures (DDS/TGA/PNG/JPG), type icons, packed WDF files shown in
@@ -129,9 +131,9 @@ Toward the Unity/UE5-style editor, in order:
       (searchable list, loop, clear); pause, step, speed. The Models workspace keeps the
       single-model viewer with parts, sockets and frame scrubbing. `--show <panel>` option
 
-M3 complete (2026-10-18).
+M3 complete (2026-10-18), on a scratch project; see the review below for what it lacks.
 
-## M5: Gameplay framework (shared by client and server) [x] (complete 2026-10-18)
+## M5: Gameplay framework (shared by client and server) [x] (complete 2026-10-18; thin, see the review below)
 In order; each step is playable in the Studio's Play mode:
 - [x] (1) Game data: `engine/data` typed tables (schema + rows, `tables/*.table.ron`), table
       commands with undo in c3-edit, SQL dump import; Studio Data panel (spreadsheet: search,
@@ -151,7 +153,7 @@ In order; each step is playable in the Studio's Play mode:
       `scripts/dialogue/*.rhai`; quest table (kill/collect/talk goals, rewards) with script API,
       kill counting in the simulation, `/quest` command; quest log, tracker and NPC quest marks
 
-## M6: Networking + engine server [x] (complete 2026-10-18)
+## M6: Networking + engine server [x] (complete 2026-10-18; one map per player, see the review below)
 - [x] `engine/net`: transport (tokio on a background thread, poll/send API), framing trait
       (length-prefixed), cipher trait with re-keying hook, fixed-layout packet reader/writer
 - [x] Game server (`apps/server`) built from a project: maps (scenes + population), spawns,
@@ -173,89 +175,145 @@ In order; each step is playable in the Studio's Play mode:
       to check there: jump, teleport, items and equipment, shop buy/sell, other players.
       Skills over this protocol come with M7 step 5
 
-## M7: Complete engine: Conquer first, then any game of its kind
-Review (2026-10-18): M3, M5 and M6 were proven on a scratch project with four hand-made NPCs. A
-real imported Conquer project had empty maps, tables and scripts: the import brings only the
-client's files, and the world (NPCs, spawns, tables, NPC logic) lives in TQ's server data. This
-milestone makes Conquer itself a complete, editable project, then makes sure any game of the
-kind can be built from scratch (user, 2026-10-18: "a complete game engine that can truly
-create Conquer Online or Eudemons, with everything, like Unity, easier for indies"; not an
-import of the existing Eudemons client, but the possibility to create any). In order:
-- [ ] (1) Full import in one step: "Import Conquer 5065" takes the client folder and TQ's server
-      data (an SQL dump such as `tq_re/db/cq_finalized_mariadb.sql`) and fills the project:
-      every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn areas (`cq_generator`), portals and their
-      destinations (`cq_passway`, `cq_portal`), the map list and properties (`cq_map`), and the
-      game tables (monsters, items, magic, shops, drops, levels, stat points). Any of the 144
-      maps opens with its population and plays; an import report says what came in and what
-      didn't. The per-map SQL buttons stay for later merges
-- [ ] (2) Complete map and world editor (user, 2026-10-18). Today the Scene view edits blocked
-      cells, portals, objects, effects, sounds, NPCs and spawn areas, added from menus; there is
-      no drag and drop, no ground painting and no new maps. To do, every edit one undo step
-      through c3-edit and saved to the map's own files (DMap, PUL, scene parts):
-  - [ ] Drag and drop from the Project panel into the Scene view: objects (scene parts, ANI
-        sprites), effects, sounds, models, NPC looks (makes an NPC), monsters (makes a spawn
-        area), ground tiles; a ghost preview snapped to the cell under the cursor; drop on the
-        Hierarchy too
-  - [ ] Placement tools: box and multi-select, move with cell snapping, pixel nudge of sprite
-        offsets, footprint editing, draw order, hide and lock, copy / paste / duplicate (also
-        between maps), align
-  - [ ] Ground: paint the puzzle ground with tiles from tilesets (brush, fill, erase, pick);
-        tilesets from the project's assets
-  - [ ] Cells: height and surface brushes beside the walkability brush; overlays for each
-  - [ ] Layers: parallax backgrounds (sky, water) and their items; interactive layer order
-  - [ ] Regions: music and sound regions, map regions (safe zones, PK-free, booth), weather,
-        light; drawn and edited in the Scene view
-  - [ ] Portals: destination map and cell picker, two-way links, jump to the destination
-  - [ ] Maps: new map wizard (size, default ground), resize, properties (name, id, flags,
-        music, weather), minimap generation; the map list (`GameMap.dat`) with create, clone,
-        rename and delete
-  - [ ] World view: every map as a node with its portal links; open a map from it; players
-        travel between maps through portals in Play mode and on the server
-- [ ] (3) Content editors with previews (forms over the tables, every edit an undoable c3-edit
-      command): NPCs (one list across all maps, jump to the map), monsters (look preview,
-      stats, drops, where they spawn), items (icon and model preview, stats, which shops sell
-      them), skills, shops, drops, levels
-- [ ] (4) NPC behaviour: convert TQ's NPC logic (`cq_action` / `cq_task` chains) into dialogue
-      graphs (`dialogues/*.dialogue.ron`), editable in the Dialogue editor; actions the graphs
-      can't express yet become new node and action kinds; the converter reports anything left
-      over (user choice 2026-10-18: graphs, the easiest to edit later)
-- [ ] (5) Gameplay parity in the simulation, then over the 5065 front: skills and magic
-      (`cq_magictype`), XP skills, PK and name colours, teams, trade, warehouse, guilds,
-      mounts, item upgrades, ghost and revive, monsters as TQ (passive unless their type says
-      aggressive; today every monster attacks)
-- [ ] (6) Conquer's look and a UI editor: the engine's client draws Conquer's GUI (the 5065 GUI
-      ini and images) as a c3-ui skin; a Studio UI editor for windows, HUD and dialogs (layout,
-      images, data bindings)
-- [ ] (7) Project Settings, Unity-style (Edit > Project Settings; saved in the project, applied
-      live in Play mode, read by the built client and server):
+## Review (2026-10-18): where the engine really stands
+A code review against VISION.md found that M3, M5 and M6 were proven on a scratch project with
+four hand-made NPCs, and that the result is a Conquer viewer and editor with a game simulation,
+not yet an engine anyone can make a game with:
+- **Hard-wired to Conquer.** `apps/client`, `apps/server` and the Studio's Play, Scene and
+  Preview depend on `game-conquer` (refusing projects without Conquer content); there is no
+  game-module seam. `engine/project` knows one content source, a TQ client.
+- **Nothing can be made from scratch.** No new map anywhere; images are DDS/TGA only, no
+  PNG/glTF/OGG; the engine has native formats only for scenes, tables, scripts and dialogues;
+  no asset database, handles, import settings or packaging; `engine/core` is an empty stub.
+- **No settings.** `c3project.toml` holds a name, a version and sources. Every gameplay, camera,
+  input, UI and audio value is a Rust constant (view range 18, revive 10 s, bag 40, tick 50 ms,
+  zoom 0.05..4, keys, HUD sizes, "silver"...).
+- **One map per world.** A `Sim` holds one map; portals have no destination and no code uses
+  them; cross-map teleports are refused; the server never moves a player between maps.
+- **Thin gameplay.** Entity kinds are fixed (player, monster, ground item); melee auto-attack
+  only; no skills, status effects, PvP, pets, teams, trade, guilds, mounts; one money field;
+  items have no stacks or durability; scripts run only when talking to an NPC; game rules are
+  Rust code only (`ConquerRules` reads hard-coded `cq_*` table names).
+- **Hard-coded game UI.** `c3-ui` is fixed egui code with constant sizes and 14 colours; no
+  layouts, skins or editor. The client has no login screen, character creation or settings.
+- **Studio gaps.** No drag and drop, multi-select, copy/paste, ground painting, cell
+  height/surface editing, regions, layers, map properties or map list; sounds can't be created;
+  tables can't be created or given columns (SQL import only); no effect, animation, model, UI or
+  settings editors; no build. Undo gaps: dialogues use their own snapshot stack, scripts none,
+  Data row drags make one step per frame. File > Save saves only the map.
+- **Server.** No database (account files), no admin console beyond `quit`, GM commands open to
+  every player.
+
+Kept as they are: M1 formats and round-trips (exporters exist only for the classic formats; DNP
+is not implemented), the M2 renderer, the scene/command layer, the simulation core and the
+engine protocol. The milestones below build the engine on them first, then Conquer as a
+complete project on that engine, then any game of the kind.
+
+## M7: Engine foundation (make it an engine, not a Conquer tool)
+- [ ] (1) Game-module seam: a `GameModule` interface the client, the server and the Studio
+      (Scene, Play, Preview) go through: content and asset loading, rules, character looks,
+      sound mapping, UI hooks. The generic parts stuck in `games/conquer` (world, actor, screen,
+      session, sim view, serve, event sounds) move into the engine; the Studio stops using
+      `game-conquer` outside its plugin. A built-in data-driven module runs projects with no TQ
+      content, so the apps open any project
+- [ ] (2) Project Settings, Unity-style: a settings file in the project and an Edit > Project
+      Settings window, applied live in Play mode and read by the built client and server.
+      Every hard-coded value found in the review moves there:
   - [ ] Player: game name, icon, window and full screen, resolutions, login and loading screens
-  - [ ] Cursors: normal, attack, talk, pick up, portal, busy and more, from the project's
-        assets (ANI / cursor files), with hotspots; per-state preview
-  - [ ] Camera: projection (cell size), zoom levels and limits, follow smoothing and dead
-        zone, map edge clamping, shake; a camera preview in the Game view
-  - [ ] Input: key and mouse bindings (walk, run, attack, skills F1..F10, UI windows), players
-        rebind them in game
-  - [ ] Graphics and audio: frame cap, vsync, effect quality; mixer volumes (master, music,
-        effects, UI)
-  - [ ] Gameplay and network: start map and cell, new character templates (classes, looks,
-        starting items), tick rate, view range, ports and protocol fronts
-  - [ ] Localization: string tables (the client's StrRes.ini and the game's own), fonts
-        (GBK and Unicode)
-- [ ] (8) Any game of the kind, from scratch: gameplay systems a game switches on and shapes
-      with data instead of Conquer-specific code: classes and stats, skills, pets and companions
-      (summon, fight, level, evolve, equip: an Eudemons-like game), mounts, crafting, guilds,
-      events; the game's own formulas as scripts; new content (characters, monsters, items,
-      maps) made in the Studio from the project's own art, not only from TQ files
-- [ ] (9) Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), a sample
-      game, in-Studio getting-started guide and tooltips, clear errors that say how to fix them
+  - [ ] Cursors: normal, attack, talk, pick up, portal, busy..., from project assets, hotspots
+  - [ ] Camera: projection (cell size, tilt), zoom levels and limits, wheel speed, follow
+        smoothing and dead zone, map edge clamping, shake
+  - [ ] Input: key and mouse bindings (walk, run, attack, skills, windows), rebindable in game
+  - [ ] Gameplay: tick rate, view range, ranges (talk, reach, jump, leash), timings (corpse,
+        revive, item life), bag size, currencies and their names, start map and cell, new
+        character templates, GM permissions
+  - [ ] Graphics and audio: frame cap, vsync, effect quality, lighting; mixer volumes, hearing
+        range
+  - [ ] Network: ports, protocol fronts, save interval
+  - [ ] Localization: string tables and fonts (GBK and Unicode)
+- [ ] (3) Native asset pipeline, the Unity way: plain PNG/JPG sprites, sprite sheets and
+      tilesets, glTF models and animations, WAV/OGG/MP3, TTF fonts, used in place with per-asset
+      import settings (a sidecar file, like Unity's `.meta`); an asset database with stable ids
+      and references; hot reload for every asset; a native effect format; the Project panel
+      imports, renames, moves and deletes with references kept; TQ formats stay importers
+- [ ] (4) Multi-map worlds: the map list as an engine registry (ids, names, properties);
+      portals with a destination map and cell; players move between maps through portals and
+      teleports, in Play mode and on the server (one `Sim` per map, transfers between them)
+- [ ] (5) Data-driven gameplay core: attributes and stats defined in data; formulas as scripts
+      (rules from tables + scripts, so a game needs no Rust); items with stacks, durability and
+      quality; equipment slots defined in data; currencies; skills and magic (targeting, area,
+      cooldowns, costs, effects); status effects and buffs; PvP and PK; monster behaviour from
+      data (passive, aggressive, ranged, boss); script events beyond talking (kill, use item,
+      enter region, timers, login)
+- [ ] (6) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
+      commands; File > Save saves everything dirty
 
-## M8: Prove + ship (was M7)
-- [ ] Prove generality: a small second sample game made only in the Studio
-- [ ] Build from the Studio: package a playable client and server from a project
-- [ ] Launcher/patcher
-- [ ] glTF import/export (Blender pipeline) for models + animations
+## M8: Complete map and world editor
+Every edit one undo step through c3-edit; maps saved to their own files (native scene, or DMap /
+PUL for the classic client).
+- [ ] New map from scratch (size, default ground) with the project's own art; resize; map
+      properties (name, id, flags, music, weather, light); minimap generation; the map list
+      (create, clone, rename, delete)
+- [ ] Drag and drop from the Project panel into the Scene view and the Hierarchy: sprites,
+      objects, effects, sounds, models, NPC looks (makes an NPC), monsters (makes a spawn area),
+      tiles; a ghost preview snapped to the cell under the cursor
+- [ ] Placement tools: box and multi-select, move with snapping, pixel nudge, footprints, draw
+      order, hide and lock, copy / paste / duplicate (also between maps), align
+- [ ] Ground: paint tiles from tilesets (brush, fill, erase, pick)
+- [ ] Cells: height and surface brushes beside the walkability brush; overlays
+- [ ] Layers: parallax backgrounds (sky, water) and their items; layer order
+- [ ] Regions: music, sound, safe zone, PK-free, booth, weather, light, script triggers
+- [ ] Portals: destination picker, two-way links, jump to the destination
+- [ ] World view: every map as a node with its portal links; open a map from it
 
-## M9: AI integration (was M4, then M8; the user keeps it last)
+## M9: Content editors and the game UI
+- [ ] Table and schema editor: create tables, add, rename and type columns; references between
+      tables (an item's monster drop, a shop's goods) as pickers
+- [ ] Forms with previews over the tables: characters and classes, monsters (look, stats, drops,
+      where they spawn), items (icon and model, stats, which shops sell them), skills, shops,
+      drops, levels, NPCs (one list across all maps, jump to the map)
+- [ ] Effect editor (layers, particles, trails, timing, preview) and animation set editor
+      (actions, frames, sockets, sounds per action)
+- [ ] Data-driven game UI: windows, HUD and dialogs as layout files (images, text, bars, grids,
+      buttons, data bindings), skins from images; a Studio UI editor with live preview
+- [ ] Client front end from data: login and server list, character creation and selection,
+      loading screens, settings menu (keys, video, audio)
+
+## M10: Conquer as a complete project (on the engine)
+- [ ] Full import in one step: the client's files plus TQ's server data (an SQL dump such as
+      `tq_re/db/cq_finalized_mariadb.sql`): every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn
+      areas (`cq_generator`), portals and destinations (`cq_passway`, `cq_portal`), the map list
+      and properties (`cq_map`), and the tables (monsters, items, magic, shops, drops, levels,
+      stat points), mapped onto the engine's data-driven systems; an import report
+- [ ] NPC behaviour: TQ's NPC logic (`cq_action` / `cq_task` chains) converted into dialogue
+      graphs, editable in the Dialogue editor; the converter reports what it can't convert
+      (user choice: graphs, the easiest to edit later)
+- [ ] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
+      skills, PK and name colours, ghost and revive, item upgrades
+- [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
+      with its cursors and sounds
+- [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
+      warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
+      jump, teleport, items and equipment, shop buy/sell, other players)
+
+## M11: Any game of the kind (Eudemons-like or the user's own)
+- [ ] Social and companion systems as engine modules a game switches on and shapes with data:
+      teams, trade, guilds, friends, mail, pets and companions (summon, fight, level, evolve,
+      equip), mounts, crafting, events and schedules
+- [ ] Prove it: a second, small sample game made only in the Studio from its own art (no TQ
+      files), with pets
+- [ ] Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), the sample
+      game, a getting-started guide in the Studio, tooltips, errors that say how to fix them
+
+## M12: Ship
+- [ ] Build from the Studio: package a playable client and server from a project (assets
+      packed, settings applied)
+- [ ] Server for real use: a database option (SQL) beside account files, an admin console
+      (online players, kick, broadcast, save), GM tools with permissions, logs
+- [ ] Launcher and patcher
+- [ ] glTF export (Blender pipeline); exporters back to the classic client where useful
+
+## M13: AI integration (was M4; the user keeps it last)
 - [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
 - [ ] Studio assistant panel (`engine/ai`, Claude API): chat that edits the project through c3-edit
       tools; shows each change, applies on confirm, one undo step per request; API key in settings

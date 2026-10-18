@@ -7,6 +7,9 @@ General-purpose Rust game engine + studio (TQ C3-engine style). Conquer is the f
 append decisions, document formats as you implement them.
 
 ## Rules
+- **Done means done on two projects:** a feature counts only when it works on a project made from
+  scratch in the Studio (no TQ content) and on the imported Conquer project, verified with
+  screenshots. Never tick a roadmap item proven only on a hand-made scratch project.
 - UI/UX matters: clear hierarchy, hints, shortcuts, legends, empty/loading states. Verify UI changes with screenshots.
 - Clean code: focused modules, doc comments on public items, `cargo fmt` + `cargo clippy --workspace --all-targets` with zero warnings.
 - Editors touch engine types only (`c3_scene`, `c3_assets`). In the Studio, **only `tq_plugin.rs` may use
