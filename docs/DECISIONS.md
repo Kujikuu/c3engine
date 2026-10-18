@@ -31,6 +31,8 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · **Saving writes into the project, never the client.** A client map opened in the Studio becomes a project map (`maps/<name>.scene.ron`) on first save; writing back to the 5065 client is an explicit Export (keeps `.bak`). Assets resolve project-first, then the project's content sources, so maps can move into the project before their art does · protects the original client and makes the project the source of truth.
 - 2026-10-18 · Native scenes are **RON text + a binary grid sidecar**: readable and diff-able where it matters (objects, portals, layers), compact for the ~1M-cell grids (same 6 bytes/cell as DMap) · a pure-text grid would be tens of MB per map.
 
+- 2026-10-18 · **Assets the Unity way (user):** source files placed in the project's `assets/` folder are used as they are, by importers per file type; nothing is converted. Imported Conquer content is the client's own files (DMap, PUL, ANI, C3, DDS, WDF, ini/dat), and the Studio saves maps straight back to their DMap. This replaces the earlier "save client maps as native scenes in the project" behaviour; the native scene format remains for maps made in the engine.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

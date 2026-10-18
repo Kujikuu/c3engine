@@ -13,8 +13,10 @@
 //!   scripts/         game logic
 //! ```
 
+mod copy;
 mod recent;
 
+pub use copy::{CopyProgress, copy_entries};
 pub use recent::{RecentProject, RecentProjects};
 
 use serde::{Deserialize, Serialize};
@@ -63,8 +65,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Source {
-    /// An original TQ client folder (maps, models, effects, tables), read through the
-    /// TQ format plugins. `game` names the client, e.g. `conquer-5065`.
+    /// An original TQ client's content (maps, models, effects, tables), used as-is through
+    /// the TQ format plugins. `path` is relative to the project (`assets` when the content
+    /// was copied into the project) or absolute (a client folder used in place).
+    /// `game` names the client, e.g. `conquer-5065`.
     TqClient { game: String, path: PathBuf },
 }
 
@@ -168,14 +172,25 @@ impl Project {
     }
 
     /// The first TQ client the project reads, as `(game, folder)`.
-    pub fn tq_client(&self) -> Option<(&str, &Path)> {
+    pub fn tq_client(&self) -> Option<(&str, PathBuf)> {
         self.manifest
             .sources
             .iter()
             .map(|s| match s {
-                Source::TqClient { game, path } => (game.as_str(), path.as_path()),
+                Source::TqClient { game, path } => (game.as_str(), self.root.join(path)),
             })
             .next()
+    }
+
+    /// Whether the TQ client content lives inside the project folder.
+    pub fn content_in_project(&self) -> bool {
+        self.tq_client()
+            .is_some_and(|(_, dir)| dir.starts_with(&self.root))
+    }
+
+    /// Folder holding the project's assets (and copied client content).
+    pub fn assets_dir(&self) -> PathBuf {
+        self.root.join("assets")
     }
 }
 
@@ -234,8 +249,16 @@ mod tests {
         assert_eq!(opened, created);
         assert_eq!(
             opened.tq_client(),
-            Some(("conquer-5065", Path::new(r"D:\client5065")))
+            Some(("conquer-5065", PathBuf::from(r"D:\client5065")))
         );
+        assert!(!opened.content_in_project());
+        let mut copied = opened.clone();
+        copied.manifest.sources = vec![Source::TqClient {
+            game: "conquer-5065".into(),
+            path: PathBuf::from("assets"),
+        }];
+        assert_eq!(copied.tq_client().unwrap().1, dir.join("assets"));
+        assert!(copied.content_in_project());
         assert!(Project::is_project(&dir));
         std::fs::write(opened.map_file("Twin City"), "").unwrap();
         std::fs::write(opened.maps_dir().join("notes.txt"), "").unwrap();

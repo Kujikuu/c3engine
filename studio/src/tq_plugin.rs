@@ -9,7 +9,7 @@ use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs
 use c3_scene::Scene;
 use std::path::{Path, PathBuf};
 
-pub use scene_io::{Imported, META_SOURCE_MAP};
+pub use scene_io::Imported;
 
 /// A game client folder: loose files plus packed archives.
 pub struct Client {
@@ -27,6 +27,12 @@ pub struct ModelEntry {
     pub id: u64,
     pub path: String,
 }
+
+/// The parts of a Conquer 5065 client folder that are game content (copied into projects);
+/// executables, libraries, logs and the patcher are left out.
+pub const CONTENT_ENTRIES: [&str; 8] = [
+    "ani", "c3", "data", "ini", "map", "sound", "c3.wdf", "data.wdf",
+];
 
 /// Checks that `root` is a Conquer 5065 client folder (it has the map catalog).
 pub fn check_client(root: &Path) -> Result<(), String> {
@@ -107,21 +113,21 @@ impl Client {
         texture::decode_image(&self.fs.read(path)?).ok()
     }
 
-    /// Exports `scene` as a DMap to the loose client file at `path`. Before the first
-    /// overwrite the original is kept as `<file>.bak`; the write is atomic.
-    pub fn save_map(&self, scene: &Scene, path: &str) -> Result<PathBuf, String> {
+    /// Writes `scene` to the DMap at `path` (atomic). With `backup`, the original is first
+    /// kept as `<file>.bak` (once), for content that isn't the project's own copy.
+    pub fn save_map(&self, scene: &Scene, path: &str, backup: bool) -> Result<PathBuf, String> {
         let file = self.root.join(Path::new(path));
-        write_with_backup(&file, &scene_io::export_dmap(scene).to_bytes())?;
+        write_map_file(&file, &scene_io::export_dmap(scene).to_bytes(), backup)?;
         Ok(file)
     }
 }
 
-pub fn write_with_backup(file: &Path, bytes: &[u8]) -> Result<(), String> {
-    let mut backup = file.as_os_str().to_owned();
-    backup.push(".bak");
-    let backup = PathBuf::from(backup);
-    if file.exists() && !backup.exists() {
-        std::fs::copy(file, &backup).map_err(|e| format!("Backup failed: {e}"))?;
+pub fn write_map_file(file: &Path, bytes: &[u8], backup: bool) -> Result<(), String> {
+    let mut bak = file.as_os_str().to_owned();
+    bak.push(".bak");
+    let bak = PathBuf::from(bak);
+    if backup && file.exists() && !bak.exists() {
+        std::fs::copy(file, &bak).map_err(|e| format!("Backup failed: {e}"))?;
     }
     let mut tmp = file.as_os_str().to_owned();
     tmp.push(".tmp");

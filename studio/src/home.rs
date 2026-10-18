@@ -4,9 +4,14 @@
 use crate::app::{Pending, Studio};
 use crate::theme;
 use crate::tq_plugin;
-use c3_project::{Manifest, Project, Source, default_projects_dir, folder_name};
+use c3_project::{
+    CopyProgress, Manifest, Project, Source, copy_entries, default_projects_dir, folder_name,
+};
 use eframe::egui::{self, Color32, RichText};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 
 /// The client a Conquer import reads (`Source::TqClient::game`).
 const CONQUER_5065: &str = "conquer-5065";
@@ -24,7 +29,17 @@ pub(crate) struct NewProject {
     location: PathBuf,
     /// TQ client folder to import from (import only).
     client: String,
+    /// Copy the client's content into the project (else use the folder where it is).
+    copy: bool,
     error: Option<String>,
+}
+
+/// A client being copied into a new project, on a background thread.
+pub(crate) struct ImportJob {
+    project: Project,
+    progress: Arc<Mutex<CopyProgress>>,
+    cancel: Arc<AtomicBool>,
+    worker: Option<JoinHandle<Result<bool, String>>>,
 }
 
 impl NewProject {
@@ -33,6 +48,7 @@ impl NewProject {
             name: name.to_owned(),
             location: default_projects_dir(),
             client: String::new(),
+            copy: true,
             error: None,
         }
     }
@@ -145,7 +161,8 @@ impl Studio {
         let root = project.root.clone();
         let source = project
             .tq_client()
-            .map(|(game, dir)| (game.to_owned(), dir.to_path_buf()));
+            .map(|(game, dir)| (game.to_owned(), dir));
+        let in_project = project.content_in_project();
         let mut change_client = false;
         theme::section(ui, "Project", |ui| {
             theme::kv(ui, "Name", project.name());
@@ -161,19 +178,25 @@ impl Studio {
             ui.add_space(4.0);
             match &source {
                 Some((game, dir)) => {
-                    theme::kv(ui, "Content from", source_label(game));
-                    theme::kv(ui, "Client folder", &dir.display().to_string());
+                    theme::kv(ui, "Content", source_label(game));
+                    if in_project {
+                        theme::kv(ui, "Stored in", "assets/ (copied into the project)");
+                    } else {
+                        theme::kv(ui, "Used in place", &dir.display().to_string());
+                    }
                     if self.client.is_some() {
                         let found =
                             format!("{} maps, {} models", self.maps.len(), self.models.len());
                         ui.label(RichText::new(found).weak());
                     } else {
-                        ui.colored_label(theme::DANGER, "The client folder can't be read.");
+                        ui.colored_label(theme::DANGER, "The content folder can't be read.");
                     }
-                    change_client = ui
-                        .small_button("Change client folder…")
-                        .on_hover_text("Point the project at another copy of the client")
-                        .clicked();
+                    if !in_project {
+                        change_client = ui
+                            .small_button("Change client folder…")
+                            .on_hover_text("Point the project at another copy of the client")
+                            .clicked();
+                    }
                 }
                 None => {
                     ui.label(RichText::new("Content lives in the project folder.").weak());
@@ -366,9 +389,9 @@ impl Studio {
             if import {
                 ui.label(
                     RichText::new(
-                        "Creates a project that reads maps, models and effects from an original \
-                         5065 client folder. Nothing in the client folder is changed until you \
-                         save a map.",
+                        "Creates a project from an original 5065 client. Its maps, models, \
+                         effects and tables are used as they are, like files in a Unity \
+                         project; nothing is converted.",
                     )
                     .weak(),
                 );
@@ -394,6 +417,28 @@ impl Studio {
                             {
                                 form.client = dir.display().to_string();
                             }
+                        });
+                        ui.end_row();
+                        ui.label("Content");
+                        ui.vertical(|ui| {
+                            ui.radio_value(
+                                &mut form.copy,
+                                true,
+                                "Copy into the project (recommended)",
+                            )
+                            .on_hover_text(
+                                "About 1.3 GB of content files go into the project's assets \
+                                 folder. The original client is never touched.",
+                            );
+                            ui.radio_value(
+                                &mut form.copy,
+                                false,
+                                "Use the client folder where it is",
+                            )
+                            .on_hover_text(
+                                "Nothing is copied. Saving a map writes into the client \
+                                     folder and keeps the original as .bak.",
+                            );
                         });
                         ui.end_row();
                     }
@@ -468,24 +513,130 @@ impl Studio {
             None => return,
         };
         let mut manifest = Manifest::new(form.name.trim());
+        let client = PathBuf::from(form.client.trim());
+        let copy = import && form.copy;
         if import {
-            let client = PathBuf::from(form.client.trim());
             if let Err(e) = tq_plugin::check_client(&client) {
                 form.error = Some(e);
                 return;
             }
             manifest.sources.push(Source::TqClient {
                 game: CONQUER_5065.to_owned(),
-                path: client,
+                // Copied content lives in the project, referred to relatively.
+                path: if copy {
+                    PathBuf::from("assets")
+                } else {
+                    client.clone()
+                },
             });
         }
         match Project::create(form.target(), manifest) {
             Ok(project) => {
                 self.dialog = None;
-                self.set_project(project);
+                if copy {
+                    self.import_job = Some(ImportJob::start(project, client));
+                } else {
+                    self.set_project(project);
+                }
             }
             Err(e) => form.error = Some(e.to_string()),
         }
+    }
+
+    /// Progress window for a client being copied in; opens the project when done.
+    pub(crate) fn import_progress(&mut self, ctx: &egui::Context) {
+        let Some(job) = &mut self.import_job else {
+            return;
+        };
+        if job.worker.as_ref().is_some_and(JoinHandle::is_finished) {
+            let result = job.worker.take().map_or(Ok(false), |w| {
+                w.join().unwrap_or(Err("the copy crashed".into()))
+            });
+            let Some(job) = self.import_job.take() else {
+                return;
+            };
+            let root = job.project.root.clone();
+            match result {
+                Ok(true) => {
+                    self.set_project(job.project);
+                    return;
+                }
+                Ok(false) => self.notify("Import cancelled; the new project was removed".into()),
+                Err(e) => self.error = Some(format!("Import failed: {e}")),
+            }
+            // A half-copied project is no use: remove the folder this import created.
+            let _ = std::fs::remove_dir_all(root);
+            return;
+        }
+        let p = job.progress.lock().map(|p| *p).unwrap_or_default();
+        let mut cancel = false;
+        egui::Modal::new(egui::Id::unique("import progress")).show(ctx, |ui| {
+            ui.set_width(460.0);
+            ui.heading(format!("Importing {}", job.project.name()));
+            ui.label(RichText::new("Copying the client's content into the project…").weak());
+            ui.add_space(8.0);
+            ui.add(egui::ProgressBar::new(p.fraction()).show_percentage());
+            ui.label(
+                RichText::new(format!(
+                    "{} / {} files  ·  {} / {}",
+                    p.files_done,
+                    p.files_total,
+                    size_text(p.bytes_done),
+                    size_text(p.bytes_total)
+                ))
+                .small()
+                .weak(),
+            );
+            ui.add_space(8.0);
+            cancel = ui.button("Cancel").clicked();
+        });
+        if cancel {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+    }
+}
+
+impl ImportJob {
+    /// Copies the client's content into `project`'s assets folder in the background.
+    fn start(project: Project, client: PathBuf) -> Self {
+        let progress = Arc::new(Mutex::new(CopyProgress::default()));
+        let cancel = Arc::new(AtomicBool::new(false));
+        let assets = project.assets_dir();
+        let worker = {
+            let (progress, cancel) = (Arc::clone(&progress), Arc::clone(&cancel));
+            std::thread::spawn(move || {
+                copy_entries(&client, &assets, &tq_plugin::CONTENT_ENTRIES, |p| {
+                    if let Ok(mut shared) = progress.lock() {
+                        *shared = p;
+                    }
+                    !cancel.load(Ordering::Relaxed)
+                })
+                .map_err(|e| e.to_string())
+            })
+        };
+        Self {
+            project,
+            progress,
+            cancel,
+            worker: Some(worker),
+        }
+    }
+}
+
+/// `1.3 GB`, `420 MB`, `12 KB`.
+fn size_text(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit >= 3 {
+        format!("{value:.1} {}", UNITS[unit])
+    } else {
+        format!("{value:.0} {}", UNITS[unit])
     }
 }
 

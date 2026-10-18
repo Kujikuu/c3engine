@@ -22,8 +22,9 @@ characters, effects, cell-based movement, client/server play). Full 3D is not a 
 - **Ship:** build the client and server from the project in one step.
 
 ## The Studio, Unity/UE5-style
-- **Projects:** each game is a project folder with its own assets, tables and scripts.
-  Conquer is imported into one from the 5065 client.
+- **Projects:** each game is a project folder with its own assets, tables and scripts. Like
+  Unity, files put in `assets/` are used as they are (importers per file type, no conversion);
+  Conquer is imported by copying the 5065 client's content files into one.
 - **Asset browser** with live previews; **scene editor** with an inspector for the selection;
   **table editors** for items, skills, monsters; **script editor**; **UI editor**.
 - **Play mode:** press Play to run the game (client and a local server) inside the Studio.

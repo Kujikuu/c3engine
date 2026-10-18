@@ -389,24 +389,32 @@ fn load_world(args: &Args) -> Result<World, String> {
     Ok(World::new(content, path, imported.scene))
 }
 
-/// Plays project map `--map` (default: the project's first map).
+/// Plays a project map: `--map` names an engine scene or a map file of the project's content
+/// (e.g. `map/map/newplain.DMap`); otherwise `--map-id` (default Twin City) from its catalog.
 fn load_project_world(dir: &str, args: &Args) -> Result<World, String> {
     let project = c3_project::Project::open(dir).map_err(|e| e.to_string())?;
-    let (_, client) = project
+    let (_, content_dir) = project
         .tq_client()
-        .ok_or("the project has no Conquer client to take art from")?;
-    let content = Content::open(client)?;
-    let name = match &args.map {
-        Some(name) => name.clone(),
-        None => project
-            .map_names()
-            .into_iter()
-            .next()
-            .ok_or("the project has no maps yet; save one in the Studio first")?,
+        .ok_or("the project has no Conquer content to play")?;
+    let content = Content::open(content_dir)?;
+    if let Some(name) = &args.map
+        && project.map_names().contains(name)
+    {
+        let scene = c3_scene::native::load_scene(&project.map_file(name))
+            .map_err(|e| format!("map {name}: {e}"))?;
+        return Ok(World::new(content, name.clone(), scene));
+    }
+    let path = match &args.map {
+        Some(path) => path.clone(),
+        None => {
+            let id = args.map_id.unwrap_or(DEFAULT_MAP_ID);
+            content
+                .map_path(id)
+                .ok_or(format!("map {id} is not in GameMap.dat"))?
+        }
     };
-    let scene = c3_scene::native::load_scene(&project.map_file(&name))
-        .map_err(|e| format!("map {name}: {e}"))?;
-    Ok(World::new(content, name, scene))
+    let imported = content.load_map(&path)?;
+    Ok(World::new(content, path, imported.scene))
 }
 
 fn main() {

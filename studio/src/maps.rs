@@ -1,5 +1,5 @@
-//! Which maps the Studio can open: the project's own (native scenes) and, until they are
-//! imported, the maps of the project's TQ client source.
+//! Which maps the Studio can open: the map files of the project's content, used as they are
+//! (DMaps), and scenes made in the engine's own format.
 
 use crate::tq_plugin::Client;
 use c3_project::Project;
@@ -7,10 +7,10 @@ use c3_project::Project;
 /// Where a map lives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum MapRef {
-    /// A native scene in the project's `maps/` folder.
+    /// A scene in the engine's own format, in the project's `maps/` folder.
     Project(String),
-    /// A map in the project's TQ client that isn't in the project yet (asset path,
-    /// e.g. `map/map/newplain.DMap`).
+    /// A map file of the project's TQ content, edited in place (asset path, e.g.
+    /// `map/map/newplain.DMap`).
     Client(String),
 }
 
@@ -46,23 +46,12 @@ pub(crate) fn client_map_name(path: &str) -> &str {
     }
 }
 
-/// The project's maps, then the client's maps not imported yet (same name = imported).
+/// The content's map files, then the engine-format scenes.
 pub(crate) fn list_maps(project: &Project, client: Option<&Client>) -> Vec<MapRef> {
-    let names = project.map_names();
-    let imported = |path: &String| {
-        let name = client_map_name(path);
-        names.iter().any(|n| n.eq_ignore_ascii_case(name))
-    };
-    let client_maps = client.map(Client::list_maps).unwrap_or_default();
-    let from_client: Vec<MapRef> = client_maps
-        .into_iter()
-        .filter(|p| !imported(p))
-        .map(MapRef::Client)
-        .collect();
-    names
-        .into_iter()
-        .map(MapRef::Project)
-        .chain(from_client)
+    let files = client.map(Client::list_maps).unwrap_or_default();
+    let files = files.into_iter().map(MapRef::Client);
+    files
+        .chain(project.map_names().into_iter().map(MapRef::Project))
         .collect()
 }
 

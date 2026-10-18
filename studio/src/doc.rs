@@ -136,8 +136,10 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("x.DMap");
         std::fs::write(&file, b"original").unwrap();
-        crate::tq_plugin::write_with_backup(&file, b"v1").unwrap();
-        crate::tq_plugin::write_with_backup(&file, b"v2").unwrap();
+        crate::tq_plugin::write_map_file(&file, b"v1", true).unwrap();
+        crate::tq_plugin::write_map_file(&file, b"v2", true).unwrap();
+        crate::tq_plugin::write_map_file(&dir.join("y.DMap"), b"new", false).unwrap();
+        assert!(!dir.join("y.DMap.bak").exists());
         assert_eq!(std::fs::read(&file).unwrap(), b"v2");
         assert_eq!(std::fs::read(dir.join("x.DMap.bak")).unwrap(), b"original");
         assert!(!dir.join("x.DMap.tmp").exists());

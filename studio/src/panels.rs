@@ -91,38 +91,17 @@ impl Studio {
             } else {
                 Color32::TRANSPARENT
             });
-            let hint = match &self.doc {
-                Some(d) if dirty && !d.map.is_project() => {
-                    "Save this map into the project (Ctrl+S); the client folder isn't changed"
-                }
-                _ if dirty => "Save map (Ctrl+S)",
-                _ => "No unsaved changes",
+            let hint = match self.save_target() {
+                Some(target) if dirty => format!("Save to {target} (Ctrl+S)"),
+                _ => "No unsaved changes".to_owned(),
             };
             if ui
                 .add_enabled(has_doc && dirty, save)
-                .on_hover_text(hint)
-                .on_disabled_hover_text(hint)
+                .on_hover_text(&hint)
+                .on_disabled_hover_text(&hint)
                 .clicked()
             {
                 self.save();
-            }
-            let export_hint = match self.export_target() {
-                Some(path) => format!(
-                    "Write this map to the Conquer client as {path} (the original is kept as .bak)"
-                ),
-                None => "Only maps that came from the project's Conquer client can be exported"
-                    .to_owned(),
-            };
-            if ui
-                .add_enabled(
-                    self.export_target().is_some(),
-                    egui::Button::new("⤴ Export"),
-                )
-                .on_hover_text(&export_hint)
-                .on_disabled_hover_text(&export_hint)
-                .clicked()
-            {
-                self.export_to_client();
             }
 
             ui.separator();
@@ -245,17 +224,16 @@ impl Studio {
             .max_height(ui.available_height() - footer)
             .show(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    if !project_maps.is_empty() {
-                        list_heading(ui, "In this project", project_maps.len());
-                        self.map_rows(ui, &project_maps, &mut open);
+                    // Headings only when both kinds exist.
+                    let both = !project_maps.is_empty() && !client_maps.is_empty();
+                    if both {
+                        list_heading(ui, "Map files", client_maps.len());
                     }
-                    if !client_maps.is_empty() {
-                        list_heading(ui, "From the client", client_maps.len()).on_hover_text(
-                            "Not in the project yet. They open from the Conquer client; \
-                                 saving one copies it into the project.",
-                        );
-                        self.map_rows(ui, &client_maps, &mut open);
+                    self.map_rows(ui, &client_maps, &mut open);
+                    if both {
+                        list_heading(ui, "Engine scenes", project_maps.len());
                     }
+                    self.map_rows(ui, &project_maps, &mut open);
                 });
             });
         if let Some(m) = open {
@@ -273,9 +251,8 @@ impl Studio {
             let doc = self.doc.as_ref().filter(|d| &d.map == m);
             let name = m.name();
             let label = match doc {
-                Some(d) if d.is_dirty() => RichText::new(format!("● {name}")),
-                _ if !m.is_project() => RichText::new(name).color(Color32::from_gray(150)),
-                _ => RichText::new(name),
+                Some(d) if d.is_dirty() => format!("● {name}"),
+                _ => name.to_owned(),
             };
             let r = ui.add(
                 egui::Button::selectable(doc.is_some(), label).min_size(egui::vec2(0.0, 22.0)),
@@ -489,12 +466,7 @@ impl Studio {
                 });
                 return;
             } else if let Some(doc) = &self.doc {
-                let origin = if doc.map.is_project() {
-                    format!("maps/{}.scene.ron", doc.name())
-                } else {
-                    format!("{} (client, not in the project yet)", doc.name())
-                };
-                ui.label(origin);
+                ui.label(self.save_target().unwrap_or_else(|| doc.name().to_owned()));
                 ui.separator();
                 if self.streaming {
                     ui.add(egui::Spinner::new().size(12.0));
@@ -556,9 +528,12 @@ impl Studio {
             ui.add_space(4.0);
             ui.label(format!("Save changes to {name} before {action}?"));
             ui.label(
-                RichText::new("Saving writes the map into the project; the Conquer client folder is not changed.")
-                    .weak()
-                    .small(),
+                RichText::new(format!(
+                    "Saving writes {}.",
+                    self.save_target().unwrap_or_default()
+                ))
+                .weak()
+                .small(),
             );
             ui.add_space(10.0);
             ui.horizontal(|ui| {

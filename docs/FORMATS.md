@@ -33,10 +33,10 @@ TOML in the project folder root, next to `assets/`, `maps/`, `tables/`, `scripts
 name = "Conquer"
 engine = "0.1.0"            # engine version last saved with
 
-[[source]]                  # optional external content, read until imported
+[[source]]                  # a TQ client's content, used as-is
 kind = "tq-client"
 game = "conquer-5065"
-path = 'D:\Conquer2\Tools\eosource\client5065'
+path = "assets"             # relative = inside the project (copied); absolute = used in place
 ```
 Recent projects: `<config dir>/C3Engine/recent.toml`, `[[project]]` entries (name, path, opened).
 

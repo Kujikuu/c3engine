@@ -3,12 +3,12 @@
 use crate::doc::MapDoc;
 use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
-use crate::home::ProjectDialog;
+use crate::home::{ImportJob, ProjectDialog};
 use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
 use crate::maps::{self, MapRef};
 use crate::model_view::{ModelDoc, OrbitCamera};
 use crate::theme;
-use crate::tq_plugin::{Client, META_SOURCE_MAP, ModelEntry};
+use crate::tq_plugin::{Client, ModelEntry};
 use c3_project::{Project, RecentProjects};
 use c3_render::ground::GroundCache;
 use c3_scene::CellPos;
@@ -39,10 +39,12 @@ pub struct Studio {
     pub(crate) project: Option<Project>,
     pub(crate) recent: RecentProjects,
     pub(crate) dialog: Option<ProjectDialog>,
+    /// A client being copied into a new project.
+    pub(crate) import_job: Option<ImportJob>,
     /// The project's TQ client source, if it has one.
     pub(crate) client: Option<Client>,
     pub(crate) workspace: Workspace,
-    /// Project maps, then client maps not imported yet.
+    /// The content's map files, then engine-format scenes.
     pub(crate) maps: Vec<MapRef>,
     pub(crate) models: Vec<ModelEntry>,
     pub(crate) model: Option<ModelDoc>,
@@ -80,6 +82,7 @@ impl Studio {
             project: None,
             recent: RecentProjects::load_default(),
             dialog: None,
+            import_job: None,
             client: None,
             workspace: Workspace::Maps,
             maps: Vec::new(),
@@ -160,7 +163,7 @@ impl Studio {
         self.refresh_maps();
     }
 
-    /// Re-lists the project's maps and the client maps not imported yet.
+    /// Re-lists the maps.
     pub(crate) fn refresh_maps(&mut self) {
         self.maps = match &self.project {
             Some(project) => maps::list_maps(project, self.client.as_ref()),
@@ -252,27 +255,30 @@ impl Studio {
         }
     }
 
-    /// Saves the open map into the project (a client map becomes a project map).
+    /// Saves the open map to its own file: a DMap in place, or an engine-format scene.
     pub(crate) fn save(&mut self) -> bool {
         let (Some(project), Some(doc)) = (&self.project, &mut self.doc) else {
             return false;
         };
         doc.end_group();
         let name = doc.name().to_owned();
-        let file = project.map_file(&name);
-        match c3_scene::native::save_scene(doc.scene(), &file) {
+        let saved = match &doc.map {
+            MapRef::Client(path) => match &self.client {
+                // Content used in place belongs to the original client: keep its original.
+                Some(client) => client
+                    .save_map(doc.scene(), path, !project.content_in_project())
+                    .map(|_| ()),
+                None => Err("the project's content isn't loaded".to_owned()),
+            },
+            MapRef::Project(_) => {
+                c3_scene::native::save_scene(doc.scene(), &project.map_file(&name))
+                    .map_err(|e| e.to_string())
+            }
+        };
+        match saved {
             Ok(()) => {
                 doc.mark_saved();
-                let imported = !doc.map.is_project();
-                doc.map = MapRef::Project(name.clone());
-                if imported {
-                    self.refresh_maps();
-                    self.notify(format!(
-                        "Saved {name} into the project (maps/{name}.scene.ron)"
-                    ));
-                } else {
-                    self.notify(format!("Saved {name}"));
-                }
+                self.notify(format!("Saved {name}"));
                 true
             }
             Err(e) => {
@@ -282,28 +288,20 @@ impl Studio {
         }
     }
 
-    /// The client map the open map can be exported to, if any.
-    pub(crate) fn export_target(&self) -> Option<&str> {
-        self.client.as_ref()?;
-        let doc = self.doc.as_ref()?;
-        match &doc.map {
-            MapRef::Client(path) => Some(path),
-            MapRef::Project(_) => doc.scene().meta.get(META_SOURCE_MAP).map(String::as_str),
-        }
-    }
-
-    /// Writes the open map back to the Conquer client folder as a DMap.
-    pub(crate) fn export_to_client(&mut self) {
-        let Some(target) = self.export_target().map(str::to_owned) else {
-            return;
-        };
-        let (Some(client), Some(doc)) = (&self.client, &self.doc) else {
-            return;
-        };
-        match client.save_map(doc.scene(), &target) {
-            Ok(file) => self.notify(format!("Exported to the client: {}", file.display())),
-            Err(e) => self.error = Some(format!("Can't export to the client: {e}")),
-        }
+    /// Where saving the open map writes, for hints.
+    pub(crate) fn save_target(&self) -> Option<String> {
+        let (project, doc) = (self.project.as_ref()?, self.doc.as_ref()?);
+        Some(match &doc.map {
+            MapRef::Client(path) if project.content_in_project() => format!("assets/{path}"),
+            MapRef::Client(path) => {
+                let (_, dir) = project.tq_client()?;
+                format!(
+                    "{} (the original is kept as .bak)",
+                    dir.join(path).display()
+                )
+            }
+            MapRef::Project(name) => format!("maps/{name}.scene.ron"),
+        })
     }
 
     /// Resolves the unsaved-changes prompt.
@@ -556,6 +554,7 @@ impl eframe::App for Studio {
             .exact_size(26.0)
             .show(ui, |ui| self.status_bar(ui));
         self.project_dialog(&ctx);
+        self.import_progress(&ctx);
         if self.project.is_none() {
             egui::CentralPanel::default().show(ui, |ui| self.home(ui));
             self.unsaved_prompt(&ctx);

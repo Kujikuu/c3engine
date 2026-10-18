@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 3 (rest): native models, effects and sprite sets in the project
+- [ ] M3 step 4: asset browser over the project's `assets/` folder
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -78,14 +78,13 @@ Toward the Unity/UE5-style editor, in order:
       `SceneQuery` (summary, cell, portals, walkability text map); JSON in and out + JSON schemas.
       Studio map editing runs on it; History panel (click to step back/forward), labelled
       undo/redo; `--exec commands.json` runs a command file on the open map
-- [~] (3) Native asset formats the project stores (unencrypted, readable), TQ importers/exporters
-      as converters:
-  - [x] Maps: `c3_scene::native` (`.scene.ron` text + `.scene.bin` grids); all 144 client maps
-        round-trip losslessly and still export byte-identical DMaps. Studio lists project maps and
-        not-yet-imported client maps; Save writes into the project (client untouched); explicit
-        "Export" writes the DMap back (`.bak` kept); the importer records `tq.source_map`.
-        `c3-client --project <folder>` plays project maps; `import_map` example converts a map
-  - [ ] Models, effects, sprite sets, images (still read from the project's client source)
+- [x] (3) Content in the project, the Unity way: the original files are the assets, used as they
+      are by the format importers (no conversion). "Import Conquer 5065" copies the client's
+      content (ani, c3, data, ini, map, sound, *.wdf; 7,617 files, 1.3 GB in ~9 s) into `assets/`
+      with a progress window and Cancel, or uses the client folder in place. Maps are edited and
+      saved straight to their DMap (`.bak` only for content used in place). The engine's own
+      scene format (`c3_scene::native`, `.scene.ron` + `.scene.bin`, all 144 maps lossless) is for
+      maps made in the engine. `c3-client --project <folder>` plays a project
 - [ ] (4) Asset browser: folders, search, thumbnails, live preview of models, effects, sprites, maps
 - [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
       as the client does
