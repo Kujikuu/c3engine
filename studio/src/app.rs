@@ -271,11 +271,16 @@ impl Studio {
                     .map_err(|e| e.to_string()),
                 None => return,
             },
-            MapRef::Client(path) => match &self.client {
-                Some(client) => client
-                    .import_map(path)
-                    .map(|imported| (imported.scene, imported.warnings)),
-                None => return,
+            MapRef::Client(path) => match (&self.client, &self.project) {
+                (Some(client), Some(project)) => client.import_map(path).and_then(|imported| {
+                    let mut scene = imported.scene;
+                    let file = project.population_file(map.name());
+                    let population =
+                        c3_scene::native::load_population(&file).map_err(|e| e.to_string())?;
+                    scene.set_population(population);
+                    Ok((scene, imported.warnings))
+                }),
+                _ => return,
             },
         };
         match loaded {
@@ -339,7 +344,12 @@ impl Studio {
                 // Content used in place belongs to the original client: keep its original.
                 Some(client) => client
                     .save_map(doc.scene(), path, !project.content_in_project())
-                    .map(|_| ()),
+                    .and_then(|_| {
+                        // DMaps hold no population: it lives next to the project's maps.
+                        let file = project.population_file(&name);
+                        c3_scene::native::save_population(&doc.scene().population(), &file)
+                            .map_err(|e| e.to_string())
+                    }),
                 None => Err("the project's content isn't loaded".to_owned()),
             },
             MapRef::Project(_) => {

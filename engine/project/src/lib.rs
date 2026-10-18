@@ -157,6 +157,13 @@ impl Project {
         self.maps_dir().join(format!("{name}{MAP_SUFFIX}"))
     }
 
+    /// Population file (NPCs, spawns) of content map `name`, for map formats that can't hold
+    /// one (`maps/<name>.population.ron`).
+    pub fn population_file(&self, name: &str) -> PathBuf {
+        self.maps_dir()
+            .join(format!("{name}{}", c3_scene::native::POPULATION_SUFFIX))
+    }
+
     /// Names of the project's maps, sorted case-insensitively.
     pub fn map_names(&self) -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(self.maps_dir())

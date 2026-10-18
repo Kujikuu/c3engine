@@ -20,10 +20,10 @@ mod scene;
 pub use error::EditError;
 pub use history::HistoryEntry;
 pub use query::{
-    CellInfo, MAX_WALKABILITY_CELLS, PortalInfo, QueryResult, SceneQuery, SceneSummary,
-    WalkabilityMap,
+    CellInfo, MAX_OBJECTS, MAX_WALKABILITY_CELLS, ObjectInfo, PortalInfo, QueryResult, SceneQuery,
+    SceneSummary, WalkabilityMap, entity_kind_name,
 };
-pub use scene::{Area, MAX_AREA_CELLS, SceneCommand, SceneDoc};
+pub use scene::{Area, MAX_AREA_CELLS, SceneCommand, SceneDoc, entity_label};
 
 use serde::Serialize;
 

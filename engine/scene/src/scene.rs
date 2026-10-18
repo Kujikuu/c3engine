@@ -1,6 +1,7 @@
-//! Scene contents: ground tiles, portals, entities, parallax layers.
+//! Scene contents: ground tiles, portals, entities, parallax layers, population.
 
-use crate::{CellPos, Grid, IsoProjection, WorldPos};
+use crate::{CellPos, Grid, IsoProjection, Npc, Population, Spawn, WorldPos};
+use schemars::JsonSchema;
 use std::collections::BTreeMap;
 
 /// Maps tile ids to image asset paths.
@@ -71,20 +72,20 @@ pub struct Portal {
     pub id: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub enum Placement {
     Cell(CellPos),
     World(WorldPos),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct EffectTransform {
     /// Rotation angles in degrees (pitch, pitch_alt, yaw); kept verbatim from sources.
     pub angles: [f32; 3],
     pub scale: [f32; 3],
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub enum EntityKind {
     /// Animated sprite that occludes the cells it stands on (trees, buildings).
     Sprite {
@@ -111,7 +112,7 @@ pub enum EntityKind {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Entity {
     pub placement: Placement,
     pub kind: EntityKind,
@@ -150,6 +151,8 @@ pub struct Scene {
     pub portals: Vec<Portal>,
     pub entities: Vec<Entity>,
     pub layers: Vec<ParallaxLayer>,
+    pub npcs: Vec<Npc>,
+    pub spawns: Vec<Spawn>,
     /// Format-specific values an exporter needs back (e.g. file version). Not edited by tools.
     pub meta: BTreeMap<String, String>,
 }
@@ -165,6 +168,19 @@ impl Scene {
 
     pub fn portal_at(&self, cell: CellPos) -> Option<usize> {
         self.portals.iter().position(|p| p.cell == cell)
+    }
+
+    /// The map's NPCs and spawn areas.
+    pub fn population(&self) -> Population {
+        Population {
+            npcs: self.npcs.clone(),
+            spawns: self.spawns.clone(),
+        }
+    }
+
+    pub fn set_population(&mut self, population: Population) {
+        self.npcs = population.npcs;
+        self.spawns = population.spawns;
     }
 
     /// World position of an entity.

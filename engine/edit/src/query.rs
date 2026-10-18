@@ -1,13 +1,15 @@
 //! Read-only questions about a scene, answered as serializable results.
 
-use crate::{EditError, SceneDoc};
-use c3_scene::{CellPos, EntityKind};
+use crate::{EditError, SceneDoc, entity_label};
+use c3_scene::{CellPos, EntityKind, Npc, Placement, Spawn};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Largest region [`SceneQuery::Walkability`] returns at once.
 pub const MAX_WALKABILITY_CELLS: usize = 128 * 128;
+/// Most objects [`SceneQuery::Objects`] returns at once.
+pub const MAX_OBJECTS: usize = 500;
 
 /// A question about a scene. Serialized as `{"query": "summary"}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -22,6 +24,13 @@ pub enum SceneQuery {
     /// Walkability of the cells from `min` to `max` (inclusive) as text rows,
     /// `.` walkable, `#` blocked, `P` portal; at most 16384 cells.
     Walkability { min: CellPos, max: CellPos },
+    /// Placed objects (sprites, prefabs, sounds, effects) standing within `radius` cells of
+    /// `center`, nearest first, with the index commands use; at most 500.
+    Objects { center: CellPos, radius: i32 },
+    /// Every NPC.
+    Npcs,
+    /// Every monster spawn area.
+    Spawns,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -32,6 +41,8 @@ pub struct SceneSummary {
     pub portals: usize,
     /// Placed objects by kind (sprite, prefab, sound, effect).
     pub entities: BTreeMap<String, usize>,
+    pub npcs: usize,
+    pub spawns: usize,
     pub parallax_layers: usize,
     pub has_ground: bool,
 }
@@ -51,6 +62,17 @@ pub struct PortalInfo {
     pub cell: CellPos,
 }
 
+/// A placed object, as [`SceneQuery::Objects`] lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ObjectInfo {
+    /// Its index in the entity list (what entity commands take).
+    pub index: usize,
+    /// `sprite`, `prefab`, `sound` or `effect`.
+    pub kind: &'static str,
+    pub label: String,
+    pub cell: CellPos,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WalkabilityMap {
     pub min: CellPos,
@@ -66,6 +88,19 @@ pub enum QueryResult {
     Cell(CellInfo),
     Portals(Vec<PortalInfo>),
     Walkability(WalkabilityMap),
+    Objects(Vec<ObjectInfo>),
+    Npcs(Vec<Npc>),
+    Spawns(Vec<Spawn>),
+}
+
+/// The kind of an entity, as queries name it.
+pub fn entity_kind_name(kind: &EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Sprite { .. } => "sprite",
+        EntityKind::Prefab { .. } => "prefab",
+        EntityKind::Sound { .. } => "sound",
+        EntityKind::Effect { .. } => "effect",
+    }
 }
 
 impl SceneDoc {
@@ -76,13 +111,9 @@ impl SceneDoc {
             SceneQuery::Summary => {
                 let mut entities = BTreeMap::new();
                 for e in &scene.entities {
-                    let kind = match e.kind {
-                        EntityKind::Sprite { .. } => "sprite",
-                        EntityKind::Prefab { .. } => "prefab",
-                        EntityKind::Sound { .. } => "sound",
-                        EntityKind::Effect { .. } => "effect",
-                    };
-                    *entities.entry(kind.to_owned()).or_insert(0) += 1;
+                    *entities
+                        .entry(entity_kind_name(&e.kind).to_owned())
+                        .or_insert(0) += 1;
                 }
                 QueryResult::Summary(SceneSummary {
                     width: scene.grid.width,
@@ -90,6 +121,8 @@ impl SceneDoc {
                     walkable_percent: (scene.grid.walkable_ratio() * 1000.0).round() / 10.0,
                     portals: scene.portals.len(),
                     entities,
+                    npcs: scene.npcs.len(),
+                    spawns: scene.spawns.len(),
                     parallax_layers: scene.layers.len(),
                     has_ground: scene.ground.is_some(),
                 })
@@ -140,6 +173,34 @@ impl SceneDoc {
                     rows,
                 })
             }
+            SceneQuery::Objects { center, radius } => {
+                let mut found: Vec<(i32, ObjectInfo)> = scene
+                    .entities
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, e)| {
+                        let cell = match e.placement {
+                            Placement::Cell(c) => c,
+                            Placement::World((x, y)) => scene.world_to_cell((x as f32, y as f32)),
+                        };
+                        let distance = (cell.0 - center.0).abs().max((cell.1 - center.1).abs());
+                        (distance <= *radius).then(|| {
+                            let info = ObjectInfo {
+                                index,
+                                kind: entity_kind_name(&e.kind),
+                                label: entity_label(e),
+                                cell,
+                            };
+                            (distance, info)
+                        })
+                    })
+                    .collect();
+                found.sort_by_key(|(distance, info)| (*distance, info.index));
+                found.truncate(MAX_OBJECTS);
+                QueryResult::Objects(found.into_iter().map(|(_, info)| info).collect())
+            }
+            SceneQuery::Npcs => QueryResult::Npcs(scene.npcs.clone()),
+            SceneQuery::Spawns => QueryResult::Spawns(scene.spawns.clone()),
         })
     }
 }
@@ -159,6 +220,8 @@ mod tests {
             portals: Vec::new(),
             entities: Vec::new(),
             layers: Vec::new(),
+            npcs: Vec::new(),
+            spawns: Vec::new(),
             meta: Default::default(),
         });
         d.execute(&SceneCommand::SetBlocked {
@@ -192,5 +255,34 @@ mod tests {
         assert!(json.contains(r#""portal":7"#), "{json}");
         let q: SceneQuery = serde_json::from_str(r#"{"query":"portals"}"#).unwrap();
         assert_eq!(q, SceneQuery::Portals);
+    }
+
+    #[test]
+    fn lists_objects_near_a_cell_nearest_first() {
+        let mut d = crate::scene::tests::doc();
+        for (cell, name) in [((6, 6), "far"), ((2, 3), "near"), ((2, 2), "here")] {
+            d.execute(&SceneCommand::AddEntity {
+                entity: c3_scene::Entity {
+                    placement: Placement::Cell(cell),
+                    kind: EntityKind::Effect {
+                        name: name.into(),
+                        transform: None,
+                    },
+                },
+                index: None,
+            })
+            .unwrap();
+        }
+        let QueryResult::Objects(found) = d
+            .query(&SceneQuery::Objects {
+                center: (2, 2),
+                radius: 1,
+            })
+            .unwrap()
+        else {
+            panic!()
+        };
+        let labels: Vec<_> = found.iter().map(|o| (o.index, o.label.as_str())).collect();
+        assert_eq!(labels, [(2, "effect here"), (1, "effect near")]);
     }
 }

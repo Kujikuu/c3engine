@@ -605,6 +605,7 @@ name = "c3-scene"
 version = "0.1.0"
 dependencies = [
  "ron",
+ "schemars",
  "serde",
 ]
 

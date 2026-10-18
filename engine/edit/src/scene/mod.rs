@@ -1,68 +1,24 @@
 //! Scene (map) editing: commands, the document that applies them, and its undo history.
+//! Each kind of edit lives in its own module: `cells` (walkability), `portals`, `objects`
+//! (placed entities) and `population` (NPCs, monster spawns).
+
+mod cells;
+mod objects;
+mod population;
+mod portals;
+
+pub use cells::{Area, MAX_AREA_CELLS};
+pub use objects::entity_label;
 
 use crate::history::{History, HistoryEntry};
 use crate::{EditError, Outcome};
-use c3_scene::{Cell, CellPos, Portal, Scene};
+use c3_scene::{CellPos, Entity, Npc, Portal, Scene, Spawn};
+use cells::CellChange;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Most cells one command may change.
-pub const MAX_AREA_CELLS: usize = 1 << 20;
-
-/// A set of cells. Cells are `[x, y]` grid coordinates.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "shape", rename_all = "snake_case")]
-pub enum Area {
-    /// These cells.
-    Cells { cells: Vec<CellPos> },
-    /// A square of `2·radius + 1` cells per side around `center` (a diamond on screen).
-    Square { center: CellPos, radius: i32 },
-    /// Every cell from `min` to `max`, inclusive.
-    Rect { min: CellPos, max: CellPos },
-}
-
-impl Area {
-    /// The cells covered, clipped to `scene`'s grid.
-    fn cells(&self, scene: &Scene) -> Result<Vec<CellPos>, EditError> {
-        let in_grid = |c: &CellPos| scene.grid.index(*c).is_some();
-        let (min, max) = match self {
-            Self::Cells { cells } => {
-                if cells.len() > MAX_AREA_CELLS {
-                    return Err(EditError::AreaTooLarge(cells.len()));
-                }
-                return Ok(cells.iter().copied().filter(in_grid).collect());
-            }
-            Self::Square { center, radius } => {
-                if *radius < 0 {
-                    return Err(EditError::InvalidArea("negative radius".into()));
-                }
-                let r = *radius;
-                ((center.0 - r, center.1 - r), (center.0 + r, center.1 + r))
-            }
-            Self::Rect { min, max } => (*min, *max),
-        };
-        if max.0 < min.0 || max.1 < min.1 {
-            return Err(EditError::InvalidArea("max is before min".into()));
-        }
-        // Clip first, so huge areas over small maps stay cheap.
-        let (w, h) = (scene.grid.width as i32, scene.grid.height as i32);
-        let (x0, y0) = (min.0.max(0), min.1.max(0));
-        let (x1, y1) = (max.0.min(w - 1), max.1.min(h - 1));
-        if x1 < x0 || y1 < y0 {
-            return Ok(Vec::new());
-        }
-        let count = (x1 - x0 + 1) as usize * (y1 - y0 + 1) as usize;
-        if count > MAX_AREA_CELLS {
-            return Err(EditError::AreaTooLarge(count));
-        }
-        Ok((y0..=y1)
-            .flat_map(|y| (x0..=x1).map(move |x| (x, y)))
-            .collect())
-    }
-}
-
 /// A change to a scene. Serialized as `{"op": "set_blocked", ...}`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum SceneCommand {
     /// Marks every cell of `area` blocked (impassable) or walkable.
@@ -77,6 +33,33 @@ pub enum SceneCommand {
     MovePortal { id: i32, to: CellPos },
     /// Deletes portal `id`.
     RemovePortal { id: i32 },
+    /// Places an object (sprite, terrain prefab, sound or effect) at `index` in the entity
+    /// list, or at the end.
+    AddEntity {
+        entity: Entity,
+        #[serde(default)]
+        index: Option<usize>,
+    },
+    /// Moves entity `index` so it stands on cell `to`.
+    MoveEntity { index: usize, to: CellPos },
+    /// Replaces entity `index` with `entity`.
+    SetEntity { index: usize, entity: Entity },
+    /// Deletes entity `index`; later entities move up one place.
+    RemoveEntity { index: usize },
+    /// Adds an NPC; id 0 picks the lowest free id.
+    AddNpc { npc: Npc },
+    /// Moves NPC `id` to cell `to`.
+    MoveNpc { id: u32, to: CellPos },
+    /// Replaces the NPC with `npc.id` by `npc`.
+    SetNpc { npc: Npc },
+    /// Deletes NPC `id`.
+    RemoveNpc { id: u32 },
+    /// Adds a monster spawn area; id 0 picks the lowest free id.
+    AddSpawn { spawn: Spawn },
+    /// Replaces the spawn area with `spawn.id` by `spawn` (moving or resizing it).
+    SetSpawn { spawn: Spawn },
+    /// Deletes spawn area `id`.
+    RemoveSpawn { id: u32 },
 }
 
 /// A recorded change, with what it replaced.
@@ -86,13 +69,24 @@ enum Change {
         before: Vec<Portal>,
         after: Vec<Portal>,
     },
+    /// Entity `index` added (`before` none), removed (`after` none) or replaced.
+    Entity {
+        index: usize,
+        before: Option<Entity>,
+        after: Option<Entity>,
+    },
+    Npcs {
+        before: Vec<Npc>,
+        after: Vec<Npc>,
+    },
+    Spawns {
+        before: Vec<Spawn>,
+        after: Vec<Spawn>,
+    },
 }
 
-struct CellChange {
-    index: usize,
-    before: Cell,
-    after: Cell,
-}
+/// What applying a command did: its summary and the change to record (none = no-op).
+type Edit = Result<(String, Option<Change>), EditError>;
 
 /// An open scene: every change goes through [`SceneDoc::execute`] and can be undone.
 pub struct SceneDoc {
@@ -119,6 +113,17 @@ impl SceneDoc {
             SceneCommand::AddPortal { cell, id } => self.add_portal(*cell, *id)?,
             SceneCommand::MovePortal { id, to } => self.move_portal(*id, *to)?,
             SceneCommand::RemovePortal { id } => self.remove_portal(*id)?,
+            SceneCommand::AddEntity { entity, index } => self.add_entity(entity, *index)?,
+            SceneCommand::MoveEntity { index, to } => self.move_entity(*index, *to)?,
+            SceneCommand::SetEntity { index, entity } => self.set_entity(*index, entity)?,
+            SceneCommand::RemoveEntity { index } => self.remove_entity(*index)?,
+            SceneCommand::AddNpc { npc } => self.add_npc(npc)?,
+            SceneCommand::MoveNpc { id, to } => self.move_npc(*id, *to)?,
+            SceneCommand::SetNpc { npc } => self.set_npc(npc)?,
+            SceneCommand::RemoveNpc { id } => self.remove_npc(*id)?,
+            SceneCommand::AddSpawn { spawn } => self.add_spawn(spawn)?,
+            SceneCommand::SetSpawn { spawn } => self.set_spawn(spawn)?,
+            SceneCommand::RemoveSpawn { id } => self.remove_spawn(*id)?,
         };
         let changed = change.is_some();
         if let Some(change) = change {
@@ -127,120 +132,44 @@ impl SceneDoc {
         Ok(Outcome { summary, changed })
     }
 
-    fn set_blocked(
-        &mut self,
-        area: &Area,
-        blocked: bool,
-    ) -> Result<(String, Option<Change>), EditError> {
-        let flags = u16::from(blocked);
-        let mut changes = Vec::new();
-        for cell in area.cells(&self.scene)? {
-            let Some(index) = self.scene.grid.index(cell) else {
-                continue;
-            };
-            let before = self.scene.grid.cells[index];
-            if before.flags == flags {
-                continue;
-            }
-            let after = Cell { flags, ..before };
-            self.scene.grid.cells[index] = after;
-            changes.push(CellChange {
-                index,
-                before,
-                after,
-            });
-        }
-        let what = if blocked { "blocked" } else { "walkable" };
-        let summary = match changes.len() {
-            0 => format!("No cells changed (already {what})"),
-            1 => format!("Marked 1 cell {what}"),
-            n => format!("Marked {n} cells {what}"),
-        };
-        Ok((
-            summary,
-            (!changes.is_empty()).then_some(Change::Cells(changes)),
-        ))
-    }
-
-    fn check_free(&self, cell: CellPos) -> Result<(), EditError> {
-        if self.scene.grid.index(cell).is_none() {
-            return Err(EditError::OutOfBounds(cell));
-        }
-        if self.scene.portal_at(cell).is_some() {
-            return Err(EditError::PortalExists(cell));
-        }
-        Ok(())
-    }
-
-    fn portal_index(&self, id: i32) -> Result<usize, EditError> {
-        self.scene
-            .portals
-            .iter()
-            .position(|p| p.id == id)
-            .ok_or(EditError::NoPortal(id))
-    }
-
-    fn add_portal(
-        &mut self,
-        cell: CellPos,
-        id: Option<i32>,
-    ) -> Result<(String, Option<Change>), EditError> {
-        self.check_free(cell)?;
-        let taken = |i: i32| self.scene.portals.iter().any(|p| p.id == i);
-        let id = match id {
-            Some(i) if taken(i) => return Err(EditError::PortalIdTaken(i)),
-            Some(i) => i,
-            None => (0..).find(|i| !taken(*i)).unwrap_or(0),
-        };
-        let change = self.edit_portals(|ps| ps.push(Portal { cell, id }));
-        Ok((
-            format!("Added portal {id} at {}, {}", cell.0, cell.1),
-            Some(change),
-        ))
-    }
-
-    fn move_portal(&mut self, id: i32, to: CellPos) -> Result<(String, Option<Change>), EditError> {
-        let i = self.portal_index(id)?;
-        if self.scene.portals[i].cell == to {
-            return Ok((
-                format!("Portal {id} is already at {}, {}", to.0, to.1),
-                None,
-            ));
-        }
-        self.check_free(to)?;
-        let change = self.edit_portals(|ps| ps[i].cell = to);
-        Ok((
-            format!("Moved portal {id} to {}, {}", to.0, to.1),
-            Some(change),
-        ))
-    }
-
-    fn remove_portal(&mut self, id: i32) -> Result<(String, Option<Change>), EditError> {
-        let i = self.portal_index(id)?;
-        let change = self.edit_portals(|ps| {
-            ps.remove(i);
-        });
-        Ok((format!("Deleted portal {id}"), Some(change)))
-    }
-
-    fn edit_portals(&mut self, edit: impl FnOnce(&mut Vec<Portal>)) -> Change {
-        let before = self.scene.portals.clone();
-        edit(&mut self.scene.portals);
-        Change::Portals {
-            before,
-            after: self.scene.portals.clone(),
+    /// `cell` is on the map.
+    fn check_cell(&self, cell: CellPos) -> Result<(), EditError> {
+        match self.scene.grid.index(cell) {
+            Some(_) => Ok(()),
+            None => Err(EditError::OutOfBounds(cell)),
         }
     }
 
     fn apply(&mut self, change: &Change, forward: bool) {
+        fn pick<T>(forward: bool, before: T, after: T) -> T {
+            if forward { after } else { before }
+        }
         match change {
             Change::Cells(cells) => {
                 for c in cells {
-                    self.scene.grid.cells[c.index] = if forward { c.after } else { c.before };
+                    self.scene.grid.cells[c.index] = pick(forward, c.before, c.after);
                 }
             }
             Change::Portals { before, after } => {
-                self.scene.portals = if forward { after } else { before }.clone();
+                self.scene.portals = pick(forward, before, after).clone();
+            }
+            Change::Entity {
+                index,
+                before,
+                after,
+            } => {
+                let (from, to) = if forward {
+                    (before, after)
+                } else {
+                    (after, before)
+                };
+                self.apply_entity(*index, from, to);
+            }
+            Change::Npcs { before, after } => {
+                self.scene.npcs = pick(forward, before, after).clone()
+            }
+            Change::Spawns { before, after } => {
+                self.scene.spawns = pick(forward, before, after).clone()
             }
         }
     }
@@ -323,11 +252,11 @@ impl SceneDoc {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use c3_scene::{Grid, IsoProjection};
 
-    fn doc() -> SceneDoc {
+    pub(crate) fn doc() -> SceneDoc {
         SceneDoc::new(Scene {
             grid: Grid::new(8, 8),
             projection: IsoProjection::for_grid(64.0, 32.0, 8),
@@ -335,6 +264,8 @@ mod tests {
             portals: Vec::new(),
             entities: Vec::new(),
             layers: Vec::new(),
+            npcs: Vec::new(),
+            spawns: Vec::new(),
             meta: Default::default(),
         })
     }

@@ -106,6 +106,9 @@ pub fn scene_from_dmap(dmap: &DMap, ground: TileLayer) -> Scene {
             .collect(),
         entities: dmap.interactive.iter().map(entity_from_tq).collect(),
         layers: dmap.scene_layers.iter().map(layer_from_tq).collect(),
+        // DMaps hold no population: the game's data places NPCs and spawns.
+        npcs: Vec::new(),
+        spawns: Vec::new(),
         grid,
         meta,
     }

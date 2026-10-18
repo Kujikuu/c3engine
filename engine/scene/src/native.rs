@@ -1,7 +1,7 @@
 //! The engine's own scene format, stored in projects. Unencrypted and readable:
 //!
 //! - `<name>.scene.ron`: everything but the big grids, as RON text (projection, ground
-//!   tileset, portals, entities, layers, meta);
+//!   tileset, portals, entities, layers, NPCs, spawns, meta);
 //! - `<name>.scene.bin`: the cell grid and ground tile ids, little-endian:
 //!
 //! ```text
@@ -11,7 +11,8 @@
 //! ```
 
 use crate::{
-    Cell, Entity, Grid, IsoProjection, ParallaxLayer, Portal, Scene, TileLayer, Tileset, WorldPos,
+    Cell, Entity, Grid, IsoProjection, Npc, ParallaxLayer, Population, Portal, Scene, Spawn,
+    TileLayer, Tileset, WorldPos,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -20,6 +21,8 @@ use std::path::{Path, PathBuf};
 
 /// File name ending of a scene.
 pub const SCENE_SUFFIX: &str = ".scene.ron";
+/// File name ending of a map's population file (for map formats that can't hold it).
+pub const POPULATION_SUFFIX: &str = ".population.ron";
 const FORMAT_VERSION: u32 = 1;
 const DATA_MAGIC: &[u8; 8] = b"C3SCENE\0";
 const NO_TILE: u16 = u16::MAX;
@@ -34,7 +37,20 @@ struct SceneFile {
     portals: Vec<Portal>,
     entities: Vec<Entity>,
     layers: Vec<ParallaxLayer>,
+    #[serde(default)]
+    npcs: Vec<Npc>,
+    #[serde(default)]
+    spawns: Vec<Spawn>,
     meta: BTreeMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PopulationFile {
+    format: u32,
+    #[serde(default)]
+    npcs: Vec<Npc>,
+    #[serde(default)]
+    spawns: Vec<Spawn>,
 }
 
 /// A ground layer without its tile ids (they are in the `.scene.bin`).
@@ -78,6 +94,8 @@ pub fn save_scene(scene: &Scene, file: &Path) -> Result<()> {
         portals: scene.portals.clone(),
         entities: scene.entities.clone(),
         layers: scene.layers.clone(),
+        npcs: scene.npcs.clone(),
+        spawns: scene.spawns.clone(),
         meta: scene.meta.clone(),
     };
     let ron = ron::ser::to_string_pretty(&text, ron::ser::PrettyConfig::default())
@@ -178,7 +196,53 @@ pub fn load_scene(file: &Path) -> Result<Scene> {
         portals: text.portals,
         entities: text.entities,
         layers: text.layers,
+        npcs: text.npcs,
+        spawns: text.spawns,
         meta: text.meta,
+    })
+}
+
+/// Writes `population` to `file` (`<map>.population.ron`); an empty one removes the file.
+pub fn save_population(population: &Population, file: &Path) -> Result<()> {
+    if population.is_empty() {
+        return match std::fs::remove_file(file) {
+            Err(e) if e.kind() != ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        };
+    }
+    let text = PopulationFile {
+        format: FORMAT_VERSION,
+        npcs: population.npcs.clone(),
+        spawns: population.spawns.clone(),
+    };
+    let ron = ron::ser::to_string_pretty(&text, ron::ser::PrettyConfig::default())
+        .map_err(|e| invalid(file, e))?;
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    write_atomic(file, ron.as_bytes())
+}
+
+/// Reads the population file at `file`; a missing file is an empty population.
+pub fn load_population(file: &Path) -> Result<Population> {
+    let text = match std::fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Population::default()),
+        Err(e) => return Err(e),
+    };
+    let parsed: PopulationFile = ron::from_str(&text).map_err(|e| invalid(file, e))?;
+    if parsed.format > FORMAT_VERSION {
+        return Err(invalid(
+            file,
+            format!(
+                "format {} is newer than this engine supports",
+                parsed.format
+            ),
+        ));
+    }
+    Ok(Population {
+        npcs: parsed.npcs,
+        spawns: parsed.spawns,
     })
 }
 
@@ -261,6 +325,25 @@ mod tests {
                     asset: "map/puzzle/sky.pul".into(),
                 }],
             }],
+            npcs: vec![Npc {
+                id: 7,
+                name: "Guard".into(),
+                cell: (1, 0),
+                direction: 2,
+                look: 900,
+                kind: 1,
+                extra: [("task0".to_owned(), "100".to_owned())].into(),
+            }],
+            spawns: vec![Spawn {
+                id: 3,
+                monster: 12,
+                min: (0, 0),
+                max: (2, 1),
+                max_alive: 5,
+                respawn_secs: 10,
+                per_wave: 2,
+                extra: BTreeMap::new(),
+            }],
             meta: [("version".to_owned(), "1".to_owned())].into(),
         };
         let dir = std::env::temp_dir().join(format!("c3-scene-native-{}", std::process::id()));
@@ -273,6 +356,19 @@ mod tests {
             "{text}"
         );
         assert_eq!(load_scene(&file).unwrap(), scene);
+
+        let population_file = dir.join(format!("test{POPULATION_SUFFIX}"));
+        assert_eq!(
+            load_population(&population_file).unwrap(),
+            Population::default()
+        );
+        save_population(&scene.population(), &population_file).unwrap();
+        assert_eq!(
+            load_population(&population_file).unwrap(),
+            scene.population()
+        );
+        save_population(&Population::default(), &population_file).unwrap();
+        assert!(!population_file.exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

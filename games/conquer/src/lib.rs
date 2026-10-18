@@ -4,6 +4,7 @@
 //! [`Content`] opens a 5065 client folder and hands out engine types (scenes, models, images).
 
 pub mod character;
+pub mod server_data;
 
 use c3_anim::Clip;
 use c3_assets::Image;
