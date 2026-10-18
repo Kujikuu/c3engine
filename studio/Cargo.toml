@@ -4,3 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+c3-formats-tq = { version = "0.1.0", path = "../formats/c3" }
+eframe = "0.37.0"

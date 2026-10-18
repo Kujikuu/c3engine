@@ -52,9 +52,20 @@ pub enum InteractiveObj {
         frame_interval: u32,
     },
     /// Reference to a `.Scene` terrain object file placed at a cell.
-    Terrain { file: FixedStr<MAX_PATH>, cell: (i32, i32) },
-    Sound { file: FixedStr<MAX_PATH>, world: (i32, i32), range: i32, volume: i32 },
-    Effect { index: FixedStr<64>, world: (i32, i32) },
+    Terrain {
+        file: FixedStr<MAX_PATH>,
+        cell: (i32, i32),
+    },
+    Sound {
+        file: FixedStr<MAX_PATH>,
+        world: (i32, i32),
+        range: i32,
+        volume: i32,
+    },
+    Effect {
+        index: FixedStr<64>,
+        world: (i32, i32),
+    },
     EffectNew {
         index: FixedStr<64>,
         world: (i32, i32),
@@ -74,7 +85,9 @@ pub enum SceneObj {
         frame_interval: u32,
         show_way: u32,
     },
-    Puzzle { file: FixedStr<MAX_PATH> },
+    Puzzle {
+        file: FixedStr<MAX_PATH>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -151,14 +164,20 @@ impl DMap {
         let height = r.u32()?;
         let total = (width as u64) * (height as u64);
         if total * 6 > r.remaining() as u64 {
-            return Err(Error::Invalid(format!("map size {width}x{height} exceeds file")));
+            return Err(Error::Invalid(format!(
+                "map size {width}x{height} exceeds file"
+            )));
         }
 
         let mut cells = Vec::with_capacity(total as usize);
         for y in 0..height {
             let start = cells.len();
             for _ in 0..width {
-                cells.push(Cell { mask: r.u16()?, terrain: r.u16()?, altitude: r.i16()? });
+                cells.push(Cell {
+                    mask: r.u16()?,
+                    terrain: r.u16()?,
+                    altitude: r.i16()?,
+                });
             }
             let check = r.u32()?;
             if check != row_check(&cells[start..], y) {
@@ -169,7 +188,11 @@ impl DMap {
         let n = r.i32()?;
         let mut passages = Vec::new();
         for _ in 0..n.max(0) {
-            passages.push(Passage { x: r.i32()?, y: r.i32()?, index: r.i32()? });
+            passages.push(Passage {
+                x: r.i32()?,
+                y: r.i32()?,
+                index: r.i32()?,
+            });
         }
 
         let n = r.i32()?;
@@ -185,14 +208,20 @@ impl DMap {
                     offset: pair_i(&mut r)?,
                     frame_interval: r.u32()?,
                 },
-                OBJ_TERRAIN => InteractiveObj::Terrain { file: r.fixed()?, cell: pair_i(&mut r)? },
+                OBJ_TERRAIN => InteractiveObj::Terrain {
+                    file: r.fixed()?,
+                    cell: pair_i(&mut r)?,
+                },
                 OBJ_SOUND => InteractiveObj::Sound {
                     file: r.fixed()?,
                     world: pair_i(&mut r)?,
                     range: r.i32()?,
                     volume: r.i32()?,
                 },
-                OBJ_3DEFFECT => InteractiveObj::Effect { index: r.fixed()?, world: pair_i(&mut r)? },
+                OBJ_3DEFFECT => InteractiveObj::Effect {
+                    index: r.fixed()?,
+                    world: pair_i(&mut r)?,
+                },
                 OBJ_3DEFFECT_NEW => InteractiveObj::EffectNew {
                     index: r.fixed()?,
                     world: pair_i(&mut r)?,
@@ -200,7 +229,12 @@ impl DMap {
                     scale: [r.f32()?, r.f32()?, r.f32()?],
                 },
                 // The client silently skips unknown types, which desyncs the stream.
-                _ => return Err(Error::Invalid(format!("unknown interactive obj type {ty} at {}", r.pos()))),
+                _ => {
+                    return Err(Error::Invalid(format!(
+                        "unknown interactive obj type {ty} at {}",
+                        r.pos()
+                    )));
+                }
             };
             interactive.push(obj);
         }
@@ -213,7 +247,9 @@ impl DMap {
                 let index = r.i32()?;
                 let layer_type = r.i32()?;
                 if layer_type != LAYER_SCENE {
-                    return Err(Error::Invalid(format!("unsupported layer type {layer_type}")));
+                    return Err(Error::Invalid(format!(
+                        "unsupported layer type {layer_type}"
+                    )));
                 }
                 let move_rate = pair_i(&mut r)?;
                 let count = r.i32()?;
@@ -233,7 +269,12 @@ impl DMap {
                         _ => return Err(Error::Invalid(format!("unknown scene obj type {ty}"))),
                     });
                 }
-                scene_layers.push(SceneLayer { index, layer_type, move_rate, objects });
+                scene_layers.push(SceneLayer {
+                    index,
+                    layer_type,
+                    move_rate,
+                    objects,
+                });
             }
         }
 
@@ -241,7 +282,17 @@ impl DMap {
             return Err(Error::Invalid(format!("{} trailing bytes", r.remaining())));
         }
 
-        Ok(Self { version, data: dw_data, puzzle_file, width, height, cells, passages, interactive, scene_layers })
+        Ok(Self {
+            version,
+            data: dw_data,
+            puzzle_file,
+            width,
+            height,
+            cells,
+            passages,
+            interactive,
+            scene_layers,
+        })
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -270,7 +321,14 @@ impl DMap {
         w.i32(self.interactive.len() as i32);
         for o in &self.interactive {
             match o {
-                InteractiveObj::Cover { ani_file, ani_title, cell, base, offset, frame_interval } => {
+                InteractiveObj::Cover {
+                    ani_file,
+                    ani_title,
+                    cell,
+                    base,
+                    offset,
+                    frame_interval,
+                } => {
                     w.i32(OBJ_COVER);
                     w.fixed(ani_file);
                     w.fixed(ani_title);
@@ -288,7 +346,12 @@ impl DMap {
                     w.i32(cell.0);
                     w.i32(cell.1);
                 }
-                InteractiveObj::Sound { file, world, range, volume } => {
+                InteractiveObj::Sound {
+                    file,
+                    world,
+                    range,
+                    volume,
+                } => {
                     w.i32(OBJ_SOUND);
                     w.fixed(file);
                     w.i32(world.0);
@@ -302,7 +365,12 @@ impl DMap {
                     w.i32(world.0);
                     w.i32(world.1);
                 }
-                InteractiveObj::EffectNew { index, world, angles, scale } => {
+                InteractiveObj::EffectNew {
+                    index,
+                    world,
+                    angles,
+                    scale,
+                } => {
                     w.i32(OBJ_3DEFFECT_NEW);
                     w.fixed(index);
                     w.i32(world.0);
@@ -321,7 +389,14 @@ impl DMap {
             w.i32(l.objects.len() as i32);
             for o in &l.objects {
                 match o {
-                    SceneObj::Scene { ani_file, ani_title, cell, offset, frame_interval, show_way } => {
+                    SceneObj::Scene {
+                        ani_file,
+                        ani_title,
+                        cell,
+                        offset,
+                        frame_interval,
+                        show_way,
+                    } => {
                         w.i32(OBJ_SCENE);
                         w.fixed(ani_file);
                         w.fixed(ani_title);

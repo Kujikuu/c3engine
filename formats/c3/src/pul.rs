@@ -46,7 +46,11 @@ impl Puzzle {
     }
 
     pub fn tile(&self, x: u32, y: u32) -> u16 {
-        if x < self.width && y < self.height { self.tiles[(y * self.width + x) as usize] } else { EMPTY }
+        if x < self.width && y < self.height {
+            self.tiles[(y * self.width + x) as usize]
+        } else {
+            EMPTY
+        }
     }
 
     pub fn set_tile(&mut self, x: u32, y: u32, index: u16) {
@@ -73,14 +77,23 @@ impl Puzzle {
         let height = r.u32()?;
         let n = width as usize * height as usize;
         if n * 2 > r.remaining() {
-            return Err(Error::Invalid(format!("puzzle size {width}x{height} exceeds file")));
+            return Err(Error::Invalid(format!(
+                "puzzle size {width}x{height} exceeds file"
+            )));
         }
         let tiles = (0..n).map(|_| r.u16()).collect::<Result<_>>()?;
         let roll_speed = if v2 { Some((r.i32()?, r.i32()?)) } else { None };
         if r.remaining() != 0 {
             return Err(Error::Invalid(format!("{} trailing bytes", r.remaining())));
         }
-        Ok(Self { header, ani_file, width, height, tiles, roll_speed })
+        Ok(Self {
+            header,
+            ani_file,
+            width,
+            height,
+            tiles,
+            roll_speed,
+        })
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {

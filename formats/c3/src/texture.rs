@@ -13,7 +13,11 @@ pub struct Image {
 
 impl Image {
     pub fn decode(data: &[u8]) -> Result<Self> {
-        if data.starts_with(b"DDS ") { decode_dds(data) } else { decode_tga(data) }
+        if data.starts_with(b"DDS ") {
+            decode_dds(data)
+        } else {
+            decode_tga(data)
+        }
     }
 }
 
@@ -21,7 +25,11 @@ fn rgb565(c: u16) -> [u8; 3] {
     let r = (c >> 11) & 31;
     let g = (c >> 5) & 63;
     let b = c & 31;
-    [((r << 3) | (r >> 2)) as u8, ((g << 2) | (g >> 4)) as u8, ((b << 3) | (b >> 2)) as u8]
+    [
+        ((r << 3) | (r >> 2)) as u8,
+        ((g << 2) | (g >> 4)) as u8,
+        ((b << 3) | (b >> 2)) as u8,
+    ]
 }
 
 /// Decodes one 8-byte BC1 color block into 16 RGBA pixels.
@@ -90,7 +98,10 @@ fn decode_blocks(data: &[u8], w: u32, h: u32, block_bytes: usize, kind: u8) -> R
                         pal[6] = 0;
                         pal[7] = 255;
                     }
-                    let bits = blk[2..8].iter().rev().fold(0u64, |acc, &b| (acc << 8) | b as u64);
+                    let bits = blk[2..8]
+                        .iter()
+                        .rev()
+                        .fold(0u64, |acc, &b| (acc << 8) | b as u64);
                     for (i, p) in px.iter_mut().enumerate() {
                         p[3] = pal[((bits >> (3 * i)) & 7) as usize] as u8;
                     }
@@ -148,7 +159,12 @@ fn decode_dds(data: &[u8]) -> Result<Image> {
             b"DXT1" => decode_blocks(body, width, height, 8, 1)?,
             b"DXT2" | b"DXT3" => decode_blocks(body, width, height, 16, 2)?,
             b"DXT4" | b"DXT5" => decode_blocks(body, width, height, 16, 3)?,
-            f => return Err(Error::Invalid(format!("unsupported DDS fourcc {:?}", String::from_utf8_lossy(f)))),
+            f => {
+                return Err(Error::Invalid(format!(
+                    "unsupported DDS fourcc {:?}",
+                    String::from_utf8_lossy(f)
+                )));
+            }
         }
     } else if bits == 32 || bits == 24 || bits == 16 {
         let bpp = (bits / 8) as usize;
@@ -166,13 +182,23 @@ fn decode_dds(data: &[u8]) -> Result<Image> {
             out.push(expand(v, masks[0], 0));
             out.push(expand(v, masks[1], 0));
             out.push(expand(v, masks[2], 0));
-            out.push(if has_alpha { expand(v, masks[3], 255) } else { 255 });
+            out.push(if has_alpha {
+                expand(v, masks[3], 255)
+            } else {
+                255
+            });
         }
         out
     } else {
-        return Err(Error::Invalid(format!("unsupported DDS pixel format ({bits} bpp)")));
+        return Err(Error::Invalid(format!(
+            "unsupported DDS pixel format ({bits} bpp)"
+        )));
     };
-    Ok(Image { width, height, rgba })
+    Ok(Image {
+        width,
+        height,
+        rgba,
+    })
 }
 
 fn decode_tga(data: &[u8]) -> Result<Image> {
@@ -187,7 +213,9 @@ fn decode_tga(data: &[u8]) -> Result<Image> {
     let bits = r.array::<1>()?[0];
     let desc = r.array::<1>()?[0];
     if cmap_type != 0 || !(img_type == 2 || img_type == 10) || !(bits == 24 || bits == 32) {
-        return Err(Error::Invalid(format!("unsupported TGA type={img_type} bits={bits}")));
+        return Err(Error::Invalid(format!(
+            "unsupported TGA type={img_type} bits={bits}"
+        )));
     }
     r.bytes(id_len)?;
     let _ = cmap;
@@ -227,5 +255,9 @@ fn decode_tga(data: &[u8]) -> Result<Image> {
         }
         px = flipped;
     }
-    Ok(Image { width, height, rgba: px })
+    Ok(Image {
+        width,
+        height,
+        rgba: px,
+    })
 }

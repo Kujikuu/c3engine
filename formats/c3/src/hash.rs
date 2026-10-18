@@ -5,7 +5,11 @@
 pub fn legacy_string_id(text: &str) -> u32 {
     let mut raw = [0u8; 280];
     let src = text.as_bytes();
-    let n = src.iter().take(256).position(|&c| c == 0).unwrap_or(src.len().min(256));
+    let n = src
+        .iter()
+        .take(256)
+        .position(|&c| c == 0)
+        .unwrap_or(src.len().min(256));
     raw[..n].copy_from_slice(&src[..n]);
     let mut words = [0u32; 70];
     for (i, w) in words.iter_mut().enumerate() {
@@ -52,7 +56,13 @@ pub fn legacy_string_id(text: &str) -> u32 {
 /// Normalize a client path the way the client does: lowercase ASCII, `\` → `/`.
 pub fn normalize_path(path: &str) -> String {
     path.chars()
-        .map(|c| if c == '\\' { '/' } else { c.to_ascii_lowercase() })
+        .map(|c| {
+            if c == '\\' {
+                '/'
+            } else {
+                c.to_ascii_lowercase()
+            }
+        })
         .collect()
 }
 

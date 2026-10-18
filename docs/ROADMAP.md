@@ -29,6 +29,9 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [ ] Map + character viewer app
 
 ## M3: Studio v1
+- [x] Studio shell (eframe/egui): toolbar, map list, inspector, status bar, theme, shortcuts
+- [x] Map viewer: streamed ground tiles at client-exact placement, cell grid, blocked cells,
+      portals (jump-to), objects, hover inspector, fit/zoom/pan
 - [ ] Project system (open/save game project)
 - [ ] Asset browser (packages, textures, models)
 - [ ] Map editor (cells, objects, portals, export DMap + Redux tinymap/SQL)

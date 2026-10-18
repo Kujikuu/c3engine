@@ -1,1 +1,3 @@
-fn main() { println!("C3 Client"); }
+fn main() {
+    println!("C3 Client");
+}

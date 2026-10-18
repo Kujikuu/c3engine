@@ -1,7 +1,13 @@
 //! Renders a map's puzzle ground to PNG: DMap → PUL → ANI → DDS (via WDF).
 //! Usage: mapshot <client_dir> <map/map/xxx.DMap> <out.png> [scale_div=4]
 
-use c3_formats_tq::{ani::Ani, dmap::DMap, pul::{Puzzle, EMPTY, GRID_SIZE}, texture::Image, vfs::ClientFs};
+use c3_formats_tq::{
+    ani::Ani,
+    dmap::DMap,
+    pul::{EMPTY, GRID_SIZE, Puzzle},
+    texture::Image,
+    vfs::ClientFs,
+};
 use std::collections::HashMap;
 
 fn main() {
@@ -20,7 +26,13 @@ fn main() {
     let ani = Ani::parse(&fs.read(&ani_path).expect("ani not found")).expect("parse ani");
     println!(
         "map {}x{} cells, puzzle {} ({}x{} grids), ani {} ({} sections)",
-        dmap.width, dmap.height, pul_path, pul.width, pul.height, ani_path, ani.sections.len()
+        dmap.width,
+        dmap.height,
+        pul_path,
+        pul.width,
+        pul.height,
+        ani_path,
+        ani.sections.len()
     );
 
     let tile = GRID_SIZE / div;
@@ -35,7 +47,10 @@ fn main() {
                 continue;
             }
             let img = cache.entry(idx).or_insert_with(|| {
-                let Some(frame) = ani.get(&Puzzle::tile_title(idx)).and_then(|s| s.frame_str(0)) else {
+                let Some(frame) = ani
+                    .get(&Puzzle::tile_title(idx))
+                    .and_then(|s| s.frame_str(0))
+                else {
                     eprintln!("tile {idx}: no ani section/frame");
                     return None;
                 };
@@ -43,9 +58,14 @@ fn main() {
                     eprintln!("tile {idx}: file not found {frame}");
                     return None;
                 };
-                Image::decode(&bytes).map_err(|e| eprintln!("tile {idx}: {frame}: {e}")).ok()
+                Image::decode(&bytes)
+                    .map_err(|e| eprintln!("tile {idx}: {frame}: {e}"))
+                    .ok()
             });
-            let Some(img) = img else { missing += 1; continue };
+            let Some(img) = img else {
+                missing += 1;
+                continue;
+            };
             // Box-downsample the tile into the canvas.
             for ty in 0..tile {
                 for tx in 0..tile {
@@ -56,8 +76,8 @@ fn main() {
                             let (x, y) = (tx * div + sx, ty * div + sy);
                             if x < img.width && y < img.height {
                                 let o = ((y * img.width + x) * 4) as usize;
-                                for c in 0..4 {
-                                    acc[c] += img.rgba[o + c] as u32;
+                                for (a, &v) in acc.iter_mut().zip(&img.rgba[o..o + 4]) {
+                                    *a += v as u32;
                                 }
                                 n += 1;
                             }
@@ -81,6 +101,9 @@ fn main() {
     let mut enc = png::Encoder::new(std::io::BufWriter::new(file), w, h);
     enc.set_color(png::ColorType::Rgba);
     enc.set_depth(png::BitDepth::Eight);
-    enc.write_header().unwrap().write_image_data(&canvas).unwrap();
+    enc.write_header()
+        .unwrap()
+        .write_image_data(&canvas)
+        .unwrap();
     println!("wrote {out} ({w}x{h})");
 }

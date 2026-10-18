@@ -47,13 +47,22 @@ impl Wdf {
         r.bytes(header_offset as usize)?;
         let mut entries = Vec::with_capacity(count);
         for _ in 0..count {
-            let e = WdfEntry { uid: r.u32()?, offset: r.u32()?, size: r.u32()?, space: r.u32()? };
+            let e = WdfEntry {
+                uid: r.u32()?,
+                offset: r.u32()?,
+                size: r.u32()?,
+                space: r.u32()?,
+            };
             if e.offset as u64 + e.size as u64 > data.len() as u64 {
                 return Err(Error::Invalid(format!("entry {:#x} out of bounds", e.uid)));
             }
             entries.push(e);
         }
-        Ok(Self { data, header_offset, entries })
+        Ok(Self {
+            data,
+            header_offset,
+            entries,
+        })
     }
 
     pub fn find_uid(&self, uid: u32) -> Option<&WdfEntry> {
@@ -99,7 +108,12 @@ impl WdfBuilder {
         w.bytes(&[0; 12]);
         let mut index = Vec::with_capacity(self.files.len());
         for (uid, bytes) in &self.files {
-            index.push(WdfEntry { uid: *uid, offset: w.buf.len() as u32, size: bytes.len() as u32, space: 0 });
+            index.push(WdfEntry {
+                uid: *uid,
+                offset: w.buf.len() as u32,
+                size: bytes.len() as u32,
+                space: 0,
+            });
             w.bytes(bytes);
         }
         let index_offset = w.buf.len() as u32;
@@ -128,6 +142,8 @@ pub fn write_preserving(wdf: &Wdf) -> Vec<u8> {
         w.u32(e.space);
     }
     out.extend_from_slice(&w.buf);
-    out.extend_from_slice(&wdf.data[(wdf.header_offset as usize + w.buf.len()).min(wdf.data.len())..]);
+    out.extend_from_slice(
+        &wdf.data[(wdf.header_offset as usize + w.buf.len()).min(wdf.data.len())..],
+    );
     out
 }

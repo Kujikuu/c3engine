@@ -24,7 +24,9 @@ impl AniSection {
     }
 
     pub fn frame_str(&self, i: usize) -> Option<String> {
-        self.frames.get(i).map(|f| String::from_utf8_lossy(f).into_owned())
+        self.frames
+            .get(i)
+            .map(|f| String::from_utf8_lossy(f).into_owned())
     }
 }
 
@@ -37,8 +39,14 @@ pub struct Ani {
 pub const MAX_FRAME: usize = 1024;
 
 fn trim(s: &[u8]) -> &[u8] {
-    let start = s.iter().position(|c| !c.is_ascii_whitespace()).unwrap_or(s.len());
-    let end = s.iter().rposition(|c| !c.is_ascii_whitespace()).map_or(start, |e| e + 1);
+    let start = s
+        .iter()
+        .position(|c| !c.is_ascii_whitespace())
+        .unwrap_or(s.len());
+    let end = s
+        .iter()
+        .rposition(|c| !c.is_ascii_whitespace())
+        .map_or(start, |e| e + 1);
     &s[start..end]
 }
 
@@ -66,24 +74,32 @@ impl Ani {
             }
             if line[0] == b'[' {
                 let end = line.iter().position(|&c| c == b']').unwrap_or(line.len());
-                sections.push(AniSection { title: line[1..end].to_vec(), frames: Vec::new() });
+                sections.push(AniSection {
+                    title: line[1..end].to_vec(),
+                    frames: Vec::new(),
+                });
                 expected = 0;
                 continue;
             }
-            let Some(eq) = line.iter().position(|&c| c == b'=') else { continue };
+            let Some(eq) = line.iter().position(|&c| c == b'=') else {
+                continue;
+            };
             let (key, val) = (trim(&line[..eq]), trim(&line[eq + 1..]));
             let Some(sec) = sections.last_mut() else {
-                return Err(Error::Invalid(format!("line {}: key before any section", n + 1)));
+                return Err(Error::Invalid(format!(
+                    "line {}: key before any section",
+                    n + 1
+                )));
             };
             if key.eq_ignore_ascii_case(b"FrameAmount") {
                 expected = parse_usize(val).unwrap_or(0) % MAX_FRAME;
                 sec.frames = vec![Vec::new(); expected];
-            } else if key.len() > 5 && key[..5].eq_ignore_ascii_case(b"Frame") {
-                if let Some(i) = parse_usize(&key[5..]) {
-                    if i < expected {
-                        sec.frames[i] = val.to_vec();
-                    }
-                }
+            } else if key.len() > 5
+                && key[..5].eq_ignore_ascii_case(b"Frame")
+                && let Some(i) = parse_usize(&key[5..])
+                && i < expected
+            {
+                sec.frames[i] = val.to_vec();
             }
         }
         // Drop trailing empty frame slots from short sections.

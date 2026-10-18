@@ -18,8 +18,15 @@ impl ClientFs {
         let mut archives = Vec::new();
         for entry in std::fs::read_dir(&root)?.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("wdf")) {
-                let name = path.file_name().unwrap().to_string_lossy().to_ascii_lowercase();
+            if path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("wdf"))
+            {
+                let name = path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_ascii_lowercase();
                 archives.push((legacy_string_id(&name), Wdf::open(&path)?));
             }
         }
@@ -33,7 +40,9 @@ impl ClientFs {
             return Some(Cow::Owned(bytes));
         }
         let id = legacy_string_id(&norm);
-        let pkg = norm.split_once('/').map(|(p, _)| legacy_string_id(&format!("{p}.wdf")));
+        let pkg = norm
+            .split_once('/')
+            .map(|(p, _)| legacy_string_id(&format!("{p}.wdf")));
         let preferred = self.archives.iter().filter(|(a, _)| Some(*a) == pkg);
         for (_, a) in preferred.chain(self.archives.iter()) {
             if let Some(e) = a.find_uid(id) {

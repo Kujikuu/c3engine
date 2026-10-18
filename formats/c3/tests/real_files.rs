@@ -22,8 +22,14 @@ fn wdf_archives_parse_and_round_trip() {
         let raw = std::fs::read(&path).unwrap();
         let archive = wdf::Wdf::parse(raw.clone()).unwrap();
         assert!(!archive.entries.is_empty(), "{name} empty");
-        assert!(archive.entries.windows(2).all(|w| w[0].uid <= w[1].uid), "{name} index not sorted");
-        assert!(wdf::write_preserving(&archive) == raw, "{name} not byte-identical");
+        assert!(
+            archive.entries.windows(2).all(|w| w[0].uid <= w[1].uid),
+            "{name} index not sorted"
+        );
+        assert!(
+            wdf::write_preserving(&archive) == raw,
+            "{name} not byte-identical"
+        );
         eprintln!("{name}: {} entries", archive.entries.len());
     }
 }
@@ -62,11 +68,16 @@ fn string_id_resolves_known_client_paths() {
                     }
                 }
             }
-            if tried >= 2000 { break; }
+            if tried >= 2000 {
+                break;
+            }
         }
     }
     eprintln!("path ids: {hits}/{tried} resolved");
-    assert!(hits > 0, "no ani path resolved; hash or normalization wrong");
+    assert!(
+        hits > 0,
+        "no ani path resolved; hash or normalization wrong"
+    );
     let _ = hash::path_id("x");
 }
 
@@ -75,9 +86,15 @@ fn dmaps_round_trip_byte_identical() {
     let Some(dir) = client_dir() else { return };
     let mut ok = 0;
     let mut failed = Vec::new();
-    for entry in std::fs::read_dir(dir.join("map").join("map")).unwrap().flatten() {
+    for entry in std::fs::read_dir(dir.join("map").join("map"))
+        .unwrap()
+        .flatten()
+    {
         let path = entry.path();
-        if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("dmap")) {
+        if !path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("dmap"))
+        {
             continue;
         }
         let raw = std::fs::read(&path).unwrap();
@@ -88,25 +105,42 @@ fn dmaps_round_trip_byte_identical() {
         }
     }
     eprintln!("dmaps ok: {ok}");
-    assert!(failed.is_empty(), "{} failed:\n{}", failed.len(), failed.join("\n"));
+    assert!(
+        failed.is_empty(),
+        "{} failed:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
     assert!(ok > 0);
 }
 
 #[test]
 fn puls_round_trip_and_resolve_ani() {
-    use c3_formats_tq::{ani::Ani, pul::{Puzzle, EMPTY}};
+    use c3_formats_tq::{
+        ani::Ani,
+        pul::{EMPTY, Puzzle},
+    };
     let Some(dir) = client_dir() else { return };
     let mut ok = 0;
     let mut failed = Vec::new();
-    for entry in std::fs::read_dir(dir.join("map").join("puzzle")).unwrap().flatten() {
+    for entry in std::fs::read_dir(dir.join("map").join("puzzle"))
+        .unwrap()
+        .flatten()
+    {
         let path = entry.path();
-        if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("pul")) {
+        if !path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("pul"))
+        {
             continue;
         }
         let raw = std::fs::read(&path).unwrap();
         let p = match Puzzle::parse(&raw) {
             Ok(p) => p,
-            Err(e) => { failed.push(format!("{}: {e}", path.display())); continue; }
+            Err(e) => {
+                failed.push(format!("{}: {e}", path.display()));
+                continue;
+            }
         };
         if p.to_bytes() != raw {
             failed.push(format!("{}: bytes differ", path.display()));
@@ -115,16 +149,29 @@ fn puls_round_trip_and_resolve_ani() {
         // Every used tile must exist in the referenced ANI.
         let ani_path = dir.join(p.ani_file.as_str().replace('\\', "/"));
         if let Ok(ani) = Ani::open(&ani_path) {
-            let missing = p.tiles.iter().filter(|&&t| t != EMPTY)
-                .filter(|&&t| ani.get(&Puzzle::tile_title(t)).is_none()).count();
+            let missing = p
+                .tiles
+                .iter()
+                .filter(|&&t| t != EMPTY)
+                .filter(|&&t| ani.get(&Puzzle::tile_title(t)).is_none())
+                .count();
             if missing > 0 {
-                eprintln!("{}: {missing} tiles missing in {}", path.display(), ani_path.display());
+                eprintln!(
+                    "{}: {missing} tiles missing in {}",
+                    path.display(),
+                    ani_path.display()
+                );
             }
         }
         ok += 1;
     }
     eprintln!("puls ok: {ok}");
-    assert!(failed.is_empty(), "{} failed:\n{}", failed.len(), failed.join("\n"));
+    assert!(
+        failed.is_empty(),
+        "{} failed:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
     assert!(ok > 0);
 }
 
@@ -136,7 +183,10 @@ fn anis_parse_and_reparse_identically() {
     let mut files = 0;
     for entry in std::fs::read_dir(dir.join("ani")).unwrap().flatten() {
         let path = entry.path();
-        if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ani")) {
+        if !path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("ani"))
+        {
             continue;
         }
         let ani = Ani::open(&path).unwrap();
@@ -169,14 +219,22 @@ fn every_packed_texture_decodes() {
         }
     }
     eprintln!("dds decoded: {ok}");
-    assert!(failed.is_empty(), "{} failed, first: {:?}", failed.len(), failed.first());
+    assert!(
+        failed.is_empty(),
+        "{} failed, first: {:?}",
+        failed.len(),
+        failed.first()
+    );
 }
 
 #[test]
 fn ani_frame_paths_exist_in_packages() {
     use c3_formats_tq::ani::Ani;
     let Some(dir) = client_dir() else { return };
-    let archives: Vec<_> = ["c3.wdf", "data.wdf"].iter().map(|n| wdf::Wdf::open(dir.join(n)).unwrap()).collect();
+    let archives: Vec<_> = ["c3.wdf", "data.wdf"]
+        .iter()
+        .map(|n| wdf::Wdf::open(dir.join(n)).unwrap())
+        .collect();
     let ani = Ani::open(dir.join("ani").join("Common.Ani")).unwrap();
     let (mut found, mut total) = (0, 0);
     for s in &ani.sections {
