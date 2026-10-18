@@ -67,6 +67,13 @@ pub struct Studio {
     pub(crate) animate: bool,
     /// The Scene view's animation clock (stops while `animate` is off).
     pub(crate) scene_ms: f64,
+    /// The content's effect names, for the create menu.
+    pub(crate) effect_names: Vec<String>,
+    pub(crate) effect_search: String,
+    /// The Inspector's effect chooser is open.
+    pub(crate) picking_effect: bool,
+    /// Selection the Hierarchy last scrolled to.
+    pub(crate) revealed: Option<crate::selection::Selection>,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -130,6 +137,8 @@ impl Studio {
                 blocked: false,
                 portals: true,
                 markers: false,
+                npcs: true,
+                spawns: true,
             },
             editor: Editor::default(),
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
@@ -137,6 +146,10 @@ impl Studio {
             layers: Layers::default(),
             animate: true,
             scene_ms: 0.0,
+            effect_names: Vec::new(),
+            effect_search: String::new(),
+            picking_effect: false,
+            revealed: None,
             hover: None,
             streaming: false,
             error: None,
@@ -175,6 +188,9 @@ impl Studio {
         if let Some(file) = flag("--select") {
             s.browse_to(&file, true);
         }
+        if let Some(file) = flag("--import-population") {
+            s.import_population_file(std::path::Path::new(&file));
+        }
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
         }
@@ -189,13 +205,21 @@ impl Studio {
             s.fit_pending = false;
             s.cam.zoom = z;
         }
-        let cell = flag("--cell").and_then(|c| {
-            let (x, y) = c.split_once(',')?;
-            Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
-        });
+        let cell = flag("--cell").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (cell, &s.doc) {
             s.fit_pending = false;
             s.cam.center = doc.cell_to_world(cell);
+        }
+        let pick = flag("--pick").and_then(|c| parse_cell(&c));
+        if let (Some(cell), Some(doc)) = (pick, &s.doc) {
+            let world = doc.scene().cell_to_world(cell);
+            let everything = crate::selection::Pickable {
+                portals: true,
+                objects: true,
+                npcs: true,
+                spawns: true,
+            };
+            s.editor.selected = crate::selection::pick(doc.scene(), cell, world, 24.0, everything);
         }
         s
     }
@@ -212,6 +236,7 @@ impl Studio {
             match Client::open(&dir.display().to_string()) {
                 Ok(client) => {
                     self.models = client.list_models();
+                    self.effect_names = client.effect_names();
                     self.client = Some(client);
                 }
                 Err(e) => self.error = Some(format!("Can't open the project's client folder: {e}")),
@@ -245,6 +270,36 @@ impl Studio {
             old.release(&mut gpu.renderer);
         }
         self.scene_view = view;
+    }
+
+    /// Deletes what the Scene view has selected.
+    pub(crate) fn delete_selection(&mut self) {
+        let (Some(doc), Some(selected)) = (&mut self.doc, self.editor.selected) else {
+            return;
+        };
+        let label = selected.label(doc.scene());
+        match doc.execute(&selected.remove()) {
+            Ok(outcome) => {
+                self.editor.selected = None;
+                self.notify(outcome.summary);
+            }
+            Err(e) => self.error = Some(format!("Can't delete {label}: {e}")),
+        }
+    }
+
+    /// Centres the Scene view on the selection, or fits the map when nothing is selected.
+    pub(crate) fn frame_selection(&mut self) {
+        let cell = self.doc.as_ref().and_then(|doc| {
+            let cell = self.editor.selected?.cell(doc.scene())?;
+            Some(doc.cell_to_world(cell))
+        });
+        match cell {
+            Some(p) => {
+                self.cam.center = p;
+                self.cam.zoom = self.cam.zoom.max(0.75);
+            }
+            None => self.fit_pending = true,
+        }
     }
 
     pub(crate) fn is_dirty(&self) -> bool {
@@ -468,6 +523,7 @@ impl Studio {
             self.model_shortcuts(ctx);
             return;
         }
+        let (mut delete, mut frame) = (false, false);
         ctx.input(|i| {
             if i.modifiers.command {
                 return;
@@ -478,6 +534,7 @@ impl Studio {
                 (Key::B, &mut o.blocked),
                 (Key::P, &mut o.portals),
                 (Key::M, &mut o.markers),
+                (Key::N, &mut o.npcs),
                 (Key::O, &mut l.objects),
                 (Key::E, &mut l.effects),
             ] {
@@ -487,13 +544,20 @@ impl Studio {
             }
             for (key, tool) in [
                 (Key::Num1, Tool::Inspect),
-                (Key::Num2, Tool::Block),
-                (Key::Num3, Tool::Clear),
-                (Key::Num4, Tool::Portal),
+                (Key::Num2, Tool::Select),
+                (Key::Num3, Tool::Block),
+                (Key::Num4, Tool::Clear),
+                (Key::Num5, Tool::Portal),
             ] {
                 if i.key_pressed(key) {
                     self.editor.tool = tool;
                 }
+            }
+            if i.key_pressed(Key::Escape) {
+                self.editor.selected = None;
+            }
+            if i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace) {
+                delete = true;
             }
             if i.key_pressed(Key::OpenBracket) {
                 self.editor.grow_brush(-1);
@@ -502,7 +566,7 @@ impl Studio {
                 self.editor.grow_brush(1);
             }
             if i.key_pressed(Key::F) {
-                self.fit_pending = true;
+                frame = true;
             }
             if i.key_pressed(Key::Plus) || i.key_pressed(Key::Equals) {
                 self.cam.zoom_by(1.25);
@@ -524,6 +588,12 @@ impl Studio {
                 self.cam.center.y += pan;
             }
         });
+        if delete {
+            self.delete_selection();
+        }
+        if frame {
+            self.frame_selection();
+        }
         // Step through the filtered map list with PageUp/PageDown.
         let step =
             ctx.input(|i| i.key_pressed(Key::PageDown) as i32 - i.key_pressed(Key::PageUp) as i32);
@@ -608,4 +678,10 @@ impl eframe::App for Studio {
             ctx.request_repaint_after(Duration::from_millis(500));
         }
     }
+}
+
+/// `x,y` → a cell.
+fn parse_cell(text: &str) -> Option<CellPos> {
+    let (x, y) = text.split_once(',')?;
+    Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
 }

@@ -5,92 +5,12 @@ use crate::app::{Pending, Studio, Workspace};
 use crate::editor::{MAX_BRUSH, Tool};
 use crate::icons;
 use crate::map_view::{self, ViewMode, colors};
+use crate::selection::Pickable;
 use crate::shell::Level;
 use crate::theme;
-use c3_scene::EntityKind;
 use eframe::egui::{self, Color32, Key, RichText};
 
-/// Where the camera should jump to, chosen in a list this frame.
-type Jump = Option<egui::Pos2>;
-
 impl Studio {
-    // ---- Hierarchy ----
-
-    pub(crate) fn hierarchy_panel(&mut self, ui: &mut egui::Ui) {
-        if self.workspace == Workspace::Models {
-            self.model_hierarchy(ui);
-            return;
-        }
-        let Some(doc) = &self.doc else {
-            theme::empty_state(
-                ui,
-                icons::TREE_STRUCTURE,
-                "No map open",
-                "Open a map from the Project panel.",
-            );
-            return;
-        };
-        let scene = doc.scene();
-        let mut jump: Jump = None;
-        egui::ScrollArea::vertical()
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                let name = if doc.is_dirty() {
-                    format!("{}*", doc.name())
-                } else {
-                    doc.name().to_owned()
-                };
-                ui.label(RichText::new(theme::icon_text(icons::MAP_TRIFOLD, &name)).strong());
-                ui.indent("hierarchy", |ui| {
-                    let portals: Vec<(String, egui::Pos2)> = scene
-                        .portals
-                        .iter()
-                        .map(|p| {
-                            let label = format!("Portal {}   {}, {}", p.id, p.cell.0, p.cell.1);
-                            (label, doc.cell_to_world(p.cell))
-                        })
-                        .collect();
-                    tree_group(ui, icons::DOOR_OPEN, "Portals", &portals, &mut jump);
-                    for (icon, group, keep) in [
-                        (icons::SPARKLE, "Effects", 0),
-                        (icons::TREE, "Objects", 1),
-                        (icons::SPEAKER_HIGH, "Sounds", 2),
-                    ] {
-                        let items: Vec<(String, egui::Pos2)> = scene
-                            .entities
-                            .iter()
-                            .filter_map(|e| {
-                                let (kind, name) = match &e.kind {
-                                    EntityKind::Effect { name, .. } => (0, name.as_str()),
-                                    EntityKind::Sprite { animation, .. } => (1, animation.as_str()),
-                                    EntityKind::Prefab { asset } => (1, file_stem(asset)),
-                                    EntityKind::Sound { asset, .. } => (2, file_stem(asset)),
-                                };
-                                let (x, y) = scene.entity_world(e);
-                                (kind == keep).then(|| (name.to_owned(), egui::pos2(x, y)))
-                            })
-                            .collect();
-                        tree_group(ui, icon, group, &items, &mut jump);
-                    }
-                    let layers: Vec<(String, egui::Pos2)> = scene
-                        .layers
-                        .iter()
-                        .map(|l| {
-                            let label = format!("Layer {} · scroll {}%", l.order, l.scroll_rate.0);
-                            (label, egui::Pos2::ZERO)
-                        })
-                        .collect();
-                    ui.add_enabled_ui(false, |ui| {
-                        tree_group(ui, icons::STACK, "Layers", &layers, &mut None)
-                    });
-                });
-            });
-        if let Some(p) = jump {
-            self.cam.center = p;
-            self.cam.zoom = self.cam.zoom.max(0.75);
-        }
-    }
-
     // ---- Scene ----
 
     pub(crate) fn scene_panel(&mut self, ui: &mut egui::Ui) {
@@ -174,7 +94,7 @@ impl Studio {
     /// What the Scene view draws: the scene's layers and the anchor markers.
     fn layers_menu(&mut self, ui: &mut egui::Ui) {
         let (l, o) = (&mut self.layers, &mut self.overlays);
-        let hidden = [l.sky, l.ground, l.objects, l.effects, !o.markers]
+        let hidden = [l.sky, l.ground, l.objects, l.effects, o.npcs, o.spawns]
             .iter()
             .filter(|on| !**on)
             .count();
@@ -199,6 +119,17 @@ impl Studio {
             }
             ui.separator();
             ui.label(RichText::new("Editor").color(theme::TEXT_DIM).small());
+            for (on, label, key) in [
+                (&mut o.npcs, "NPCs", "N"),
+                (&mut o.spawns, "Spawn areas", ""),
+            ] {
+                if ui
+                    .add(egui::Button::selectable(*on, label).shortcut_text(key))
+                    .clicked()
+                {
+                    *on ^= true;
+                }
+            }
             let markers = egui::Button::selectable(o.markers, "Anchor markers").shortcut_text("M");
             if ui
                 .add(markers)
@@ -255,6 +186,8 @@ impl Studio {
             }),
             dragging_portal: self.editor.dragging_portal(),
             time_ms: self.scene_ms as u64,
+            selected: self.editor.selected,
+            drag_target: self.editor.drag_target(doc, self.hover),
         };
         scene_view.layers = self.layers;
         let r = map_view::show(
@@ -275,7 +208,13 @@ impl Studio {
             ui.ctx().request_repaint();
         }
         let errors = scene_view.library.take_errors();
-        if let Some(msg) = self.editor.handle(doc, &r.pointer) {
+        let pickable = Pickable {
+            portals: self.overlays.portals,
+            objects: self.layers.objects || self.layers.effects || self.overlays.markers,
+            npcs: self.overlays.npcs,
+            spawns: self.overlays.spawns,
+        };
+        if let Some(msg) = self.editor.handle(doc, &r.pointer, pickable) {
             self.notify(msg);
         }
         for error in errors {
@@ -346,8 +285,14 @@ impl Studio {
         egui::ScrollArea::vertical()
             .auto_shrink(false)
             .show(ui, |ui| {
+                if self.selection_inspector(ui) {
+                    return;
+                }
                 match &self.doc {
-                    Some(_) => self.map_inspector(ui),
+                    Some(_) => {
+                        self.map_inspector(ui);
+                        self.population_section(ui);
+                    }
                     None => theme::empty_state(
                         ui,
                         icons::SLIDERS,
@@ -658,37 +603,4 @@ impl Studio {
             None => {}
         }
     }
-}
-
-/// A collapsible Hierarchy group whose rows jump the camera when clicked.
-fn tree_group(
-    ui: &mut egui::Ui,
-    icon: &str,
-    title: &str,
-    items: &[(String, egui::Pos2)],
-    jump: &mut Jump,
-) {
-    let header = theme::icon_text(icon, &format!("{title} ({})", items.len()));
-    egui::CollapsingHeader::new(header)
-        .id_salt(title)
-        .default_open(items.len() <= 12)
-        .show(ui, |ui| {
-            ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                for (label, pos) in items {
-                    if ui
-                        .add(egui::Button::new(label).frame(false))
-                        .on_hover_text("Click to show it in the Scene")
-                        .clicked()
-                    {
-                        *jump = Some(*pos);
-                    }
-                }
-            });
-        });
-}
-
-/// `ani/tree.ani` → `tree`.
-fn file_stem(path: &str) -> &str {
-    let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
-    file.rsplit_once('.').map_or(file, |(stem, _)| stem)
 }

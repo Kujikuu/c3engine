@@ -25,7 +25,8 @@ pub fn install(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-// Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses.
+// Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses; find
+// more with `python scripts/phosphor_icon.py studio/assets/fonts/Phosphor.ttf <icon-name>...`.
 pub const ARROW_CLOCKWISE: &str = "\u{E036}";
 pub const CARET_RIGHT: &str = "\u{E13A}";
 pub const CHECK_CIRCLE: &str = "\u{E184}";
@@ -43,6 +44,8 @@ pub const CIRCLE: &str = "\u{E18A}";
 pub const CLOCK_COUNTER_CLOCKWISE: &str = "\u{E1A0}";
 pub const CORNERS_OUT: &str = "\u{E1D0}";
 pub const CUBE: &str = "\u{E1DA}";
+pub const CURSOR: &str = "\u{E1DC}";
+pub const DATABASE: &str = "\u{E1DE}";
 pub const DOOR_OPEN: &str = "\u{E7E6}";
 pub const DOWNLOAD_SIMPLE: &str = "\u{E20C}";
 pub const ERASER: &str = "\u{E21E}";
@@ -74,6 +77,9 @@ pub const TERMINAL: &str = "\u{E47E}";
 pub const TRASH: &str = "\u{E4A6}";
 pub const TREE: &str = "\u{E6DA}";
 pub const TREE_STRUCTURE: &str = "\u{E67C}";
+pub const UPLOAD_SIMPLE: &str = "\u{E4C0}";
+pub const USER: &str = "\u{E4C2}";
+pub const USERS_THREE: &str = "\u{E68E}";
 pub const WARNING: &str = "\u{E4E0}";
 pub const X: &str = "\u{E4F6}";
 pub const X_CIRCLE: &str = "\u{E4F8}";

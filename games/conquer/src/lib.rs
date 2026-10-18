@@ -129,6 +129,18 @@ impl Content {
         self.catalog.get(id).map(|e| e.path_str())
     }
 
+    /// Ids of the maps whose DMap is `path` (case-insensitive, either slash).
+    pub fn map_ids_for_path(&self, path: &str) -> Vec<u32> {
+        let norm = |p: &str| p.replace('\\', "/").to_ascii_lowercase();
+        let wanted = norm(path);
+        self.catalog
+            .entries
+            .iter()
+            .filter(|e| norm(&e.path_str()) == wanted)
+            .map(|e| e.id)
+            .collect()
+    }
+
     /// Map ids in the catalog.
     pub fn map_ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.catalog.entries.iter().map(|e| e.id)

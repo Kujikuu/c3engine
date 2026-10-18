@@ -4,6 +4,8 @@
 
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
+use crate::icons;
+use crate::selection::Selection;
 use crate::tq_plugin::Client;
 use c3_render::View;
 use c3_render::scene_view::SceneView;
@@ -12,6 +14,8 @@ use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Strok
 
 pub const MIN_ZOOM: f32 = 0.03;
 pub const MAX_ZOOM: f32 = 4.0;
+/// How near (screen pixels) the pointer must be to an object's anchor to pick it.
+const PICK_RADIUS: f32 = 14.0;
 
 /// Overlay palette, shared by the viewport and the legend.
 pub mod colors {
@@ -25,6 +29,9 @@ pub mod colors {
     pub const HOVER: Color32 = Color32::from_rgb(255, 214, 90);
     pub const BRUSH_BLOCK: Color32 = Color32::from_rgb(255, 90, 90);
     pub const BRUSH_CLEAR: Color32 = Color32::from_rgb(90, 230, 130);
+    pub const NPC: Color32 = Color32::from_rgb(120, 220, 255);
+    pub const SPAWN: Color32 = Color32::from_rgb(255, 110, 80);
+    pub const SELECTED: Color32 = Color32::from_rgb(255, 255, 255);
 }
 
 pub struct Camera {
@@ -61,6 +68,9 @@ pub struct Overlays {
     pub portals: bool,
     /// Dots on object, sound and effect anchors.
     pub markers: bool,
+    pub npcs: bool,
+    /// Monster spawn areas.
+    pub spawns: bool,
 }
 
 /// How the active tool wants the viewport to behave this frame.
@@ -75,6 +85,9 @@ pub struct ViewMode {
     pub dragging_portal: Option<i32>,
     /// Animation clock for objects and effects.
     pub time_ms: u64,
+    pub selected: Option<Selection>,
+    /// Where the dragged selection would land (its anchor cell).
+    pub drag_target: Option<CellPos>,
 }
 
 /// Pointer state over the map this frame.
@@ -82,6 +95,10 @@ pub struct ViewMode {
 pub struct Pointer {
     /// Hovered cell, only if inside the map.
     pub cell: Option<CellPos>,
+    /// Hovered world point.
+    pub world: Option<(f32, f32)>,
+    /// Picking reach in world pixels (a fixed distance on screen).
+    pub pick_radius: f32,
     pub primary_pressed: bool,
     pub primary_down: bool,
     pub primary_released: bool,
@@ -166,9 +183,16 @@ pub fn show(
         },
     );
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
+    if ov.spawns {
+        draw_spawns(&painter, doc, rect, mode.selected, to_screen);
+    }
     if ov.markers {
         draw_objects(&painter, doc, rect, to_screen);
     }
+    if ov.npcs {
+        draw_npcs(&painter, doc, rect, cam.zoom, mode.selected, to_screen);
+    }
+    draw_selection(&painter, doc, mode, to_screen, diamond);
 
     // Pointer.
     let hover_pos = resp.hover_pos().or(if resp.is_pointer_button_down_on() {
@@ -188,6 +212,11 @@ pub fn show(
     });
     let pointer = Pointer {
         cell,
+        world: hover_pos.map(|s| {
+            let w = to_world(s);
+            (w.x, w.y)
+        }),
+        pick_radius: PICK_RADIUS / cam.zoom,
         primary_pressed: pressed && resp.hovered(),
         primary_down: down && resp.is_pointer_button_down_on(),
         primary_released: released,
@@ -349,6 +378,145 @@ fn draw_objects(
         if rect.contains(p) {
             painter.circle(p, 4.0, color, Stroke::new(1.0, Color32::BLACK));
         }
+    }
+}
+
+/// Monster spawn areas: the cell rectangle, a diamond-like shape on screen, with its label.
+fn draw_spawns(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    rect: Rect,
+    selected: Option<Selection>,
+    to_screen: impl Fn(Pos2) -> Pos2,
+) {
+    for s in &doc.scene().spawns {
+        let corners = cell_rect_corners(doc, s.min, s.max).map(&to_screen);
+        if !Rect::from_points(&corners).intersects(rect) {
+            continue;
+        }
+        let chosen = selected == Some(Selection::Spawn(s.id));
+        let stroke = match chosen {
+            true => Stroke::new(2.0, colors::SELECTED),
+            false => Stroke::new(1.5, colors::SPAWN),
+        };
+        painter.add(Shape::convex_polygon(
+            corners.to_vec(),
+            colors::SPAWN.gamma_multiply(if chosen { 0.22 } else { 0.10 }),
+            stroke,
+        ));
+        let label = format!("Monster {} × {}", s.monster, s.max_alive);
+        painter.text(
+            to_screen(doc.cell_to_world(s.center())),
+            egui::Align2::CENTER_CENTER,
+            label,
+            egui::FontId::proportional(12.0),
+            Color32::WHITE,
+        );
+    }
+}
+
+/// Screen corners of the cells from `min` to `max` (outer edges, top corner first).
+fn cell_rect_corners(doc: &MapDoc, min: CellPos, max: CellPos) -> [Pos2; 4] {
+    let origin = doc.cell_to_world((0, 0));
+    let ex = doc.cell_to_world((1, 0)) - origin;
+    let ey = doc.cell_to_world((0, 1)) - origin;
+    let at = |x: f32, y: f32| origin + ex * x + ey * y;
+    let (x0, y0) = (min.0 as f32 - 0.5, min.1 as f32 - 0.5);
+    let (x1, y1) = (max.0 as f32 + 0.5, max.1 as f32 + 0.5);
+    [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)]
+}
+
+/// NPCs as a marker with their name, until the scene draws their models.
+fn draw_npcs(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    rect: Rect,
+    zoom: f32,
+    selected: Option<Selection>,
+    to_screen: impl Fn(Pos2) -> Pos2,
+) {
+    let size = (14.0 * zoom.sqrt()).clamp(9.0, 18.0);
+    for n in &doc.scene().npcs {
+        let p = to_screen(doc.cell_to_world(n.cell));
+        if !rect.expand(60.0).contains(p) {
+            continue;
+        }
+        let chosen = selected == Some(Selection::Npc(n.id));
+        painter.circle(
+            p,
+            size * 0.75,
+            colors::NPC.gamma_multiply(0.85),
+            Stroke::new(if chosen { 2.5 } else { 1.0 }, Color32::WHITE),
+        );
+        painter.text(
+            p,
+            egui::Align2::CENTER_CENTER,
+            icons::USER,
+            egui::FontId::proportional(size),
+            Color32::from_gray(20),
+        );
+        if zoom >= 0.35 || chosen {
+            painter.text(
+                p + Vec2::new(0.0, -size),
+                egui::Align2::CENTER_BOTTOM,
+                &n.name,
+                egui::FontId::proportional(12.0),
+                Color32::WHITE,
+            );
+        }
+    }
+}
+
+/// Outline around the selected thing and, while dragging, a preview where it would land.
+fn draw_selection(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    mode: ViewMode,
+    to_screen: impl Fn(Pos2) -> Pos2,
+    diamond: impl Fn(Pos2, f32) -> Vec<Pos2>,
+) {
+    let Some(selected) = mode.selected else {
+        return;
+    };
+    let scene = doc.scene();
+    let Some(anchor) = selected.cell(scene) else {
+        return;
+    };
+    // Marks the selection moved by `shift` cells.
+    let mark = |shift: CellPos, alpha: f32| {
+        let stroke = Stroke::new(2.0, colors::SELECTED.gamma_multiply(alpha));
+        let cell = (anchor.0 + shift.0, anchor.1 + shift.1);
+        match selected {
+            Selection::Entity(i) => {
+                // Objects placed off-grid are marked where they really stand until moved.
+                let world = match scene.entities.get(i) {
+                    Some(e) if shift == (0, 0) => {
+                        let (x, y) = scene.entity_world(e);
+                        Pos2::new(x, y)
+                    }
+                    _ => doc.cell_to_world(cell),
+                };
+                let p = to_screen(world);
+                painter.circle_stroke(p, 9.0, stroke);
+                painter.circle_filled(p, 3.0, colors::SELECTED.gamma_multiply(alpha));
+            }
+            Selection::Spawn(id) => {
+                let Some(s) = scene.spawns.iter().find(|s| s.id == id) else {
+                    return;
+                };
+                let moved = |c: CellPos| (c.0 + shift.0, c.1 + shift.1);
+                let corners = cell_rect_corners(doc, moved(s.min), moved(s.max)).map(&to_screen);
+                painter.add(Shape::closed_line(corners.to_vec(), stroke));
+            }
+            Selection::Npc(_) | Selection::Portal(_) => {
+                let center = to_screen(doc.cell_to_world(cell));
+                painter.add(Shape::closed_line(diamond(center, 1.2), stroke));
+            }
+        }
+    };
+    mark((0, 0), 1.0);
+    if let Some(target) = mode.drag_target {
+        mark((target.0 - anchor.0, target.1 - anchor.1), 0.6);
     }
 }
 

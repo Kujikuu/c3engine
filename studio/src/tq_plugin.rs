@@ -4,13 +4,15 @@
 //!
 //! When more games are supported this becomes one implementation of a format-plugin trait.
 
+use crate::maps::MapRef;
 use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_assets::{Image, model::Model};
 use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs::ClientFs};
 use c3_render::SceneAssets;
-use c3_scene::{Scene, TileLayer};
+use c3_scene::{Population, Scene, TileLayer};
 use game_conquer::Content;
+use game_conquer::server_data::{self, ServerPopulation};
 use std::path::{Path, PathBuf};
 
 pub use scene_io::Imported;
@@ -145,6 +147,42 @@ impl Client {
             .unwrap_or_default();
         maps.sort_by_key(|m| m.to_ascii_lowercase());
         maps
+    }
+
+    /// Game map ids (`GameMap.dat`) whose map file is `path`; several maps can share one.
+    pub fn map_ids(&self, path: &str) -> Vec<u32> {
+        self.content.map_ids_for_path(path)
+    }
+
+    /// The NPCs and spawn areas of `map` in a server SQL dump (TQ's `cq_npc`/`cq_generator`).
+    pub fn server_population(&self, file: &Path, map: &MapRef) -> Result<Population, String> {
+        let bytes = std::fs::read(file).map_err(|e| e.to_string())?;
+        let server = ServerPopulation::from_sql(&String::from_utf8_lossy(&bytes));
+        let ids = match map {
+            MapRef::Client(path) => self.map_ids(path),
+            MapRef::Project(_) => Vec::new(),
+        };
+        if ids.is_empty() {
+            return Err("this map has no game map id in GameMap.dat".into());
+        }
+        Ok(server.for_maps(&ids))
+    }
+
+    /// SQL writing `population` into a TQ/Redux database (rows keep their own map id; new
+    /// ones get `map`'s first id).
+    pub fn population_sql(&self, population: &Population, map: &MapRef) -> String {
+        let default_map = match map {
+            MapRef::Client(path) => self.map_ids(path).first().copied().unwrap_or(0),
+            MapRef::Project(_) => 0,
+        };
+        server_data::population_sql(population, default_map)
+    }
+
+    /// Names of the effects in `3DEffect.ini`, sorted.
+    pub fn effect_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.content.effect_names().map(str::to_owned).collect();
+        names.sort_by_key(|n| n.to_lowercase());
+        names
     }
 
     /// Models from `3dobj.ini`, by id.
