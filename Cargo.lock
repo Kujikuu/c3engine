@@ -532,6 +532,7 @@ version = "0.1.0"
 name = "c3-client"
 version = "0.1.0"
 dependencies = [
+ "c3-assets",
  "c3-render",
  "c3-scene",
  "game-conquer",
@@ -567,6 +568,7 @@ name = "c3-render"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "c3-anim",
  "c3-assets",
  "c3-scene",
  "glam",

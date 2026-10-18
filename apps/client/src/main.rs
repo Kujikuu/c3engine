@@ -1,8 +1,11 @@
 //! C3 Client: the game runtime window.
 //! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002] [--cell x,y] [--zoom 1.0]
+//!                   [--actor <3dobj id> [--dir 0-7]]
 //!
-//! Controls: drag or WASD/arrows to pan · wheel to zoom · F to fit · 1 for 100% · Esc to quit.
+//! Controls: drag or WASD/arrows to pan · wheel to zoom · F to fit · 1 for 100% · Q/E turn the actor ·
+//! Esc to quit.
 
+mod actors;
 mod camera;
 mod gfx;
 mod world;
@@ -92,8 +95,10 @@ impl App {
         self.update();
         let viewport = self.viewport();
         let Some(gfx) = &mut self.gfx else { return };
-        let frame = self.world.frame(&mut gfx.renderer, &self.camera, viewport);
-        gfx.draw(&frame);
+        self.world
+            .prepare(&mut gfx.renderer, &self.camera, viewport);
+        let meshes = self.world.mesh_draws();
+        gfx.draw(&self.world.frame(&meshes, &self.camera, viewport));
         if let Some(fps) = self.fps.tick(Instant::now()) {
             let name = self
                 .world
@@ -114,6 +119,11 @@ impl App {
                 KeyCode::Escape => event_loop.exit(),
                 KeyCode::KeyF => self.fit_pending = true,
                 KeyCode::Digit1 => self.camera.zoom = 1.0,
+                KeyCode::KeyQ | KeyCode::KeyE => {
+                    if let Some(a) = self.world.actors.first_mut() {
+                        a.turn(if code == KeyCode::KeyQ { -1 } else { 1 });
+                    }
+                }
                 _ => {}
             }
             if !self.keys_down.contains(&code) {
@@ -204,6 +214,9 @@ struct Args {
     /// Start centred on this cell instead of fitting the whole map.
     cell: Option<(i32, i32)>,
     zoom: Option<f32>,
+    /// Model id (3dobj.ini) of an actor to place at the start cell.
+    actor: Option<u64>,
+    direction: u8,
 }
 
 fn parse_args() -> Args {
@@ -227,6 +240,8 @@ fn parse_args() -> Args {
             Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
         }),
         zoom: flag("--zoom").and_then(|v| v.parse().ok()),
+        actor: flag("--actor").and_then(|v| v.parse().ok()),
+        direction: flag("--dir").and_then(|v| v.parse().ok()).unwrap_or(0),
     }
 }
 
@@ -254,6 +269,17 @@ fn main() {
         eprintln!("error: {e}");
         std::process::exit(1);
     });
+    let mut world = world;
+    if let Some(id) = args.actor {
+        let g = &world.scene.grid;
+        let cell = args
+            .cell
+            .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
+        match actors::Actor::load(&world.content, id, cell, args.direction) {
+            Ok(a) => world.actors.push(a),
+            Err(e) => eprintln!("warning: actor {id}: {e}"),
+        }
+    }
     let start = args.cell.map(|c| Vec2::from(world.scene.cell_to_world(c)));
     let event_loop = EventLoop::new().expect("event loop");
     let mut app = App {

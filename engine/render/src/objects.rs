@@ -49,17 +49,30 @@ struct Item<'a> {
     frame_ms: u32,
 }
 
+/// One entry of the objects' painter's order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectDraw {
+    /// Index into [`ObjectSprites::sprites`].
+    Sprite(u32),
+    /// Index into the `actors` passed to [`sprites`].
+    Actor(u32),
+}
+
 pub struct ObjectSprites {
     pub sprites: Vec<Sprite>,
+    /// Back-to-front order of sprites and actors.
+    pub order: Vec<ObjectDraw>,
     /// Some visible frames are still loading.
     pub streaming: bool,
 }
 
-/// Sprites for every object near the view, animated at `view.time_ms`.
+/// Sprites for every object near the view, animated at `view.time_ms`, sorted together
+/// with `actors` (cells of 3D characters, 1×1 footprints, as the client sorts roles).
 /// At most `budget` frame images are decoded per call.
 pub fn sprites(
     scene: &Scene,
     view: &View,
+    actors: &[CellPos],
     cache: &mut ObjectCache,
     renderer: &mut Renderer,
     assets: &dyn SceneAssets,
@@ -130,13 +143,22 @@ pub fn sprites(
         }
     }
 
-    let footprints: Vec<Footprint> = items.iter().map(|i| i.footprint).collect();
+    let footprints: Vec<Footprint> = items
+        .iter()
+        .map(|i| i.footprint)
+        .chain(actors.iter().map(|&cell| Footprint { cell, size: (1, 1) }))
+        .collect();
     let mut out = ObjectSprites {
         sprites: Vec::with_capacity(items.len()),
+        order: Vec::with_capacity(footprints.len()),
         streaming: false,
     };
     for index in draw_order(&footprints) {
-        let item = &items[index];
+        let Some(item) = items.get(index) else {
+            out.order
+                .push(ObjectDraw::Actor((index - items.len()) as u32));
+            continue;
+        };
         let set = cache
             .sets
             .entry(item.set.to_owned())
@@ -167,6 +189,7 @@ pub fn sprites(
         };
         let Some(t) = texture else { continue };
         let (cx, cy) = scene.cell_to_world(item.footprint.cell);
+        out.order.push(ObjectDraw::Sprite(out.sprites.len() as u32));
         out.sprites.push(Sprite {
             rect: [
                 cx + item.offset.0 as f32,

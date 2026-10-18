@@ -5,6 +5,7 @@
 //! (the Studio shows it as an egui image) or a window surface (the game client).
 //! Engine types only: images come in as [`c3_assets::Image`].
 
+pub mod actor;
 mod assets;
 pub mod ground;
 mod mesh;
@@ -56,6 +57,17 @@ pub struct Frame<'a> {
     /// World → clip transform for meshes.
     pub mesh_view: Mat4,
     pub meshes: &'a [MeshDraw<'a>],
+    /// Painter's order mixing sprites and meshes. Empty = all sprites, then all meshes.
+    pub order: &'a [DrawCmd],
+}
+
+/// One step of a frame's painter's order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DrawCmd {
+    /// Sprites with these indices.
+    Sprites(std::ops::Range<u32>),
+    /// The mesh with this index; each later mesh is drawn in front of earlier ones.
+    Mesh(u32),
 }
 
 pub struct Renderer {
@@ -140,9 +152,30 @@ impl Renderer {
         let sprite_batches =
             self.sprites
                 .prepare(&self.device, &self.queue, frame.sprite_view, frame.sprites);
-        let mesh_batches =
-            self.meshes
-                .prepare(&self.device, &self.queue, frame.mesh_view, frame.meshes);
+        let default_order: Vec<DrawCmd>;
+        let order = if frame.order.is_empty() {
+            default_order = std::iter::once(DrawCmd::Sprites(0..frame.sprites.len() as u32))
+                .chain((0..frame.meshes.len() as u32).map(DrawCmd::Mesh))
+                .collect();
+            &default_order[..]
+        } else {
+            frame.order
+        };
+        // The k-th mesh in painter's order gets depth slice k of n; later = nearer.
+        let mut rank = vec![0usize; frame.meshes.len()];
+        let mut n = 0;
+        for cmd in order {
+            if let DrawCmd::Mesh(i) = cmd {
+                rank[*i as usize] = n;
+                n += 1;
+            }
+        }
+        let slice = 1.0 / n.max(1) as f32;
+        let meshes = self
+            .meshes
+            .prepare(&self.device, frame.mesh_view, frame.meshes, |i| {
+                (1.0 - (rank[i] + 1) as f32 * slice, slice)
+            });
         {
             let [r, g, b, a] = frame.clear;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -166,9 +199,21 @@ impl Renderer {
                 }),
                 ..Default::default()
             });
-            self.sprites
-                .draw(&mut pass, &sprite_batches, &self.textures);
-            self.meshes.draw(&mut pass, &mesh_batches, &self.textures);
+            for cmd in order {
+                match cmd {
+                    DrawCmd::Sprites(range) => self.sprites.draw_range(
+                        &mut pass,
+                        &sprite_batches,
+                        &self.textures,
+                        range.clone(),
+                    ),
+                    DrawCmd::Mesh(i) => {
+                        if let Some(Some(p)) = meshes.get(*i as usize) {
+                            self.meshes.draw_one(&mut pass, p, &self.textures);
+                        }
+                    }
+                }
+            }
         }
         self.queue.submit([encoder.finish()]);
     }

@@ -30,6 +30,8 @@ struct Uniforms {
     mvp: [f32; 16],
     model: [f32; 16],
     tint: [f32; 4],
+    /// Depth slice: x = start, y = size (clip depth 0..1 is remapped into it).
+    depth: [f32; 4],
 }
 
 pub(crate) struct Prepared {
@@ -46,7 +48,7 @@ pub(crate) struct MeshPass {
 }
 
 const SHADER: &str = r#"
-struct U { mvp: mat4x4<f32>, model: mat4x4<f32>, tint: vec4<f32> };
+struct U { mvp: mat4x4<f32>, model: mat4x4<f32>, tint: vec4<f32>, depth: vec4<f32> };
 @group(0) @binding(0) var<uniform> u: U;
 @group(1) @binding(0) var tex: texture_2d<f32>;
 @group(1) @binding(1) var samp: sampler;
@@ -57,6 +59,8 @@ struct Out { @builtin(position) pos: vec4<f32>, @location(0) normal: vec3<f32>, 
 fn vs(@location(0) pos: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>) -> Out {
     var o: Out;
     o.pos = u.mvp * vec4(pos, 1.0);
+    // Painter's order between meshes: each mesh owns a slice of the depth range.
+    o.pos.z = (u.depth.x + clamp(o.pos.z / o.pos.w, 0.0, 1.0) * u.depth.y) * o.pos.w;
     o.normal = (u.model * vec4(normal, 0.0)).xyz;
     o.uv = uv;
     return o;
@@ -171,21 +175,28 @@ impl MeshPass {
         }
     }
 
+    /// GPU resources per draw (`None` for empty meshes). `depth(i)` gives draw `i`'s
+    /// depth slice `(start, size)`.
     pub fn prepare(
         &self,
         device: &wgpu::Device,
-        _queue: &wgpu::Queue,
         view: Mat4,
         draws: &[MeshDraw],
-    ) -> Vec<Prepared> {
+        depth: impl Fn(usize) -> (f32, f32),
+    ) -> Vec<Option<Prepared>> {
         draws
             .iter()
-            .filter(|d| !d.vertices.is_empty() && !d.indices.is_empty())
-            .map(|d| {
+            .enumerate()
+            .map(|(i, d)| {
+                if d.vertices.is_empty() || d.indices.is_empty() {
+                    return None;
+                }
+                let (start, size) = depth(i);
                 let uniforms = Uniforms {
                     mvp: (view * d.transform).to_cols_array(),
                     model: d.transform.to_cols_array(),
                     tint: d.tint,
+                    depth: [start, size, 0.0, 0.0],
                 };
                 let buffer = |label, contents: &[u8], usage| {
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -199,7 +210,7 @@ impl MeshPass {
                     bytemuck::bytes_of(&uniforms),
                     wgpu::BufferUsages::UNIFORM,
                 );
-                Prepared {
+                Some(Prepared {
                     vertices: buffer(
                         "c3 mesh vertices",
                         bytemuck::cast_slice(d.vertices),
@@ -220,22 +231,17 @@ impl MeshPass {
                         }],
                     }),
                     texture: d.texture,
-                }
+                })
             })
             .collect()
     }
 
-    pub fn draw(&self, pass: &mut wgpu::RenderPass, prepared: &[Prepared], textures: &Textures) {
-        if prepared.is_empty() {
-            return;
-        }
+    pub fn draw_one(&self, pass: &mut wgpu::RenderPass, prepared: &Prepared, textures: &Textures) {
         pass.set_pipeline(&self.pipeline);
-        for p in prepared {
-            pass.set_bind_group(0, &p.uniforms, &[]);
-            pass.set_bind_group(1, textures.group(p.texture), &[]);
-            pass.set_vertex_buffer(0, p.vertices.slice(..));
-            pass.set_index_buffer(p.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..p.count, 0, 0..1);
-        }
+        pass.set_bind_group(0, &prepared.uniforms, &[]);
+        pass.set_bind_group(1, textures.group(prepared.texture), &[]);
+        pass.set_vertex_buffer(0, prepared.vertices.slice(..));
+        pass.set_index_buffer(prepared.indices.slice(..), wgpu::IndexFormat::Uint32);
+        pass.draw_indexed(0..prepared.count, 0, 0..1);
     }
 }

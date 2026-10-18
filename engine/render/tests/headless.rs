@@ -100,6 +100,7 @@ fn draws_textured_sprite_and_lit_mesh() {
             sprites: &sprites,
             mesh_view: Mat4::IDENTITY,
             meshes: &meshes,
+            order: &[],
         },
     );
     let px = read_pixels(&r, &target, &queue);
@@ -111,4 +112,54 @@ fn draws_textured_sprite_and_lit_mesh() {
         "lit white mesh, got {mesh:?}"
     );
     assert_eq!(at(62, 2), [0, 0, 0, 255], "clear color");
+}
+
+/// A later mesh in painter's order covers an earlier one even when it is farther away.
+#[test]
+fn painter_order_beats_depth_between_meshes() {
+    use c3_render::DrawCmd;
+    let Some(mut r) = renderer() else {
+        eprintln!("no GPU adapter, skipping");
+        return;
+    };
+    let queue = r.queue().clone();
+    let red = r.upload_texture(&Image::new(1, 1, vec![255, 0, 0, 255]));
+    let green = r.upload_texture(&Image::new(1, 1, vec![0, 255, 0, 255]));
+    let quad = |z: f32| {
+        [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[x, y]| MeshVertex {
+            position: [x, y, z],
+            normal: [0.0, 0.0, -1.0],
+            uv: [0.0, 0.0],
+        })
+    };
+    let (near, far) = (quad(0.2), quad(0.8));
+    let idx = [0u32, 1, 2, 0, 2, 3];
+    let mesh = |v, t| MeshDraw {
+        vertices: v,
+        indices: &idx,
+        texture: Some(t),
+        transform: Mat4::IDENTITY,
+        tint: [1.0; 4],
+    };
+    let meshes = [mesh(&near, red), mesh(&far, green)];
+    let mut target = None;
+    r.ensure_target(&mut target, [8, 8]);
+    let target = target.unwrap();
+    // Far green mesh is drawn last, so it must cover the near red one.
+    let order = [DrawCmd::Mesh(0), DrawCmd::Mesh(1)];
+    r.render(
+        &target,
+        &Frame {
+            clear: [0.0; 4],
+            meshes: &meshes,
+            order: &order,
+            ..Default::default()
+        },
+    );
+    let px = read_pixels(&r, &target, &queue);
+    let c = &px[(4 * 8 + 4) * 4..][..4];
+    assert!(
+        c[1] > 200 && c[0] == 0,
+        "expected the lit green mesh in front, got {c:?}"
+    );
 }

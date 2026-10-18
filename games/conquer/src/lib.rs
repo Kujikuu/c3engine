@@ -1,24 +1,29 @@
 //! Conquer game module: everything specific to Conquer Online 5065 on top of the engine.
 //! Engine crates must never depend on this.
 //!
-//! [`Content`] opens a 5065 client folder and hands out engine types (scenes, images).
+//! [`Content`] opens a 5065 client folder and hands out engine types (scenes, models, images).
 
 use c3_assets::Image;
+use c3_assets::model::Model;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_formats_tq::{
-    ani::Ani, gamemap::GameMapCatalog, scene::TerrainObject, scene_io, sprite_io, texture,
-    vfs::ClientFs,
+    ani::Ani, c3::C3File, gamemap::GameMapCatalog, ini::PathTable, model_io, scene::TerrainObject,
+    scene_io, sprite_io, texture, vfs::ClientFs,
 };
 use c3_scene::Scene;
 use std::path::{Path, PathBuf};
 
 pub use scene_io::Imported;
 
-/// A 5065 client's assets: loose files, packed archives and the map catalog.
+/// A 5065 client's assets: loose files, packed archives and the lookup tables.
 pub struct Content {
     pub root: PathBuf,
     fs: ClientFs,
     catalog: GameMapCatalog,
+    /// `ini/3dobj.ini`: model id → C3 path.
+    objects: PathTable,
+    /// `ini/3dtexture.ini`: texture id → image path.
+    textures: PathTable,
 }
 
 impl Content {
@@ -31,7 +36,19 @@ impl Content {
             .transpose()
             .map_err(|e| format!("ini/GameMap.dat: {e}"))?
             .unwrap_or_default();
-        Ok(Self { root, fs, catalog })
+        let table = |name: &str| {
+            fs.read(&format!("ini/{name}"))
+                .map(|b| PathTable::parse(&b))
+                .unwrap_or_default()
+        };
+        let (objects, textures) = (table("3dobj.ini"), table("3dtexture.ini"));
+        Ok(Self {
+            root,
+            fs,
+            catalog,
+            objects,
+            textures,
+        })
     }
 
     /// DMap path of map document `id` (as the server refers to maps).
@@ -56,6 +73,38 @@ impl Content {
             .ok_or_else(|| format!("map {id} is not in GameMap.dat"))?;
         let imported = self.load_map(&path)?;
         Ok((path, imported.scene, imported.warnings))
+    }
+
+    /// Loads model `id` from `3dobj.ini`, with the texture registered under the same id in
+    /// `3dtexture.ini` (true for NPCs and monsters; equipment uses the part tables).
+    pub fn load_model(&self, id: u64) -> Result<(Model, Option<String>), String> {
+        let path = self
+            .objects
+            .get(id)
+            .ok_or_else(|| format!("model {id} is not in 3dobj.ini"))?;
+        let bytes = self
+            .fs
+            .read(path)
+            .ok_or_else(|| format!("file not found: {path}"))?;
+        let file = C3File::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
+        let model = model_io::import_model(&file).map_err(|e| format!("{path}: {e}"))?;
+        Ok((model, self.textures.get(id).map(str::to_owned)))
+    }
+
+    /// Camera tilt for 3D actors in degrees: the 7th field of `ini/graphic.ini`
+    /// (`LoadGraphicConfig5065`), −30 if absent or malformed.
+    pub fn oblique_angle(&self) -> f32 {
+        let text = self
+            .fs
+            .read("ini/graphic.ini")
+            .map(|b| String::from_utf8_lossy(&b).into_owned());
+        text.and_then(|t| {
+            let fields: Vec<&str> = t.split_whitespace().collect();
+            (fields.len() >= 7)
+                .then(|| fields[6].parse::<f32>().ok())
+                .flatten()
+        })
+        .unwrap_or(-30.0)
     }
 
     /// Loads an ANI file as a sprite set.

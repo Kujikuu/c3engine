@@ -4,7 +4,7 @@
 use crate::gpu::GpuView;
 use crate::tq_plugin::{Client, ModelEntry};
 use c3_assets::model::Model;
-use c3_render::{Frame, MeshDraw, MeshVertex, TextureId};
+use c3_render::{Frame, MeshDraw, MeshVertex, TextureId, actor};
 use eframe::egui::{self, Color32, Pos2, Rect, Sense};
 use glam::camera::rh::{proj::directx, view::look_at_mat4};
 use glam::{Mat4, Vec3};
@@ -114,30 +114,6 @@ impl Default for OrbitCamera {
     }
 }
 
-/// Posed vertices with smooth normals rebuilt from the posed triangles.
-fn posed_vertices(doc: &ModelDoc, part: usize) -> Vec<MeshVertex> {
-    let p = &doc.model.parts[part];
-    let positions = p.mesh.posed_positions(p.clip.as_ref(), doc.frame);
-    let mut normals = vec![Vec3::ZERO; positions.len()];
-    for tri in p.mesh.indices.as_chunks::<3>().0 {
-        let [a, b, c] = [tri[0], tri[1], tri[2]].map(|i| i as usize);
-        let n = (positions[b] - positions[a]).cross(positions[c] - positions[a]);
-        for i in [a, b, c] {
-            normals[i] += n;
-        }
-    }
-    positions
-        .iter()
-        .zip(&normals)
-        .zip(&p.mesh.vertices)
-        .map(|((pos, n), v)| MeshVertex {
-            position: pos.to_array(),
-            normal: n.normalize_or_zero().to_array(),
-            uv: v.uv.to_array(),
-        })
-        .collect()
-}
-
 pub fn show(
     ui: &mut egui::Ui,
     client: &Client,
@@ -167,7 +143,11 @@ pub fn show(
     let parts: Vec<(Vec<MeshVertex>, &[u32])> = (0..doc.model.parts.len())
         .map(|i| {
             (
-                posed_vertices(doc, i),
+                actor::posed_vertices(
+                    &doc.model.parts[i].mesh,
+                    doc.model.parts[i].clip.as_ref(),
+                    doc.frame,
+                ),
                 doc.model.parts[i].mesh.indices.as_slice(),
             )
         })

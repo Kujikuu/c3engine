@@ -160,7 +160,14 @@ impl SpritePass {
         Batches { instances, runs }
     }
 
-    pub fn draw(&self, pass: &mut wgpu::RenderPass, batches: &Batches, textures: &Textures) {
+    /// Draws sprites with indices in `range` (submission order).
+    pub fn draw_range(
+        &self,
+        pass: &mut wgpu::RenderPass,
+        batches: &Batches,
+        textures: &Textures,
+        range: std::ops::Range<u32>,
+    ) {
         let Some(instances) = &batches.instances else {
             return;
         };
@@ -168,8 +175,11 @@ impl SpritePass {
         pass.set_bind_group(0, &self.view_group, &[]);
         pass.set_vertex_buffer(0, instances.slice(..));
         for &(texture, first, count) in &batches.runs {
-            pass.set_bind_group(1, textures.group(texture), &[]);
-            pass.draw(0..6, first..first + count);
+            let (start, end) = (first.max(range.start), (first + count).min(range.end));
+            if start < end {
+                pass.set_bind_group(1, textures.group(texture), &[]);
+                pass.draw(0..6, start..end);
+            }
         }
     }
 }

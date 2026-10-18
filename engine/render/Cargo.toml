@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
+c3-anim = { version = "0.1.0", path = "../anim" }
 c3-assets = { version = "0.1.0", path = "../assets" }
 c3-scene = { version = "0.1.0", path = "../scene" }
 glam = { version = "0.34.1", features = ["bytemuck"] }
