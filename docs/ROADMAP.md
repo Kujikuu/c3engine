@@ -373,9 +373,14 @@ PUL for the classic client).
     Minimap renders the map in pieces into `maps/<name>.minimap.png`, the radar shows it (a
     Conquer map without one shows the client's own `ani/MiniMap.Ani` picture); the Project
     panel duplicates, renames and deletes maps with undo, the map list entry following
-- [ ] Drag and drop from the Project panel into the Scene view and the Hierarchy: sprites,
+- [x] Drag and drop from the Project panel into the Scene view and the Hierarchy: sprites,
       objects, effects, sounds, models, NPC looks (makes an NPC), monsters (makes a spawn area),
       tiles; a ghost preview snapped to the cell under the cursor
+  - Done 2026-10-18: images, sprite sets, terrain objects, sounds and effects drop from the
+    Project panel (client pictures stand on their cell; DMaps refuse plain pictures, which the
+    classic client can't show); a monster type dragged from the Data panel makes a spawn area;
+    Create > NPC picks from the game's NPC looks (the client's Npc.ini). Tiles come with
+    ground painting below; 3D models as NPC looks come with M9's character forms
 - [ ] Placement tools: box and multi-select, move with snapping, pixel nudge, footprints, draw
       order, hide and lock, copy / paste / duplicate (also between maps), align
 - [ ] Ground: paint tiles from tilesets (brush, fill, erase, pick)

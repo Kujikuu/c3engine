@@ -128,11 +128,6 @@ impl Client {
         })
     }
 
-    /// The name of NPC type `look` in `Npc.ini` (e.g. `Storekeeper`).
-    pub fn npc_type_name(&self, look: u32) -> Option<&str> {
-        self.content.npc_type(look).map(|t| t.name.as_str())
-    }
-
     /// The game this client's content plays: the Scene view, Play and the Preview go
     /// through it.
     pub fn game(&self) -> Rc<dyn GameModule> {

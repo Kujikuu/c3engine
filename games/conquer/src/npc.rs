@@ -84,6 +84,15 @@ impl Content {
         self.npc_tables.types.get(&look)
     }
 
+    /// Every NPC type as `(look, name)`, by look.
+    pub fn npc_looks(&self) -> Vec<(u32, String)> {
+        let mut looks: Vec<(u32, String)> = (self.npc_tables.types.iter())
+            .map(|(look, t)| (*look, t.name.clone()))
+            .collect();
+        looks.sort_unstable_by_key(|(look, _)| *look);
+        looks
+    }
+
     /// An NPC of type `look` as a character playing its stand-by motion.
     pub fn npc_character(&self, look: u32) -> Result<Character, String> {
         let kind = self

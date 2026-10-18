@@ -12,7 +12,7 @@ use c3_scene::{CellPos, Entity, EntityKind, Npc, Placement, Spawn};
 use eframe::egui::{self, RichText};
 
 /// Most effect names the create menu lists at once (narrow down with its search).
-const MAX_LISTED_EFFECTS: usize = 200;
+const MAX_LISTED: usize = 200;
 /// Half the side of a new spawn area, in cells.
 const NEW_SPAWN_RADIUS: i32 = 4;
 
@@ -147,9 +147,20 @@ impl Studio {
             self.create(SceneCommand::AddPortal { cell: at, id: None });
             ui.close();
         }
-        if ui.button(theme::icon_text(icons::USER, "NPC")).clicked() {
-            self.create(SceneCommand::AddNpc { npc: new_npc(at) });
-            ui.close();
+        if self.npc_looks.is_empty() {
+            if ui.button(theme::icon_text(icons::USER, "NPC")).clicked() {
+                self.create(SceneCommand::AddNpc { npc: new_npc(at) });
+                ui.close();
+            }
+        } else {
+            ui.menu_button(theme::icon_text(icons::USER, "NPC"), |ui| {
+                if let Some(look) = self.look_list(ui) {
+                    let mut npc = new_npc(at);
+                    npc.look = look;
+                    self.create(SceneCommand::AddNpc { npc });
+                    ui.close();
+                }
+            });
         }
         if ui
             .button(theme::icon_text(icons::USERS_THREE, "Spawn area"))
@@ -207,40 +218,19 @@ impl Studio {
 
     /// Searchable list of the content's effects; returns the one clicked.
     pub(crate) fn effect_list(&mut self, ui: &mut egui::Ui) -> Option<String> {
-        ui.add(
-            egui::TextEdit::singleline(&mut self.effect_search)
-                .hint_text(theme::icon_text(icons::MAGNIFYING_GLASS, "Search effects"))
-                .desired_width(220.0),
-        );
-        let needle = self.effect_search.to_lowercase();
-        let matches: Vec<&String> = self
-            .effect_names
-            .iter()
-            .filter(|n| n.to_lowercase().contains(&needle))
-            .take(MAX_LISTED_EFFECTS + 1)
+        let names: Vec<&str> = self.effect_names.iter().map(String::as_str).collect();
+        let picked = search_list(ui, &mut self.effect_search, "Search effects", &names)?;
+        Some(names[picked].to_owned())
+    }
+
+    /// Searchable list of the game's NPC looks; returns the look clicked.
+    pub(crate) fn look_list(&mut self, ui: &mut egui::Ui) -> Option<u32> {
+        let labels: Vec<String> = (self.npc_looks.iter())
+            .map(|(look, name)| format!("{look}  {name}"))
             .collect();
-        if matches.is_empty() {
-            ui.label(RichText::new("No effect matches").color(theme::TEXT_DIM));
-            return None;
-        }
-        let mut chosen = None;
-        egui::ScrollArea::vertical()
-            .max_height(320.0)
-            .show(ui, |ui| {
-                for name in matches.iter().take(MAX_LISTED_EFFECTS) {
-                    if ui.button(name.as_str()).clicked() {
-                        chosen = Some((*name).clone());
-                    }
-                }
-            });
-        if matches.len() > MAX_LISTED_EFFECTS {
-            ui.label(
-                RichText::new("Showing the first 200: search to narrow down")
-                    .color(theme::TEXT_DIM)
-                    .small(),
-            );
-        }
-        chosen
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let picked = search_list(ui, &mut self.look_search, "Search looks", &labels)?;
+        Some(self.npc_looks[picked].0)
     }
 
     /// Runs a create command and selects what it made.
@@ -347,4 +337,48 @@ impl Tree {
 fn file_stem(path: &str) -> &str {
     let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
     file.rsplit_once('.').map_or(file, |(stem, _)| stem)
+}
+
+/// A search box over `labels` and the matches as buttons (the first few hundred); returns
+/// the index of the one clicked.
+fn search_list(
+    ui: &mut egui::Ui,
+    search: &mut String,
+    placeholder: &str,
+    labels: &[&str],
+) -> Option<usize> {
+    ui.add(
+        egui::TextEdit::singleline(search)
+            .hint_text(theme::icon_text(icons::MAGNIFYING_GLASS, placeholder))
+            .desired_width(220.0),
+    );
+    let needle = search.to_lowercase();
+    let matches: Vec<usize> = (0..labels.len())
+        .filter(|&i| labels[i].to_lowercase().contains(&needle))
+        .take(MAX_LISTED + 1)
+        .collect();
+    if matches.is_empty() {
+        ui.label(RichText::new("Nothing matches").color(theme::TEXT_DIM));
+        return None;
+    }
+    let mut chosen = None;
+    egui::ScrollArea::vertical()
+        .max_height(320.0)
+        .show(ui, |ui| {
+            for &i in matches.iter().take(MAX_LISTED) {
+                if ui.button(labels[i]).clicked() {
+                    chosen = Some(i);
+                }
+            }
+        });
+    if matches.len() > MAX_LISTED {
+        ui.label(
+            RichText::new(format!(
+                "Showing the first {MAX_LISTED}: search to narrow down"
+            ))
+            .color(theme::TEXT_DIM)
+            .small(),
+        );
+    }
+    chosen
 }

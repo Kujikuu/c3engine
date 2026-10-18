@@ -128,6 +128,9 @@ pub struct Studio {
     /// The content's effect names, for the create menu.
     pub(crate) effect_names: Vec<String>,
     pub(crate) effect_search: String,
+    /// The game's NPC looks, `(look, name)`, and what the look picker searches for.
+    pub(crate) npc_looks: Vec<(u32, String)>,
+    pub(crate) look_search: String,
     /// The Inspector's effect chooser is open.
     pub(crate) picking_effect: bool,
     /// Selection the Hierarchy last scrolled to.
@@ -226,6 +229,8 @@ impl Studio {
             scene_ms: 0.0,
             effect_names: Vec::new(),
             effect_search: String::new(),
+            npc_looks: Vec::new(),
+            look_search: String::new(),
             picking_effect: false,
             revealed: None,
             hover: None,
@@ -457,6 +462,11 @@ impl Studio {
             }
             _ => None,
         };
+        self.npc_looks = self
+            .game
+            .as_ref()
+            .map(|g| g.npc_looks())
+            .unwrap_or_default();
         // The project's own effects come first in the effect lists.
         if let Some(native) = self.game.as_ref().and_then(|g| g.native()) {
             let mut names = native.effect_names();

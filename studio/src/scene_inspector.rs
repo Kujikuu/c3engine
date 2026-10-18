@@ -365,7 +365,7 @@ impl Studio {
     ) -> Option<SceneCommand> {
         let doc = self.doc.as_ref()?;
         let mut npc: Npc = doc.scene().npcs.iter().find(|n| n.id == id)?.clone();
-        let client = self.client.as_ref();
+        let looks = &self.npc_looks;
         grid(ui, "npc", |ui| {
             row(ui, "Id", |ui| {
                 ui.label(id.to_string())
@@ -382,10 +382,12 @@ impl Studio {
             row(ui, "Look", |ui| {
                 ui.horizontal(|ui| {
                     number(ui, it, &mut npc.look);
-                    match client.and_then(|c| c.npc_type_name(npc.look)) {
-                        Some(name) => ui.label(RichText::new(name).color(theme::TEXT_DIM)),
-                        None => ui.label(RichText::new("no such NPC type").color(theme::WARNING)),
-                    };
+                    if !looks.is_empty() {
+                        match looks.iter().find(|(l, _)| *l == npc.look) {
+                            Some((_, name)) => ui.label(RichText::new(name).color(theme::TEXT_DIM)),
+                            None => ui.label(RichText::new("no such look").color(theme::WARNING)),
+                        };
+                    }
                 });
             });
             row(ui, "Kind", |ui| {

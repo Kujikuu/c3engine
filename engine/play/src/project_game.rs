@@ -154,6 +154,10 @@ impl GameModule for ProjectGame {
         self.game.monster_table()
     }
 
+    fn npc_looks(&self) -> Vec<(u32, String)> {
+        self.game.npc_looks()
+    }
+
     /// The project's generated minimap, else the game's own.
     fn minimap(&self, key: &str, map_ids: &[u32]) -> Option<Image> {
         let file = c3_project::minimap_file_in(&self.maps_dir, key);

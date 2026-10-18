@@ -178,6 +178,11 @@ impl GameModule for ConquerModule {
         crate::rules::MONSTER_TABLE
     }
 
+    /// The client's NPC types (`Npc.ini`).
+    fn npc_looks(&self) -> Vec<(u32, String)> {
+        self.content.npc_looks()
+    }
+
     /// The client's own minimap (`ani/MiniMap.Ani`, by map id): one image, or four
     /// quarters laid out left to right, top to bottom.
     fn minimap(&self, _key: &str, map_ids: &[u32]) -> Option<Image> {

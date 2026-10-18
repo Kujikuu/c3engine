@@ -104,6 +104,10 @@ pub trait GameModule {
     fn formulas_template(&self) -> Option<&'static str> {
         None
     }
+    /// The looks NPCs can have, `(look, name)`, for pickers (empty: any number).
+    fn npc_looks(&self) -> Vec<(u32, String)> {
+        Vec::new()
+    }
     /// The table whose rows are the game's monster types (a row dragged onto a map in the
     /// Studio makes a spawn area of it).
     fn monster_table(&self) -> &str {
