@@ -119,7 +119,7 @@ fn posed_vertices(doc: &ModelDoc, part: usize) -> Vec<MeshVertex> {
     let p = &doc.model.parts[part];
     let positions = p.mesh.posed_positions(p.clip.as_ref(), doc.frame);
     let mut normals = vec![Vec3::ZERO; positions.len()];
-    for tri in p.mesh.indices.chunks_exact(3) {
+    for tri in p.mesh.indices.as_chunks::<3>().0 {
         let [a, b, c] = [tri[0], tri[1], tri[2]].map(|i| i as usize);
         let n = (positions[b] - positions[a]).cross(positions[c] - positions[a]);
         for i in [a, b, c] {
