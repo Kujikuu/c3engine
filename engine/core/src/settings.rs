@@ -23,6 +23,7 @@ pub struct ProjectSettings {
     pub audio: AudioSettings,
     pub network: NetworkSettings,
     pub localization: LocalizationSettings,
+    pub ui: UiSettings,
 }
 
 impl ProjectSettings {
@@ -494,6 +495,26 @@ pub struct LocalizationSettings {
     /// Font files of the project (TTF/OTF) the game's text is drawn with, in order: the first
     /// draws what it can, the next ones the characters it lacks (e.g. Chinese).
     pub fonts: Vec<String>,
+}
+
+/// The game UI drawn from data (TQ's model: a layout, a skin and the controls file); with no
+/// layout the engine's own UI shows.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiSettings {
+    /// Where dialogs and controls sit (`GUI.ini` form), an asset path.
+    pub layout: String,
+    /// The images controls show (`Control.Ani` form).
+    pub skin: String,
+    /// Each control's kind, image, binding and action.
+    pub controls: String,
+}
+
+impl UiSettings {
+    /// Whether the game UI comes from data.
+    pub fn from_data(&self) -> bool {
+        !self.layout.is_empty() && !self.controls.is_empty()
+    }
 }
 
 #[cfg(test)]

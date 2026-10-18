@@ -59,7 +59,7 @@ impl Importer {
             "c3fx" => Self::Effect,
             "c3char" => Self::Character,
             "ttf" | "otf" => Self::Font,
-            "toml" | "ron" | "json" | "csv" | "txt" | "lua" => Self::Data,
+            "toml" | "ron" | "json" | "csv" | "txt" | "lua" | "ini" => Self::Data,
             _ => Self::Other,
         }
     }

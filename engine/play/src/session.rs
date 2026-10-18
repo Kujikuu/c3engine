@@ -98,7 +98,7 @@ pub struct Session {
     pub world: World,
     view: SimView,
     ui: GameUi,
-    icons: ItemIcons,
+    icons: UiTextures,
     /// The game's equipment slots and their names.
     slots: Vec<(u8, String)>,
     audio: GameAudio,
@@ -294,6 +294,7 @@ impl Session {
         world.light = light;
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
+        ui.set_gui(game_gui(&*game, &settings.ui));
         ui.system(
             "Welcome! Walk around, fight monsters and talk to NPCs: the line at the top names your controls. /help lists the commands.",
             style::GOLD,
@@ -308,7 +309,7 @@ impl Session {
             world,
             view,
             ui,
-            icons: ItemIcons::new(game),
+            icons: UiTextures::new(game),
             slots,
             audio,
             log,
@@ -903,28 +904,31 @@ impl Session {
             }
             UiAction::Say(text) => Input::Say(text),
             UiAction::ToggleSound => return self.audio.toggle_muted(),
+            UiAction::ToggleRun => return self.toggle_running(),
             UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => return,
         };
         self.input(input);
     }
 }
 
-/// Item icons as the game draws them, loaded once each.
-struct ItemIcons {
+/// Item icons and the UI's images as the game draws them, loaded once each.
+struct UiTextures {
     game: Rc<dyn GameModule>,
     cache: HashMap<u32, Option<TextureHandle>>,
+    images: HashMap<String, Option<(TextureHandle, egui::Vec2)>>,
 }
 
-impl ItemIcons {
+impl UiTextures {
     fn new(game: Rc<dyn GameModule>) -> Self {
         Self {
             game,
             cache: HashMap::new(),
+            images: HashMap::new(),
         }
     }
 }
 
-impl Icons for ItemIcons {
+impl Icons for UiTextures {
     fn item(&mut self, ctx: &egui::Context, kind: u32) -> Option<TextureId> {
         let game = &self.game;
         self.cache
@@ -940,6 +944,42 @@ impl Icons for ItemIcons {
             .as_ref()
             .map(TextureHandle::id)
     }
+}
+
+impl c3_ui::gui::GuiImages for UiTextures {
+    fn image(&mut self, ctx: &egui::Context, path: &str) -> Option<(TextureId, egui::Vec2)> {
+        let game = &self.game;
+        self.images
+            .entry(path.to_owned())
+            .or_insert_with(|| {
+                let image = game.assets().image(path)?;
+                let size = egui::vec2(image.width as f32, image.height as f32);
+                let color = egui::ColorImage::from_rgba_unmultiplied(
+                    [image.width as usize, image.height as usize],
+                    &image.rgba,
+                );
+                let texture = ctx.load_texture(path, color, egui::TextureOptions::LINEAR);
+                Some((texture, size))
+            })
+            .as_ref()
+            .map(|(t, size)| (t.id(), *size))
+    }
+}
+
+/// The game's UI from data, when the project names its files and the game has them.
+fn game_gui(game: &dyn GameModule, ui: &c3_core::settings::UiSettings) -> Option<c3_ui::gui::Gui> {
+    if !ui.from_data() {
+        return None;
+    }
+    let skin = (!ui.skin.is_empty())
+        .then(|| game.read_file(&ui.skin))
+        .flatten()
+        .unwrap_or_default();
+    Some(c3_ui::gui::Gui::new(
+        &game.read_file(&ui.layout)?,
+        &skin,
+        &game.read_file(&ui.controls)?,
+    ))
 }
 
 /// How long joining a server may take.

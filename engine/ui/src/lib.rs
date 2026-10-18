@@ -11,6 +11,8 @@ mod bag;
 mod chat;
 mod dialogue;
 pub mod fonts;
+pub mod gui;
+mod gui_data;
 mod hud;
 pub mod icons;
 mod menu;
@@ -49,6 +51,8 @@ pub enum UiAction {
     Say(String),
     /// Mute or unmute the game's sound.
     ToggleSound,
+    /// Run, or walk again.
+    ToggleRun,
     /// Change what `action` is bound to on the active device (the next key or button).
     Rebind(Action),
     /// Back to the game's own controls.
@@ -148,9 +152,39 @@ pub struct GameUi {
     quests_open: bool,
     menu: Option<menu::Page>,
     log: Vec<LogLine>,
+    /// The game's UI from data, drawn in place of the engine's bar when the game has one.
+    gui: Option<gui::Gui>,
 }
 
 impl GameUi {
+    /// Draws `gui` (the game's UI from data) in place of the engine's bar.
+    pub fn set_gui(&mut self, gui: Option<gui::Gui>) {
+        self.gui = gui;
+    }
+    /// Carries out what the player clicked on the data-driven UI. Actions name the engine's
+    /// windows (`bag`, `quests`, `menu`, `chat`), a game input (`run`, `sound`), or open a
+    /// dialog of the UI (`toggle:<dialog id>`).
+    fn gui_event(&mut self, event: gui::GuiEvent, actions: &mut Vec<UiAction>) {
+        let gui::GuiEvent::Action(action) = event else {
+            return;
+        };
+        match action.as_str() {
+            "bag" => self.toggle_bag(),
+            "quests" => self.toggle_quests(),
+            "menu" => self.toggle_menu(),
+            "chat" => self.open_chat(),
+            "sound" => actions.push(UiAction::ToggleSound),
+            "run" => actions.push(UiAction::ToggleRun),
+            other => {
+                if let Some(id) = other.strip_prefix("toggle:").and_then(|i| i.parse().ok())
+                    && let Some(gui) = &mut self.gui
+                {
+                    gui.toggle(id);
+                }
+            }
+        }
+    }
+
     /// Whether the player is typing (game keys should wait).
     pub fn typing(&self) -> bool {
         self.chat.typing
@@ -244,7 +278,7 @@ impl GameUi {
         &mut self,
         ui: &mut egui::Ui,
         view: &GameView,
-        icons: &mut dyn Icons,
+        icons: &mut dyn gui::Textures,
     ) -> Vec<UiAction> {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
@@ -258,11 +292,22 @@ impl GameUi {
         hud::status_row(ui, view, player);
         radar::show(ui, view);
         quests::npc_marks(&ui.painter_at(view.rect), view);
-        let mut open = hud::Open {
-            bag: &mut self.bag_open,
-            quests: &mut self.quests_open,
-        };
-        hud::bar(ui, view, player, &mut open, &mut actions);
+        match &self.gui {
+            Some(gui) => {
+                let data = gui_data::HeroData { view, player };
+                let events = gui.show(ui.ctx(), view.rect, &data, icons);
+                for event in events {
+                    self.gui_event(event, &mut actions);
+                }
+            }
+            None => {
+                let mut open = hud::Open {
+                    bag: &mut self.bag_open,
+                    quests: &mut self.quests_open,
+                };
+                hud::bar(ui, view, player, &mut open, &mut actions);
+            }
+        }
         hud::skill_bar(ui, view, player, &mut actions);
         let lift = if player.skills.is_empty() {
             0.0

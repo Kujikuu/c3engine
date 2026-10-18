@@ -62,7 +62,7 @@ impl AssetKind {
             "c3char" => Self::Character,
             "ttf" | "otf" => Self::Font,
             "wav" | "mp3" | "ogg" => Self::Sound,
-            "txt" | "ron" | "toml" | "json" | "csv" | "lua" => Self::Data,
+            "txt" | "ron" | "toml" | "json" | "csv" | "lua" | "ini" => Self::Data,
             _ => Self::Other,
         })
     }

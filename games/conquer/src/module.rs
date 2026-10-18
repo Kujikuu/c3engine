@@ -82,6 +82,11 @@ const CURSORS: [(&str, &str); 4] = [
 ];
 
 /// Conquer's settings: its cursors, money and newbie, served to the original client too.
+/// The client's dialogs as its code builds them (see the file), served at [`UI_CONTROLS`]
+/// unless the project has its own.
+const CONTROLS: &[u8] = include_bytes!("../ui/controls.ini");
+const UI_CONTROLS: &str = "ui/controls.ini";
+
 pub fn conquer_settings() -> ProjectSettings {
     let mut s = ProjectSettings::default();
     s.player.game_name = "Conquer Online".into();
@@ -101,6 +106,9 @@ pub fn conquer_settings() -> ProjectSettings {
         kind: FRONT_KIND.into(),
         public_ip: "127.0.0.1".into(),
     });
+    s.ui.layout = "ini/GUI.ini".into();
+    s.ui.skin = "ani/Control.Ani".into();
+    s.ui.controls = UI_CONTROLS.into();
     s
 }
 
@@ -148,6 +156,9 @@ impl GameModule for ConquerModule {
     }
 
     fn read_file(&self, path: &str) -> Option<Vec<u8>> {
+        if path == UI_CONTROLS {
+            return Some(CONTROLS.to_vec());
+        }
         self.content.files().read(path).map(|b| b.into_owned())
     }
 
