@@ -195,6 +195,11 @@ impl Client {
         server_data::population_sql(population, default_map)
     }
 
+    /// Tables of a server SQL dump that hold the game's data (preselected on import).
+    pub fn suggested_tables(&self) -> &'static [&'static str] {
+        server_data::DATA_TABLES
+    }
+
     /// Names of the effects in `3DEffect.ini`, sorted.
     pub fn effect_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.content.effect_names().map(str::to_owned).collect();

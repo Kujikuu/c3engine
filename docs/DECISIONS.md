@@ -35,7 +35,10 @@ Append-only. Format: date · decision · why.
 
 - 2026-10-18 · **Studio UI stays native egui, styled and laid out like Unity** (user choice over rebuilding it as a Leptos/rust-ui web app): docking panels (Hierarchy, Scene, Game, Inspector, Project, Console) via `egui_dock`, menu bar, Play/Pause/Step toolbar, crafted dark theme, icon set, polished widgets. rust-ui is Leptos (web) only, so it can't render inside egui; its clean look may inspire the theme · keeps the engine viewports native and fast.
 
+- 2026-10-18 · **Roadmap order (user):** finish M3, then M5 (gameplay) and M6 (net + server); AI integration moves from M4 to the end as M8.
+- 2026-10-18 · **Scripting is Rhai** (closes the open question): pure Rust (no C toolchain), sandboxed, hot-reloadable, readable for game designers; hot paths (combat, movement) stay in Rust and read data tables · gameplay without recompiling, safe on the server.
+- 2026-10-18 · **No ECS library for now** (closes the open question): `engine/game` keeps a typed world (players, monsters, NPCs, ground items in id maps + a cell index) owned by the server simulation; the client mirrors it · an MMO simulation has few entity kinds and benefits more from explicit types than from archetypes.
+- 2026-10-18 · **Game data is typed tables** (`engine/data`): a schema (columns with kinds) plus rows, stored readable as `tables/<name>.table.ron`, edited through undoable commands, imported from SQL dumps. The engine framework (`engine/game`) is game-agnostic; a game module supplies its rules (formulas) and the table schemas it reads · data in the project, rules in code, no Conquer in the engine.
+
 ## Open
-- ECS: `bevy_ecs` standalone vs custom.
-- Scripting: Rhai (pure Rust) vs Lua (`mlua`).
 - Visual target for Conquer: exact classic 5065 first, or modernized from the start.

@@ -9,6 +9,7 @@
 
 mod app;
 mod browser;
+mod data_panel;
 mod doc;
 mod dock;
 mod editor;

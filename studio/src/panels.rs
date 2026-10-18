@@ -295,7 +295,7 @@ impl Studio {
         egui::ScrollArea::vertical()
             .auto_shrink(false)
             .show(ui, |ui| {
-                if self.selection_inspector(ui) {
+                if self.row_inspector(ui) || self.selection_inspector(ui) {
                     return;
                 }
                 match &self.doc {
@@ -577,9 +577,10 @@ impl Studio {
         let Some(pending) = self.pending.clone() else {
             return;
         };
-        let name = self.doc.as_ref().map_or("", |d| d.name()).to_owned();
+        let name = self.unsaved_names();
         let action = match pending {
             Pending::OpenMap(_) => "opening another map",
+            Pending::OpenTable(_) => "opening another table",
             Pending::OpenProject(_) => "opening another project",
             Pending::CloseProject => "closing the project",
             Pending::Quit => "quitting",

@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M5 step 1: game data foundation (see M5 below)
+- [ ] M5 step 2: scripting (see M5 below)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -131,13 +131,21 @@ Toward the Unity/UE5-style editor, in order:
 M3 complete (2026-10-18).
 
 ## M5: Gameplay framework (shared by client and server)
-- [ ] `engine/game`: entities, stats and levels, combat and skills, items and inventory, drops,
-      shops, trade, teams, guilds, chat; rules from project tables + scripts
-- [ ] Data table editors: items, skills, monsters, NPCs, shops, drop lists
-- [ ] Scripting host (Rhai or Lua): quests, NPC dialogue, events; gameplay without recompiling
-- [ ] Quest / dialogue editor
-- [ ] Game UI system (`engine/ui`) + UI editor: windows, HUD, dialogs
-- [ ] Audio (`engine/audio`): music regions, action and effect sounds
+In order; each step is playable in the Studio's Play mode:
+- [x] (1) Game data: `engine/data` typed tables (schema + rows, `tables/*.table.ron`), table
+      commands with undo in c3-edit, SQL dump import; Studio Data panel (spreadsheet: search,
+      inline edit, row Inspector); Conquer tables imported from the TQ dump (items, monsters,
+      magic, levels, shop goods)
+- [ ] (2) Scripting: `engine/script` Rhai host, `scripts/*.rhai`; NPC dialogue API (text,
+      options, give/take, teleport); Studio script editor with errors; NPC scripts run in Play mode
+- [ ] (3) Simulation: `engine/game` world (players, monsters, NPCs, ground items, cell index),
+      tick loop, spawns from spawn areas, monster AI, movement rules, combat + death + respawn,
+      exp/levels, drops, inventory/equipment, money, shops; game rules trait implemented by
+      `games/conquer` (TQ formulas); Play mode becomes a view of the simulation
+- [ ] (4) Game UI: `engine/ui` HUD (HP/MP/exp), inventory, NPC dialogue, shop, chat windows in
+      the client and the Game view
+- [ ] (5) Audio: `engine/audio` music regions, action and effect sounds
+- [ ] (6) Quest and dialogue editor: visual dialogue graphs, quest table, scripts generated
 
 ## M6: Networking + engine server
 - [ ] `engine/net`: transport, packet framework, cipher trait

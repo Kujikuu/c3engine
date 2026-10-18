@@ -8,6 +8,18 @@
 use c3_scene::{Npc, Population, Spawn};
 use std::collections::{BTreeMap, HashMap};
 
+/// The tables of TQ's server database that hold game data (not map population or accounts).
+pub const DATA_TABLES: &[&str] = &[
+    "cq_itemtype",
+    "cq_itemaddition",
+    "cq_monstertype",
+    "cq_magictype",
+    "cq_levexp",
+    "cq_goods",
+    "cq_rebirth",
+    "cq_point_allot",
+];
+
 /// `extra` key holding the game map id a row belongs to.
 pub const MAP_ID: &str = "mapid";
 
@@ -74,8 +86,7 @@ const GENERATOR_OWN: [&str; 9] = [
     "npctype",
 ];
 
-/// One SQL value: `None` for `NULL`.
-type Value = Option<String>;
+use c3_data::sql::SqlValue as Value;
 
 /// The population of every map in an SQL dump, by game map id. Rows whose column count
 /// doesn't match the table are skipped and counted in `skipped`.
@@ -292,56 +303,7 @@ fn insert_values(line: &str, table: &str) -> Option<Vec<Value>> {
         .strip_prefix("INSERT INTO `")?
         .strip_prefix(table)?
         .strip_prefix("` VALUES (")?;
-    parse_values(rest)
-}
-
-/// Parses `'a', 12, null, 'it\'s')...` up to the closing parenthesis.
-fn parse_values(s: &str) -> Option<Vec<Value>> {
-    let mut values = Vec::new();
-    let mut chars = s.chars().peekable();
-    loop {
-        while chars.peek() == Some(&' ') {
-            chars.next();
-        }
-        match chars.peek()? {
-            '\'' => {
-                chars.next();
-                let mut text = String::new();
-                loop {
-                    match chars.next()? {
-                        '\\' => text.push(chars.next()?),
-                        '\'' if chars.peek() == Some(&'\'') => {
-                            chars.next();
-                            text.push('\'');
-                        }
-                        '\'' => break,
-                        c => text.push(c),
-                    }
-                }
-                values.push(Some(text));
-            }
-            _ => {
-                let mut word = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c == ',' || c == ')' {
-                        break;
-                    }
-                    word.push(c);
-                    chars.next();
-                }
-                let word = word.trim();
-                values.push((!word.eq_ignore_ascii_case("null")).then(|| word.to_owned()));
-            }
-        }
-        while chars.peek() == Some(&' ') {
-            chars.next();
-        }
-        match chars.next()? {
-            ',' => {}
-            ')' => return Some(values),
-            _ => return None,
-        }
-    }
+    c3_data::sql::parse_values(rest).map(|(values, _)| values)
 }
 
 fn replace_statement(table: &str, columns: &[&str], values: &[Value]) -> String {

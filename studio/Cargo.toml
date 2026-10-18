@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 c3-assets = { version = "0.1.0", path = "../engine/assets" }
+c3-data = { version = "0.1.0", path = "../engine/data" }
 c3-edit = { version = "0.1.0", path = "../engine/edit" }
 c3-formats-tq = { version = "0.1.0", path = "../formats/c3" }
 c3-project = { version = "0.1.0", path = "../engine/project" }
@@ -12,6 +13,7 @@ c3-render = { version = "0.1.0", path = "../engine/render" }
 c3-scene = { version = "0.1.0", path = "../engine/scene" }
 dirs = "7.0.0"
 eframe = "0.37.0"
+egui_extras = "0.37.0"
 game-conquer = { version = "0.1.0", path = "../games/conquer" }
 glam = "0.34.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp"] }

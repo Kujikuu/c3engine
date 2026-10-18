@@ -29,10 +29,18 @@ pub(crate) enum Workspace {
     Models,
 }
 
+/// The document the keyboard's Undo, Redo and Save act on (the last one worked in).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Focus {
+    Scene,
+    Data,
+}
+
 /// Something waiting on the "unsaved changes" prompt.
 #[derive(Clone)]
 pub(crate) enum Pending {
     OpenMap(MapRef),
+    OpenTable(String),
     OpenProject(PathBuf),
     CloseProject,
     Quit,
@@ -66,6 +74,9 @@ pub struct Studio {
     pub(crate) playing: Option<crate::play::PlaySession>,
     /// The Preview panel's stage, made when first shown.
     pub(crate) stage: Option<crate::stage::Stage>,
+    /// The Data panel: tables and the one open.
+    pub(crate) data: crate::data_panel::DataPanel,
+    pub(crate) focus: Focus,
     /// The open map drawn as the game draws it; needs the project's content.
     pub(crate) live_scene: Option<LiveScene>,
     /// Which parts of the scene the Scene view draws.
@@ -152,6 +163,8 @@ impl Studio {
             render_state: cc.wgpu_render_state.clone(),
             playing: None,
             stage: None,
+            data: Default::default(),
+            focus: Focus::Scene,
             live_scene: None,
             layers: Layers::default(),
             animate: true,
@@ -220,6 +233,14 @@ impl Studio {
             s.fit_pending = false;
             s.cam.center = doc.cell_to_world(cell);
         }
+        if let Some(file) = flag("--import-tables") {
+            // The import dialog with the suggested tables picked, confirmed at once.
+            s.open_dump(PathBuf::from(file));
+            s.import_picked();
+        }
+        if let Some(name) = flag("--table") {
+            s.load_table(&name);
+        }
         if let Some(name) = flag("--show")
             && let Some(panel) = Panel::ALL
                 .into_iter()
@@ -264,6 +285,7 @@ impl Studio {
         }
         self.refresh_maps();
         self.refresh_assets();
+        self.refresh_tables();
     }
 
     /// Re-lists the maps.
@@ -362,8 +384,31 @@ impl Studio {
         }
     }
 
-    pub(crate) fn is_dirty(&self) -> bool {
+    /// The open map has unsaved changes.
+    pub(crate) fn map_dirty(&self) -> bool {
         self.doc.as_ref().is_some_and(MapDoc::is_dirty)
+    }
+
+    /// Anything open has unsaved changes (map or table).
+    pub(crate) fn is_dirty(&self) -> bool {
+        self.map_dirty() || self.data.is_dirty()
+    }
+
+    /// Saves every open document with changes; false if one failed.
+    pub(crate) fn save_all(&mut self) -> bool {
+        (!self.map_dirty() || self.save()) && (!self.data.is_dirty() || self.save_table())
+    }
+
+    /// What has unsaved changes, for prompts.
+    pub(crate) fn unsaved_names(&self) -> String {
+        let mut names = Vec::new();
+        if let Some(doc) = self.doc.as_ref().filter(|d| d.is_dirty()) {
+            names.push(doc.name().to_owned());
+        }
+        if let Some(t) = self.data.open.as_ref().filter(|t| t.doc.is_dirty()) {
+            names.push(format!("table {}", t.name));
+        }
+        names.join(" and ")
     }
 
     /// Opens a map, asking first if the current one has unsaved changes.
@@ -371,7 +416,7 @@ impl Studio {
         if self.doc.as_ref().is_some_and(|d| &d.map == map) {
             return;
         }
-        if self.is_dirty() {
+        if self.map_dirty() {
             self.pending = Some(Pending::OpenMap(map.clone()));
         } else {
             self.load_map(map);
@@ -503,11 +548,16 @@ impl Studio {
     /// Resolves the unsaved-changes prompt.
     pub(crate) fn resolve_pending(&mut self, save: bool, ctx: &egui::Context) {
         let Some(p) = self.pending.take() else { return };
-        if save && !self.save() {
+        if save && !self.save_all() {
             return; // keep the user's work if saving failed
         }
         match p {
             Pending::OpenMap(map) => self.load_map(&map),
+            Pending::OpenTable(name) => {
+                // Not saving drops the table's changes.
+                self.data.open = None;
+                self.load_table(&name);
+            }
             Pending::OpenProject(path) => self.open_project(&path),
             Pending::CloseProject => self.close_project(),
             Pending::Quit => {
@@ -518,14 +568,45 @@ impl Studio {
     }
 
     pub(crate) fn undo(&mut self) {
-        if let Some(label) = self.doc.as_mut().and_then(MapDoc::undo) {
+        let label = match self.focus {
+            Focus::Scene => self.doc.as_mut().and_then(MapDoc::undo),
+            Focus::Data => self.data.undo(),
+        };
+        if let Some(label) = label {
             self.notify(format!("Undid: {label}"));
         }
     }
 
     pub(crate) fn redo(&mut self) {
-        if let Some(label) = self.doc.as_mut().and_then(MapDoc::redo) {
+        let label = match self.focus {
+            Focus::Scene => self.doc.as_mut().and_then(MapDoc::redo),
+            Focus::Data => self.data.redo(),
+        };
+        if let Some(label) = label {
             self.notify(format!("Redid: {label}"));
+        }
+    }
+
+    /// Labels of the steps Undo and Redo would take, in the focused document.
+    pub(crate) fn undo_redo_labels(&self) -> (Option<String>, Option<String>) {
+        match self.focus {
+            Focus::Scene => (
+                self.doc
+                    .as_ref()
+                    .and_then(|d| d.undo_label())
+                    .map(str::to_owned),
+                self.doc
+                    .as_ref()
+                    .and_then(|d| d.redo_label())
+                    .map(str::to_owned),
+            ),
+            Focus::Data => {
+                let doc = self.data.open.as_ref().map(|t| &t.doc);
+                (
+                    doc.and_then(|d| d.undo_label()).map(str::to_owned),
+                    doc.and_then(|d| d.redo_label()).map(str::to_owned),
+                )
+            }
         }
     }
 
@@ -586,7 +667,14 @@ impl Studio {
             self.redo();
         }
         if save {
-            self.save();
+            match self.focus {
+                Focus::Scene => {
+                    self.save();
+                }
+                Focus::Data => {
+                    self.save_table();
+                }
+            }
         }
         if ctx.egui_wants_keyboard_input() {
             return;

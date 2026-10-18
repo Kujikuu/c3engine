@@ -13,6 +13,13 @@ pub enum EditError {
     NpcIdTaken(u32),
     NoSpawn(u32),
     SpawnIdTaken(u32),
+    NoRow(i64),
+    NoColumn(String),
+    /// A value of the wrong kind for its column.
+    WrongKind(String),
+    /// A row with the wrong number of values.
+    WrongWidth(usize),
+    KeyTaken(i64),
     /// An area covering more cells than a single command may touch.
     AreaTooLarge(usize),
     InvalidArea(String),
@@ -30,6 +37,11 @@ impl fmt::Display for EditError {
             Self::NpcIdTaken(id) => write!(f, "NPC id {id} is already used"),
             Self::NoSpawn(id) => write!(f, "there is no spawn area {id}"),
             Self::SpawnIdTaken(id) => write!(f, "spawn area id {id} is already used"),
+            Self::NoRow(key) => write!(f, "there is no row {key}"),
+            Self::NoColumn(name) => write!(f, "there is no column {name}"),
+            Self::WrongKind(name) => write!(f, "that value doesn't fit the {name} column"),
+            Self::WrongWidth(n) => write!(f, "the row has {n} values, not one per column"),
+            Self::KeyTaken(key) => write!(f, "key {key} is already used"),
             Self::AreaTooLarge(n) => write!(
                 f,
                 "the area covers {n} cells, more than one command may change ({})",

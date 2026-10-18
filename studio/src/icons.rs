@@ -57,6 +57,7 @@ pub const FOLDER_OPEN: &str = "\u{E256}";
 pub const GAME_CONTROLLER: &str = "\u{E26E}";
 pub const HAND: &str = "\u{E298}";
 pub const INFO: &str = "\u{E2CE}";
+pub const KEY: &str = "\u{E2D6}";
 pub const LAYOUT: &str = "\u{E6D6}";
 pub const MAGNIFYING_GLASS: &str = "\u{E30C}";
 pub const MAGNIFYING_GLASS_MINUS: &str = "\u{E30E}";

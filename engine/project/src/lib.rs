@@ -157,6 +157,31 @@ impl Project {
         self.maps_dir().join(format!("{name}{MAP_SUFFIX}"))
     }
 
+    /// Folder holding the project's data tables.
+    pub fn tables_dir(&self) -> PathBuf {
+        self.root.join("tables")
+    }
+
+    /// File of table `name` (`tables/<name>.table.ron`).
+    pub fn table_file(&self, name: &str) -> PathBuf {
+        self.tables_dir()
+            .join(format!("{name}{}", c3_data::TABLE_SUFFIX))
+    }
+
+    /// Names of the project's tables, sorted case-insensitively.
+    pub fn table_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(self.tables_dir())
+            .map(|dir| {
+                dir.flatten()
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .filter_map(|n| n.strip_suffix(c3_data::TABLE_SUFFIX).map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        names.sort_by_key(|n| n.to_lowercase());
+        names
+    }
+
     /// Population file (NPCs, spawns) of content map `name`, for map formats that can't hold
     /// one (`maps/<name>.population.ron`).
     pub fn population_file(&self, name: &str) -> PathBuf {

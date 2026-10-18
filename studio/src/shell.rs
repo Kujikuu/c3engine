@@ -24,16 +24,19 @@ pub(crate) enum Panel {
     History,
     Project,
     Console,
+    /// Game data tables.
+    Data,
 }
 
 impl Panel {
-    pub const ALL: [Panel; 8] = [
+    pub const ALL: [Panel; 9] = [
         Panel::Scene,
         Panel::Game,
         Panel::Preview,
         Panel::Hierarchy,
         Panel::Inspector,
         Panel::Project,
+        Panel::Data,
         Panel::Console,
         Panel::History,
     ];
@@ -48,6 +51,7 @@ impl Panel {
             Panel::History => icons::CLOCK_COUNTER_CLOCKWISE,
             Panel::Project => icons::FOLDER_OPEN,
             Panel::Console => icons::TERMINAL,
+            Panel::Data => icons::DATABASE,
         }
     }
 
@@ -61,6 +65,7 @@ impl Panel {
             Panel::History => "Undo History",
             Panel::Project => "Project",
             Panel::Console => "Console",
+            Panel::Data => "Data",
         }
     }
 
@@ -71,7 +76,9 @@ impl Panel {
                 &[Panel::Scene, Panel::Game, Panel::Preview]
             }
             Panel::Inspector | Panel::History => &[Panel::Inspector, Panel::History],
-            Panel::Project | Panel::Console => &[Panel::Project, Panel::Console],
+            Panel::Project | Panel::Console | Panel::Data => {
+                &[Panel::Project, Panel::Data, Panel::Console]
+            }
             Panel::Hierarchy => &[Panel::Hierarchy],
         }
     }
@@ -83,7 +90,7 @@ pub(crate) fn default_layout() -> Dock<Panel> {
     Dock::new(|group| {
         let left = group(vec![Panel::Hierarchy]);
         let centre = group(vec![Panel::Scene, Panel::Game, Panel::Preview]);
-        let bottom = group(vec![Panel::Project, Panel::Console]);
+        let bottom = group(vec![Panel::Project, Panel::Data, Panel::Console]);
         let right = group(vec![Panel::Inspector, Panel::History]);
         let top = Node::split(false, 0.2, left, centre);
         let main = Node::split(true, 0.7, top, bottom);
@@ -142,16 +149,7 @@ impl Studio {
 
     fn edit_menu(&mut self, ui: &mut egui::Ui) {
         ui.menu_button("Edit", |ui| {
-            let undo = self
-                .doc
-                .as_ref()
-                .and_then(|d| d.undo_label())
-                .map(str::to_owned);
-            let redo = self
-                .doc
-                .as_ref()
-                .and_then(|d| d.redo_label())
-                .map(str::to_owned);
+            let (undo, redo) = self.undo_redo_labels();
             let item = |what: &str, step: &Option<String>| match step {
                 Some(label) => format!("{what} {label}"),
                 None => what.to_owned(),
@@ -417,7 +415,8 @@ impl TabViewer<Panel> for Studio {
     fn title(&self, panel: Panel) -> String {
         let name = match panel {
             // Unity marks a scene with unsaved changes with an asterisk.
-            Panel::Scene if self.is_dirty() => "Scene*",
+            Panel::Scene if self.map_dirty() => "Scene*",
+            Panel::Data if self.data.is_dirty() => "Data*",
             _ => panel.name(),
         };
         theme::icon_text(panel.icon(), name)
@@ -433,6 +432,7 @@ impl TabViewer<Panel> for Studio {
             Panel::History => self.history_panel(ui),
             Panel::Project => self.project_panel(ui),
             Panel::Console => self.console_panel(ui),
+            Panel::Data => self.data_panel(ui),
         }
     }
 }
