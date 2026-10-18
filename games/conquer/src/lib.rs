@@ -7,6 +7,7 @@ pub mod actor;
 pub mod character;
 pub mod game;
 pub mod npc;
+pub mod protocol;
 pub mod rules;
 pub mod screen;
 pub mod serve;

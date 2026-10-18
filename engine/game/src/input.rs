@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 pub enum Input {
     /// Walk to a cell (or as near as it can get).
     Walk(CellPos),
+    /// Jump to a cell (within `JUMP_RANGE`, onto walkable ground).
+    Jump(CellPos),
     SetRunning(bool),
     Attack(EntityId),
     PickUp(EntityId),
@@ -44,6 +46,7 @@ impl Sim {
     pub fn input(&mut self, id: EntityId, input: Input) {
         match input {
             Input::Walk(cell) => self.walk(id, cell),
+            Input::Jump(cell) => self.jump(id, cell),
             Input::SetRunning(on) => self.set_running(id, on),
             Input::Attack(target) => self.attack(id, target),
             Input::PickUp(item) => self.pick_up(id, item),

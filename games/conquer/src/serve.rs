@@ -4,6 +4,7 @@
 //! both start one.
 
 use crate::game::{self, GameSetup};
+use crate::protocol::{ConquerFront, ConquerSetup};
 use c3_online::{EngineFront, Front, GameServer, MapWorld, ServerConfig};
 use c3_scene::{CellPos, Scene, path};
 use std::net::SocketAddr;
@@ -35,11 +36,15 @@ pub struct ServeSetup {
     pub tables: Option<PathBuf>,
     /// Folder of the account files.
     pub accounts: PathBuf,
+    /// Also serve Conquer 5065 clients (account and game servers), when set.
+    pub conquer: Option<ConquerSetup>,
 }
 
 /// A running server.
 pub struct ServerHandle {
     addr: SocketAddr,
+    /// The Conquer account and game servers' addresses, when serving Conquer clients.
+    conquer: Option<(SocketAddr, SocketAddr)>,
     stop: Arc<AtomicBool>,
     log: Arc<Mutex<Vec<String>>>,
     thread: Option<JoinHandle<()>>,
@@ -54,6 +59,18 @@ impl ServerHandle {
         let front = EngineFront::bind(setup.listen.as_str())
             .map_err(|e| format!("can't listen on {}: {e}", setup.listen))?;
         let addr = front.local_addr();
+        let mut fronts: Vec<Box<dyn Front + Send>> = vec![Box::new(front)];
+        let mut conquer = None;
+        if let Some(c) = &setup.conquer {
+            let front = ConquerFront::bind(c).map_err(|e| {
+                format!(
+                    "can't listen on {} and {}: {e}",
+                    c.account_listen, c.game_listen
+                )
+            })?;
+            conquer = Some((front.account_addr(), front.local_addr()));
+            fronts.push(Box::new(front));
+        }
         let stop = Arc::new(AtomicBool::new(false));
         let log: Arc<Mutex<Vec<String>>> = Arc::default();
         let (stopping, sink) = (stop.clone(), log.clone());
@@ -86,12 +103,17 @@ impl ServerHandle {
                     })
                     .collect::<Vec<_>>();
                 say(format!("Serving {} map(s) on {addr}", worlds.len()));
+                if let Some((account, game)) = conquer {
+                    say(format!(
+                        "Conquer clients: account server {account}, game server {game}"
+                    ));
+                }
                 let config = ServerConfig {
                     accounts: setup.accounts,
                     new_character: Box::new(game::new_character),
                     save_every_ms: SAVE_EVERY_MS,
                 };
-                let fronts: Vec<Box<dyn Front>> = vec![Box::new(front)];
+                let fronts = fronts.into_iter().map(|f| f as Box<dyn Front>).collect();
                 let mut server = GameServer::new(fronts, worlds, config);
                 server.run(&stopping, |line| say(line.to_owned()));
                 say("The server stopped; characters saved.".into());
@@ -99,6 +121,7 @@ impl ServerHandle {
             .map_err(|e| e.to_string())?;
         Ok(Self {
             addr,
+            conquer,
             stop,
             log,
             thread: Some(thread),
@@ -108,6 +131,11 @@ impl ServerHandle {
     /// The address clients connect to.
     pub fn addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// The Conquer account and game servers' addresses, when serving Conquer clients.
+    pub fn conquer_addrs(&self) -> Option<(SocketAddr, SocketAddr)> {
+        self.conquer
     }
 
     /// What the server said since the last call.

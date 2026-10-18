@@ -92,7 +92,10 @@ impl Event {
     fn entities(&self) -> Vec<EntityId> {
         match *self {
             Event::Appeared(id) | Event::Vanished(id) | Event::Revived(id) => vec![id],
-            Event::Moved { id, .. } | Event::Placed { id, .. } | Event::Died { id, .. } => vec![id],
+            Event::Moved { id, .. }
+            | Event::Placed { id, .. }
+            | Event::Jumped { id, .. }
+            | Event::Died { id, .. } => vec![id],
             Event::Attacked {
                 attacker, target, ..
             } => vec![attacker, target],

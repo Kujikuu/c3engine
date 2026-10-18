@@ -21,6 +21,9 @@ use tokio::sync::{mpsc as tmpsc, oneshot};
 pub struct Wire {
     pub framing: Box<dyn Framing + Sync>,
     pub cipher: Box<dyn Cipher>,
+    /// A packet sent first, as soon as the connection is up, before anything queued (a
+    /// server's key exchange). It is sealed and encrypted like any other.
+    pub greeting: Option<Vec<u8>>,
 }
 
 impl Wire {
@@ -29,6 +32,7 @@ impl Wire {
         Self {
             framing: Box::new(LengthPrefixed),
             cipher: Box::new(Plain),
+            greeting: None,
         }
     }
 }
@@ -131,8 +135,17 @@ async fn write_packets(
     framing: Arc<dyn Framing + Sync>,
     cipher: Arc<Mutex<Box<dyn Cipher>>>,
     mut queue: tmpsc::UnboundedReceiver<Outgoing>,
+    greeting: Option<Vec<u8>>,
     stop_reading: oneshot::Sender<()>,
 ) {
+    if let Some(packet) = greeting {
+        let mut bytes = framing.seal(packet);
+        cipher.lock().expect("cipher").encrypt(&mut bytes);
+        if wr.write_all(&bytes).await.is_err() {
+            let _ = stop_reading.send(());
+            return;
+        }
+    }
     while let Some(out) = queue.recv().await {
         match out {
             Outgoing::Packet(packet) => {
@@ -167,6 +180,7 @@ async fn run_connection(
         framing.clone(),
         cipher.clone(),
         queue,
+        wire.greeting,
         stop_tx,
     ));
     let reason = read_packets(rd, framing, cipher, stop_rx, deliver).await;

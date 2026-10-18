@@ -63,6 +63,24 @@ impl Sim {
         p.path = path::find_path(&self.grid, p.cell, goal, &PLAYER_PATH).into();
     }
 
+    /// Jumps the player to `to`, if it is walkable and within `JUMP_RANGE`.
+    pub fn jump(&mut self, id: EntityId, to: CellPos) {
+        if !self.walkable(to) {
+            return;
+        }
+        let Some(p) = self.living(id) else { return };
+        if distance(p.cell, to) > crate::JUMP_RANGE {
+            return;
+        }
+        let from = p.cell;
+        p.direction = path::facing(from, to).unwrap_or(p.direction);
+        p.cell = to;
+        p.path.clear();
+        p.task = Task::Idle;
+        self.index.moved(id, from, to);
+        self.events.push(Event::Jumped { id, to });
+    }
+
     /// Whether a player can walk from `from` to `to` in a few steps (`to` walkable, a short
     /// path between).
     pub fn reachable(&self, from: CellPos, to: CellPos, max_steps: usize) -> bool {

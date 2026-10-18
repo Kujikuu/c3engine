@@ -82,7 +82,7 @@ impl SimView {
                         world.actors[i].walk_to(to, scene);
                     }
                 }
-                Event::Placed { id, cell } => {
+                Event::Placed { id, cell } | Event::Jumped { id, to: cell } => {
                     if let Some(i) = self.actor(id) {
                         world.actors[i].place(cell);
                     }

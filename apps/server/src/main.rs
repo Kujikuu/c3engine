@@ -1,16 +1,21 @@
 //! C3 Server: runs a game project's world for its clients.
 //!
-//! `c3-server <project> [--map <key>]... [--cell x,y] [--port 7101] [--listen 0.0.0.0]`
+//! `c3-server <project> [--map <key>]... [--cell x,y] [--port 7101] [--listen 0.0.0.0]
+//! [--conquer <public ip>]`
 //! serves each `--map` (a project scene's name or a content map path such as
 //! `map/map/newplain.DMap`; Twin City when none is named), with the project's NPCs, spawns,
 //! rules, scripts and quests. New characters start on the first map, at `--cell` (else its
 //! middle). Accounts and characters are kept in `<project>/server/accounts`; an unknown
 //! account name logs in by making the account.
 //!
+//! `--conquer` also serves the original Conquer 5065 client: an account server on port 9958
+//! and a game server on 5816, to which logged-in clients are sent at `<public ip>`.
+//!
 //! Type `online` to see who is playing, `quit` to stop (characters are saved).
 
 use c3_scene::CellPos;
 use game_conquer::Content;
+use game_conquer::protocol::ConquerSetup;
 use game_conquer::serve::{ServeSetup, ServedMap, ServerHandle};
 use std::io::BufRead;
 use std::sync::mpsc;
@@ -27,6 +32,8 @@ struct Args {
     cell: Option<CellPos>,
     listen: String,
     port: u16,
+    /// The public IP Conquer clients reach the game server at, when serving them.
+    conquer: Option<String>,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -61,6 +68,7 @@ fn parse_args() -> Result<Args, String> {
         cell,
         listen: flag("--listen").unwrap_or_else(|| "0.0.0.0".into()),
         port,
+        conquer: flag("--conquer"),
     })
 }
 
@@ -106,6 +114,10 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
             scripts: Some(project.scripts_dir()),
             tables: Some(project.tables_dir()),
             accounts: project.server_dir().join("accounts"),
+            conquer: args
+                .conquer
+                .as_deref()
+                .map(|ip| ConquerSetup::on(&args.listen, ip)),
         },
     )
 }

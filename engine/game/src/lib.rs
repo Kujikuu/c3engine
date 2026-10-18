@@ -44,6 +44,8 @@ pub const REVIVE_MS: u64 = 10_000;
 pub const ITEM_LIFE_MS: u64 = 60_000;
 /// Cells from an NPC within which a player can trade with it.
 pub const NPC_REACH: i32 = 18;
+/// Cells a player can jump at once.
+pub const JUMP_RANGE: i32 = 16;
 /// Cells from an NPC within which a player can start talking to it.
 pub const TALK_RANGE: i32 = 3;
 

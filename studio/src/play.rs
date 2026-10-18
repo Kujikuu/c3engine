@@ -109,6 +109,7 @@ impl PlaySession {
                 scripts: setup.scripts,
                 tables: setup.tables.clone(),
                 accounts,
+                conquer: None,
             },
         )?;
         let session = Session::join_scene(

@@ -33,8 +33,8 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
-the end as M8.
-- [ ] M6 step 5: Conquer 5065 protocol + cipher in `games/conquer` (see M6 below)
+the end as M8. M3, M5 and M6 are complete.
+- [ ] M7: prove + ship (see M7 below), starting with Conquer feature parity
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -150,7 +150,7 @@ In order; each step is playable in the Studio's Play mode:
       `scripts/dialogue/*.rhai`; quest table (kill/collect/talk goals, rewards) with script API,
       kill counting in the simulation, `/quest` command; quest log, tracker and NPC quest marks
 
-## M6: Networking + engine server
+## M6: Networking + engine server [x] (complete 2026-10-18)
 - [x] `engine/net`: transport (tokio on a background thread, poll/send API), framing trait
       (length-prefixed), cipher trait with re-keying hook, fixed-layout packet reader/writer
 - [x] Game server (`apps/server`) built from a project: maps (scenes + population), spawns,
@@ -160,9 +160,14 @@ In order; each step is playable in the Studio's Play mode:
       heads), monsters, combat, dialogue, shops, chat and commands; the server sends each
       player its view (`Sim::update_for`) and the client mirrors it (`Sim::apply_update`), so
       the same UI and views run online; `c3-client --server host:port --account <name>`
-      (jumping is not in the simulation yet: M7)
+      (jumping included: `Input::Jump`, 16 cells)
 - [x] Play mode with a local server inside the Studio (toolbar toggle; `--online`)
-- [ ] Conquer 5065 protocol + cipher in `games/conquer` (Redux-compatible client)
+- [x] Conquer 5065 protocol + cipher in `games/conquer::protocol`: the original client logs in
+      (account server 9958: TQ cipher, RC5 password, token) and plays on the engine's server
+      (game server 5816: DH key exchange, Blowfish-CFB64): hero, items, map entry, NPCs,
+      players, monsters, ground items, walk/jump, combat, chat, NPC dialogs; one more `Front`
+      of the same `GameServer` (`c3-server --conquer <public ip>`). Spec:
+      `docs/conquer5065_protocol.md`. Shops and skills over this protocol: M7 parity
 
 ## M7: Prove + ship
 - [ ] Conquer feature parity as a project (combat, items, UI)

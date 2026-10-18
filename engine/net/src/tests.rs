@@ -79,6 +79,7 @@ fn ciphers_rekey_exactly_after_the_packet() {
             send: 0x5A,
             recv: 0x5A,
         }),
+        greeting: None,
     };
     let server = Server::bind("127.0.0.1:0", wire).unwrap();
     // The client switches its sending key right after sending the re-key packet, and sends
@@ -99,6 +100,7 @@ fn ciphers_rekey_exactly_after_the_packet() {
         Wire {
             framing: Box::new(LengthPrefixed),
             cipher: Box::new(ClientSide(0x5A, true)),
+            greeting: None,
         },
     )
     .unwrap();
@@ -113,6 +115,20 @@ fn ciphers_rekey_exactly_after_the_packet() {
         }));
     }
     assert_eq!(packets, [vec![0xFF, 0x33], vec![1, 2, 3]]);
+}
+
+#[test]
+fn greetings_come_first() {
+    let wire = || Wire {
+        greeting: Some(b"keys".to_vec()),
+        ..Wire::plain()
+    };
+    let server = Server::bind("127.0.0.1:0", wire).unwrap();
+    let client = Client::connect(server.local_addr(), Wire::plain()).unwrap();
+    assert_eq!(
+        wait_for(|| client.poll(), |_| true),
+        ClientEvent::Received(b"keys".to_vec())
+    );
 }
 
 #[test]

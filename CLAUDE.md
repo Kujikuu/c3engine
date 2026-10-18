@@ -44,5 +44,6 @@ append decisions, document formats as you implement them.
 - Toolchain: stable-x86_64-pc-windows-msvc. If `cargo` isn't on PATH, add `%USERPROFILE%\.cargo\bin`.
 - Online: `c3-server <project> --map map/map/newplain.DMap --cell 405,357 --listen 127.0.0.1`
   (port 7101), then `c3-client --project <project> --server 127.0.0.1:7101 --account alice
-  --password pw`. Debug builds use line-tables-only debug info (full info overflows the MSVC
+  --password pw`. `--conquer <public ip>` also serves the original 5065 client (account server
+  9958, game server 5816; `games/conquer/src/protocol`). Debug builds use line-tables-only debug info (full info overflows the MSVC
   PDB); `target/` grows fast, and D: has filled up before: `cargo clean --profile dev` frees it.

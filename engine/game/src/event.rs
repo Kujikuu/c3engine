@@ -22,6 +22,11 @@ pub enum Event {
         id: EntityId,
         cell: CellPos,
     },
+    /// Jumped to a cell.
+    Jumped {
+        id: EntityId,
+        to: CellPos,
+    },
     /// A hit; `damage` 0 is a miss.
     Attacked {
         attacker: EntityId,
