@@ -1,7 +1,8 @@
-//! Map editing tools and how pointer input maps onto document edits.
+//! Map editing tools: how pointer input becomes `c3_edit` commands on the document.
 
 use crate::doc::MapDoc;
 use crate::map_view::Pointer;
+use c3_edit::{Area, SceneCommand};
 use c3_scene::CellPos;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -68,8 +69,8 @@ pub struct Editor {
     pub tool: Tool,
     /// Brush radius in cells (0 = single cell).
     pub brush: i32,
-    /// Portal being dragged: (index, cell it started on).
-    dragging_portal: Option<(usize, CellPos)>,
+    /// Portal being dragged: (id, cell it started on).
+    dragging_portal: Option<(i32, CellPos)>,
 }
 
 impl Default for Editor {
@@ -83,26 +84,45 @@ impl Default for Editor {
 }
 
 impl Editor {
-    pub fn dragging_portal(&self) -> Option<usize> {
-        self.dragging_portal.map(|(i, _)| i)
+    /// Id of the portal being dragged.
+    pub fn dragging_portal(&self) -> Option<i32> {
+        self.dragging_portal.map(|(id, _)| id)
     }
 
     pub fn grow_brush(&mut self, delta: i32) {
         self.brush = (self.brush + delta).clamp(0, MAX_BRUSH);
     }
 
-    /// Applies this frame's pointer input to the document. Returns a status message, if any.
+    /// Turns this frame's pointer input into commands on the document. Returns a status
+    /// message: what a command did, or why it was refused.
     pub fn handle(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {
         match self.tool {
             Tool::Inspect => None,
             Tool::Block | Tool::Clear => {
+                let blocked = self.tool == Tool::Block;
+                // One brush stroke is one undo step.
+                if p.primary_pressed {
+                    doc.begin_group(if blocked {
+                        "Paint blocked"
+                    } else {
+                        "Paint walkable"
+                    });
+                }
                 if p.primary_down
-                    && let Some(cell) = p.cell
+                    && let Some(center) = p.cell
                 {
-                    doc.paint(cell, self.brush, self.tool == Tool::Block);
+                    let paint = SceneCommand::SetBlocked {
+                        area: Area::Square {
+                            center,
+                            radius: self.brush,
+                        },
+                        blocked,
+                    };
+                    // A brush inside the map always succeeds.
+                    let _ = doc.execute(&paint);
                 }
                 if p.primary_released {
-                    doc.end_stroke();
+                    doc.end_group();
                 }
                 None
             }
@@ -116,25 +136,25 @@ impl Editor {
             self.dragging_portal = None;
         }
         let cell = p.cell?;
+        let run = |doc: &mut MapDoc, command: SceneCommand| match doc.execute(&command) {
+            Ok(outcome) => outcome.summary,
+            Err(e) => format!("Can't do that: {e}"),
+        };
         if p.secondary_clicked {
-            let i = doc.portal_at(cell)?;
-            let index = doc.scene.portals[i].id;
-            doc.remove_portal(i);
-            return Some(format!("Deleted portal {index}"));
+            let id = doc.portal_id_at(cell)?;
+            return Some(run(doc, SceneCommand::RemovePortal { id }));
         }
         if p.primary_pressed {
-            self.dragging_portal = doc.portal_at(cell).map(|i| (i, cell));
-            if self.dragging_portal.is_none() && doc.add_portal(cell) {
-                let index = doc.scene.portals.last().map_or(0, |p| p.id);
-                return Some(format!("Added portal {index} at {}, {}", cell.0, cell.1));
+            self.dragging_portal = doc.portal_id_at(cell).map(|id| (id, cell));
+            if self.dragging_portal.is_none() {
+                return Some(run(doc, SceneCommand::AddPortal { cell, id: None }));
             }
         }
         if p.primary_released
-            && let Some((i, from)) = self.dragging_portal.take()
+            && let Some((id, from)) = self.dragging_portal.take()
             && cell != from
-            && doc.move_portal(i, cell)
         {
-            return Some(format!("Moved portal to {}, {}", cell.0, cell.1));
+            return Some(run(doc, SceneCommand::MovePortal { id, to: cell }));
         }
         None
     }

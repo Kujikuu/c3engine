@@ -40,6 +40,23 @@ path = 'D:\Conquer2\Tools\eosource\client5065'
 ```
 Recent projects: `<config dir>/C3Engine/recent.toml`, `[[project]]` entries (name, path, opened).
 
+### Editor commands and queries (c3-edit JSON)
+The AI assistant, MCP agents and `c3-studio --exec` use this JSON (schemas:
+`c3_edit::scene_command_schema()` / `scene_query_schema()`). Cells are `[x, y]`.
+```json
+[
+  {"op": "set_blocked", "area": {"shape": "rect", "min": [250, 600], "max": [400, 750]}, "blocked": true},
+  {"op": "set_blocked", "area": {"shape": "square", "center": [10, 10], "radius": 2}, "blocked": false},
+  {"op": "set_blocked", "area": {"shape": "cells", "cells": [[1, 2], [3, 4]]}, "blocked": true},
+  {"op": "add_portal", "cell": [330, 680]},
+  {"op": "move_portal", "id": 0, "to": [331, 680]},
+  {"op": "remove_portal", "id": 0}
+]
+```
+Queries: `{"query": "summary"}`, `{"query": "cell", "cell": [x, y]}`, `{"query": "portals"}`,
+`{"query": "walkability", "min": [x, y], "max": [x, y]}` (rows of `.` walkable, `#` blocked,
+`P` portal; at most 128×128).
+
 ## Per-format sections
 (Add `## <FORMAT>` with header layout, field table, quirks, and test files.)
 

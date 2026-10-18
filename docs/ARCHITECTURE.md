@@ -16,7 +16,7 @@ c3engine/
                sources, recent projects)
     game/      (planned) gameplay framework shared by client and server: entities, stats,
                combat, items, quests, spawns; rules come from project tables + scripts
-    edit/      (planned) c3-edit: headless editing API. Project model, typed serializable
+    edit/      c3-edit: headless editing API. Typed serializable
                commands with undo/redo, queries and their schemas. Used by the Studio UI,
                the AI assistant and the MCP server alike
     ai/        (planned) c3-ai: Claude API client and the bridge exposing c3-edit commands

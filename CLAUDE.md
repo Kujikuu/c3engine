@@ -11,6 +11,8 @@ append decisions, document formats as you implement them.
 - Clean code: focused modules, doc comments on public items, `cargo fmt` + `cargo clippy --workspace --all-targets` with zero warnings.
 - Editors touch engine types only (`c3_scene`, `c3_assets`). In the Studio, **only `tq_plugin.rs` may use
   `c3_formats_tq`**. TQ ⇄ Scene conversion lives in `formats/c3/src/scene_io.rs`.
+- **Every project edit goes through `c3-edit` commands** (typed, serializable, undoable). Never
+  mutate a document directly from UI code; add a command instead. AI/MCP will use the same commands.
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
   `home.rs` (start page, project dialogs, File menu, Project inspector section), `gpu.rs` (engine
   renderer → egui texture), `model_view.rs` + `models_ws.rs` (Models workspace). The Studio always

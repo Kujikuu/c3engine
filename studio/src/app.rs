@@ -121,6 +121,9 @@ impl Studio {
         if let Some(m) = flag("--map") {
             s.load_map(&m);
         }
+        if let Some(file) = flag("--exec") {
+            s.run_command_file(&file);
+        }
         if let Some(id) = flag("--model").and_then(|m| m.parse::<u64>().ok()) {
             s.workspace = Workspace::Models;
             match s.models.iter().find(|e| e.id == id).cloned() {
@@ -194,12 +197,44 @@ impl Studio {
         }
     }
 
+    /// Runs a JSON file of scene commands on the open map as one undo step.
+    fn run_command_file(&mut self, file: &str) {
+        let Some(doc) = &mut self.doc else {
+            self.error = Some("--exec needs a map: pass --map too".into());
+            return;
+        };
+        let commands = std::fs::read_to_string(file)
+            .map_err(|e| e.to_string())
+            .and_then(|json| c3_edit::parse_scene_commands(&json));
+        match commands {
+            Ok(commands) => {
+                let name = std::path::Path::new(file)
+                    .file_name()
+                    .map_or(file.into(), |n| n.to_string_lossy());
+                let results = doc.execute_batch(&format!("Run {name}"), &commands);
+                let refused: Vec<String> = results
+                    .iter()
+                    .filter_map(|r| r.as_ref().err().map(ToString::to_string))
+                    .collect();
+                match refused.first() {
+                    Some(first) => {
+                        let n = refused.len();
+                        let commands = if n == 1 { "command" } else { "commands" };
+                        self.error = Some(format!("{n} {commands} refused, first: {first}"));
+                    }
+                    None => self.notify(format!("Ran {} commands from {name}", commands.len())),
+                }
+            }
+            Err(e) => self.error = Some(format!("{file}: {e}")),
+        }
+    }
+
     pub(crate) fn save(&mut self) -> bool {
         let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
             return false;
         };
-        doc.end_stroke();
-        match client.save_map(&doc.scene, &doc.path) {
+        doc.end_group();
+        match client.save_map(doc.scene(), &doc.path) {
             Ok(path) => {
                 doc.mark_saved();
                 self.notify(format!("Saved {}", path.display()));
@@ -230,14 +265,14 @@ impl Studio {
     }
 
     pub(crate) fn undo(&mut self) {
-        if let Some(d) = &mut self.doc {
-            d.undo();
+        if let Some(label) = self.doc.as_mut().and_then(MapDoc::undo) {
+            self.notify(format!("Undid: {label}"));
         }
     }
 
     pub(crate) fn redo(&mut self) {
-        if let Some(d) = &mut self.doc {
-            d.redo();
+        if let Some(label) = self.doc.as_mut().and_then(MapDoc::redo) {
+            self.notify(format!("Redid: {label}"));
         }
     }
 

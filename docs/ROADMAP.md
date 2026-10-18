@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 2: the c3-edit command layer (foundation for AI)
+- [ ] M3 step 3: native asset formats stored in the project
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -72,9 +72,12 @@ Toward the Unity/UE5-style editor, in order:
       folders, content sources, recent list); Studio start page (New / Open / Import Conquer 5065,
       recent projects), File menu, project dialogs (`--new`, `--import <client>`), Project section
       in the inspector; the project's TQ client source feeds maps and models
-- [ ] (2) Command layer `engine/edit` (c3-edit): every project change is a typed, serializable
-      command with undo/redo; read-only queries with schemas; existing map editing moves onto it.
-      The foundation for the assistant and MCP (M4)
+- [x] (2) Command layer `engine/edit` (c3-edit): `SceneCommand` (set_blocked over cells/square/
+      rect areas, add/move/remove portal by id) applied by `SceneDoc::execute` with exact undo,
+      labelled history with groups (a brush stroke = one step), batches, saved marker;
+      `SceneQuery` (summary, cell, portals, walkability text map); JSON in and out + JSON schemas.
+      Studio map editing runs on it; History panel (click to step back/forward), labelled
+      undo/redo; `--exec commands.json` runs a command file on the open map
 - [ ] (3) Native asset formats the project stores (scene, model, effect, sprite set; unencrypted,
       readable), with the TQ importers/exporters as converters
 - [ ] (4) Asset browser: folders, search, thumbnails, live preview of models, effects, sprites, maps

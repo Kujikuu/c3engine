@@ -70,7 +70,8 @@ pub struct ViewMode {
     /// Brush preview: radius in cells and colour.
     pub brush: Option<(i32, Color32)>,
     /// Portal being dragged; drawn under the cursor.
-    pub dragging_portal: Option<usize>,
+    /// Id of the portal being dragged.
+    pub dragging_portal: Option<i32>,
 }
 
 /// Pointer state over the map this frame.
@@ -133,8 +134,8 @@ pub fn show(
     let to_world = |s: Pos2| cam.center + (s - rect.center()) / cam.zoom;
     let view = Rect::from_two_pos(to_world(rect.min), to_world(rect.max));
     let (half_w, half_h) = (
-        doc.scene.projection.cell_w / 2.0 * cam.zoom,
-        doc.scene.projection.cell_h / 2.0 * cam.zoom,
+        doc.scene().projection.cell_w / 2.0 * cam.zoom,
+        doc.scene().projection.cell_h / 2.0 * cam.zoom,
     );
     let diamond = move |c: Pos2, scale: f32| {
         let (hw, hh) = (half_w * scale, half_h * scale);
@@ -228,7 +229,7 @@ fn draw_ground(
     zoom: f32,
 ) -> bool {
     // Half a screen pixel of overlap hides seams between tiles.
-    let ground = match doc.scene.ground.as_ref() {
+    let ground = match doc.scene().ground.as_ref() {
         Some(layer) => ground::sprites(
             layer,
             [view.min.x, view.min.y, view.max.x, view.max.y],
@@ -281,7 +282,7 @@ fn draw_cells(
     to_screen: impl Fn(Pos2) -> Pos2,
     diamond: impl Fn(Pos2, f32) -> Vec<Pos2>,
 ) {
-    let cell_px = doc.scene.projection.cell_w * zoom;
+    let cell_px = doc.scene().projection.cell_w * zoom;
     // Grid fades in between 24 and 48 px per cell so it never turns into noise.
     let grid_alpha = ((cell_px - 24.0) / 24.0).clamp(0.0, 1.0);
     let show_blocked = ov.blocked && cell_px >= 3.0;
@@ -297,7 +298,10 @@ fn draw_cells(
         Pos2::new(view.min.x, view.max.y),
     ];
     let cells: Vec<_> = corners.iter().map(|&p| doc.world_to_cell(p)).collect();
-    let (w, h) = (doc.scene.grid.width as i32, doc.scene.grid.height as i32);
+    let (w, h) = (
+        doc.scene().grid.width as i32,
+        doc.scene().grid.height as i32,
+    );
     let cx0 = (cells.iter().map(|c| c.0).min().unwrap() - 1).max(0);
     let cx1 = (cells.iter().map(|c| c.0).max().unwrap() + 1).min(w - 1);
     let cy0 = (cells.iter().map(|c| c.1).min().unwrap() - 1).max(0);
@@ -331,14 +335,14 @@ fn draw_objects(
     rect: Rect,
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
-    for e in &doc.scene.entities {
+    for e in &doc.scene().entities {
         let color = match e.kind {
             EntityKind::Sprite { .. } => colors::COVER,
             EntityKind::Prefab { .. } => colors::TERRAIN,
             EntityKind::Sound { .. } => colors::SOUND,
             EntityKind::Effect { .. } => colors::EFFECT,
         };
-        let (x, y) = doc.scene.entity_world(e);
+        let (x, y) = doc.scene().entity_world(e);
         let p = to_screen(Pos2::new(x, y));
         if rect.contains(p) {
             painter.circle(p, 4.0, color, Stroke::new(1.0, Color32::BLACK));
@@ -352,11 +356,11 @@ fn draw_portals(
     rect: Rect,
     zoom: f32,
     to_screen: impl Fn(Pos2) -> Pos2,
-    dragging: Option<usize>,
+    dragging: Option<i32>,
     hover: Option<CellPos>,
 ) {
     // Keep portals readable when zoomed far out.
-    let r = (doc.scene.projection.cell_w / 2.0 * zoom).max(9.0);
+    let r = (doc.scene().projection.cell_w / 2.0 * zoom).max(9.0);
     let marker = |c: Pos2, fill: Color32, label: String| {
         let pts = vec![
             c + Vec2::new(0.0, -r / 2.0),
@@ -377,12 +381,12 @@ fn draw_portals(
             Color32::WHITE,
         );
     };
-    for (i, p) in doc.scene.portals.iter().enumerate() {
+    for p in &doc.scene().portals {
         let c = to_screen(doc.cell_to_world(p.cell));
         if !rect.expand(40.0).contains(c) {
             continue;
         }
-        let dragged = dragging == Some(i);
+        let dragged = dragging == Some(p.id);
         marker(
             c,
             colors::PORTAL.gamma_multiply(if dragged { 0.3 } else { 0.8 }),

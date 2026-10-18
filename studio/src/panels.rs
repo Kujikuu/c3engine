@@ -49,20 +49,32 @@ impl Studio {
             }
 
             let has_doc = self.doc.is_some();
-            let (can_undo, can_redo) = self
+            let undo = self
                 .doc
                 .as_ref()
-                .map_or((false, false), |d| (d.can_undo(), d.can_redo()));
+                .and_then(|d| d.undo_label())
+                .map(str::to_owned);
+            let redo = self
+                .doc
+                .as_ref()
+                .and_then(|d| d.redo_label())
+                .map(str::to_owned);
+            let hint = |action: &str, step: &Option<String>, key: &str| match step {
+                Some(label) => format!("{action}: {label} ({key})"),
+                None => format!("Nothing to {} ({key})", action.to_lowercase()),
+            };
             if ui
-                .add_enabled(can_undo, egui::Button::new("↶ Undo"))
-                .on_hover_text("Undo (Ctrl+Z)")
+                .add_enabled(undo.is_some(), egui::Button::new("↶ Undo"))
+                .on_hover_text(hint("Undo", &undo, "Ctrl+Z"))
+                .on_disabled_hover_text(hint("Undo", &undo, "Ctrl+Z"))
                 .clicked()
             {
                 self.undo();
             }
             if ui
-                .add_enabled(can_redo, egui::Button::new("↷ Redo"))
-                .on_hover_text("Redo (Ctrl+Y)")
+                .add_enabled(redo.is_some(), egui::Button::new("↷ Redo"))
+                .on_hover_text(hint("Redo", &redo, "Ctrl+Y"))
+                .on_disabled_hover_text(hint("Redo", &redo, "Ctrl+Y"))
                 .clicked()
             {
                 self.redo();
@@ -249,16 +261,16 @@ impl Studio {
                         theme::kv(
                             ui,
                             "Cells",
-                            &format!("{} × {}", doc.scene.grid.width, doc.scene.grid.height),
+                            &format!("{} × {}", doc.scene().grid.width, doc.scene().grid.height),
                         );
-                        if let Some(g) = &doc.scene.ground {
+                        if let Some(g) = &doc.scene().ground {
                             theme::kv(ui, "Ground", &format!("{} × {} tiles", g.width, g.height));
                             theme::kv(ui, "Ground file", &g.source);
                             theme::kv(ui, "Tile set", &g.tileset.source);
                         }
-                        let pct = doc.scene.grid.walkable_ratio() * 100.0;
+                        let pct = doc.scene().grid.walkable_ratio() * 100.0;
                         theme::kv(ui, "Walkable", &format!("{pct:.1}%"));
-                        theme::kv(ui, "Objects", &doc.scene.entities.len().to_string());
+                        theme::kv(ui, "Objects", &doc.scene().entities.len().to_string());
                     });
 
                     if !doc.warnings.is_empty() {
@@ -301,9 +313,9 @@ impl Studio {
                     let mut jump = None;
                     theme::section(
                         ui,
-                        &format!("Portals ({})", doc.scene.portals.len()),
+                        &format!("Portals ({})", doc.scene().portals.len()),
                         |ui| {
-                            if doc.scene.portals.is_empty() {
+                            if doc.scene().portals.is_empty() {
                                 ui.label(
                                     RichText::new(
                                         "No portals. Use the Portal tool (4) to add one.",
@@ -314,7 +326,7 @@ impl Studio {
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
                                 |ui| {
-                                    for p in &doc.scene.portals {
+                                    for p in &doc.scene().portals {
                                         let label = format!(
                                             "Portal {}  ·  cell {}, {}",
                                             p.id, p.cell.0, p.cell.1
@@ -335,6 +347,7 @@ impl Studio {
                         self.cam.center = p;
                         self.cam.zoom = self.cam.zoom.max(0.75);
                     }
+                    self.history_section(ui);
 
                     theme::section(ui, "Legend", |ui| {
                         theme::legend(ui, colors::BLOCKED, "Blocked cell");
@@ -348,6 +361,53 @@ impl Studio {
 
                 self.project_section(ui);
             });
+    }
+
+    /// Inspector section listing the map's edit history, newest last; undone steps are dimmed.
+    fn history_section(&mut self, ui: &mut egui::Ui) {
+        let Some(doc) = &self.doc else { return };
+        let entries = doc.history();
+        let done = entries.iter().filter(|e| e.done).count();
+        let mut steps: i32 = 0; // > 0 undo that many, < 0 redo
+        theme::section(ui, &format!("History ({done})"), |ui| {
+            if entries.is_empty() {
+                ui.label(
+                    RichText::new("Edits you make appear here; click one to go back to it.").weak(),
+                );
+                return;
+            }
+            egui::ScrollArea::vertical()
+                .max_height(180.0)
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                        for (i, e) in entries.iter().enumerate() {
+                            let text = if e.done {
+                                RichText::new(&e.label)
+                            } else {
+                                RichText::new(&e.label).weak().strikethrough()
+                            };
+                            let current = i + 1 == done;
+                            let r = ui
+                                .add(egui::Button::selectable(current, text))
+                                .on_hover_text(if e.done {
+                                    "Click to undo back to this step"
+                                } else {
+                                    "Undone · click to redo up to this step"
+                                });
+                            if r.clicked() {
+                                steps = done as i32 - (i as i32 + 1);
+                            }
+                        }
+                    });
+                });
+        });
+        for _ in 0..steps.max(0) {
+            self.undo();
+        }
+        for _ in 0..(-steps).max(0) {
+            self.redo();
+        }
     }
 
     pub(crate) fn status_bar(&self, ui: &mut egui::Ui) {
