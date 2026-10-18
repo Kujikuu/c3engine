@@ -32,9 +32,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
-the end as M8. M3, M5 and M6 are complete.
-- [ ] M7: prove + ship (see M7 below), starting with Conquer feature parity
+Order set by the user (2026-10-18, after a review): the engine must make a complete game like
+Conquer.exe in the Studio before more server work. M7 steps 1 to 6 in order, then M8 (prove +
+ship); AI integration (was M4) stays last, now M9.
+- [ ] M7 step 1: full Conquer import (client content + TQ server data, all maps)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -167,16 +168,50 @@ In order; each step is playable in the Studio's Play mode:
       (game server 5816: DH key exchange, Blowfish-CFB64): hero, items, map entry, NPCs,
       players, monsters, ground items, walk/jump, combat, chat, NPC dialogs; one more `Front`
       of the same `GameServer` (`c3-server --conquer <public ip>`). Spec:
-      `docs/conquer5065_protocol.md`. Shops and skills over this protocol: M7 parity
+      `docs/conquer5065_protocol.md`. Checked with the real Conquer.exe (2026-10-18): login,
+      map entry, NPCs, monsters, walking, combat, level up, death, chat, quest dialogue. Still
+      to check there: jump, teleport, items and equipment, shop buy/sell, other players.
+      Skills over this protocol come with M7 step 5
 
-## M7: Prove + ship
-- [ ] Conquer feature parity as a project (combat, items, UI)
+## M7: Complete Conquer in the Studio
+Review (2026-10-18): M3, M5 and M6 were proven on a scratch project with four hand-made NPCs. A
+real imported Conquer project had empty maps, tables and scripts: the import brings only the
+client's files, and the world (NPCs, spawns, tables, NPC logic) lives in TQ's server data. This
+milestone makes Conquer itself a complete, editable project. In order:
+- [ ] (1) Full import in one step: "Import Conquer 5065" takes the client folder and TQ's server
+      data (an SQL dump such as `tq_re/db/cq_finalized_mariadb.sql`) and fills the project:
+      every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn areas (`cq_generator`), portals and their
+      destinations (`cq_passway`, `cq_portal`), the map list and properties (`cq_map`), and the
+      game tables (monsters, items, magic, shops, drops, levels, stat points). Any of the 144
+      maps opens with its population and plays; an import report says what came in and what
+      didn't. The per-map SQL buttons stay for later merges
+- [ ] (2) World editing: the map list (`GameMap.dat`) with create (blank or from a map), clone,
+      rename, delete and properties; a world overview of all maps and their portal links;
+      portals pick a destination map and cell; players travel between maps through portals in
+      Play mode and on the server
+- [ ] (3) Content editors with previews (forms over the tables, every edit an undoable c3-edit
+      command): NPCs (one list across all maps, jump to the map), monsters (look preview,
+      stats, drops, where they spawn), items (icon and model preview, stats, which shops sell
+      them), skills, shops, drops, levels
+- [ ] (4) NPC behaviour: convert TQ's NPC logic (`cq_action` / `cq_task` chains) into dialogue
+      graphs (`dialogues/*.dialogue.ron`), editable in the Dialogue editor; actions the graphs
+      can't express yet become new node and action kinds; the converter reports anything left
+      over (user choice 2026-10-18: graphs, the easiest to edit later)
+- [ ] (5) Gameplay parity in the simulation, then over the 5065 front: skills and magic
+      (`cq_magictype`), XP skills, PK and name colours, teams, trade, warehouse, guilds,
+      mounts, item upgrades, ghost and revive, monsters as TQ (passive unless their type says
+      aggressive; today every monster attacks)
+- [ ] (6) Conquer's look and a UI editor: the engine's client draws Conquer's GUI (the 5065 GUI
+      ini and images) as a c3-ui skin; a Studio UI editor for windows, HUD and dialogs (layout,
+      images, data bindings)
+
+## M8: Prove + ship (was M7)
 - [ ] Prove generality: a small second sample game made only in the Studio
 - [ ] Build from the Studio: package a playable client and server from a project
 - [ ] Launcher/patcher
 - [ ] glTF import/export (Blender pipeline) for models + animations
 
-## M8: AI integration (was M4; deferred by the user to after M7)
+## M9: AI integration (was M4, then M8; the user keeps it last)
 - [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
 - [ ] Studio assistant panel (`engine/ai`, Claude API): chat that edits the project through c3-edit
       tools; shows each change, applies on confirm, one undo step per request; API key in settings
