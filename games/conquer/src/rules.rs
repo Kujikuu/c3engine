@@ -32,7 +32,8 @@ struct MonsterDrops {
 }
 
 /// Stat points of a level: strength, agility, vitality, spirit.
-type Points = [u32; 4];
+/// Strength, agility, vitality and spirit.
+pub type Points = [u32; 4];
 
 #[derive(Debug, Default)]
 pub struct ConquerRules {
@@ -247,7 +248,7 @@ impl ConquerRules {
     }
 
     /// Stat points at `level`: the table's, else the nearest level below it.
-    fn points_at(&self, level: u32) -> Points {
+    pub fn points_at(&self, level: u32) -> Points {
         (1..=level)
             .rev()
             .find_map(|l| self.points.get(&l))

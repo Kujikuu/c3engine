@@ -52,6 +52,10 @@ pub mod attr {
     pub const MONEY: u32 = 4;
     pub const EXP: u32 = 5;
     pub const LEVEL: u32 = 13;
+    pub const SPIRIT: u32 = 14;
+    pub const VITALITY: u32 = 15;
+    pub const STRENGTH: u32 = 16;
+    pub const AGILITY: u32 = 17;
     pub const STATUS: u32 = 26;
 }
 
@@ -127,6 +131,8 @@ pub struct HeroInfo<'a> {
     pub mana: u16,
     pub level: u8,
     pub profession: u8,
+    /// Strength, agility, vitality and spirit: the client derives max life from them.
+    pub points: [u16; 4],
     pub name: &'a str,
 }
 
@@ -138,8 +144,12 @@ pub fn user_info(h: &HeroInfo) -> Vec<u8> {
             .u32(h.money)
             .u32(0)
             .u32(h.exp);
-        // Fields up to the attributes (30..50) stay 0; so do the attributes themselves.
-        w.zeros(50 - 26).zeros(10);
+        // Fields up to the attributes (26..50) stay 0; no unspent points.
+        w.zeros(50 - 26);
+        for p in h.points {
+            w.u16(p);
+        }
+        w.u16(0);
         w.u16(h.life)
             .u16(h.mana)
             .i16(0)
@@ -282,10 +292,11 @@ pub fn map_item(id: u32, kind: u32, cell: (u16, u16), action: u8) -> Vec<u8> {
     })
 }
 
-pub fn npc_info(id: u32, cell: (u16, u16), look: u16, kind: u16) -> Vec<u8> {
+/// A system NPC (2030); `name` replaces the one the client's NPC type table gives.
+pub fn npc_info(id: u32, cell: (u16, u16), look: u16, kind: u16, name: &str) -> Vec<u8> {
     packet(NPC_INFO, |w| {
         w.u32(id).u16(cell.0).u16(cell.1).u16(look).u16(kind).u16(0);
-        strings(w, &[]);
+        strings(w, &[name]);
     })
 }
 
@@ -350,6 +361,8 @@ pub enum Request {
         channel: u16,
         words: String,
     },
+    /// The client's ping (MsgItem 27), answered by sending it back unchanged.
+    Ping(Vec<u8>),
     /// A packet the front doesn't use.
     Other(u16),
 }
@@ -395,10 +408,9 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
         }
         ITEM => {
             let (id, data) = (r.u32()?, r.u32()?);
-            Request::Item {
-                action: r.u16()?,
-                id,
-                data,
+            match r.u16()? {
+                item::PING => Request::Ping(bytes.to_vec()),
+                action => Request::Item { action, id, data },
             }
         }
         MAP_ITEM => {
@@ -467,6 +479,7 @@ mod tests {
             mana: 0,
             level: 1,
             profession: 10,
+            points: [5, 2, 3, 0],
             name: "Hero",
         };
         // 71 + count + (len + "Hero") + (len + "None").

@@ -83,7 +83,9 @@ pub enum Drop {
     Item(u32),
 }
 
-pub trait Rules {
+/// A game's rules. They are `Any`, so the game's own code (a protocol front, say) can reach
+/// its rules type through a simulation's `rules()`.
+pub trait Rules: std::any::Any {
     fn monster(&self, kind: u32) -> Option<&MonsterType>;
 
     fn item(&self, kind: u32) -> Option<&ItemType>;

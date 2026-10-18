@@ -2,10 +2,12 @@
 //! Conquer's packets, and what its requests ask of the engine.
 
 use super::packets::{self as pk, Request, Spawn, action, attr, channel, interact, item};
+use crate::rules::{ConquerRules, Points};
 use crate::sim_view::player_look;
 use c3_game::{EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
 use c3_online::Welcome;
 use c3_scene::{CellPos, Npc, path};
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 
 /// Players' ids as the client knows them start here.
@@ -76,6 +78,13 @@ fn cell16(c: CellPos) -> (u16, u16) {
 
 fn look_face(p: &Player) -> u32 {
     FACE * 10_000 + 1000 + player_look(p).look
+}
+
+/// The hero's attribute points at `level` under Conquer's rules (none under others).
+fn points(rules: &dyn Rules, level: u32) -> Points {
+    (rules as &dyn Any)
+        .downcast_ref::<ConquerRules>()
+        .map_or([0; 4], |r| r.points_at(level))
 }
 
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
@@ -175,8 +184,9 @@ pub struct ConquerClient {
     npcs: Vec<Npc>,
     /// Whether the client loaded the map (until then, spawns wait).
     entered: bool,
-    /// The hero as last shown.
+    /// The hero as last shown, and its attribute points.
     me: Option<Player>,
+    points: Points,
     /// Others in view, with the packet that shows each.
     seen: BTreeMap<EntityId, (EntityState, Vec<u8>)>,
     /// Where the client last saw each role.
@@ -216,6 +226,7 @@ impl ConquerClient {
                 mana: p.mana.min(u16::MAX.into()) as u16,
                 level: p.level.min(255) as u8,
                 profession: PROFESSION,
+                points: points(sim.rules(), p.level).map(|v| v.min(u16::MAX.into()) as u16),
                 name: &p.name,
             }),
         ];
@@ -225,6 +236,7 @@ impl ConquerClient {
                 .iter()
                 .map(|i| pk::item_info(i.id, i.kind, slot_of(sim.rules(), i.kind))),
         );
+        self.points = points(sim.rules(), p.level);
         self.me = Some(p.clone());
         Ok(out)
     }
@@ -244,19 +256,29 @@ impl ConquerClient {
                 cell16(me.cell),
                 me.direction.into(),
             ),
-            pk::attributes(id, &Self::stats(me)),
+            pk::attributes(id, &Self::stats(me, self.points)),
         ];
-        for n in &self.npcs {
-            let look = (n.look * 10 + u32::from(n.direction % 8)) as u16;
-            out.push(pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16));
-        }
-        out.extend(self.seen.values().map(|(_, packet)| packet.clone()));
+        out.extend(self.surroundings());
         out
     }
 
+    /// The map's NPCs and every role in view.
+    fn surroundings(&self) -> Vec<Vec<u8>> {
+        let npcs = self.npcs.iter().map(|n| {
+            let look = (n.look * 10 + u32::from(n.direction % 8)) as u16;
+            pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name)
+        });
+        npcs.chain(self.seen.values().map(|(_, packet)| packet.clone()))
+            .collect()
+    }
+
     /// Every bar and number of the hero.
-    fn stats(p: &Player) -> Vec<(u32, u64)> {
+    fn stats(p: &Player, [strength, agility, vitality, spirit]: Points) -> Vec<(u32, u64)> {
         vec![
+            (attr::STRENGTH, strength.into()),
+            (attr::AGILITY, agility.into()),
+            (attr::VITALITY, vitality.into()),
+            (attr::SPIRIT, spirit.into()),
             (attr::LIFE, p.life.into()),
             (attr::MAX_LIFE, p.stats.max_life.into()),
             (attr::MANA, p.mana.into()),
@@ -270,9 +292,9 @@ impl ConquerClient {
     /// What changed on the hero, as attribute and item packets.
     fn hero_changes(&self, old: &Player, new: &Player, rules: &dyn Rules) -> Vec<Vec<u8>> {
         let id = self.hero_id();
-        let changed: Vec<(u32, u64)> = Self::stats(new)
+        let changed: Vec<(u32, u64)> = Self::stats(new, points(rules, new.level))
             .into_iter()
-            .zip(Self::stats(old))
+            .zip(Self::stats(old, self.points))
             .filter(|(n, o)| n != o)
             .map(|(n, _)| n)
             .collect();
@@ -319,6 +341,7 @@ impl ConquerClient {
                     if let (true, Some(old)) = (self.entered, &self.me) {
                         out.extend(self.hero_changes(old, p, sim.rules()));
                     }
+                    self.points = points(sim.rules(), p.level);
                     self.me = Some((**p).clone());
                 }
                 continue;
@@ -409,13 +432,16 @@ impl ConquerClient {
                 }
                 let flies = matches!(event, Event::Placed { .. }) && Some(*id) == hero;
                 if flies {
-                    vec![pk::action(
+                    // The client rebuilds the map, dropping every role: show them again.
+                    let mut out = vec![pk::action(
                         cid,
                         action::FLY_MAP,
                         self.map_id,
                         cell16(*to),
                         0,
-                    )]
+                    )];
+                    out.extend(self.surroundings());
+                    out
                 } else {
                     let data = u32::from(cell16(*to).0) | u32::from(cell16(*to).1) << 16;
                     let dir = path::facing(from, *to).unwrap_or(0);
@@ -450,7 +476,10 @@ impl ConquerClient {
                 };
                 let k = killer.and_then(|k| self.client_id(k, ids)).unwrap_or(0);
                 let cell = cell16(self.state_cell(*id).unwrap_or_default());
-                vec![pk::interact(interact::KILL, k, t, cell, 1)]
+                vec![
+                    pk::interact(interact::KILL, k, t, cell, 1),
+                    pk::attributes(t, &[(attr::STATUS, pk::STATUS_DEAD.into())]),
+                ]
             }
             Event::Revived(id) if Some(*id) == hero => {
                 let id = self.hero_id();
@@ -473,9 +502,8 @@ impl ConquerClient {
             | Event::CommandReply { text, .. } => {
                 vec![self.system(text)]
             }
-            Event::ShopOpened { .. } => {
-                vec![self.system("This NPC's shop opens from the engine's client for now.")]
-            }
+            // The client opens a shop NPC's goods (its Shop.dat) by itself.
+            Event::ShopOpened { .. } => Vec::new(),
             Event::Dialogue { .. } => self.dialog(),
             _ => Vec::new(),
         }
@@ -571,7 +599,6 @@ impl ConquerClient {
                     npc: item_id,
                     item: data,
                 }),
-                item::PING => out.push(pk::item_action(item_id, data, item::PING)),
                 _ => {}
             },
             Request::MapItem {
@@ -587,6 +614,7 @@ impl ConquerClient {
             } else {
                 Input::Answer(index.into())
             }),
+            Request::Ping(packet) => out.push(packet),
             Request::Talk { words, .. } if !words.trim().is_empty() => {
                 inputs.push(Input::Say(words))
             }
