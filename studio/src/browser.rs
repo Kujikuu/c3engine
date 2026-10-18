@@ -475,6 +475,12 @@ impl Studio {
         let folder = self.browser.folder.clone();
         let keep =
             folder.root < roots.len() && roots[folder.root].children.contains_key(&folder.rel);
+        // The selection stays, read again (its preview may have changed).
+        let selected = self
+            .browser
+            .selected
+            .clone()
+            .filter(|k| roots.get(k.root).is_some_and(|r| r.file(&k.rel).is_some()));
         self.browser = Browser {
             roots,
             tile: self.browser.tile,
@@ -482,6 +488,10 @@ impl Studio {
         };
         if keep {
             self.browser.folder = folder;
+        }
+        if let Some(key) = selected {
+            let ctx = self.ctx.clone();
+            self.browser.select(&ctx, key, self.client.as_ref());
         }
     }
 

@@ -215,6 +215,22 @@ impl<K> SceneView<K> {
         self.effects.retain(|e| !e.running.is_finished(now_ms));
     }
 
+    /// Reads the art again (assets changed on disk): frees the textures, forgets the loaded
+    /// effects and restarts the map's effects from `now_ms`.
+    pub fn reload_assets(
+        &mut self,
+        scene: &Scene,
+        assets: &dyn SceneAssets,
+        renderer: &mut Renderer,
+        now_ms: u64,
+    ) {
+        self.release(renderer);
+        self.library = EffectLibrary::default();
+        self.effects = self
+            .library
+            .map_effects(scene, assets, self.tilt_deg, now_ms);
+    }
+
     /// Frees the view's GPU textures; call before dropping it.
     pub fn release(&mut self, renderer: &mut Renderer) {
         self.ground.clear(renderer);

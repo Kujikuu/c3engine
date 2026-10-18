@@ -341,6 +341,12 @@ impl Session {
         self.ui.toggle_menu();
     }
 
+    /// Reads the game's art and sounds again (the project's assets changed on disk).
+    pub fn reload_assets(&mut self, renderer: &mut c3_render::Renderer) {
+        self.world.reload_assets(renderer);
+        self.audio.reload(None);
+    }
+
     /// Opens the menu on its Controls page.
     pub fn open_controls(&mut self) {
         self.ui.open_controls();

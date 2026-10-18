@@ -151,6 +151,17 @@ impl Stage {
         }
     }
 
+    /// Reads the game's art again (the project's assets changed on disk) and replays the
+    /// chosen effect.
+    pub fn reload_assets(&mut self) -> Result<(), String> {
+        self.world.reload_assets(&mut self.gpu.renderer);
+        if self.effect.trim().is_empty() {
+            Ok(())
+        } else {
+            self.play_effect()
+        }
+    }
+
     /// Stops every effect.
     pub fn clear_effects(&mut self) {
         self.world.clear_effects();

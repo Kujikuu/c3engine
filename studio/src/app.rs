@@ -100,6 +100,8 @@ pub struct Studio {
     pub(crate) preview_audio: Option<c3_audio::Audio>,
     /// An effect the Preview panel is to play next.
     pub(crate) preview_effect: Option<String>,
+    /// Watches the project's assets for changes made outside (or by) the Studio.
+    pub(crate) watcher: Option<crate::hot_reload::AssetWatcher>,
     /// The game's fonts need installing (Localization changed).
     pub(crate) fonts_dirty: bool,
     /// The Data panel: tables and the one open.
@@ -178,6 +180,7 @@ impl Studio {
             import_buffers: std::collections::HashMap::new(),
             preview_audio: None,
             preview_effect: None,
+            watcher: None,
             fonts_dirty: false,
             client: None,
             workspace: Workspace::Maps,
@@ -439,6 +442,7 @@ impl Studio {
             self.fonts_dirty = true;
         }
         if let Some(project) = &self.project {
+            self.watcher = crate::hot_reload::AssetWatcher::new(&project.assets_dir(), &self.ctx);
             let (db, problems) = c3_project::AssetDb::of(project);
             if let Some(problem) = problems.into_iter().next() {
                 self.error = Some(problem);
@@ -1088,6 +1092,7 @@ impl eframe::App for Studio {
         self.shortcuts(&ctx);
         self.update_title(&ctx);
         self.poll_play();
+        self.hot_reload();
         self.sync_console();
 
         let bar = egui::Frame::new()

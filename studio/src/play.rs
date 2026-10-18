@@ -175,6 +175,11 @@ impl PlaySession {
         self.screen.session.toggle_quests();
     }
 
+    /// Reads the game's art and sounds again (the project's assets changed on disk).
+    pub fn reload_assets(&mut self) {
+        self.screen.session.reload_assets(&mut self.gpu.renderer);
+    }
+
     /// Opens the game menu on its Controls page.
     pub fn open_controls(&mut self) {
         self.screen.session.open_controls();

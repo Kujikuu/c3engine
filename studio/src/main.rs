@@ -20,6 +20,7 @@ mod gpu;
 mod graph_canvas;
 mod hierarchy;
 mod home;
+mod hot_reload;
 mod icons;
 mod live_scene;
 mod map_view;

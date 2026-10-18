@@ -44,6 +44,15 @@ impl Studio {
         }
     }
 
+    /// Opens `entry` again (its file changed on disk).
+    pub(crate) fn reopen_model(&mut self, entry: &ModelEntry) {
+        if let (Some(old), Some(gpu)) = (&mut self.model, &mut self.gpu) {
+            old.release(gpu);
+        }
+        self.model = None;
+        self.open_model(entry);
+    }
+
     /// A glTF model of the project's assets.
     fn native_model(&self, entry: &ModelEntry) -> Result<ModelDoc, String> {
         let native = self

@@ -193,6 +193,17 @@ impl World {
     }
 
     /// Stops every effect: the map's and those the actors carry.
+    /// Reads the game's art again (the project's assets changed on disk); effects playing on
+    /// roles stop.
+    pub fn reload_assets(&mut self, renderer: &mut c3_render::Renderer) {
+        let now_ms = self.now_ms();
+        for actor in &mut self.actors {
+            actor.clear_effects();
+        }
+        self.view
+            .reload_assets(&self.scene, self.game.assets(), renderer, now_ms);
+    }
+
     pub fn clear_effects(&mut self) {
         self.view.clear_effects();
         for actor in &mut self.actors {
