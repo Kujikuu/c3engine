@@ -473,3 +473,105 @@ fn equipment_tables_resolve_to_files() {
         assert!(ok > 0, "{name}: nothing resolved");
     }
 }
+
+/// Every file under `dir` (recursively) whose extension matches `ext` (case-insensitive).
+fn files_with_ext(dir: &std::path::Path, ext: &str) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case(ext)) {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn terrain_scenes_round_trip_and_parts_parse() {
+    use c3_formats_tq::scene::{ScenePart, TerrainObject};
+    let Some(dir) = client_dir() else { return };
+    let mut failed = Vec::new();
+    let scenes = files_with_ext(&dir, "scene");
+    for p in &scenes {
+        let raw = std::fs::read(p).unwrap();
+        match TerrainObject::parse(&raw) {
+            Ok(s) if s.to_bytes() == raw => {}
+            Ok(_) => failed.push(format!("{}: bytes differ", p.display())),
+            Err(e) => failed.push(format!("{}: {e}", p.display())),
+        }
+    }
+    let parts = files_with_ext(&dir, "part");
+    for p in &parts {
+        let raw = std::fs::read(p).unwrap();
+        match ScenePart::parse_text(&raw) {
+            Ok(part) => {
+                let again = ScenePart::parse_text(&part.to_text()).unwrap();
+                if again != part {
+                    failed.push(format!("{}: text round-trip differs", p.display()));
+                }
+            }
+            Err(e) => failed.push(format!("{}: {e}", p.display())),
+        }
+    }
+    eprintln!("scenes: {} · parts: {}", scenes.len(), parts.len());
+    assert!(!scenes.is_empty() && !parts.is_empty());
+    assert!(
+        failed.is_empty(),
+        "{} failed:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+/// Every DMap terrain object references a .scene that exists and parses.
+#[test]
+fn dmap_terrain_objects_resolve_to_scenes() {
+    use c3_formats_tq::{dmap::InteractiveObj, scene::TerrainObject, vfs::ClientFs};
+    let Some(dir) = client_dir() else { return };
+    let fs = ClientFs::open(&dir).unwrap();
+    let (mut refs, mut missing) = (0, std::collections::BTreeSet::new());
+    for p in files_with_ext(&dir.join("map").join("map"), "dmap") {
+        let map = DMap::parse(&std::fs::read(&p).unwrap()).unwrap();
+        for o in &map.interactive {
+            if let InteractiveObj::Terrain { file, .. } = o {
+                refs += 1;
+                let path = file.to_gbk_string();
+                match fs.read(&path) {
+                    Some(b) => {
+                        TerrainObject::parse(&b).unwrap_or_else(|e| panic!("{path}: {e}"));
+                    }
+                    None => {
+                        missing.insert(path);
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("terrain refs: {refs}, missing scene files: {missing:?}");
+    assert!(refs > 0);
+}
+
+#[test]
+fn gamemap_catalog_round_trips_and_resolves() {
+    use c3_formats_tq::gamemap::GameMapCatalog;
+    let Some(dir) = client_dir() else { return };
+    let raw = std::fs::read(dir.join("ini").join("GameMap.dat")).unwrap();
+    let cat = GameMapCatalog::parse(&raw).unwrap();
+    assert_eq!(cat.to_bytes(), raw);
+    let missing: Vec<String> = cat
+        .entries
+        .iter()
+        .map(|e| e.path_str())
+        .filter(|p| !dir.join(p).is_file())
+        .collect();
+    eprintln!(
+        "GameMap.dat: {} maps, missing DMap files: {missing:?}",
+        cat.entries.len()
+    );
+    assert!(!cat.entries.is_empty());
+}

@@ -3,11 +3,13 @@
 pub mod ani;
 pub mod c3;
 pub mod dmap;
+pub mod gamemap;
 pub mod hash;
 pub mod ini;
 pub mod io;
 pub mod model_io;
 pub mod pul;
+pub mod scene;
 pub mod scene_io;
 pub mod texture;
 pub mod vfs;
