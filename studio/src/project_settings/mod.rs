@@ -132,6 +132,12 @@ impl SettingsEditor {
         }
     }
 
+    /// Shows what `old` showed (the window open, on the same page).
+    pub fn keep_view(&mut self, old: &Self) {
+        self.open = old.open;
+        self.section = old.section;
+    }
+
     pub fn settings(&self) -> &ProjectSettings {
         self.doc.settings()
     }

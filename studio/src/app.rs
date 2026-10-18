@@ -100,6 +100,8 @@ pub struct Studio {
     pub(crate) preview_audio: Option<c3_audio::Audio>,
     /// An effect the Preview panel is to play next.
     pub(crate) preview_effect: Option<String>,
+    /// The Project panel's rename dialog, while open.
+    pub(crate) rename: Option<crate::asset_ops::RenameForm>,
     /// Watches the project's assets for changes made outside (or by) the Studio.
     pub(crate) watcher: Option<crate::hot_reload::AssetWatcher>,
     /// The game's fonts need installing (Localization changed).
@@ -180,6 +182,7 @@ impl Studio {
             import_buffers: std::collections::HashMap::new(),
             preview_audio: None,
             preview_effect: None,
+            rename: None,
             watcher: None,
             fonts_dirty: false,
             client: None,
@@ -250,6 +253,9 @@ impl Studio {
         }
         if args.iter().any(|a| a == "--import") {
             s.show_import_conquer(flag("--import").as_deref());
+        }
+        if let Some(file) = flag("--asset-exec") {
+            s.run_asset_command_file(&file);
         }
         if let Some(m) = flag("--map") {
             s.load_map(&MapRef::parse(&m));
@@ -429,18 +435,7 @@ impl Studio {
             names.append(&mut self.effect_names);
             self.effect_names = names;
         }
-        if let (Some(game), Some(project)) = (&self.game, &self.project) {
-            let (settings, problem) = c3_play::settings::load(project, &**game);
-            if let Some(problem) = problem {
-                self.error = Some(problem);
-            }
-            self.settings = Some(crate::project_settings::SettingsEditor::new(
-                settings.clone(),
-                game.default_settings(),
-            ));
-            self.applied_settings = Some(settings);
-            self.fonts_dirty = true;
-        }
+        self.reload_settings();
         if let Some(project) = &self.project {
             self.watcher = crate::hot_reload::AssetWatcher::new(&project.assets_dir(), &self.ctx);
             let (db, problems) = c3_project::AssetDb::of(project);
@@ -454,6 +449,25 @@ impl Studio {
         self.refresh_tables();
         self.refresh_scripts();
         self.refresh_dialogues();
+    }
+
+    /// Reads the project's settings from disk (their editor starts a fresh history).
+    pub(crate) fn reload_settings(&mut self) {
+        let (Some(game), Some(project)) = (&self.game, &self.project) else {
+            return;
+        };
+        let (settings, problem) = c3_play::settings::load(project, &**game);
+        if let Some(problem) = problem {
+            self.error = Some(problem);
+        }
+        let mut editor =
+            crate::project_settings::SettingsEditor::new(settings.clone(), game.default_settings());
+        if let Some(old) = &self.settings {
+            editor.keep_view(old);
+        }
+        self.settings = Some(editor);
+        self.applied_settings = Some(settings);
+        self.fonts_dirty = true;
     }
 
     /// Re-lists the maps.
@@ -574,7 +588,7 @@ impl Studio {
         }
     }
 
-    fn load_map(&mut self, map: &MapRef) {
+    pub(crate) fn load_map(&mut self, map: &MapRef) {
         let loaded = match map {
             MapRef::Project(name) => match &self.project {
                 Some(project) => c3_scene::native::load_scene(&project.map_file(name))
@@ -864,7 +878,7 @@ impl Studio {
         match done {
             Some(Ok(Some(label))) => {
                 self.import_buffers.clear();
-                self.refresh_assets();
+                self.asset_files_changed();
                 self.notify(format!("{verb}: {label}"));
             }
             Some(Err(e)) => self.error = Some(e.to_string()),
@@ -1114,6 +1128,7 @@ impl eframe::App for Studio {
         self.project_dialog(&ctx);
         self.new_map_dialog(&ctx);
         self.project_settings_window(&ctx);
+        self.rename_window(&ctx);
         if std::mem::take(&mut self.fonts_dirty) {
             self.install_game_fonts(&ctx);
         }

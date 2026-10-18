@@ -4,6 +4,7 @@
 //! and models.
 
 use crate::app::{Studio, Workspace};
+use crate::asset_ops::AssetOp;
 use crate::icons;
 use crate::maps::MapRef;
 use crate::theme;
@@ -430,6 +431,31 @@ fn texture(ctx: &egui::Context, name: &str, img: &Image, max: u32) -> TextureHan
 }
 
 /// `1.3 GB`, `420 KB`.
+/// Lets assets dragged in the Project panel drop on folder `folder` (highlighted while one
+/// hovers it): they move there.
+fn drop_target(response: &egui::Response, folder: &AssetKey, pick: &mut Option<Pick>) {
+    if response
+        .dnd_hover_payload::<AssetKey>()
+        .is_some_and(|k| k.root == folder.root)
+    {
+        response.ctx.layer_painter(response.layer_id).rect_stroke(
+            response.rect,
+            4.0,
+            egui::Stroke::new(2.0, theme::ACCENT),
+            egui::StrokeKind::Inside,
+        );
+    }
+    if let Some(what) = response.dnd_release_payload::<AssetKey>()
+        && what.root == folder.root
+        && *what != *folder
+    {
+        *pick = Some(Pick::Op(AssetOp::Move {
+            what: (*what).clone(),
+            into: folder.clone(),
+        }));
+    }
+}
+
 pub(crate) fn size_text(bytes: u64) -> String {
     match bytes {
         b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / (1u64 << 30) as f64),
@@ -444,6 +470,8 @@ enum Pick {
     Folder(AssetKey),
     Select(AssetKey),
     Open(AssetKey),
+    /// A file operation on the project's assets.
+    Op(AssetOp),
 }
 
 impl Studio {
@@ -534,8 +562,75 @@ impl Studio {
                 self.inspect_asset = true;
             }
             Some(Pick::Open(key)) => self.open_asset(&ctx, key),
+            Some(Pick::Op(op)) => self.asset_op(op),
             None => {}
         }
+        self.dropped_files(ui);
+    }
+
+    /// Files dragged in from the system: a hint while they hover the panel, an import into
+    /// the open folder (of the project's assets) when dropped.
+    fn dropped_files(&mut self, ui: &mut egui::Ui) {
+        let rect = ui.max_rect();
+        let (hovering, dropped, pointer) = ui.input(|i| {
+            (
+                !i.raw.hovered_files.is_empty(),
+                i.raw.dropped_files.clone(),
+                i.pointer.hover_pos(),
+            )
+        });
+        let over = pointer.is_none_or(|p| rect.contains(p));
+        let folder = self.drop_folder();
+        if hovering && over {
+            let text = match &folder {
+                Some(f) if f.rel.is_empty() => "Drop to import into Assets".to_owned(),
+                Some(f) => format!("Drop to import into {}", f.rel),
+                None => "Open a project to import files".to_owned(),
+            };
+            let painter = ui.ctx().layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::unique("asset drop"),
+            ));
+            painter.rect_filled(rect, 4.0, theme::ACCENT.gamma_multiply(0.18));
+            painter.rect_stroke(
+                rect.shrink(2.0),
+                4.0,
+                egui::Stroke::new(2.0, theme::ACCENT),
+                egui::StrokeKind::Inside,
+            );
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                theme::icon_text(icons::DOWNLOAD_SIMPLE, &text),
+                egui::FontId::proportional(16.0),
+                theme::TEXT,
+            );
+        }
+        let files: Vec<std::path::PathBuf> = dropped
+            .iter()
+            .map(|f| f.path().to_path_buf())
+            .filter(|p| !p.as_os_str().is_empty())
+            .collect();
+        if over
+            && !files.is_empty()
+            && let Some(folder) = folder
+        {
+            self.asset_op(AssetOp::ImportFiles(files, folder));
+        }
+    }
+
+    /// Where dropped files go: the open folder when it is in the project's assets, else the
+    /// assets' top.
+    fn drop_folder(&self) -> Option<AssetKey> {
+        let folder = &self.browser.folder;
+        if self.editable_root(folder.root) {
+            return Some(folder.clone());
+        }
+        let root = (0..self.browser.roots.len()).find(|&r| self.editable_root(r))?;
+        Some(AssetKey {
+            root,
+            rel: String::new(),
+        })
     }
 
     fn folder_tree(&self, ui: &mut egui::Ui, root: usize, folder: String, pick: &mut Option<Pick>) {
@@ -552,12 +647,14 @@ impl Studio {
             theme::icon_text(icons::FOLDER, file_name(&folder))
         };
         let id = ui.make_persistent_id(("tree", root, &folder));
+        let editable = self.editable_root(root);
         let mut header = |ui: &mut egui::Ui| {
-            if ui
-                .add(egui::Button::selectable(open_here, label.clone()))
-                .clicked()
-            {
+            let r = ui.add(egui::Button::selectable(open_here, label.clone()));
+            if r.clicked() {
                 *pick = Some(Pick::Folder(key.clone()));
+            }
+            if editable {
+                drop_target(&r, &key, pick);
             }
         };
         if children.is_empty() {
@@ -606,6 +703,26 @@ impl Studio {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if let Some(target) = self.drop_folder() {
+                    ui.menu_button(RichText::new(icons::PLUS).strong(), |ui| {
+                        if ui
+                            .button(theme::icon_text(icons::FOLDER_PLUS, "New Folder"))
+                            .clicked()
+                        {
+                            *pick = Some(Pick::Op(AssetOp::NewFolder(target.clone())));
+                            ui.close();
+                        }
+                        if ui
+                            .button(theme::icon_text(icons::DOWNLOAD_SIMPLE, "Import Files…"))
+                            .clicked()
+                        {
+                            *pick = Some(Pick::Op(AssetOp::Import(target.clone())));
+                            ui.close();
+                        }
+                    })
+                    .response
+                    .on_hover_text("Add to the project's assets (or drop files here)");
+                }
                 ui.add(egui::Slider::new(&mut self.browser.tile, 24.0..=128.0).show_value(false))
                     .on_hover_text("Item size (smallest shows a list)");
                 let icon = if self.browser.tile < LIST_BELOW {
@@ -726,7 +843,8 @@ impl Studio {
         pick: &mut Option<Pick>,
     ) {
         let s = self.browser.tile;
-        let (rect, response) = ui.allocate_exact_size(vec2(s + 12.0, s + 34.0), Sense::click());
+        let (rect, response) =
+            ui.allocate_exact_size(vec2(s + 12.0, s + 34.0), Sense::click_and_drag());
         if !ui.is_rect_visible(rect) {
             return;
         }
@@ -801,8 +919,10 @@ impl Studio {
         let mut response = None;
         ui.horizontal(|ui| {
             ui.label(RichText::new(kind.icon()).color(kind.color()));
-            let r = ui
-                .add(egui::Button::selectable(selected, file_name(&key.rel)).sense(Sense::click()));
+            let r = ui.add(
+                egui::Button::selectable(selected, file_name(&key.rel))
+                    .sense(Sense::click_and_drag()),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if kind != AssetKind::Folder {
                     ui.label(
@@ -834,6 +954,13 @@ impl Studio {
         } else {
             kind.label().to_owned()
         };
+        let editable = self.editable_root(key.root);
+        if editable {
+            response.dnd_set_drag_payload(key.clone());
+            if kind == AssetKind::Folder {
+                drop_target(response, key, pick);
+            }
+        }
         let response = response
             .clone()
             .on_hover_text(format!("{}\n{hint}", key.rel));
@@ -874,6 +1001,41 @@ impl Studio {
                 .clicked()
             {
                 ui.ctx().copy_text(key.rel.clone());
+                ui.close();
+            }
+            if !editable {
+                return;
+            }
+            ui.separator();
+            if kind == AssetKind::Folder {
+                if ui
+                    .button(theme::icon_text(icons::FOLDER_PLUS, "New Folder"))
+                    .clicked()
+                {
+                    *pick = Some(Pick::Op(AssetOp::NewFolder(key.clone())));
+                    ui.close();
+                }
+                if ui
+                    .button(theme::icon_text(icons::DOWNLOAD_SIMPLE, "Import Files…"))
+                    .clicked()
+                {
+                    *pick = Some(Pick::Op(AssetOp::Import(key.clone())));
+                    ui.close();
+                }
+            }
+            if ui
+                .button(theme::icon_text(icons::PENCIL_SIMPLE, "Rename…"))
+                .clicked()
+            {
+                *pick = Some(Pick::Op(AssetOp::Rename(key.clone())));
+                ui.close();
+            }
+            if ui
+                .button(theme::icon_text(icons::TRASH, "Delete"))
+                .on_hover_text("Moves it to the project's trash · Ctrl+Z puts it back")
+                .clicked()
+            {
+                *pick = Some(Pick::Op(AssetOp::Delete(key.clone())));
                 ui.close();
             }
         });

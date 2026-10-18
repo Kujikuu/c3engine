@@ -9,6 +9,7 @@
 
 mod app;
 mod asset_import;
+mod asset_ops;
 mod browser;
 mod code_view;
 mod data_panel;
