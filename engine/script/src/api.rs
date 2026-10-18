@@ -72,6 +72,10 @@ fn dialogue(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("open_shop", move || {
+        with(&s, |c| c.effects.push(Effect::OpenShop))
+    });
+    let s = shared.clone();
     engine.register_fn("npc_id", move || with(&s, |c| c.npc.id as i64));
     let s = shared.clone();
     engine.register_fn("npc_name", move || with(&s, |c| c.npc.name.clone()));

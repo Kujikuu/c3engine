@@ -1,0 +1,283 @@
+//! The bar at the bottom (level, life, mana, experience, money, bag button) and what is
+//! drawn over the world: drop labels, names and life of the monster fought or pointed at,
+//! and damage numbers.
+
+use crate::icons;
+use crate::style;
+use crate::{GameView, item_name};
+use c3_game::{EntityId, Event, Player, Task};
+use egui::{Color32, FontId, Pos2, Rect};
+
+/// Seconds a damage number rises before it is gone.
+const FLOAT_SECONDS: f64 = 1.0;
+const BAR_WIDTH: f32 = 460.0;
+
+/// A number rising from an entity (damage, a miss).
+struct Float {
+    at: f64,
+    entity: EntityId,
+    text: String,
+    color: Color32,
+}
+
+#[derive(Default)]
+pub(crate) struct Overlay {
+    floats: Vec<Float>,
+}
+
+impl Overlay {
+    pub fn event(&mut self, event: &Event, hero: EntityId, now: f64) {
+        if let Event::Attacked {
+            attacker,
+            target,
+            damage,
+        } = *event
+        {
+            let (text, color) = match damage {
+                0 => ("Miss".to_owned(), style::DIM),
+                d if target == hero => (format!("-{d}"), style::LIFE),
+                d if attacker == hero => (d.to_string(), Color32::WHITE),
+                d => (d.to_string(), style::TEXT),
+            };
+            self.floats.push(Float {
+                at: now,
+                entity: target,
+                text,
+                color,
+            });
+        }
+    }
+
+    pub fn show(&mut self, ui: &egui::Ui, view: &GameView) {
+        let now = ui.input(|i| i.time);
+        self.floats.retain(|f| now - f.at < FLOAT_SECONDS);
+        let painter = ui.painter_at(view.rect);
+        drop_labels(&painter, view);
+        let fighting = view.player().and_then(|p| match p.task {
+            Task::Attack(t) => Some(t),
+            _ => None,
+        });
+        let plates = [fighting, view.hovered.filter(|h| Some(*h) != fighting)];
+        for id in plates.into_iter().flatten() {
+            let Some(m) = view.sim.monster(id).filter(|m| m.is_alive()) else {
+                continue;
+            };
+            if let Some(at) = (view.head)(id) {
+                let name = view
+                    .sim
+                    .rules()
+                    .monster(m.kind)
+                    .map_or("?", |t| t.name.as_str());
+                name_plate(
+                    &painter,
+                    at,
+                    &format!("{name}  Lv {}", m.level),
+                    m.life,
+                    m.stats.max_life,
+                );
+            }
+        }
+        for f in &self.floats {
+            let Some(at) = (view.head)(f.entity) else {
+                continue;
+            };
+            let t = ((now - f.at) / FLOAT_SECONDS) as f32;
+            painter.text(
+                at + egui::vec2(0.0, -26.0 - 30.0 * t),
+                egui::Align2::CENTER_BOTTOM,
+                &f.text,
+                FontId::proportional(18.0),
+                f.color.gamma_multiply(1.0 - t * t),
+            );
+        }
+    }
+}
+
+/// A name with a life bar under it, centred above `at`.
+fn name_plate(painter: &egui::Painter, at: Pos2, name: &str, life: u32, max: u32) {
+    let galley =
+        painter.layout_no_wrap(name.to_owned(), FontId::proportional(12.0), Color32::WHITE);
+    let width = galley.size().x.max(70.0);
+    let top = at - egui::vec2(width / 2.0, galley.size().y + 10.0);
+    painter.rect_filled(
+        Rect::from_min_size(
+            top - egui::vec2(5.0, 3.0),
+            egui::vec2(width + 10.0, galley.size().y + 14.0),
+        ),
+        3.0,
+        style::backing(1.0),
+    );
+    painter.galley(
+        top + egui::vec2((width - galley.size().x) / 2.0, 0.0),
+        galley,
+        Color32::WHITE,
+    );
+    meter(
+        painter,
+        Rect::from_min_size(at - egui::vec2(width / 2.0, 6.0), egui::vec2(width, 4.0)),
+        life,
+        max,
+        style::LIFE,
+    );
+}
+
+/// A bar filled to `value` of `max`.
+fn meter(painter: &egui::Painter, rect: Rect, value: u32, max: u32, color: Color32) {
+    painter.rect_filled(rect, 2.0, Color32::from_gray(36));
+    let fill = if max == 0 {
+        0.0
+    } else {
+        value as f32 / max as f32
+    };
+    let mut full = rect;
+    full.set_width(rect.width() * fill.clamp(0.0, 1.0));
+    painter.rect_filled(full, 2.0, color);
+}
+
+/// A meter with `label value/max` written on it.
+fn labelled_meter(
+    painter: &egui::Painter,
+    rect: Rect,
+    label: &str,
+    value: u32,
+    max: u32,
+    color: Color32,
+) {
+    meter(painter, rect, value, max, color);
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        format!("{label}  {value} / {max}"),
+        FontId::proportional(10.5),
+        Color32::WHITE,
+    );
+}
+
+/// The bottom bar: level, life, mana, experience, money and the bag button.
+pub(crate) fn bar(ui: &mut egui::Ui, view: &GameView, p: &Player, bag_open: &mut bool) {
+    let rect = view.rect;
+    let area = Rect::from_center_size(
+        egui::pos2(rect.center().x, rect.bottom() - 34.0),
+        egui::vec2(BAR_WIDTH, 52.0),
+    );
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(area, 6.0, style::PANEL);
+    painter.rect_stroke(
+        area,
+        6.0,
+        egui::Stroke::new(1.0, style::EDGE),
+        egui::StrokeKind::Inside,
+    );
+    // Level badge.
+    let badge = Rect::from_min_size(area.min + egui::vec2(8.0, 8.0), egui::vec2(36.0, 36.0));
+    painter.circle_filled(badge.center(), 18.0, Color32::from_gray(28));
+    painter.circle_stroke(badge.center(), 18.0, egui::Stroke::new(1.5, style::GOLD));
+    painter.text(
+        badge.center() - egui::vec2(0.0, 5.0),
+        egui::Align2::CENTER_CENTER,
+        p.level.to_string(),
+        FontId::proportional(15.0),
+        style::GOLD,
+    );
+    painter.text(
+        badge.center() + egui::vec2(0.0, 9.0),
+        egui::Align2::CENTER_CENTER,
+        "LV",
+        FontId::proportional(8.0),
+        style::DIM,
+    );
+    let left = badge.right() + 10.0;
+    let right = area.right() - 112.0;
+    let row = |y: f32, h: f32| Rect::from_min_max(egui::pos2(left, y), egui::pos2(right, y + h));
+    // Without mana (warriors) life takes both rows.
+    let has_mana = p.stats.max_mana > 0;
+    let life_height = if has_mana { 13.0 } else { 27.0 };
+    labelled_meter(
+        &painter,
+        row(area.top() + 8.0, life_height),
+        icons::HEART,
+        p.life,
+        p.stats.max_life,
+        style::LIFE,
+    );
+    if has_mana {
+        labelled_meter(
+            &painter,
+            row(area.top() + 24.0, 11.0),
+            icons::DROP,
+            p.mana,
+            p.stats.max_mana,
+            style::MANA,
+        );
+    }
+    let need = view.sim.rules().level_exp(p.level);
+    let exp = row(area.top() + 39.0, 5.0);
+    match need {
+        Some(need) => {
+            meter(
+                &painter,
+                exp,
+                p.exp.min(need) as u32,
+                need.min(u32::MAX.into()) as u32,
+                style::EXP,
+            );
+            let percent = p.exp as f64 * 100.0 / need.max(1) as f64;
+            ui.allocate_rect(exp.expand(3.0), egui::Sense::hover())
+                .on_hover_text(format!("Experience {} / {need} ({percent:.1}%)", p.exp));
+        }
+        None => meter(&painter, exp, 1, 1, style::GOLD),
+    }
+    // Money and the bag button on the right.
+    painter.text(
+        egui::pos2(area.right() - 104.0, area.top() + 14.0),
+        egui::Align2::LEFT_CENTER,
+        format!("{}  {}", icons::COINS, p.money),
+        FontId::proportional(13.0),
+        style::MONEY,
+    );
+    let bag = Rect::from_min_size(
+        egui::pos2(area.right() - 104.0, area.top() + 26.0),
+        egui::vec2(96.0, 20.0),
+    );
+    let label = format!(
+        "{}  Bag {}/{}",
+        icons::BACKPACK,
+        p.bag.len(),
+        c3_game::BAG_SIZE
+    );
+    let button = egui::Button::new(egui::RichText::new(label).size(12.0)).selected(*bag_open);
+    if ui
+        .put(bag, button)
+        .on_hover_text("Bag and equipment (B)")
+        .clicked()
+    {
+        *bag_open ^= true;
+    }
+}
+
+/// A marker and label on each drop in view.
+fn drop_labels(painter: &egui::Painter, view: &GameView) {
+    for item in view.sim.ground_items() {
+        let at = (view.cell)(item.cell);
+        if !view.rect.contains(at) {
+            continue;
+        }
+        let (text, color) = match item.kind {
+            Some(k) => (item_name(view.sim, k), style::ITEM),
+            None => (format!("{} silver", item.money), style::MONEY),
+        };
+        painter.circle_filled(at, 4.0, color);
+        painter.circle_stroke(at, 4.0, egui::Stroke::new(1.0, Color32::BLACK));
+        let galley = painter.layout_no_wrap(text, FontId::proportional(11.0), color);
+        let pos = at + egui::vec2(-galley.size().x / 2.0, -galley.size().y - 7.0);
+        painter.rect_filled(
+            Rect::from_min_size(
+                pos - egui::vec2(3.0, 1.0),
+                galley.size() + egui::vec2(6.0, 2.0),
+            ),
+            2.0,
+            style::backing(0.9),
+        );
+        painter.galley(pos, galley, color);
+    }
+}

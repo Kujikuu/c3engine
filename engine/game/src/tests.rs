@@ -337,3 +337,95 @@ fn unreachable_targets_are_given_up() {
             .any(|e| matches!(e, Event::Message { text, .. } if text.contains("reach")))
     );
 }
+
+const SHOP_SCRIPT: &str = r#"
+fn talk() {
+    text("Hello " + player_name());
+    option("Show me your goods", "shop");
+    option("A gift?", "gift");
+    option("Bye");
+}
+fn shop() { open_shop(); }
+fn gift() {
+    give_item(100);
+    give_money(5);
+    set_flag("gifted", 1);
+    message("Enjoy!");
+}
+"#;
+
+#[test]
+fn players_talk_to_npcs_and_scripts_change_them() {
+    let dir = std::env::temp_dir().join(format!("c3-game-talk-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("npc")).unwrap();
+    std::fs::write(dir.join("npc/shop.rhai"), SHOP_SCRIPT).unwrap();
+    let mut npc = shopkeeper();
+    npc.script = "npc/shop".into();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![npc], vec![], rules(), 7);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let hero = sim.add_player("Hero", (12, 12), 1);
+
+    sim.talk(hero, SHOP_NPC);
+    assert!(run_until(&mut sim, 20_000, |s| s
+        .player(hero)
+        .unwrap()
+        .dialogue
+        .is_some()));
+    let p = sim.player(hero).unwrap();
+    assert!(distance(p.cell, (2, 2)) <= 1, "walked up to the NPC");
+    assert_eq!(p.dialogue.as_ref().unwrap().page.lines, ["Hello Hero"]);
+
+    sim.answer(hero, 1);
+    let p = sim.player(hero).unwrap();
+    assert!(
+        p.dialogue.is_none(),
+        "the gift page is empty, so the dialogue ends"
+    );
+    assert_eq!((p.money, p.bag.len(), p.flags["gifted"]), (5, 1, 1));
+    let events = sim.take_events();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Notice { text, .. } if text == "Enjoy!"))
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Notice { text, .. } if text.contains("Potion")))
+    );
+
+    sim.talk(hero, SHOP_NPC);
+    sim.advance(TICK_MS);
+    sim.answer(hero, 0);
+    assert_eq!(sim.player(hero).unwrap().shop, Some(SHOP_NPC));
+    assert!(sim.take_events().contains(&Event::ShopOpened {
+        player: hero,
+        npc: SHOP_NPC
+    }));
+    // Walking off closes the shop.
+    sim.walk(hero, (20, 20));
+    assert_eq!(sim.player(hero).unwrap().shop, None);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn chat_commands() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 8);
+    let hero = sim.add_player("Hero", (3, 3), 1);
+    assert!(sim.command(hero, "/money 77").is_ok());
+    assert!(
+        sim.command(hero, "/item 100 3")
+            .unwrap()
+            .contains("3 × Potion")
+    );
+    assert!(sim.command(hero, "/level 4").is_ok());
+    assert!(sim.command(hero, "/goto 10 11").is_ok());
+    let p = sim.player(hero).unwrap();
+    assert_eq!(
+        (p.money, p.bag.len(), p.level, p.cell),
+        (77, 3, 4, (10, 11))
+    );
+    assert!(sim.command(hero, "/item 999").is_err());
+    assert!(sim.command(hero, "/money lots").is_err());
+    assert!(sim.command(hero, "/fly").is_err());
+}

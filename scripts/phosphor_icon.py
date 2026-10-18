@@ -1,6 +1,6 @@
 """Finds Phosphor icon codepoints by icon name, through the font's ligature table.
 
-Usage: python scripts/phosphor_icon.py studio/assets/fonts/Phosphor.ttf cursor user-plus
+Usage: python scripts/phosphor_icon.py engine/ui/assets/fonts/Phosphor.ttf cursor user-plus
 Prints `LIG <name> U+XXXX` per name (or `missing`), for the consts in studio/src/icons.rs.
 """
 import struct, sys

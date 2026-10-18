@@ -1,11 +1,12 @@
 //! Shows a simulation ([`c3_game::Sim`]) in a [`World`]: an actor for each player and
-//! monster, moved, animated and removed as the simulation's events say. Ground items are
-//! left to the host's overlay. The game client and the Studio's Play mode both use it.
+//! monster, moved, animated, dressed and removed as the simulation's events say. Ground
+//! items are left to the UI's overlay. The game client and the Studio's Play mode use it.
 
 use crate::actor::Actor;
 use crate::character::{DEFAULT_HERO, Look, action};
+use crate::rules::slot;
 use crate::world::World;
-use c3_game::{EntityId, Event, Sim};
+use c3_game::{EntityId, Event, Player, Sim};
 use glam::Vec2;
 use std::collections::HashMap;
 
@@ -14,6 +15,24 @@ const DIE: u32 = 330;
 /// Clickable box of a role around its feet, in world pixels.
 const PICK_HALF_WIDTH: f32 = 32.0;
 const PICK_HEIGHT: f32 = 100.0;
+
+/// What a player looks like in what it wears (the default hero's body and hair).
+pub fn player_look(p: &Player) -> Look {
+    let worn = |s: u8| {
+        p.equipment
+            .iter()
+            .map(|e| e.kind)
+            .find(|&k| slot(k) == Some(s))
+            .unwrap_or(0)
+    };
+    Look {
+        armor: worn(slot::ARMOR),
+        armet: worn(slot::HELMET),
+        r_weapon: worn(slot::RIGHT_HAND),
+        l_weapon: worn(slot::LEFT_HAND),
+        ..DEFAULT_HERO
+    }
+}
 
 #[derive(Default)]
 pub struct SimView {
@@ -26,18 +45,13 @@ impl SimView {
     /// every other player and monster.
     pub fn attach(sim: &Sim, hero: EntityId, world: &mut World) -> Result<Self, String> {
         let mut view = Self::default();
-        let cell = sim
+        let p = sim
             .player(hero)
-            .ok_or("the hero is not in the simulation")?
-            .cell;
+            .ok_or("the hero is not in the simulation")?;
+        let hero_actor =
+            Actor::from_look(&world.content, &player_look(p), action::STANDBY, p.cell, 0)?;
         world.actors.clear();
-        world.actors.push(Actor::from_look(
-            &world.content,
-            &DEFAULT_HERO,
-            action::STANDBY,
-            cell,
-            0,
-        )?);
+        world.actors.push(hero_actor);
         view.actors.insert(hero, 0);
         world.add_npcs();
         let others: Vec<EntityId> = (sim.players().map(|p| p.id))
@@ -62,15 +76,15 @@ impl SimView {
                 Event::Appeared(id) => self.appear(sim, id, world),
                 Event::Vanished(id) => self.vanish(id, world),
                 Event::Moved { id, to, running } => {
-                    if let Some(a) = self.actor_mut(id, world) {
-                        a.running = running;
+                    if let Some(i) = self.actor(id) {
+                        world.actors[i].running = running;
                         let scene = &world.scene;
-                        world.actors[self.actors[&id]].walk_to(to, scene);
+                        world.actors[i].walk_to(to, scene);
                     }
                 }
                 Event::Placed { id, cell } => {
-                    if let Some(a) = self.actor_mut(id, world) {
-                        a.place(cell);
+                    if let Some(i) = self.actor(id) {
+                        world.actors[i].place(cell);
                     }
                 }
                 Event::Attacked {
@@ -92,13 +106,29 @@ impl SimView {
                         world.actor_action(i, action::STANDBY, false);
                     }
                 }
+                Event::Dressed { player } => self.dress(sim, player, world),
                 _ => {}
             }
         }
     }
 
-    fn actor_mut<'w>(&self, id: EntityId, world: &'w mut World) -> Option<&'w mut Actor> {
-        world.actors.get_mut(*self.actors.get(&id)?)
+    /// Gives player `id`'s actor the look of what it wears.
+    fn dress(&mut self, sim: &Sim, id: EntityId, world: &mut World) {
+        let (Some(i), Some(p)) = (self.actor(id), sim.player(id)) else {
+            return;
+        };
+        let a = &world.actors[i];
+        let (cell, direction) = (a.cell, a.direction);
+        match Actor::from_look(
+            &world.content,
+            &player_look(p),
+            action::STANDBY,
+            cell,
+            direction,
+        ) {
+            Ok(actor) => world.replace_actor(i, actor),
+            Err(e) => eprintln!("warning: can't dress {id:?}: {e}"),
+        }
     }
 
     fn appear(&mut self, sim: &Sim, id: EntityId, world: &mut World) {
@@ -122,13 +152,13 @@ impl SimView {
         } else if let Some(p) = sim.player(id) {
             Actor::from_look(
                 &world.content,
-                &DEFAULT_HERO,
+                &player_look(p),
                 action::STANDBY,
                 p.cell,
                 p.direction,
             )
         } else {
-            return; // ground items are drawn by the host
+            return; // ground items are drawn by the UI
         };
         match made {
             Ok(actor) => {
@@ -153,16 +183,18 @@ impl SimView {
         }
     }
 
+    /// Where `id`'s actor's feet are now (between cells while it steps).
+    pub fn feet(&self, world: &World, id: EntityId) -> Option<Vec2> {
+        let actor = world.actors.get(self.actor(id)?)?;
+        Some(actor.position(&world.scene, world.now_ms()))
+    }
+
     /// The living monster drawn under world point `point` (the nearest when several are).
     pub fn monster_at(&self, sim: &Sim, world: &World, point: Vec2) -> Option<EntityId> {
-        let now = world.now_ms();
         sim.monsters()
             .filter(|m| m.is_alive())
             .filter_map(|m| {
-                let feet = world
-                    .actors
-                    .get(self.actor(m.id)?)?
-                    .position(&world.scene, now);
+                let feet = self.feet(world, m.id)?;
                 let d = point - feet;
                 let hit = d.x.abs() <= PICK_HALF_WIDTH && (-PICK_HEIGHT..=16.0).contains(&d.y);
                 hit.then(|| {

@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 c3-scene = { version = "0.1.0", path = "../scene" }
+c3-script = { version = "0.1.0", path = "../script" }

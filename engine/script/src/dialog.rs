@@ -87,6 +87,8 @@ pub enum Effect {
         map: i64,
         cell: (i64, i64),
     },
+    /// Open the NPC's shop to the player.
+    OpenShop,
     /// `print` output, for the console.
     Log(String),
 }

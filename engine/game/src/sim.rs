@@ -36,6 +36,10 @@ pub struct Sim {
     pub(crate) items: BTreeMap<EntityId, GroundItem>,
     pub(crate) index: CellIndex,
     pub(crate) events: Vec<Event>,
+    /// Runs NPC scripts; `None` when the game has none.
+    pub(crate) scripts: Option<c3_script::ScriptHost>,
+    /// Game map ids of this map (script teleports within it work).
+    pub(crate) map_ids: Vec<u32>,
 }
 
 impl Sim {
@@ -69,9 +73,17 @@ impl Sim {
             items: BTreeMap::new(),
             index: CellIndex::default(),
             events: Vec::new(),
+            scripts: None,
+            map_ids: Vec::new(),
         };
         sim.fill_spawns();
         sim
+    }
+
+    /// Lets NPCs run the scripts of `host`; `map_ids` name this map for script teleports.
+    pub fn set_scripts(&mut self, host: c3_script::ScriptHost, map_ids: Vec<u32>) {
+        self.scripts = Some(host);
+        self.map_ids = map_ids;
     }
 
     pub fn rules(&self) -> &dyn Rules {

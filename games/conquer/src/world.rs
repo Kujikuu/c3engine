@@ -109,6 +109,13 @@ impl World {
         }
     }
 
+    /// Puts `actor` in place of actor `index` (a new look).
+    pub fn replace_actor(&mut self, index: usize, actor: Actor) {
+        if let Some(old) = self.actors.get_mut(index) {
+            self.retired.push(std::mem::replace(old, actor));
+        }
+    }
+
     /// Removes actor `index` (the last actor takes its place, as `Vec::swap_remove`).
     pub fn remove_actor(&mut self, index: usize) {
         if index < self.actors.len() {

@@ -4,3 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+c3-game = { version = "0.1.0", path = "../game" }
+c3-scene = { version = "0.1.0", path = "../scene" }
+egui = "0.37.0"
+c3-script = { version = "0.1.0", path = "../script" }

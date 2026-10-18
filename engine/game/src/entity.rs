@@ -3,7 +3,8 @@
 use crate::EntityId;
 use crate::rules::{Fighter, Stats};
 use c3_scene::CellPos;
-use std::collections::VecDeque;
+use c3_script::Conversation;
+use std::collections::{BTreeMap, VecDeque};
 
 /// Items a player's bag holds.
 pub const BAG_SIZE: usize = 40;
@@ -26,6 +27,8 @@ pub enum Task {
     Attack(EntityId),
     /// Walking to an item on the ground to pick it up.
     PickUp(EntityId),
+    /// Walking up to NPC `id` to talk to it.
+    Talk(u32),
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +48,12 @@ pub struct Player {
     pub equipment: Vec<Item>,
     pub running: bool,
     pub task: Task,
+    /// The dialogue the player is in, if any.
+    pub dialogue: Option<Conversation>,
+    /// The NPC whose shop the player has open.
+    pub shop: Option<u32>,
+    /// Script variables kept with the player (quest steps, counters).
+    pub flags: BTreeMap<String, i64>,
     pub(crate) path: VecDeque<CellPos>,
     /// Game time (ms) the next step or hit may happen.
     pub(crate) next_step_ms: u64,

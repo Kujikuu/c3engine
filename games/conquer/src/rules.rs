@@ -271,10 +271,21 @@ pub mod slot {
     pub const BOOTS: u8 = 8;
 }
 
+/// The slots shown in the bag, with their names.
+pub const SLOT_NAMES: &[(u8, &str)] = &[
+    (slot::HELMET, "Helmet"),
+    (slot::NECKLACE, "Necklace"),
+    (slot::ARMOR, "Armor"),
+    (slot::RIGHT_HAND, "Weapon"),
+    (slot::LEFT_HAND, "Shield"),
+    (slot::RING, "Ring"),
+    (slot::BOOTS, "Boots"),
+];
+
 /// Where item type `id` is worn, from its type number (TQ item sorts: 11xxxx helmets,
 /// 12xxxx necklaces, 13xxxx armor, 15xxxx rings, 16xxxx boots, 4xxxxx/5xxxxx weapons,
 /// 9xxxxx shields, 105xxxx arrows).
-fn slot(id: u32) -> Option<u8> {
+pub fn slot(id: u32) -> Option<u8> {
     match id / 10_000 {
         11 => Some(slot::HELMET),
         12 => Some(slot::NECKLACE),

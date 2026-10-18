@@ -1,5 +1,6 @@
-//! Window surface + engine renderer.
+//! Window surface + engine renderer (and the UI layer drawn over it).
 
+use crate::ui_layer::UiLayer;
 use c3_render::{DepthBuffer, Frame, Renderer};
 use std::sync::Arc;
 use winit::window::Window;
@@ -50,6 +51,10 @@ impl Gfx {
         })
     }
 
+    pub fn format(&self) -> wgpu::TextureFormat {
+        self.config.format
+    }
+
     pub fn size(&self) -> [u32; 2] {
         [self.config.width, self.config.height]
     }
@@ -64,8 +69,9 @@ impl Gfx {
         self.depth.ensure(self.renderer.device(), [width, height]);
     }
 
-    /// Renders and presents one frame. Reconfigures the surface if it was lost.
-    pub fn draw(&mut self, frame: &Frame) {
+    /// Renders and presents one frame, with `ui` painted over it. Reconfigures the surface if
+    /// it was lost.
+    pub fn draw(&mut self, frame: &Frame, ui: Option<&mut UiLayer>) {
         use wgpu::CurrentSurfaceTexture as Current;
         let texture = match self.surface.get_current_texture() {
             Current::Success(t) => t,
@@ -83,6 +89,10 @@ impl Gfx {
         };
         let view = texture.texture.create_view(&Default::default());
         self.renderer.render_into(&view, &self.depth, frame);
+        if let Some(ui) = ui {
+            let size = self.size();
+            ui.paint(self.renderer.device(), self.renderer.queue(), &view, size);
+        }
         self.window.pre_present_notify();
         self.renderer.queue().present(texture);
     }

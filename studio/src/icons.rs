@@ -1,32 +1,11 @@
-//! The Studio's icon set: Phosphor Icons (regular weight, MIT, see
-//! `assets/fonts/LICENSE-Phosphor.txt`), bundled as a font. Icons are text, so they sit inline
-//! in labels and buttons: `format!("{FLOPPY_DISK}  Save")`. Never use emoji for icons.
+//! The Studio's icon set: Phosphor Icons, the icon font `c3_ui::icons` bundles for the game UI
+//! too. Icons are text, so they sit inline in labels and buttons:
+//! `format!("{FLOPPY_DISK}  Save")`. Never use emoji for icons.
 
-use eframe::egui;
-use std::sync::Arc;
-
-const FONT_NAME: &str = "phosphor";
-const FONT: &[u8] = include_bytes!("../assets/fonts/Phosphor.ttf");
-
-/// Adds the icon font as a fallback to every text family.
-pub fn install(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        FONT_NAME.to_owned(),
-        Arc::new(egui::FontData::from_static(FONT)),
-    );
-    for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-        fonts
-            .families
-            .entry(family)
-            .or_default()
-            .push(FONT_NAME.to_owned());
-    }
-    ctx.set_fonts(fonts);
-}
+pub use c3_ui::icons::install;
 
 // Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses; find
-// more with `python scripts/phosphor_icon.py studio/assets/fonts/Phosphor.ttf <icon-name>...`.
+// more with `python scripts/phosphor_icon.py engine/ui/assets/fonts/Phosphor.ttf <icon-name>...`.
 pub const ARROW_CLOCKWISE: &str = "\u{E036}";
 pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{E038}";
 pub const BROOM: &str = "\u{EC54}";
@@ -37,8 +16,6 @@ pub const FILE_AUDIO: &str = "\u{EA20}";
 pub const FILE_TEXT: &str = "\u{E23A}";
 pub const FILE_CODE: &str = "\u{E914}";
 pub const BOOK_OPEN: &str = "\u{E0E6}";
-pub const CHAT_CIRCLE_DOTS: &str = "\u{E16C}";
-pub const COINS: &str = "\u{E78E}";
 pub const FILM_STRIP: &str = "\u{E792}";
 pub const FOLDER: &str = "\u{E24A}";
 pub const IMAGE: &str = "\u{E2CA}";

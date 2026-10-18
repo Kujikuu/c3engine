@@ -25,8 +25,6 @@ mod model_view;
 mod models_ws;
 mod panels;
 mod play;
-mod play_hud;
-mod play_talk;
 mod scene_inspector;
 mod script_panel;
 mod selection;

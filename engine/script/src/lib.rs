@@ -71,6 +71,10 @@ pub const API: &[(&str, &str)] = &[
         "Adds an answer; picking it runs fn next()",
     ),
     ("option(label)", "Adds an answer that closes the dialogue"),
+    (
+        "open_shop()",
+        "Opens the NPC's shop (its goods in the game's tables)",
+    ),
     ("npc_id()", "The NPC's id"),
     ("npc_name()", "The NPC's name"),
     ("player_name()", "The player's name"),

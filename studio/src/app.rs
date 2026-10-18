@@ -271,6 +271,11 @@ impl Studio {
         {
             session.attack_nearest();
         }
+        if args.iter().any(|a| a == "--bag")
+            && let Some(session) = &mut s.playing
+        {
+            session.toggle_bag();
+        }
         let pick = flag("--pick").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (pick, &s.doc) {
             let world = doc.scene().cell_to_world(cell);
@@ -333,35 +338,6 @@ impl Studio {
             old.release(&mut gpu.renderer);
         }
         self.live_scene = live;
-    }
-
-    /// While playing, the keyboard drives the game.
-    fn game_shortcuts(&mut self, ctx: &egui::Context) {
-        let keys = ctx.input(|i| {
-            let mut pan = glam::Vec2::ZERO;
-            for (keys, dir) in [
-                ([Key::A, Key::ArrowLeft], glam::Vec2::NEG_X),
-                ([Key::D, Key::ArrowRight], glam::Vec2::X),
-                ([Key::W, Key::ArrowUp], glam::Vec2::NEG_Y),
-                ([Key::S, Key::ArrowDown], glam::Vec2::Y),
-            ] {
-                if keys.iter().any(|k| i.key_down(*k)) {
-                    pan += dir;
-                }
-            }
-            crate::play::GameKeys {
-                run: i.key_pressed(Key::R),
-                attack: i.key_pressed(Key::Enter),
-                follow: i.key_pressed(Key::Space),
-                fit: i.key_pressed(Key::F),
-                turn: i8::from(i.key_pressed(Key::E)) - i8::from(i.key_pressed(Key::Q)),
-                pan,
-                dt: i.stable_dt.min(0.1),
-            }
-        });
-        if let Some(session) = &mut self.playing {
-            session.keys(&keys);
-        }
     }
 
     /// Deletes what the Scene view has selected.
@@ -720,7 +696,7 @@ impl Studio {
             return;
         }
         if self.playing.is_some() {
-            self.game_shortcuts(ctx);
+            // While playing, the Game view takes the keyboard (see `GameScreen`).
             return;
         }
         let (mut delete, mut frame) = (false, false);

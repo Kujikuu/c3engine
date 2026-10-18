@@ -232,8 +232,8 @@ impl Studio {
             session.ui(ui);
             for line in session.take_log() {
                 match line {
-                    crate::play_hud::LogLine::Info(text) => self.log_info(text),
-                    crate::play_hud::LogLine::Error(text) => self.log_error(text),
+                    c3_ui::LogLine::Info(text) => self.log_info(text),
+                    c3_ui::LogLine::Error(text) => self.log_error(text),
                 }
             }
             return;

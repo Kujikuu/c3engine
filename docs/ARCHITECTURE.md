@@ -9,7 +9,8 @@ c3engine/
     scene/     maps, tile/height/cell grids, scene objects, portals, cameras
     anim/      skeletal + sprite animation, blend/state machines
     net/       transport (tokio), packet codec framework, cipher trait, prediction
-    ui/        data-driven in-game UI (layouts, widgets, fonts)
+    ui/        c3-ui: in-game UI on egui (HUD, chat, bag + equipment, shop, NPC dialogue,
+               world overlays); returns UiActions; owns the shared icon font
     audio/     sound/music playback
     script/    Rhai script host: sandboxed, hot reload, NPC dialogue API, editor diagnostics
     project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
@@ -28,7 +29,8 @@ c3engine/
     conquer/   game-conquer: 5065 protocol + crypto, rules, UI, content (Redux compatible)
   studio/      c3-studio: egui editor (map, model, anim, effect, UI, tables, scripts, assistant)
   apps/
-    client/    c3-client: generic runtime launcher that loads a game project
+    client/    c3-client: plays a game project (`game.rs`: GameScreen + egui-winit/egui-wgpu
+               UI layer) or views a Conquer client's maps (`main.rs` viewer)
     server/    (planned) c3-server: game server built from a project (accounts, database)
     mcp/       (planned) c3-mcp: MCP server exposing c3-edit to external AI agents
   docs/        this documentation (source of truth for context)

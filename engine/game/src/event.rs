@@ -59,11 +59,31 @@ pub enum Event {
         player: EntityId,
         kind: u32,
     },
+    /// What the player wears changed (its look may change).
+    Dressed {
+        player: EntityId,
+    },
     /// Something the player should be told ("Your bag is full").
     Message {
         player: EntityId,
         text: String,
     },
+    /// A message from a script or a gift ("You received 1 Stancher").
+    Notice {
+        player: EntityId,
+        text: String,
+    },
+    /// The player's dialogue opened, moved on or closed (read it from the player).
+    Dialogue {
+        player: EntityId,
+    },
+    /// An NPC's shop opened for the player.
+    ShopOpened {
+        player: EntityId,
+        npc: u32,
+    },
+    /// A script printed (for the console).
+    ScriptLog(String),
     /// A problem with the game's data (a spawn of an unknown monster type).
     Warning(String),
 }

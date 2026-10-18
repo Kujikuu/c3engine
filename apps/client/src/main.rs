@@ -1,15 +1,20 @@
 //! C3 Client: the game runtime window.
-//! Usage: c3-client [client_dir | --project <folder>] [--map map/map/xxx.DMap | <project map>
-//!                   | --map-id 1002] [--cell x,y] [--zoom 1.0]
-//!                   [--actor <3dobj id> | --player look,hair,armor,armet,rweapon,lweapon]
-//!                   [--action 100] [--dir 0-7] [--effect <3DEffect.ini name>] [--walk-to x,y] [--run]
 //!
-//! A hero (the `--player`/`--actor`, else a default player) stands on the start cell.
-//! Controls: click to walk there · R toggles run · Enter attacks · Space follows the hero · drag
-//! or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E turn the hero ·
-//! Esc to quit. `--effect` plays on the hero.
+//! Playing a game project: `c3-client --project <folder> [--map <project map> |
+//! map/map/xxx.DMap | --map-id 1002] [--cell x,y]` runs the project's game (monsters, NPCs,
+//! scripts, in-game UI); see `game.rs`.
+//!
+//! Viewing a Conquer client's maps: `c3-client [client_dir] [--map map/map/xxx.DMap |
+//! --map-id 1002] [--cell x,y] [--zoom 1.0] [--actor <3dobj id> | --player
+//! look,hair,armor,armet,rweapon,lweapon] [--action 100] [--dir 0-7] [--effect <name>]
+//! [--walk-to x,y] [--run]`. A hero (the `--player`/`--actor`, else a default player) stands on
+//! the start cell. Controls: click to walk there · R toggles run · Enter attacks · Space follows
+//! the hero · drag or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E
+//! turn the hero · Esc to quit. `--effect` plays on the hero.
 
+mod game;
 mod gfx;
+mod ui_layer;
 
 use c3_render::camera::Camera2d;
 use c3_scene::path;
@@ -143,7 +148,7 @@ impl App {
         self.world
             .prepare(&mut gfx.renderer, &self.camera, viewport);
         let meshes = self.world.mesh_draws();
-        gfx.draw(&self.world.frame(&meshes, rect));
+        gfx.draw(&self.world.frame(&meshes, rect), None);
         if let Some(fps) = self.fps.tick(Instant::now()) {
             let name = self
                 .world
@@ -360,9 +365,6 @@ fn parse_look(v: &str) -> Option<Look> {
 }
 
 fn load_world(args: &Args) -> Result<World, String> {
-    if let Some(dir) = &args.project {
-        return load_project_world(dir, args);
-    }
     let content = Content::open(&args.client)?;
     let path = match &args.map {
         Some(p) => p.clone(),
@@ -380,42 +382,21 @@ fn load_world(args: &Args) -> Result<World, String> {
     Ok(World::new(Rc::new(content), path, imported.scene))
 }
 
-/// Plays a project map: `--map` names an engine scene or a map file of the project's content
-/// (e.g. `map/map/newplain.DMap`); otherwise `--map-id` (default Twin City) from its catalog.
-fn load_project_world(dir: &str, args: &Args) -> Result<World, String> {
-    let project = c3_project::Project::open(dir).map_err(|e| e.to_string())?;
-    let (_, content_dir) = project
-        .tq_client()
-        .ok_or("the project has no Conquer content to play")?;
-    let content = Content::open(content_dir)?;
-    if let Some(name) = &args.map
-        && project.map_names().contains(name)
-    {
-        let scene = c3_scene::native::load_scene(&project.map_file(name))
-            .map_err(|e| format!("map {name}: {e}"))?;
-        return Ok(World::new(Rc::new(content), name.clone(), scene));
-    }
-    let path = match &args.map {
-        Some(path) => path.clone(),
-        None => {
-            let id = args.map_id.unwrap_or(DEFAULT_MAP_ID);
-            content
-                .map_path(id)
-                .ok_or(format!("map {id} is not in GameMap.dat"))?
-        }
-    };
-    let mut scene = content.load_map(&path)?.scene;
-    // The project keeps a DMap's NPCs and spawn areas next to its maps.
-    let stem = path.rsplit(['/', '\\']).next().unwrap_or(&path);
-    let stem = stem.rsplit_once('.').map_or(stem, |(s, _)| s);
-    let population = c3_scene::native::load_population(&project.population_file(stem))
-        .map_err(|e| e.to_string())?;
-    scene.set_population(population);
-    Ok(World::new(Rc::new(content), path, scene))
-}
-
 fn main() {
     let args = parse_args();
+    if let Some(project) = args.project.clone() {
+        let game = game::GameArgs {
+            project,
+            map: args.map,
+            map_id: args.map_id,
+            cell: args.cell,
+        };
+        if let Err(e) = game::run(game) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let mut world = load_world(&args).unwrap_or_else(|e| {
         eprintln!("error: {e}");
         std::process::exit(1);

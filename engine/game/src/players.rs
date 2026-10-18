@@ -38,6 +38,9 @@ impl Sim {
                 equipment: Vec::new(),
                 running: false,
                 task: Task::Idle,
+                dialogue: None,
+                shop: None,
+                flags: Default::default(),
                 path: VecDeque::new(),
                 next_step_ms: 0,
                 next_attack_ms: 0,
@@ -53,7 +56,7 @@ impl Sim {
         self.players.get_mut(&id).filter(|p| p.is_alive())
     }
 
-    fn plan_path(&mut self, id: EntityId, goal: CellPos) {
+    pub(crate) fn plan_path(&mut self, id: EntityId, goal: CellPos) {
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
@@ -62,6 +65,7 @@ impl Sim {
 
     /// Walks the player to `goal` (or as near as it can get).
     pub fn walk(&mut self, id: EntityId, goal: CellPos) {
+        self.stop_talking(id);
         let Some(p) = self.living(id) else { return };
         p.task = Task::Walk;
         self.plan_path(id, goal);
@@ -78,6 +82,7 @@ impl Sim {
         if !self.monsters.get(&target).is_some_and(|m| m.is_alive()) {
             return;
         }
+        self.stop_talking(id);
         if let Some(p) = self.living(id) {
             p.task = Task::Attack(target);
             p.path.clear();
@@ -112,6 +117,7 @@ impl Sim {
         let Some(cell) = self.items.get(&item).map(|i| i.cell) else {
             return;
         };
+        self.stop_talking(id);
         let Some(p) = self.living(id) else { return };
         p.task = Task::PickUp(item);
         self.plan_path(id, cell);
@@ -194,6 +200,7 @@ impl Sim {
         let item = p.equipment.remove(at);
         p.bag.push(item);
         self.refresh_stats(id);
+        self.events.push(Event::Dressed { player: id });
     }
 
     /// Puts `item` on, moving what was worn in its slot to the bag.
@@ -211,6 +218,7 @@ impl Sim {
         }
         p.equipment.push(item);
         self.refresh_stats(id);
+        self.events.push(Event::Dressed { player: id });
     }
 
     /// Recomputes the player's stats from its level and what it wears.
@@ -341,11 +349,12 @@ impl Sim {
             }
             Task::Attack(target) => self.chase_and_hit(id, target),
             Task::PickUp(item) => self.walk_to_item(id, item),
+            Task::Talk(npc) => self.walk_to_npc(id, npc),
         }
     }
 
     /// Takes the next planned step when it is time; false when there is none left.
-    fn step_player(&mut self, id: EntityId) -> bool {
+    pub(crate) fn step_player(&mut self, id: EntityId) -> bool {
         let now = self.now_ms;
         let p = self.players.get_mut(&id).expect("ticking");
         if now < p.next_step_ms {

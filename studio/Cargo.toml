@@ -8,11 +8,11 @@ c3-assets = { version = "0.1.0", path = "../engine/assets" }
 c3-data = { version = "0.1.0", path = "../engine/data" }
 c3-edit = { version = "0.1.0", path = "../engine/edit" }
 c3-formats-tq = { version = "0.1.0", path = "../formats/c3" }
-c3-game = { version = "0.1.0", path = "../engine/game" }
 c3-project = { version = "0.1.0", path = "../engine/project" }
 c3-render = { version = "0.1.0", path = "../engine/render" }
 c3-scene = { version = "0.1.0", path = "../engine/scene" }
 c3-script = { version = "0.1.0", path = "../engine/script" }
+c3-ui = { version = "0.1.0", path = "../engine/ui" }
 dirs = "7.0.0"
 eframe = "0.37.0"
 egui_extras = "0.37.0"

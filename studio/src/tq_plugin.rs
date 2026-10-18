@@ -12,7 +12,6 @@ use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs
 use c3_render::SceneAssets;
 use c3_scene::{Population, Scene, TileLayer};
 use game_conquer::Content;
-use game_conquer::rules::ConquerRules;
 use game_conquer::server_data::{self, ServerPopulation};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -170,18 +169,6 @@ impl Client {
     /// Game map ids (`GameMap.dat`) whose map file is `path`; several maps can share one.
     pub fn map_ids(&self, path: &str) -> Vec<u32> {
         self.content.map_ids_for_path(path)
-    }
-
-    /// The game's rules for Play mode, read from the project's tables (`None`: no project,
-    /// so no monster or item types), with problems found reading them.
-    pub fn game_rules(&self, tables: Option<&Path>) -> (Box<dyn c3_game::Rules>, Vec<String>) {
-        match tables {
-            Some(dir) => {
-                let (rules, problems) = ConquerRules::from_tables(dir);
-                (Box::new(rules), problems)
-            }
-            None => (Box::new(ConquerRules::default()), Vec::new()),
-        }
     }
 
     /// The NPCs and spawn areas of `map` in a server SQL dump (TQ's `cq_npc`/`cq_generator`).

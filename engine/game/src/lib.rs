@@ -4,6 +4,8 @@
 //! are and how fights are settled comes from the game through [`Rules`]; the engine keeps
 //! the world, movement, timing and order (see docs/DECISIONS.md: a typed world, no ECS).
 
+mod commands;
+mod dialogue;
 mod entity;
 mod event;
 mod index;
@@ -13,6 +15,7 @@ mod rng;
 mod rules;
 mod sim;
 
+pub use commands::HELP as COMMAND_HELP;
 pub use entity::{BAG_SIZE, GroundItem, Item, Monster, Player, Task};
 pub use event::Event;
 pub use rng::Rng;
@@ -33,6 +36,8 @@ pub const REVIVE_MS: u64 = 10_000;
 pub const ITEM_LIFE_MS: u64 = 60_000;
 /// Cells from an NPC within which a player can trade with it.
 pub const NPC_REACH: i32 = 18;
+/// Cells from an NPC within which a player can start talking to it.
+pub const TALK_RANGE: i32 = 3;
 
 /// Steps between two cells (diagonals count one).
 pub fn distance(a: CellPos, b: CellPos) -> i32 {
