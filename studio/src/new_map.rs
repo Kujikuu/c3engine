@@ -122,7 +122,7 @@ impl Studio {
 
     /// Adds map `key` to Project Settings > Maps with the id it plays with now, so that id
     /// stays its own (portals to it keep working whatever maps come later).
-    fn list_map(&mut self, key: &str) {
+    pub(crate) fn list_map(&mut self, key: &str) {
         let (Some(editor), Some(info)) = (&mut self.settings, self.map_list.by_key(key)) else {
             return;
         };

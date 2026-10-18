@@ -159,8 +159,11 @@ impl AssetRoot {
             };
             for entry in read.flatten() {
                 let name = entry.file_name().to_string_lossy().into_owned();
-                // Sidecars and the engine's hidden folders aren't assets.
-                if name.starts_with('.') || name.ends_with(c3_core::asset::META_SUFFIX) {
+                // Sidecars, scene cells and the engine's hidden folders aren't assets.
+                if name.starts_with('.')
+                    || name.ends_with(c3_core::asset::META_SUFFIX)
+                    || name.ends_with(c3_scene::native::DATA_SUFFIX)
+                {
                     continue;
                 }
                 let rel = if folder.is_empty() {
@@ -1003,6 +1006,14 @@ impl Studio {
                 ui.ctx().copy_text(key.rel.clone());
                 ui.close();
             }
+            if kind == AssetKind::Scene {
+                let name = file_name(&key.rel)
+                    .trim_end_matches(c3_project::MAP_SUFFIX)
+                    .to_owned();
+                ui.separator();
+                map_menu(ui, &name, pick);
+                return;
+            }
             if !editable {
                 return;
             }
@@ -1227,6 +1238,42 @@ impl Studio {
         if open {
             let ctx = ui.ctx().clone();
             self.open_asset(&ctx, key);
+        }
+    }
+}
+
+/// The menu of one of the project's maps: duplicate, rename, delete.
+fn map_menu(ui: &mut egui::Ui, name: &str, pick: &mut Option<Pick>) {
+    let items = [
+        (
+            icons::COPY_SIMPLE,
+            "Duplicate",
+            "A copy of the map, listed with an id of its own",
+        ),
+        (
+            icons::PENCIL_SIMPLE,
+            "Rename…",
+            "Its entry in Project Settings > Maps follows",
+        ),
+        (
+            icons::TRASH,
+            "Delete",
+            "Moves it to the project's trash · Ctrl+Z puts it back",
+        ),
+    ];
+    for (i, (icon, label, tip)) in items.into_iter().enumerate() {
+        if ui
+            .button(theme::icon_text(icon, label))
+            .on_hover_text(tip)
+            .clicked()
+        {
+            let name = name.to_owned();
+            *pick = Some(Pick::Op(match i {
+                0 => AssetOp::DuplicateMap(name),
+                1 => AssetOp::RenameMap(name),
+                _ => AssetOp::DeleteMap(name),
+            }));
+            ui.close();
         }
     }
 }

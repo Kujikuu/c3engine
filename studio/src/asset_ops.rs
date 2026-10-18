@@ -28,13 +28,35 @@ pub(crate) enum AssetOp {
         what: AssetKey,
         into: AssetKey,
     },
+    /// Copies the project's map `0` as a new map, then opens the rename dialog on the copy.
+    DuplicateMap(String),
+    /// Opens the rename dialog for the project's map `0`.
+    RenameMap(String),
+    DeleteMap(String),
 }
 
 /// The rename dialog: the asset and the name being typed.
 pub(crate) struct RenameForm {
-    key: AssetKey,
+    target: RenameTarget,
     name: String,
     focused: bool,
+}
+
+/// What the rename dialog renames.
+enum RenameTarget {
+    Asset(AssetKey),
+    /// A project map, by name.
+    Map(String),
+}
+
+impl RenameTarget {
+    /// The path shown over the name.
+    fn label(&self) -> String {
+        match self {
+            Self::Asset(key) => key.rel.clone(),
+            Self::Map(name) => format!("maps/{name}"),
+        }
+    }
 }
 
 fn parent(rel: &str) -> &str {
@@ -65,10 +87,36 @@ impl Studio {
             AssetOp::Rename(key) => {
                 let name = key.rel.rsplit('/').next().unwrap_or(&key.rel).to_owned();
                 self.rename = Some(RenameForm {
-                    key,
+                    target: RenameTarget::Asset(key),
                     name,
                     focused: false,
                 });
+            }
+            AssetOp::DuplicateMap(name) => {
+                let Some(project) = &self.project else { return };
+                let copy = (2..)
+                    .map(|n| format!("{name} {n}"))
+                    .find(|n| !project.map_file(n).exists())
+                    .unwrap_or_default();
+                let command = AssetCommand::CopyMap {
+                    from: name.clone(),
+                    to: copy.clone(),
+                };
+                if self.run_asset_commands(&format!("Duplicate map {name}"), vec![command], false) {
+                    self.list_map(&copy);
+                    self.asset_op(AssetOp::RenameMap(copy));
+                }
+            }
+            AssetOp::RenameMap(name) => {
+                self.rename = Some(RenameForm {
+                    name: name.clone(),
+                    target: RenameTarget::Map(name),
+                    focused: false,
+                });
+            }
+            AssetOp::DeleteMap(name) => {
+                let command = AssetCommand::DeleteMap { name: name.clone() };
+                self.run_asset_commands(&format!("Delete map {name}"), vec![command], true);
             }
             AssetOp::Delete(key) => {
                 self.run_asset_commands(
@@ -124,6 +172,18 @@ impl Studio {
                     self.rename_asset(&what, to);
                 }
             }
+        }
+    }
+
+    /// Renames the project's map `from`; the open map follows.
+    fn rename_map(&mut self, from: &str, to: &str) {
+        let open = (self.doc.as_ref()).is_some_and(|d| d.map == MapRef::Project(from.to_owned()));
+        let command = AssetCommand::RenameMap {
+            from: from.to_owned(),
+            to: to.to_owned(),
+        };
+        if self.run_asset_commands(&format!("Rename map {from}"), vec![command], true) && open {
+            self.load_map(&MapRef::Project(to.to_owned()));
         }
     }
 
@@ -209,16 +269,22 @@ impl Studio {
         }
     }
 
-    /// After asset files moved (an operation, or its undo): the Project panel, the open map
-    /// and the settings are read again from disk, as references in them may have changed.
+    /// After asset files moved (an operation, or its undo): the Project panel, the map list,
+    /// the open map and the settings are read again from disk, as references in them may
+    /// have changed. An open map that is gone (renamed or deleted) closes.
     pub(crate) fn asset_files_changed(&mut self) {
         self.reload_all_assets();
-        if let Some(doc) = &self.doc
-            && let MapRef::Project(_) = doc.map
+        self.refresh_maps();
+        if let (Some(doc), Some(project)) = (&self.doc, &self.project)
+            && let MapRef::Project(name) = &doc.map
             && !doc.is_dirty()
         {
             let map = doc.map.clone();
-            self.load_map(&map);
+            if project.map_file(name).exists() {
+                self.load_map(&map);
+            } else {
+                self.close_map();
+            }
         }
         self.reload_settings();
     }
@@ -232,7 +298,11 @@ impl Studio {
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .show(ctx, |ui| {
-                ui.label(RichText::new(&form.key.rel).color(theme::TEXT_DIM).small());
+                ui.label(
+                    RichText::new(form.target.label())
+                        .color(theme::TEXT_DIM)
+                        .small(),
+                );
                 let edit = ui.add(egui::TextEdit::singleline(&mut form.name).desired_width(280.0));
                 if !form.focused {
                     edit.request_focus();
@@ -252,12 +322,18 @@ impl Studio {
             self.rename = None;
         } else if done && let Some(form) = self.rename.take() {
             let name = form.name.trim();
-            let current = form.key.rel.rsplit('/').next().unwrap_or(&form.key.rel);
-            if name.is_empty() || name.contains(['/', '\\']) {
-                self.error = Some("A name can't be empty or hold / or \\".into());
-            } else if name != current {
-                let to = join(parent(&form.key.rel), name);
-                self.rename_asset(&form.key, to);
+            match form.target {
+                RenameTarget::Asset(key) => {
+                    let current = key.rel.rsplit('/').next().unwrap_or(&key.rel);
+                    if name.is_empty() || name.contains(['/', '\\']) {
+                        self.error = Some("A name can't be empty or hold / or \\".into());
+                    } else if name != current {
+                        let to = join(parent(&key.rel), name);
+                        self.rename_asset(&key, to);
+                    }
+                }
+                RenameTarget::Map(from) if name != from => self.rename_map(&from, name),
+                RenameTarget::Map(_) => {}
             }
         }
     }

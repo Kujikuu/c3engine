@@ -23,6 +23,9 @@ use std::path::{Path, PathBuf};
 pub const SCENE_SUFFIX: &str = ".scene.ron";
 /// File name ending of a map's population file (for map formats that can't hold it).
 pub const POPULATION_SUFFIX: &str = ".population.ron";
+/// The cells of a scene, in the file beside its `.scene.ron` (part of the scene, not a
+/// file of its own to users).
+pub const DATA_SUFFIX: &str = ".scene.bin";
 const FORMAT_VERSION: u32 = 1;
 const DATA_MAGIC: &[u8; 8] = b"C3SCENE\0";
 const NO_TILE: u16 = u16::MAX;

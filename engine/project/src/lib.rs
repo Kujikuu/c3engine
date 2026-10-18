@@ -16,6 +16,7 @@
 
 pub mod assets;
 mod copy;
+mod map_files;
 mod recent;
 
 pub use assets::AssetDb;

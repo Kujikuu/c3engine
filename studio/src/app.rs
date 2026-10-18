@@ -519,10 +519,15 @@ impl Studio {
 
     /// Closes the open map and model (without asking).
     pub(crate) fn close_documents(&mut self) {
-        self.set_live_scene(None);
-        self.doc = None;
+        self.close_map();
         self.model = None;
         self.filter.clear();
+    }
+
+    /// Closes the open map (without asking).
+    pub(crate) fn close_map(&mut self) {
+        self.set_live_scene(None);
+        self.doc = None;
         self.hover = None;
         self.editor = Editor::default();
     }

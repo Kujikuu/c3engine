@@ -20,6 +20,7 @@ pub const CHECK_CIRCLE: &str = "\u{E184}";
 pub const CIRCLE: &str = "\u{E18A}";
 pub const CLOCK_COUNTER_CLOCKWISE: &str = "\u{E1A0}";
 pub const COPY: &str = "\u{E1CA}";
+pub const COPY_SIMPLE: &str = "\u{E1CC}";
 pub const CORNERS_OUT: &str = "\u{E1D0}";
 pub const CUBE: &str = "\u{E1DA}";
 pub const CURSOR: &str = "\u{E1DC}";

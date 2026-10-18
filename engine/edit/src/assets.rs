@@ -27,6 +27,13 @@ pub enum AssetCommand {
     Delete { path: String },
     /// Copies the file at `source` (a path on disk) into folder `folder` of the assets.
     Import { source: String, folder: String },
+    /// Copies the project's map `from` as a new map `to`.
+    CopyMap { from: String, to: String },
+    /// Renames the project's map `from` to `to`; its entry in the map list follows, so it
+    /// keeps its id.
+    RenameMap { from: String, to: String },
+    /// Moves the project's map `name` to the trash (undo puts it back).
+    DeleteMap { name: String },
 }
 
 /// What a command did, enough to undo and redo it.
@@ -49,6 +56,20 @@ enum Change {
     /// An imported file: deleted on undo (into `slot`), put back on redo.
     Imported {
         path: String,
+        slot: Option<PathBuf>,
+    },
+    /// A map made by copying: trashed on undo (into `slot`), put back on redo.
+    MapCopied {
+        name: String,
+        slot: Option<PathBuf>,
+    },
+    MapRenamed {
+        from: String,
+        to: String,
+    },
+    /// `slot` is where the map waits in the trash while deleted.
+    MapDeleted {
+        name: String,
         slot: Option<PathBuf>,
     },
 }
@@ -149,6 +170,41 @@ impl AssetDoc {
                     Change::Imported { path, slot: None },
                 )
             }
+            AssetCommand::CopyMap { from, to } => {
+                check_map_name(to)?;
+                self.project.copy_map(from, to).map_err(failed)?;
+                (
+                    format!("Copy map {from} as {to}"),
+                    Change::MapCopied {
+                        name: to.clone(),
+                        slot: None,
+                    },
+                )
+            }
+            AssetCommand::RenameMap { from, to } => {
+                check_map_name(to)?;
+                if from == to {
+                    return Ok(unchanged());
+                }
+                self.project.rename_map(from, to).map_err(failed)?;
+                (
+                    format!("Rename map {from} to {to}"),
+                    Change::MapRenamed {
+                        from: from.clone(),
+                        to: to.clone(),
+                    },
+                )
+            }
+            AssetCommand::DeleteMap { name } => {
+                let slot = self.project.trash_map(name).map_err(failed)?;
+                (
+                    format!("Delete map {name}"),
+                    Change::MapDeleted {
+                        name: name.clone(),
+                        slot: Some(slot),
+                    },
+                )
+            }
         };
         self.history.record(summary.clone(), change);
         Ok(Outcome {
@@ -221,6 +277,14 @@ impl AssetDoc {
                         .map_err(failed)?,
                 );
             }
+            Change::MapCopied { name, slot } => {
+                *slot = Some(self.project.trash_map(name).map_err(failed)?);
+            }
+            Change::MapRenamed { from, to } => self.project.rename_map(to, from).map_err(failed)?,
+            Change::MapDeleted { name, slot } => {
+                let at = slot.take().ok_or_else(|| no_map(name))?;
+                self.project.restore_map(name, &at).map_err(failed)?;
+            }
         }
         Ok(())
     }
@@ -242,6 +306,14 @@ impl AssetDoc {
             Change::Imported { path, slot } => {
                 let at = slot.take().ok_or_else(|| no_asset(path))?;
                 self.db.restore(path, &at).map_err(failed)?;
+            }
+            Change::MapCopied { name, slot } => {
+                let at = slot.take().ok_or_else(|| no_map(name))?;
+                self.project.restore_map(name, &at).map_err(failed)?;
+            }
+            Change::MapRenamed { from, to } => self.project.rename_map(from, to).map_err(failed)?,
+            Change::MapDeleted { name, slot } => {
+                *slot = Some(self.project.trash_map(name).map_err(failed)?);
             }
         }
         Ok(())
@@ -292,6 +364,27 @@ fn unchanged() -> Outcome {
     Outcome {
         summary: "Nothing changed".into(),
         changed: false,
+    }
+}
+
+fn no_map(name: &str) -> EditError {
+    EditError::InvalidAsset(format!("the map \"{name}\" is gone"))
+}
+
+/// A map name is a plain file name: no folders, nothing Windows refuses.
+fn check_map_name(name: &str) -> Result<(), EditError> {
+    let plain = !name.is_empty()
+        && !name.starts_with('.')
+        && !name.ends_with('.')
+        && !name
+            .chars()
+            .any(|c| c.is_control() || r#"/\:*?"<>|"#.contains(c));
+    if plain {
+        Ok(())
+    } else {
+        Err(EditError::InvalidAsset(format!(
+            "\"{name}\" can't be a map name: a file name, without / \\ : * ? \" < > |"
+        )))
     }
 }
 
@@ -371,6 +464,59 @@ mod tests {
             matches!(doc.db().importer("hero.png"), Some(Importer::Image(i)) if i.grid.is_none())
         );
         let _ = fs::remove_dir_all(&p.root);
+    }
+
+    #[test]
+    fn map_copies_renames_and_deletes_undo() {
+        let p = project("maps");
+        fs::create_dir_all(p.maps_dir()).unwrap();
+        fs::write(p.map_file("Meadow"), "scene").unwrap();
+        let (db, _) = AssetDb::of(&p);
+        let mut doc = AssetDoc::new(p.clone(), db);
+        let run = |doc: &mut AssetDoc, c| doc.execute(&c).map(|_| ());
+        run(
+            &mut doc,
+            AssetCommand::CopyMap {
+                from: "Meadow".into(),
+                to: "Field".into(),
+            },
+        )
+        .unwrap();
+        assert!(
+            run(
+                &mut doc,
+                AssetCommand::RenameMap {
+                    from: "Field".into(),
+                    to: "a/b".into(),
+                }
+            )
+            .is_err()
+        );
+        run(
+            &mut doc,
+            AssetCommand::RenameMap {
+                from: "Field".into(),
+                to: "Plain".into(),
+            },
+        )
+        .unwrap();
+        run(
+            &mut doc,
+            AssetCommand::DeleteMap {
+                name: "Meadow".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(p.map_names(), ["Plain"]);
+        doc.undo().unwrap();
+        doc.undo().unwrap();
+        assert_eq!(p.map_names(), ["Field", "Meadow"]);
+        doc.undo().unwrap();
+        assert_eq!(p.map_names(), ["Meadow"]);
+        doc.redo().unwrap();
+        doc.redo().unwrap();
+        doc.redo().unwrap();
+        assert_eq!(p.map_names(), ["Plain"]);
     }
 
     #[test]
