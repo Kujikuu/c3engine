@@ -33,8 +33,9 @@ c3engine/
     c3/        c3-formats-tq: TQ format plugins (read + write)
   games/
     conquer/   game-conquer: rules, content, session (local or joined), `game.rs` (maps,
-               simulations and new characters for every host), `serve.rs` (a server thread);
-               5065 protocol + crypto next
+               simulations and new characters for every host), `serve.rs` (a server thread),
+               `protocol/` (the 5065 client's front: ciphers, framing, packets, per-client
+               translation of world updates into packets and requests into `Input`s)
   studio/      c3-studio: egui editor (map, model, anim, effect, UI, tables, scripts, dialogue
                graphs + quests, assistant)
   apps/
