@@ -1,6 +1,7 @@
 //! c3-audio: the game's sound. [`Audio`] plays one-shot sounds (actions, effects, UI) softer
 //! with distance from the listener, and one music track at a time; sound files come from the
-//! game through a loader, decoded as WAV or MP3. [`MusicDirector`] picks music by where the
+//! game through a loader ([`SoundFile`]: the bytes and how loud and whether to loop), decoded
+//! as WAV, OGG Vorbis or MP3. [`MusicDirector`] picks music by where the
 //! player stands (music regions). Without a sound device everything stays silent.
 
 mod music;
@@ -13,7 +14,39 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 /// Reads a sound file of the game by its path.
-pub type Loader = Box<dyn Fn(&str) -> Option<Vec<u8>>>;
+pub type Loader = Box<dyn Fn(&str) -> Option<SoundFile>>;
+
+/// A sound file and how it plays (its import settings).
+#[derive(Debug, Clone)]
+pub struct SoundFile {
+    pub bytes: Vec<u8>,
+    /// Loudness, 0–1, on top of the volumes.
+    pub volume: f32,
+    /// Music starts again when it ends.
+    pub looped: bool,
+}
+
+impl SoundFile {
+    /// `bytes` played as recorded, once.
+    pub fn plain(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes,
+            volume: 1.0,
+            looped: false,
+        }
+    }
+}
+
+/// A loaded file's samples.
+type SoundDecoder = Decoder<Cursor<Arc<[u8]>>>;
+
+/// A loaded file: shared bytes and how it plays.
+#[derive(Clone)]
+struct Loaded {
+    bytes: Arc<[u8]>,
+    volume: f32,
+    looped: bool,
+}
 
 pub struct Audio {
     /// The sound device; `None` when there is none (silent).
@@ -23,7 +56,7 @@ pub struct Audio {
     music_path: Option<String>,
     load: Loader,
     /// Loaded files (`None`: missing or unreadable, not tried again).
-    files: HashMap<String, Option<Arc<[u8]>>>,
+    files: HashMap<String, Option<Loaded>>,
     muted: bool,
     volumes: Volumes,
     /// Cells from the listener at which a sound fades out completely.
@@ -102,17 +135,24 @@ impl Audio {
         }
     }
 
-    fn file(&mut self, path: &str) -> Option<Arc<[u8]>> {
+    fn file(&mut self, path: &str) -> Option<Loaded> {
         let load = &self.load;
         self.files
             .entry(path.to_owned())
-            .or_insert_with(|| load(path).map(Arc::from))
+            .or_insert_with(|| {
+                load(path).map(|f| Loaded {
+                    bytes: Arc::from(f.bytes),
+                    volume: f.volume,
+                    looped: f.looped,
+                })
+            })
             .clone()
     }
 
-    fn decode(&mut self, path: &str) -> Option<Decoder<Cursor<Arc<[u8]>>>> {
-        let bytes = self.file(path)?;
-        Decoder::new(Cursor::new(bytes)).ok()
+    fn decode(&mut self, path: &str) -> Option<(SoundDecoder, Loaded)> {
+        let file = self.file(path)?;
+        let decoder = Decoder::new(Cursor::new(Arc::clone(&file.bytes))).ok()?;
+        Some((decoder, file))
     }
 
     /// Whether sound `path` can be read and decoded (for checking a game's files).
@@ -120,15 +160,25 @@ impl Audio {
         self.decode(path).is_some()
     }
 
+    /// Forgets loaded file `path` (it changed on disk), or every file.
+    pub fn forget(&mut self, path: Option<&str>) {
+        match path {
+            Some(p) => {
+                self.files.remove(p);
+            }
+            None => self.files.clear(),
+        }
+    }
+
     /// Plays sound `path` once at `volume` (0–1).
     pub fn play(&mut self, path: &str, volume: f32) {
         if self.muted || self.sink.is_none() || volume <= 0.0 {
             return;
         }
-        let Some(source) = self.decode(path) else {
+        let Some((source, file)) = self.decode(path) else {
             return;
         };
-        let gain = volume * self.volumes.master * self.volumes.sound;
+        let gain = volume * file.volume * self.volumes.master * self.volumes.sound;
         if let Some(sink) = &self.sink {
             sink.mixer().add(source.amplify(gain));
         }
@@ -153,14 +203,54 @@ impl Audio {
             return;
         };
         let player = Player::connect_new(sink.mixer());
-        player.set_volume(self.volumes.master * self.volumes.music);
-        let Some(source) = self.decode(path) else {
+        let Some((source, file)) = self.decode(path) else {
             return;
         };
-        player.append(source);
+        player.set_volume(file.volume * self.volumes.master * self.volumes.music);
+        if file.looped {
+            player.append(source.repeat_infinite());
+        } else {
+            player.append(source);
+        }
         if self.muted {
             player.pause();
         }
         self.music = Some(player);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ogg_wav_and_missing_files_are_told_apart() {
+        let ogg = include_bytes!("../tests/tone.ogg").to_vec();
+        // A tenth of a second of silence as 16-bit mono WAV.
+        let mut wav = Vec::new();
+        let samples = 2205u32;
+        wav.extend(b"RIFF");
+        wav.extend((36 + samples * 2).to_le_bytes());
+        wav.extend(b"WAVEfmt ");
+        wav.extend(16u32.to_le_bytes());
+        wav.extend(1u16.to_le_bytes());
+        wav.extend(1u16.to_le_bytes());
+        wav.extend(22050u32.to_le_bytes());
+        wav.extend(44100u32.to_le_bytes());
+        wav.extend(2u16.to_le_bytes());
+        wav.extend(16u16.to_le_bytes());
+        wav.extend(b"data");
+        wav.extend((samples * 2).to_le_bytes());
+        wav.extend(vec![0u8; (samples * 2) as usize]);
+        let mut audio = Audio::new(Box::new(move |path| match path {
+            "theme.ogg" => Some(SoundFile::plain(ogg.clone())),
+            "hit.wav" => Some(SoundFile::plain(wav.clone())),
+            "noise.ogg" => Some(SoundFile::plain(vec![1, 2, 3])),
+            _ => None,
+        }));
+        assert!(audio.can_play("theme.ogg"));
+        assert!(audio.can_play("hit.wav"));
+        assert!(!audio.can_play("noise.ogg"));
+        assert!(!audio.can_play("missing.wav"));
     }
 }

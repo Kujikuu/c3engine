@@ -10,7 +10,10 @@ fn main() {
     let content = Rc::new(game_conquer::Content::open(dir).unwrap());
     let files = content.clone();
     let mut audio = c3_audio::Audio::new(Box::new(move |p| {
-        files.files().read(p).map(|b| b.into_owned())
+        files
+            .files()
+            .read(p)
+            .map(|b| c3_audio::SoundFile::plain(b.into_owned()))
     }));
     println!("sound device: {}", audio.has_device());
     let mut paths: Vec<String> = [

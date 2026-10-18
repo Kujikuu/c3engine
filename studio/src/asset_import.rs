@@ -372,6 +372,46 @@ pub(crate) fn draw_grid(
 }
 
 impl Studio {
+    /// Play and Stop for sound `rel`, as the game plays it (its import settings).
+    pub(crate) fn sound_preview(&mut self, ui: &mut egui::Ui, rel: &str) {
+        let (mut play, mut stop) = (false, false);
+        theme::section(ui, "Listen", |ui| {
+            ui.horizontal(|ui| {
+                play = ui.button(theme::icon_text(icons::PLAY, "Play")).clicked();
+                stop = ui.button(theme::icon_text(icons::STOP, "Stop")).clicked();
+            });
+            ui.label(
+                RichText::new("Plays as the game would: its volume, and looping when set.")
+                    .color(theme::TEXT_DIM)
+                    .small(),
+            );
+        });
+        if !(play || stop) {
+            return;
+        }
+        let game = self.game.clone();
+        let audio = self.preview_audio.get_or_insert_with(|| {
+            c3_audio::Audio::new(Box::new(move |path| {
+                c3_play::audio::sound_file(&**game.as_ref()?, path)
+            }))
+        });
+        if !audio.has_device() {
+            self.error = Some("No sound device to play on".into());
+            return;
+        }
+        audio.set_volumes(c3_audio::Volumes {
+            master: 1.0,
+            music: 1.0,
+            sound: 1.0,
+        });
+        audio.set_music(None);
+        if play {
+            // Settings may have changed since it was last played.
+            audio.forget(Some(rel));
+            audio.set_music(Some(rel));
+        }
+    }
+
     /// The asset `rel` of the project's Assets folder, with its sidecar, when the database
     /// covers it.
     pub(crate) fn asset_meta(&self, root: usize, rel: &str) -> Option<&AssetMeta> {

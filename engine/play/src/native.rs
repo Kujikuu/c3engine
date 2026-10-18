@@ -60,6 +60,11 @@ impl NativeAssets {
         self.db.borrow_mut().rescan()
     }
 
+    /// How asset `path` is imported, when it is one of the project's.
+    pub fn importer(&self, path: &str) -> Option<Importer> {
+        self.db.borrow().importer(path).cloned()
+    }
+
     /// How image `path` is imported, when it is one of the project's images.
     pub fn image_import(&self, path: &str) -> Option<ImageImport> {
         match self.db.borrow().importer(path)? {

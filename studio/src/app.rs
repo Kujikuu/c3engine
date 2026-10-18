@@ -96,6 +96,8 @@ pub struct Studio {
     pub(crate) assets: Option<c3_edit::AssetDoc>,
     /// Text typed in the Import section, not yet committed.
     pub(crate) import_buffers: std::collections::HashMap<String, String>,
+    /// Plays sounds the Inspector previews (opened on first use).
+    pub(crate) preview_audio: Option<c3_audio::Audio>,
     /// The game's fonts need installing (Localization changed).
     pub(crate) fonts_dirty: bool,
     /// The Data panel: tables and the one open.
@@ -172,6 +174,7 @@ impl Studio {
             applied_settings: None,
             assets: None,
             import_buffers: std::collections::HashMap::new(),
+            preview_audio: None,
             fonts_dirty: false,
             client: None,
             workspace: Workspace::Maps,
@@ -381,6 +384,7 @@ impl Studio {
         self.settings = None;
         self.applied_settings = None;
         self.assets = None;
+        self.preview_audio = None;
         self.stage = None;
         self.maps.clear();
         self.models.clear();

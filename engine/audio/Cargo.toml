@@ -5,4 +5,4 @@ edition.workspace = true
 
 [dependencies]
 c3-scene = { version = "0.1.0", path = "../scene" }
-rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "mp3"] }
+rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "mp3", "vorbis"] }

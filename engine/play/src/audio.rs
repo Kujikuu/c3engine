@@ -2,7 +2,8 @@
 //! stands, as the game ([`GameModule`]) says they sound.
 
 use crate::module::{Act, GameModule};
-use c3_audio::{Audio, MusicDirector, Volumes};
+use c3_audio::{Audio, MusicDirector, SoundFile, Volumes};
+use c3_core::asset::Importer;
 use c3_core::settings::AudioSettings;
 use c3_game::{EntityId, Event, Sim, distance};
 use std::rc::Rc;
@@ -17,7 +18,7 @@ pub struct GameAudio {
 impl GameAudio {
     pub fn new(game: Rc<dyn GameModule>, map_ids: Vec<u32>) -> Self {
         let files = Rc::clone(&game);
-        let audio = Audio::new(Box::new(move |path| files.read_file(path)));
+        let audio = Audio::new(Box::new(move |path| sound_file(&*files, path)));
         Self {
             audio,
             music: MusicDirector::new(game.music_regions()),
@@ -39,6 +40,11 @@ impl GameAudio {
             sound: settings.sound_volume as f32,
         });
         self.audio.hearing_range = settings.hearing_range as f32;
+    }
+
+    /// Reads sound `path` again (it changed on disk), or every sound.
+    pub fn reload(&mut self, path: Option<&str>) {
+        self.audio.forget(path);
     }
 
     pub fn toggle_muted(&mut self) {
@@ -84,4 +90,14 @@ impl GameAudio {
             self.audio.set_music(track.as_deref());
         }
     }
+}
+
+/// Sound `path` of `game`, played as its import settings say (the project's own sounds).
+pub fn sound_file(game: &dyn GameModule, path: &str) -> Option<SoundFile> {
+    let mut file = SoundFile::plain(game.read_file(path)?);
+    if let Some(Importer::Sound(s)) = game.native().and_then(|n| n.importer(path)) {
+        file.volume = s.volume;
+        file.looped = s.looped;
+    }
+    Some(file)
 }

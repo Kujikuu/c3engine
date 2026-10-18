@@ -991,6 +991,9 @@ impl Studio {
             .filter(|p| p.key == key && p.texture.is_some())
             .map(|p| p.size);
         self.import_section(ui, key.root, &key.rel, image_size);
+        if kind == AssetKind::Sound {
+            self.sound_preview(ui, &key.rel);
+        }
         let import = match self.asset_meta(key.root, &key.rel).map(|m| &m.import) {
             Some(c3_core::asset::Importer::Image(i)) => Some(i.clone()),
             _ => None,
