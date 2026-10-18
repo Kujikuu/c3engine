@@ -9,7 +9,6 @@
 //! or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E turn the hero ·
 //! Esc to quit. `--effect` plays on the hero.
 
-mod actors;
 mod camera;
 mod gfx;
 mod world;
@@ -17,6 +16,7 @@ mod world;
 use c3_scene::path;
 use camera::Camera2d;
 use game_conquer::Content;
+use game_conquer::actor::Actor;
 use game_conquer::character::{Look, action};
 use glam::Vec2;
 use std::sync::Arc;
@@ -413,8 +413,14 @@ fn load_project_world(dir: &str, args: &Args) -> Result<World, String> {
                 .ok_or(format!("map {id} is not in GameMap.dat"))?
         }
     };
-    let imported = content.load_map(&path)?;
-    Ok(World::new(content, path, imported.scene))
+    let mut scene = content.load_map(&path)?.scene;
+    // The project keeps a DMap's NPCs and spawn areas next to its maps.
+    let stem = path.rsplit(['/', '\\']).next().unwrap_or(&path);
+    let stem = stem.rsplit_once('.').map_or(stem, |(s, _)| s);
+    let population = c3_scene::native::load_population(&project.population_file(stem))
+        .map_err(|e| e.to_string())?;
+    scene.set_population(population);
+    Ok(World::new(content, path, scene))
 }
 
 fn main() {
@@ -430,10 +436,8 @@ fn main() {
     // The hero stands on the walkable cell nearest the start.
     let hero_cell = path::nearest_walkable(&world.scene.grid, cell, 50).unwrap_or(cell);
     let hero = match (&args.player, args.actor) {
-        (None, Some(id)) => {
-            actors::Actor::from_model(&world.content, id, hero_cell, args.direction)
-        }
-        (look, _) => actors::Actor::from_look(
+        (None, Some(id)) => Actor::from_model(&world.content, id, hero_cell, args.direction),
+        (look, _) => Actor::from_look(
             &world.content,
             look.as_ref().unwrap_or(&DEFAULT_HERO),
             args.action,
@@ -451,6 +455,7 @@ fn main() {
         }
         Err(e) => eprintln!("warning: hero: {e}"),
     }
+    world.add_npcs();
     // Starts the hero's action properly, with its part effects.
     world.hero_action(args.action, false);
     if let Some(name) = &args.effect

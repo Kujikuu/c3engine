@@ -16,6 +16,7 @@ mod gpu;
 mod hierarchy;
 mod home;
 mod icons;
+mod live_scene;
 mod map_view;
 mod maps;
 mod model_view;

@@ -4,13 +4,13 @@
 //! Each frame: [`World::prepare`] builds the draw lists with the actors posed into them;
 //! [`World::mesh_draws`] + [`World::frame`] then describe it to the renderer.
 
-use crate::actors::{Actor, PartRef};
 use crate::camera::Camera2d;
 use c3_render::effect::camera_eye;
-use c3_render::scene_view::{PosedIndices, SceneView};
+use c3_render::scene_view::SceneView;
 use c3_render::{Frame, MeshDraw, Renderer, View};
 use c3_scene::Scene;
 use game_conquer::Content;
+use game_conquer::actor::{self, Actor, ActorPart};
 use glam::Vec2;
 use std::time::Instant;
 
@@ -19,13 +19,6 @@ const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 
 /// Effect marking where the player clicked to walk.
 const CLICK_EFFECT: &str = "mouse";
-
-/// An actor's mesh whose indices stay in the actor's model.
-#[derive(Debug, Clone, Copy)]
-pub struct ActorPart {
-    actor: usize,
-    part: PartRef,
-}
 
 pub struct World {
     pub content: Content,
@@ -120,6 +113,23 @@ impl World {
         }
     }
 
+    /// An actor for each of the scene's NPCs (after the hero), each look loaded once.
+    pub fn add_npcs(&mut self) {
+        let mut characters = std::collections::HashMap::new();
+        for npc in &self.scene.npcs {
+            let character = characters
+                .entry(npc.look)
+                .or_insert_with(|| self.content.npc_character(npc.look));
+            match character {
+                Ok(c) => {
+                    self.actors
+                        .push(Actor::from_character(c.clone(), npc.cell, npc.direction))
+                }
+                Err(e) => eprintln!("warning: NPC {} ({}): {e}", npc.name, npc.id),
+            }
+        }
+    }
+
     /// The player's character: the first actor.
     pub fn hero(&self) -> Option<&Actor> {
         self.actors.first()
@@ -160,28 +170,14 @@ impl World {
         let eye = camera_eye(view.center);
         self.view
             .prepare(scene, content, renderer, &view, &cells, |a, poser| {
-                let role = actors[a].pose(scene, tilt_deg, now).transform();
-                for part in actors[a].drawables() {
-                    let actor = &mut actors[a];
-                    let texture = actor.texture(part, poser.renderer(), content);
-                    poser.solid(
-                        actor.posed(part, now),
-                        PosedIndices::External(ActorPart { actor: a, part }),
-                        texture,
-                        actor.transform(part, role, now),
-                    );
-                }
-                // Its effects share the actor's depth slice, so the body hides what is behind.
-                for m in actors[a].effect_meshes(scene, tilt_deg, now, eye) {
-                    poser.effect(&m.effect, m.mesh);
-                }
+                actor::pose_actor(actors, a, poser, scene, content, tilt_deg, now, eye);
             });
     }
 
     /// Mesh draws for the posed actors and effects (borrowing this world).
     pub fn mesh_draws(&self) -> Vec<MeshDraw<'_>> {
         self.view
-            .mesh_draws(|p| self.actors[p.actor].indices(p.part))
+            .mesh_draws(|p| ActorPart::indices(&self.actors, p))
     }
 
     /// The frame description for `meshes` (from [`World::mesh_draws`]) seen through `rect`.

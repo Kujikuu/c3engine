@@ -149,8 +149,8 @@ impl Studio {
             );
             return;
         };
-        let (Some(client), Some(doc), Some(scene_view)) =
-            (&self.client, &mut self.doc, &mut self.scene_view)
+        let (Some(client), Some(doc), Some(live)) =
+            (&self.client, &mut self.doc, &mut self.live_scene)
         else {
             if self.maps.is_empty() {
                 theme::empty_state(
@@ -189,12 +189,12 @@ impl Studio {
             selected: self.editor.selected,
             drag_target: self.editor.drag_target(doc, self.hover),
         };
-        scene_view.layers = self.layers;
+        live.view.layers = self.layers;
         let r = map_view::show(
             ui,
             client,
             gpu,
-            scene_view,
+            live,
             doc,
             &mut self.cam,
             self.overlays,
@@ -207,7 +207,7 @@ impl Studio {
             self.scene_ms += f64::from(ui.input(|i| i.stable_dt).min(0.1)) * 1000.0;
             ui.ctx().request_repaint();
         }
-        let errors = scene_view.library.take_errors();
+        let errors = live.take_errors();
         let pickable = Pickable {
             portals: self.overlays.portals,
             objects: self.layers.objects || self.layers.effects || self.overlays.markers,
@@ -517,19 +517,19 @@ impl Studio {
             } else if let Some(doc) = &self.doc {
                 ui.label(self.save_target().unwrap_or_else(|| doc.name().to_owned()));
                 ui.separator();
-                let tiles = self.scene_view.as_ref().map_or(0, |v| v.loaded_tiles());
+                let tiles = (self.live_scene.as_ref()).map_or(0, |l| l.view.loaded_tiles());
                 if self.streaming {
                     ui.add(egui::Spinner::new().size(12.0));
                     ui.label(format!("Loading art · tiles {tiles}/{}", doc.used_tiles()));
                 } else {
                     ui.label(RichText::new(format!("{tiles} tiles loaded")).color(theme::TEXT_DIM));
                 }
-                if let Some(view) = &self.scene_view
-                    && view.effect_count() > 0
+                if let Some(live) = &self.live_scene
+                    && live.view.effect_count() > 0
                 {
                     ui.separator();
                     ui.label(
-                        RichText::new(format!("{} effects", view.effect_count()))
+                        RichText::new(format!("{} effects", live.view.effect_count()))
                             .color(theme::TEXT_DIM),
                     );
                 }

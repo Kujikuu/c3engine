@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M3 step 6: Scene editor (place/move/delete objects, effects, NPCs, spawns, portals)
+- [ ] M3 step 7: Play mode inside the Studio (walk the open map in the Game view, Stop returns)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -106,8 +106,16 @@ Toward the Unity/UE5-style editor, in order:
       `EffectLibrary` moved into the engine (`c3_render::effect_library`), `SceneAssets` gained
       `effect`. Scene bar: Layers menu (sky, ground, objects O, effects E, anchor markers M) and an
       Animate toggle; effect load errors go to the Console; `--cell x,y` frames a cell
-- [ ] (6) Scene editor: place/move/delete objects, effects, NPCs, monster spawns and portals;
-      inspector for the selection; export DMap + Redux data
+- [x] (6) Scene editor: engine `Population` (NPCs, monster spawn areas) in scenes and, for DMaps,
+      `maps/<name>.population.ron`; c3-edit add/move/set/remove commands for entities, NPCs and
+      spawns + objects/npcs/spawns queries. Studio: Select tool (click, drag to move, Del, Esc,
+      F frames, Ctrl+D duplicates), NPC models and spawn areas in the Scene view, Hierarchy with
+      selectable rows and a Create menu (portal, NPC, spawn area, effect picker, object from the
+      Project selection), Inspector editing (one drag/text visit = one undo step). Population
+      import from TQ server SQL dumps (`cq_npc`/`cq_generator`, Twin City: 49 NPCs, 61 spawns)
+      and SQL export for Redux (`game_conquer::server_data`). NPC looks: `Npc.ini` →
+      `3DSimpleObj.ini` → model + stand-by motion (`game_conquer::npc`); actors moved to
+      `game_conquer::actor`, shared by the client (which now shows project NPCs) and the Studio
 - [ ] (7) Play mode (offline): walk the current map inside the Studio, stop to return to editing
 - [ ] (8) Model / animation / effect viewers: actions, sockets, equipment, timeline
 

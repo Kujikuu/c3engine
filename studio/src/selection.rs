@@ -72,6 +72,38 @@ impl Selection {
         })
     }
 
+    /// The command that adds a copy one cell down-right (new ids for NPCs and spawns).
+    pub fn duplicate(self, scene: &Scene) -> Option<SceneCommand> {
+        let shift = |c: CellPos| (c.0 + 1, c.1 + 1);
+        Some(match self {
+            Self::Portal(_) => SceneCommand::AddPortal {
+                cell: shift(self.cell(scene)?),
+                id: None,
+            },
+            Self::Entity(i) => {
+                let mut entity = scene.entities.get(i)?.clone();
+                entity.placement = Placement::Cell(shift(self.cell(scene)?));
+                SceneCommand::AddEntity {
+                    entity,
+                    index: None,
+                }
+            }
+            Self::Npc(id) => {
+                let mut npc = scene.npcs.iter().find(|n| n.id == id)?.clone();
+                npc.id = 0;
+                npc.cell = shift(npc.cell);
+                SceneCommand::AddNpc { npc }
+            }
+            Self::Spawn(id) => {
+                let mut spawn = spawn(scene, id)?.clone();
+                spawn.id = 0;
+                spawn.min = shift(spawn.min);
+                spawn.max = shift(spawn.max);
+                SceneCommand::AddSpawn { spawn }
+            }
+        })
+    }
+
     pub fn remove(self) -> SceneCommand {
         match self {
             Self::Portal(id) => SceneCommand::RemovePortal { id },

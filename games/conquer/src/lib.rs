@@ -3,7 +3,9 @@
 //!
 //! [`Content`] opens a 5065 client folder and hands out engine types (scenes, models, images).
 
+pub mod actor;
 pub mod character;
+pub mod npc;
 pub mod server_data;
 
 use c3_anim::Clip;
@@ -35,6 +37,7 @@ pub struct Content {
     fs: ClientFs,
     catalog: GameMapCatalog,
     tables: Tables,
+    npc_tables: npc::NpcTables,
 }
 
 /// Lookup tables from `ini/`.
@@ -116,11 +119,18 @@ impl Content {
             .map_err(|e| format!("ini/GameMap.dat: {e}"))?
             .unwrap_or_default();
         let tables = Tables::load(&fs);
+        let ini = |name: &str| {
+            fs.read(&format!("ini/{name}"))
+                .map(|b| b.into_owned())
+                .unwrap_or_default()
+        };
+        let npc_tables = npc::NpcTables::parse(&ini("Npc.ini"), &ini("3DSimpleObj.ini"));
         Ok(Self {
             root,
             fs,
             catalog,
             tables,
+            npc_tables,
         })
     }
 

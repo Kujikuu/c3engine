@@ -6,15 +6,16 @@
 //! trails on attacks, `C3DRolePart::Set3DEffect`) and draws them in its own space; role
 //! effects (level-up, hits) stand at the actor's feet (`CRole::Show`, `m_objEffect`).
 
+use crate::Content;
+use crate::character::{Character, CharacterMotions, Look, PartModel, action};
 use c3_assets::effect::Effect;
 use c3_render::actor::{self, ActorPose};
 use c3_render::effect::{self as effects_render, EffectMesh};
 use c3_render::effect_library::{EffectLibrary, RunningEffect};
+use c3_render::scene_view::{PosedIndices, Poser};
 use c3_render::{MeshVertex, Renderer, TextureId};
 use c3_scene::path::{self, PathRules};
 use c3_scene::{CellPos, Scene};
-use game_conquer::Content;
-use game_conquer::character::{Character, CharacterMotions, Look, PartModel, action};
 use glam::{Mat4, Vec2};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
@@ -101,6 +102,21 @@ impl Actor {
             motion_id: None,
         };
         Ok(Self::new(character, None, action::STANDBY, cell, direction))
+    }
+
+    /// An actor standing in `character`'s current motion (NPCs: see
+    /// [`Content::npc_character`]).
+    pub fn from_character(character: Character, cell: CellPos, direction: u8) -> Self {
+        Self::new(character, None, action::STANDBY, cell, direction)
+    }
+
+    /// Frees the textures this actor uploaded.
+    pub fn release_textures(&mut self, renderer: &mut Renderer) {
+        for texture in self.textures.iter_mut() {
+            if let Some(Some(id)) = texture.take() {
+                renderer.release_texture(id);
+            }
+        }
     }
 
     /// A player-style character assembled from look + equipment in action `act`.
@@ -418,5 +434,48 @@ impl Actor {
             .map(|img| renderer.upload_texture(&img));
         self.textures[r.group] = Some(texture);
         texture
+    }
+}
+
+/// An actor's mesh whose indices stay in the actor's model (the scene view's external key).
+#[derive(Debug, Clone, Copy)]
+pub struct ActorPart {
+    actor: usize,
+    part: PartRef,
+}
+
+impl ActorPart {
+    /// The indices `key` stands for, in `actors`.
+    pub fn indices<'a>(actors: &'a [Actor], key: &ActorPart) -> &'a [u32] {
+        actors[key.actor].indices(key.part)
+    }
+}
+
+/// Poses actor `a` into the scene view: its parts, then the effects it carries, which share
+/// its depth slice so the body hides what is behind it.
+#[allow(clippy::too_many_arguments)]
+pub fn pose_actor(
+    actors: &mut [Actor],
+    a: usize,
+    poser: &mut Poser<ActorPart>,
+    scene: &Scene,
+    content: &Content,
+    tilt_deg: f32,
+    now_ms: u64,
+    eye: glam::Vec3,
+) {
+    let role = actors[a].pose(scene, tilt_deg, now_ms).transform();
+    for part in actors[a].drawables() {
+        let actor = &mut actors[a];
+        let texture = actor.texture(part, poser.renderer(), content);
+        poser.solid(
+            actor.posed(part, now_ms),
+            PosedIndices::External(ActorPart { actor: a, part }),
+            texture,
+            actor.transform(part, role, now_ms),
+        );
+    }
+    for m in actors[a].effect_meshes(scene, tilt_deg, now_ms, eye) {
+        poser.effect(&m.effect, m.mesh);
     }
 }

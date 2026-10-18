@@ -125,6 +125,16 @@ impl Client {
         })
     }
 
+    /// The name of NPC type `look` in `Npc.ini` (e.g. `Storekeeper`).
+    pub fn npc_type_name(&self, look: u32) -> Option<&str> {
+        self.content.npc_type(look).map(|t| t.name.as_str())
+    }
+
+    /// The game's content loader (actors, NPC models).
+    pub fn content(&self) -> &Content {
+        &self.content
+    }
+
     fn fs(&self) -> &ClientFs {
         self.content.files()
     }

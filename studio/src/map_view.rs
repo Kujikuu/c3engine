@@ -5,17 +5,20 @@
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
 use crate::icons;
+use crate::live_scene::LiveScene;
 use crate::selection::Selection;
 use crate::tq_plugin::Client;
 use c3_render::View;
-use c3_render::scene_view::SceneView;
 use c3_scene::{CellPos, EntityKind};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
+use std::collections::HashSet;
 
 pub const MIN_ZOOM: f32 = 0.03;
 pub const MAX_ZOOM: f32 = 4.0;
 /// How near (screen pixels) the pointer must be to an object's anchor to pick it.
 const PICK_RADIUS: f32 = 14.0;
+/// Roughly how tall an NPC model stands, in world pixels (where its name goes).
+const NPC_HEIGHT: f32 = 110.0;
 
 /// Overlay palette, shared by the viewport and the legend.
 pub mod colors {
@@ -116,7 +119,7 @@ pub fn show(
     ui: &mut egui::Ui,
     client: &Client,
     gpu: &mut GpuView,
-    scene_view: &mut SceneView,
+    live: &mut LiveScene,
     doc: &mut MapDoc,
     cam: &mut Camera,
     ov: Overlays,
@@ -173,7 +176,7 @@ pub fn show(
         rect,
         client,
         gpu,
-        scene_view,
+        live,
         doc,
         View {
             rect: [view.min.x, view.min.y, view.max.x, view.max.y],
@@ -190,7 +193,16 @@ pub fn show(
         draw_objects(&painter, doc, rect, to_screen);
     }
     if ov.npcs {
-        draw_npcs(&painter, doc, rect, cam.zoom, mode.selected, to_screen);
+        let modelled = live.modelled_npcs();
+        draw_npcs(
+            &painter,
+            doc,
+            rect,
+            cam.zoom,
+            mode.selected,
+            &modelled,
+            to_screen,
+        );
     }
     draw_selection(&painter, doc, mode, to_screen, diamond);
 
@@ -269,20 +281,13 @@ fn draw_scene(
     rect: Rect,
     client: &Client,
     gpu: &mut GpuView,
-    scene_view: &mut SceneView,
+    live: &mut LiveScene,
     doc: &MapDoc,
     view: View,
 ) -> bool {
-    scene_view.prepare(
-        doc.scene(),
-        client,
-        &mut gpu.renderer,
-        &view,
-        &[],
-        |_, _| {},
-    );
-    let meshes = scene_view.mesh_draws(|_| &[]);
-    let frame = scene_view.frame(&meshes, view.rect, [0.0044, 0.0044, 0.0044, 1.0]);
+    live.prepare(doc.scene(), client, &mut gpu.renderer, &view);
+    let meshes = live.mesh_draws();
+    let frame = live.frame(&meshes, view.rect);
     let ppp = ui.ctx().pixels_per_point();
     let size = [
         (rect.width() * ppp).round() as u32,
@@ -295,7 +300,7 @@ fn draw_scene(
         Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
         Color32::WHITE,
     );
-    let streaming = scene_view.streaming();
+    let streaming = live.view.streaming();
     if streaming {
         ui.ctx().request_repaint();
     }
@@ -426,13 +431,14 @@ fn cell_rect_corners(doc: &MapDoc, min: CellPos, max: CellPos) -> [Pos2; 4] {
     [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)]
 }
 
-/// NPCs as a marker with their name, until the scene draws their models.
+/// NPC names, and a marker for NPCs whose model the scene can't draw.
 fn draw_npcs(
     painter: &egui::Painter,
     doc: &MapDoc,
     rect: Rect,
     zoom: f32,
     selected: Option<Selection>,
+    modelled: &HashSet<u32>,
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
     let size = (14.0 * zoom.sqrt()).clamp(9.0, 18.0);
@@ -442,22 +448,27 @@ fn draw_npcs(
             continue;
         }
         let chosen = selected == Some(Selection::Npc(n.id));
-        painter.circle(
-            p,
-            size * 0.75,
-            colors::NPC.gamma_multiply(0.85),
-            Stroke::new(if chosen { 2.5 } else { 1.0 }, Color32::WHITE),
-        );
-        painter.text(
-            p,
-            egui::Align2::CENTER_CENTER,
-            icons::USER,
-            egui::FontId::proportional(size),
-            Color32::from_gray(20),
-        );
+        let has_model = modelled.contains(&n.id);
+        if !has_model {
+            painter.circle(
+                p,
+                size * 0.75,
+                colors::NPC.gamma_multiply(0.85),
+                Stroke::new(if chosen { 2.5 } else { 1.0 }, Color32::WHITE),
+            );
+            painter.text(
+                p,
+                egui::Align2::CENTER_CENTER,
+                icons::USER,
+                egui::FontId::proportional(size),
+                Color32::from_gray(20),
+            );
+        }
+        // Names float above the head, as the game shows them.
+        let above = if has_model { NPC_HEIGHT * zoom } else { size };
         if zoom >= 0.35 || chosen {
             painter.text(
-                p + Vec2::new(0.0, -size),
+                p + Vec2::new(0.0, -above),
                 egui::Align2::CENTER_BOTTOM,
                 &n.name,
                 egui::FontId::proportional(12.0),

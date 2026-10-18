@@ -6,6 +6,7 @@ use crate::dock::Dock;
 use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
 use crate::home::{ImportJob, ProjectDialog};
+use crate::live_scene::LiveScene;
 use crate::map_view::{Camera, Overlays};
 use crate::maps::{self, MapRef};
 use crate::model_view::{ModelDoc, OrbitCamera};
@@ -13,7 +14,7 @@ use crate::shell::{self, LogEntry, Panel};
 use crate::theme;
 use crate::tq_plugin::{Client, ModelEntry};
 use c3_project::{Project, RecentProjects};
-use c3_render::scene_view::{Layers, SceneView};
+use c3_render::scene_view::Layers;
 use c3_scene::CellPos;
 use eframe::egui::{self, Key};
 use std::path::PathBuf;
@@ -60,7 +61,7 @@ pub struct Studio {
     /// Engine renderer; `None` if eframe isn't running on wgpu.
     pub(crate) gpu: Option<GpuView>,
     /// The open map drawn as the game draws it; needs the project's content.
-    pub(crate) scene_view: Option<SceneView>,
+    pub(crate) live_scene: Option<LiveScene>,
     /// Which parts of the scene the Scene view draws.
     pub(crate) layers: Layers,
     /// Objects and effects animate in the Scene view.
@@ -142,7 +143,7 @@ impl Studio {
             },
             editor: Editor::default(),
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
-            scene_view: None,
+            live_scene: None,
             layers: Layers::default(),
             animate: true,
             scene_ms: 0.0,
@@ -256,7 +257,7 @@ impl Studio {
 
     /// Closes the open map and model (without asking).
     pub(crate) fn close_documents(&mut self) {
-        self.set_scene_view(None);
+        self.set_live_scene(None);
         self.doc = None;
         self.model = None;
         self.filter.clear();
@@ -265,11 +266,11 @@ impl Studio {
     }
 
     /// Replaces the Scene view's renderer state, freeing the old one's textures.
-    fn set_scene_view(&mut self, view: Option<SceneView>) {
-        if let (Some(old), Some(gpu)) = (&mut self.scene_view, &mut self.gpu) {
+    fn set_live_scene(&mut self, live: Option<LiveScene>) {
+        if let (Some(old), Some(gpu)) = (&mut self.live_scene, &mut self.gpu) {
             old.release(&mut gpu.renderer);
         }
-        self.scene_view = view;
+        self.live_scene = live;
     }
 
     /// Deletes what the Scene view has selected.
@@ -284,6 +285,17 @@ impl Studio {
                 self.notify(outcome.summary);
             }
             Err(e) => self.error = Some(format!("Can't delete {label}: {e}")),
+        }
+    }
+
+    /// Adds a copy of the selection next to it and selects the copy.
+    pub(crate) fn duplicate_selection(&mut self) {
+        let command = match (&self.doc, self.editor.selected) {
+            (Some(doc), Some(selected)) => selected.duplicate(doc.scene()),
+            _ => None,
+        };
+        if let Some(command) = command {
+            self.create(command);
         }
     }
 
@@ -343,10 +355,9 @@ impl Studio {
                 self.inspect_asset = false;
                 let doc = MapDoc::new(map.clone(), scene, warnings);
                 self.cam.center = doc.bounds().center();
-                let view = self.client.as_ref().map(|client| {
-                    SceneView::new(doc.scene(), client, client.tilt_deg(), self.scene_ms as u64)
-                });
-                self.set_scene_view(view);
+                let live = (self.client.as_ref())
+                    .map(|client| LiveScene::new(doc.scene(), client, self.scene_ms as u64));
+                self.set_live_scene(live);
                 self.doc = Some(doc);
                 self.fit_pending = true;
                 self.error = None;
@@ -498,15 +509,19 @@ impl Studio {
             return;
         }
         // Command shortcuts work even while a text field has focus.
-        let (undo, redo, save) = ctx.input(|i| {
+        let (undo, redo, save, duplicate) = ctx.input(|i| {
             let cmd = i.modifiers.command;
             let z = cmd && i.key_pressed(Key::Z);
             (
                 z && !i.modifiers.shift,
                 (z && i.modifiers.shift) || (cmd && i.key_pressed(Key::Y)),
                 cmd && i.key_pressed(Key::S),
+                cmd && i.key_pressed(Key::D),
             )
         });
+        if duplicate && !ctx.egui_wants_keyboard_input() {
+            self.duplicate_selection();
+        }
         if undo {
             self.undo();
         }

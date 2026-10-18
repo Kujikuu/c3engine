@@ -158,6 +158,18 @@ impl Studio {
                 self.redo();
             }
             ui.separator();
+            let selected = self.editor.selected.is_some() && self.doc.is_some();
+            let duplicate = egui::Button::new(theme::icon_text(icons::COPY, "Duplicate"))
+                .shortcut_text("Ctrl+D");
+            if ui.add_enabled(selected, duplicate).clicked() {
+                self.duplicate_selection();
+            }
+            let delete =
+                egui::Button::new(theme::icon_text(icons::TRASH, "Delete")).shortcut_text("Del");
+            if ui.add_enabled(selected, delete).clicked() {
+                self.delete_selection();
+            }
+            ui.separator();
             if ui
                 .button(theme::icon_text(
                     icons::CLOCK_COUNTER_CLOCKWISE,

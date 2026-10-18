@@ -260,7 +260,7 @@ impl Studio {
     }
 
     /// Runs a create command and selects what it made.
-    fn create(&mut self, command: SceneCommand) {
+    pub(crate) fn create(&mut self, command: SceneCommand) {
         let Some(doc) = &mut self.doc else { return };
         match doc.execute(&command) {
             Ok(outcome) => {
