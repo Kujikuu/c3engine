@@ -1,10 +1,14 @@
 //! Map viewport: draws ground tiles and overlays, handles camera input, and reports
 //! pointer interaction for the active tool (see `editor`).
 
-use crate::doc::{MapDoc, TileLookup};
+use crate::doc::MapDoc;
+use crate::gpu::GpuView;
 use crate::tq_plugin::Client;
+use c3_render::{Frame, Sprite, TextureId};
 use c3_scene::{CellPos, EntityKind};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
+use glam::camera::rh::proj::directx;
+use std::collections::HashMap;
 
 pub const MIN_ZOOM: f32 = 0.03;
 pub const MAX_ZOOM: f32 = 4.0;
@@ -88,9 +92,59 @@ pub struct ViewResult {
     pub streaming: bool,
 }
 
+/// GPU textures for the open map's ground tiles. View state: rebuilt per map.
+#[derive(Default)]
+pub struct GroundCache {
+    path: String,
+    /// `None` = tile failed to load.
+    tiles: HashMap<u16, Option<TextureId>>,
+}
+
+impl GroundCache {
+    pub fn loaded(&self) -> usize {
+        self.tiles.len()
+    }
+
+    /// Drops textures when a different map is shown.
+    fn bind_to(&mut self, path: &str, gpu: &mut GpuView) {
+        if self.path != path {
+            for id in self.tiles.drain().filter_map(|(_, t)| t) {
+                gpu.renderer.release_texture(id);
+            }
+            self.path = path.to_owned();
+        }
+    }
+
+    /// Texture for a tile; decodes and uploads it if `budget` allows. Outer `None` = not loaded yet.
+    fn tile(
+        &mut self,
+        id: u16,
+        frame: Option<&String>,
+        client: &Client,
+        gpu: &mut GpuView,
+        budget: &mut usize,
+    ) -> Option<Option<TextureId>> {
+        if let Some(t) = self.tiles.get(&id) {
+            return Some(*t);
+        }
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
+        let texture = frame
+            .and_then(|f| client.load_image(f))
+            .map(|img| gpu.renderer.upload_texture(&img));
+        self.tiles.insert(id, texture);
+        Some(texture)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
     client: &Client,
+    gpu: &mut GpuView,
+    ground: &mut GroundCache,
     doc: &mut MapDoc,
     cam: &mut Camera,
     ov: Overlays,
@@ -141,7 +195,7 @@ pub fn show(
         ]
     };
 
-    let streaming = draw_ground(ui, &painter, client, doc, view, to_screen, cam.zoom);
+    let streaming = draw_ground(ui, &painter, rect, client, gpu, ground, doc, view, cam.zoom);
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
     if ov.objects {
         draw_objects(&painter, doc, rect, to_screen);
@@ -208,56 +262,82 @@ pub fn show(
     ViewResult { pointer, streaming }
 }
 
+/// Renders visible ground tiles with the engine renderer and paints the result.
+/// Returns true while tiles are still streaming in.
+#[allow(clippy::too_many_arguments)]
 fn draw_ground(
     ui: &egui::Ui,
     painter: &egui::Painter,
+    rect: Rect,
     client: &Client,
-    doc: &mut MapDoc,
+    gpu: &mut GpuView,
+    cache: &mut GroundCache,
+    doc: &MapDoc,
     view: Rect,
-    to_screen: impl Fn(Pos2) -> Pos2,
     zoom: f32,
 ) -> bool {
-    let Some(ground) = doc.scene.ground.as_ref().filter(|g| g.width > 0) else {
-        return false;
-    };
-    let g = ground.tile_size as f32;
-    let bg = Vec2::new(ground.origin.0 as f32, ground.origin.1 as f32);
-    let (gw, gh) = (ground.width, ground.height);
-    let (lmin, lmax) = (view.min - bg, view.max - bg);
-    let (x0, y0) = (
-        (lmin.x / g).floor().max(0.0) as u32,
-        (lmin.y / g).floor().max(0.0) as u32,
-    );
-    let x1 = ((lmax.x / g).ceil().max(0.0) as u32).min(gw);
-    let y1 = ((lmax.y / g).ceil().max(0.0) as u32).min(gh);
-    let mut budget = DECODE_BUDGET;
+    cache.bind_to(&doc.path, gpu);
+    let mut sprites = Vec::new();
     let mut streaming = false;
-    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-    for gy in y0..y1 {
-        for gx in x0..x1 {
-            let Some(idx) = doc.scene.ground.as_ref().and_then(|g| g.tile(gx, gy)) else {
-                continue;
-            };
-            // +0.5px overlap hides seams between tiles when zoomed.
-            let r = Rect::from_min_size(
-                to_screen(Pos2::new(gx as f32 * g, gy as f32 * g) + bg),
-                Vec2::splat(g * zoom + 0.5),
-            );
-            match doc.tile(ui.ctx(), idx, &mut budget, |p| client.load_image(p)) {
-                TileLookup::Ready(t) => {
-                    painter.image(t.id(), r, uv, Color32::WHITE);
-                }
-                TileLookup::Pending => {
-                    streaming = true;
-                    painter.rect_filled(r, 0.0, Color32::from_gray(26));
-                }
-                // Magenta makes missing content obvious.
-                TileLookup::Failed => {
-                    painter.rect_filled(r, 0.0, Color32::from_rgb(60, 0, 60));
-                }
+    if let Some(ground) = doc.scene.ground.as_ref().filter(|g| g.width > 0) {
+        let g = ground.tile_size as f32;
+        let (ox, oy) = (ground.origin.0 as f32, ground.origin.1 as f32);
+        let x0 = ((view.min.x - ox) / g).floor().max(0.0) as u32;
+        let y0 = ((view.min.y - oy) / g).floor().max(0.0) as u32;
+        let x1 = (((view.max.x - ox) / g).ceil().max(0.0) as u32).min(ground.width);
+        let y1 = (((view.max.y - oy) / g).ceil().max(0.0) as u32).min(ground.height);
+        // Half a screen pixel of overlap hides seams between tiles.
+        let size = g + 0.5 / zoom;
+        let mut budget = DECODE_BUDGET;
+        for gy in y0..y1 {
+            for gx in x0..x1 {
+                let Some(id) = ground.tile(gx, gy) else {
+                    continue;
+                };
+                let (texture, tint) = match cache.tile(
+                    id,
+                    ground.tileset.frames.get(&id),
+                    client,
+                    gpu,
+                    &mut budget,
+                ) {
+                    Some(Some(t)) => (Some(t), [1.0; 4]),
+                    None => {
+                        streaming = true;
+                        (None, [0.012, 0.012, 0.012, 1.0])
+                    }
+                    // Magenta makes missing content obvious.
+                    Some(None) => (None, [0.05, 0.0, 0.05, 1.0]),
+                };
+                sprites.push(Sprite {
+                    rect: [ox + gx as f32 * g, oy + gy as f32 * g, size, size],
+                    uv: [0.0, 0.0, 1.0, 1.0],
+                    texture,
+                    tint,
+                });
             }
         }
     }
+    let ppp = ui.ctx().pixels_per_point();
+    let size = [
+        (rect.width() * ppp).round() as u32,
+        (rect.height() * ppp).round() as u32,
+    ];
+    let frame = Frame {
+        clear: [0.0044, 0.0044, 0.0044, 1.0],
+        sprite_view: directx::orthographic(
+            view.min.x, view.max.x, view.max.y, view.min.y, -1.0, 1.0,
+        ),
+        sprites: &sprites,
+        ..Default::default()
+    };
+    let texture = gpu.render(size, &frame);
+    painter.image(
+        texture,
+        rect,
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+        Color32::WHITE,
+    );
     if streaming {
         ui.ctx().request_repaint();
     }

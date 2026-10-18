@@ -4,6 +4,7 @@
 mod app;
 mod doc;
 mod editor;
+mod gpu;
 mod map_view;
 mod panels;
 mod theme;

@@ -2,7 +2,8 @@
 
 use crate::doc::MapDoc;
 use crate::editor::{Editor, Tool};
-use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
+use crate::gpu::GpuView;
+use crate::map_view::{self, Camera, GroundCache, Overlays, ViewMode, colors};
 use crate::theme;
 use crate::tq_plugin::Client;
 use c3_scene::CellPos;
@@ -28,6 +29,9 @@ pub struct Studio {
     pub(crate) cam: Camera,
     pub(crate) overlays: Overlays,
     pub(crate) editor: Editor,
+    /// Engine renderer; `None` if eframe isn't running on wgpu.
+    gpu: Option<GpuView>,
+    pub(crate) ground: GroundCache,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -71,6 +75,8 @@ impl Studio {
                 objects: false,
             },
             editor: Editor::default(),
+            gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
+            ground: GroundCache::default(),
             hover: None,
             streaming: false,
             error: None,
@@ -328,6 +334,15 @@ impl Studio {
     }
 
     fn viewport(&mut self, ui: &mut egui::Ui) {
+        let Some(gpu) = &mut self.gpu else {
+            ui.centered_and_justified(|ui| {
+                ui.colored_label(
+                    theme::DANGER,
+                    "GPU renderer unavailable (wgpu backend required).",
+                )
+            });
+            return;
+        };
         let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
             theme::empty_state(ui, self.client.is_some());
             return;
@@ -350,7 +365,16 @@ impl Studio {
             dragging_portal: self.editor.dragging_portal(),
         };
         let viewport_rect = ui.max_rect();
-        let r = map_view::show(ui, client, doc, &mut self.cam, self.overlays, mode);
+        let r = map_view::show(
+            ui,
+            client,
+            gpu,
+            &mut self.ground,
+            doc,
+            &mut self.cam,
+            self.overlays,
+            mode,
+        );
         self.hover = r.pointer.cell;
         self.streaming = r.streaming;
         if let Some(msg) = self.editor.handle(doc, &r.pointer) {

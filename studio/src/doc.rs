@@ -1,19 +1,8 @@
-//! An open map document: an engine [`Scene`] plus its tile texture cache and undo history.
+//! An open map document: an engine [`Scene`] plus its undo history.
 //! Format-agnostic: loading and saving go through `tq_plugin`.
 
-use c3_assets::Image;
 use c3_scene::{Cell, CellPos, Portal, Scene};
-use eframe::egui::{self, Pos2, Rect, TextureHandle, Vec2};
-use std::collections::HashMap;
-
-/// Result of asking the cache for a ground tile.
-pub enum TileLookup {
-    Ready(TextureHandle),
-    /// Not decoded yet (decode budget spent this frame).
-    Pending,
-    /// Missing or undecodable.
-    Failed,
-}
+use eframe::egui::{Pos2, Rect, Vec2};
 
 /// One undoable step.
 enum Change {
@@ -47,7 +36,6 @@ pub struct MapDoc {
     pub scene: Scene,
     /// Non-fatal load problems, shown in the inspector.
     pub warnings: Vec<String>,
-    tiles: HashMap<u16, Option<TextureHandle>>,
     history: History,
 }
 
@@ -57,7 +45,6 @@ impl MapDoc {
             path: path.to_owned(),
             scene,
             warnings,
-            tiles: HashMap::new(),
             history: History {
                 saved_at: Some(0),
                 ..Default::default()
@@ -103,45 +90,10 @@ impl MapDoc {
         }
     }
 
-    // ---- ground tile cache ----
-
-    pub fn loaded_tiles(&self) -> usize {
-        self.tiles.len()
-    }
+    // ---- ground ----
 
     pub fn used_tiles(&self) -> usize {
         self.scene.ground.as_ref().map_or(0, |g| g.unique_tiles())
-    }
-
-    /// Returns the texture for a ground tile, decoding it with `load` if `budget` allows.
-    pub fn tile(
-        &mut self,
-        ctx: &egui::Context,
-        id: u16,
-        budget: &mut usize,
-        load: impl Fn(&str) -> Option<Image>,
-    ) -> TileLookup {
-        if let Some(t) = self.tiles.get(&id) {
-            return t.clone().map_or(TileLookup::Failed, TileLookup::Ready);
-        }
-        if *budget == 0 {
-            return TileLookup::Pending;
-        }
-        *budget -= 1;
-        let frame = self
-            .scene
-            .ground
-            .as_ref()
-            .and_then(|g| g.tileset.frames.get(&id));
-        let tex = frame.and_then(|f| load(f)).map(|img| {
-            let color = egui::ColorImage::from_rgba_unmultiplied(
-                [img.width as usize, img.height as usize],
-                &img.rgba,
-            );
-            ctx.load_texture(format!("tile{id}"), color, egui::TextureOptions::LINEAR)
-        });
-        self.tiles.insert(id, tex.clone());
-        tex.map_or(TileLookup::Failed, TileLookup::Ready)
     }
 
     // ---- editing ----

@@ -346,11 +346,13 @@ impl Studio {
                     ui.add(egui::Spinner::new().size(12.0));
                     ui.label(format!(
                         "Loading tiles {}/{}",
-                        doc.loaded_tiles(),
+                        self.ground.loaded(),
                         doc.used_tiles()
                     ));
                 } else {
-                    ui.label(RichText::new(format!("{} tiles loaded", doc.loaded_tiles())).weak());
+                    ui.label(
+                        RichText::new(format!("{} tiles loaded", self.ground.loaded())).weak(),
+                    );
                 }
                 if let Some((x, y)) = self.hover {
                     ui.separator();

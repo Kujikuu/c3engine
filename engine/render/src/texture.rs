@@ -39,8 +39,10 @@ impl Textures {
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("c3 sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
+            // Clamp: tiles must not bleed into their opposite edge. UV scrolling (C3 `STEP`)
+            // will need a repeating sampler variant when effects are rendered.
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
