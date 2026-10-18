@@ -3,7 +3,7 @@
 //! the clipboard (pasted on this map or another).
 
 use c3_edit::{SceneCommand, entity_label};
-use c3_scene::{CellPos, Entity, EntityKind, Npc, Placement, PortalTarget, Scene, Spawn};
+use c3_scene::{CellPos, Entity, EntityKind, Npc, Placement, PortalTarget, Region, Scene, Spawn};
 use std::collections::HashSet;
 
 /// One selected thing on the map, by the id (or index) commands use.
@@ -14,6 +14,7 @@ pub enum Selection {
     Entity(usize),
     Npc(u32),
     Spawn(u32),
+    Region(u32),
 }
 
 impl Selection {
@@ -24,6 +25,7 @@ impl Selection {
             Self::Entity(i) => i < scene.entities.len(),
             Self::Npc(id) => scene.npcs.iter().any(|n| n.id == id),
             Self::Spawn(id) => spawn(scene, id).is_some(),
+            Self::Region(id) => region(scene, id).is_some(),
         }
     }
 
@@ -37,6 +39,7 @@ impl Selection {
             }),
             Self::Npc(id) => scene.npcs.iter().find(|n| n.id == id).map(|n| n.cell),
             Self::Spawn(id) => spawn(scene, id).map(Spawn::center),
+            Self::Region(id) => region(scene, id).map(Region::center),
         }
     }
 
@@ -54,6 +57,9 @@ impl Selection {
                 .find(|n| n.id == id)
                 .map_or_else(|| format!("NPC {id}"), |n| n.name.clone()),
             Self::Spawn(id) => format!("Spawn area {id}"),
+            Self::Region(id) => {
+                region(scene, id).map_or_else(|| format!("Region {id}"), Region::label)
+            }
         }
     }
 
@@ -71,6 +77,14 @@ impl Selection {
                 spawn.max = (spawn.max.0 + dx, spawn.max.1 + dy);
                 SceneCommand::SetSpawn { spawn }
             }
+            Self::Region(id) => {
+                let mut region = region(scene, id)?.clone();
+                let from = region.center();
+                let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+                region.min = (region.min.0 + dx, region.min.1 + dy);
+                region.max = (region.max.0 + dx, region.max.1 + dy);
+                SceneCommand::SetRegion { region }
+            }
         })
     }
 
@@ -80,6 +94,7 @@ impl Selection {
             Self::Entity(index) => SceneCommand::RemoveEntity { index },
             Self::Npc(id) => SceneCommand::RemoveNpc { id },
             Self::Spawn(id) => SceneCommand::RemoveSpawn { id },
+            Self::Region(id) => SceneCommand::RemoveRegion { id },
         }
     }
 }
@@ -229,6 +244,10 @@ pub fn in_box(scene: &Scene, min: (f32, f32), max: (f32, f32), what: Pickable) -
         let spawns = (scene.spawns.iter()).filter(|s| inside(scene.cell_to_world(s.center())));
         found.extend(spawns.map(|s| Selection::Spawn(s.id)));
     }
+    if what.regions {
+        let regions = (scene.regions.iter()).filter(|r| inside(scene.cell_to_world(r.center())));
+        found.extend(regions.map(|r| Selection::Region(r.id)));
+    }
     found
 }
 
@@ -238,6 +257,7 @@ pub struct Census {
     portals: HashSet<i32>,
     npcs: HashSet<u32>,
     spawns: HashSet<u32>,
+    regions: HashSet<u32>,
 }
 
 impl Census {
@@ -247,6 +267,7 @@ impl Census {
             portals: scene.portals.iter().map(|p| p.id).collect(),
             npcs: scene.npcs.iter().map(|n| n.id).collect(),
             spawns: scene.spawns.iter().map(|s| s.id).collect(),
+            regions: scene.regions.iter().map(|r| r.id).collect(),
         }
     }
 
@@ -255,10 +276,15 @@ impl Census {
         let portals = (scene.portals.iter()).filter(|p| !self.portals.contains(&p.id));
         let npcs = scene.npcs.iter().filter(|n| !self.npcs.contains(&n.id));
         let spawns = scene.spawns.iter().filter(|s| !self.spawns.contains(&s.id));
+        let regions = scene
+            .regions
+            .iter()
+            .filter(|r| !self.regions.contains(&r.id));
         (portals.map(|p| Selection::Portal(p.id)))
             .chain((self.entities..scene.entities.len()).map(Selection::Entity))
             .chain(npcs.map(|n| Selection::Npc(n.id)))
             .chain(spawns.map(|s| Selection::Spawn(s.id)))
+            .chain(regions.map(|r| Selection::Region(r.id)))
             .collect()
     }
 }
@@ -275,6 +301,7 @@ enum Copied {
     Entity(Entity),
     Npc(Npc),
     Spawn(Spawn),
+    Region(Region),
 }
 
 impl Clip {
@@ -293,6 +320,7 @@ impl Clip {
                         Copied::Npc(scene.npcs.iter().find(|n| n.id == id)?.clone())
                     }
                     Selection::Spawn(id) => Copied::Spawn(spawn(scene, id)?.clone()),
+                    Selection::Region(id) => Copied::Region(region(scene, id)?.clone()),
                 };
                 Some(((cell.0 - anchor.0, cell.1 - anchor.1), copied))
             })
@@ -340,10 +368,22 @@ impl Clip {
                     spawn.max = (spawn.max.0 + dx, spawn.max.1 + dy);
                     commands.push(SceneCommand::AddSpawn { spawn });
                 }
+                Copied::Region(mut region) => {
+                    let from = region.center();
+                    let (dx, dy) = (cell.0 - from.0, cell.1 - from.1);
+                    region.id = 0;
+                    region.min = (region.min.0 + dx, region.min.1 + dy);
+                    region.max = (region.max.0 + dx, region.max.1 + dy);
+                    commands.push(SceneCommand::AddRegion { region });
+                }
             }
         }
         commands
     }
+}
+
+fn region(scene: &Scene, id: u32) -> Option<&Region> {
+    scene.regions.iter().find(|r| r.id == id)
 }
 
 fn spawn(scene: &Scene, id: u32) -> Option<&Spawn> {
@@ -357,6 +397,7 @@ pub struct Pickable {
     pub objects: bool,
     pub npcs: bool,
     pub spawns: bool,
+    pub regions: bool,
 }
 
 /// The thing under the pointer: an NPC or portal on `cell`, else the object anchored
@@ -393,16 +434,18 @@ pub fn pick(
             return Some(Selection::Entity(i));
         }
     }
-    if what.spawns {
-        let area = |s: &Spawn| (s.max.0 - s.min.0 + 1) * (s.max.1 - s.min.1 + 1);
-        return scene
-            .spawns
-            .iter()
-            .filter(|s| s.contains(cell))
-            .min_by_key(|s| area(s))
-            .map(|s| Selection::Spawn(s.id));
-    }
-    None
+    // The smallest spawn area or region holding the cell.
+    let area = |min: CellPos, max: CellPos| (max.0 - min.0 + 1) * (max.1 - min.1 + 1);
+    let spawns = (scene.spawns.iter())
+        .filter(|s| what.spawns && s.contains(cell))
+        .map(|s| (area(s.min, s.max), Selection::Spawn(s.id)));
+    let regions = (scene.regions.iter())
+        .filter(|r| what.regions && r.contains(cell))
+        .map(|r| (area(r.min, r.max), Selection::Region(r.id)));
+    spawns
+        .chain(regions)
+        .min_by_key(|(a, _)| *a)
+        .map(|(_, s)| s)
 }
 
 #[cfg(test)]

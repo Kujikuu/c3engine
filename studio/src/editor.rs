@@ -26,6 +26,8 @@ pub enum Tool {
     Surface,
     /// Paint cells' height.
     Height,
+    /// Drag out a region (music, safe zone, market, weather…).
+    Region,
 }
 
 /// What the Ground tool does with a click.
@@ -47,7 +49,7 @@ pub struct GroundBrush {
 }
 
 impl Tool {
-    pub const ALL: [Tool; 8] = [
+    pub const ALL: [Tool; 9] = [
         Tool::Inspect,
         Tool::Select,
         Tool::Block,
@@ -56,6 +58,7 @@ impl Tool {
         Tool::Ground,
         Tool::Surface,
         Tool::Height,
+        Tool::Region,
     ];
 
     pub fn label(self) -> &'static str {
@@ -68,6 +71,7 @@ impl Tool {
             Tool::Ground => "Ground",
             Tool::Surface => "Surface",
             Tool::Height => "Height",
+            Tool::Region => "Region",
         }
     }
 
@@ -81,6 +85,7 @@ impl Tool {
             Tool::Ground => icons::PAINT_BRUSH,
             Tool::Surface => icons::FOOTPRINTS,
             Tool::Height => icons::STAIRS,
+            Tool::Region => icons::BOUNDING_BOX,
         }
     }
 
@@ -95,6 +100,7 @@ impl Tool {
             Tool::Ground => 6,
             Tool::Surface => 7,
             Tool::Height => 8,
+            Tool::Region => 9,
         }
     }
 
@@ -112,6 +118,7 @@ impl Tool {
                 "Drag to paint the surface type · Alt+click takes a cell's · [ ] brush size"
             }
             Tool::Height => "Drag to paint the height · Alt+click takes a cell's · [ ] brush size",
+            Tool::Region => "Drag out a region, then set what it does in the Inspector",
         }
     }
 
@@ -139,6 +146,8 @@ pub struct Editor {
     /// A selection box being dragged out: the world point it started at, and where it reaches.
     boxing: Option<((f32, f32), (f32, f32))>,
     pub ground: GroundBrush,
+    /// A region being dragged out: the cell it started on.
+    region_from: Option<CellPos>,
     /// The parallax layer the Inspector shows (picked in the Hierarchy).
     pub layer: Option<usize>,
     /// What the Surface and Height tools paint.
@@ -166,6 +175,7 @@ impl Default for Editor {
             surface: 1,
             height: 0,
             layer: None,
+            region_from: None,
             hidden: HashSet::new(),
             locked: HashSet::new(),
         }
@@ -261,6 +271,12 @@ impl Editor {
         self.hidden.contains(s) || self.locked.contains(s)
     }
 
+    /// The region being dragged out to `hover`, as its first and last cells.
+    pub fn region_draft(&self, hover: Option<CellPos>) -> Option<(CellPos, CellPos)> {
+        let (a, b) = (self.region_from?, hover?);
+        Some(((a.0.min(b.0), a.1.min(b.1)), (a.0.max(b.0), a.1.max(b.1))))
+    }
+
     /// The selection box being dragged out, as world corners.
     pub fn boxing(&self) -> Option<((f32, f32), (f32, f32))> {
         self.boxing
@@ -314,6 +330,7 @@ impl Editor {
             Tool::Portal => self.handle_portal(doc, p),
             Tool::Ground => self.handle_ground(doc, p),
             Tool::Surface | Tool::Height => self.handle_cell_value(doc, p),
+            Tool::Region => self.handle_region(doc, p),
         }
     }
 
@@ -409,6 +426,27 @@ impl Editor {
             Some(e) => format!("Can't move: {e}"),
             None => label,
         })
+    }
+
+    fn handle_region(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {
+        if p.primary_pressed {
+            self.region_from = p.cell;
+        }
+        if !p.primary_released {
+            return None;
+        }
+        let (min, max) = self.region_draft(p.cell)?;
+        self.region_from = None;
+        let region = c3_scene::Region {
+            min,
+            max,
+            ..Default::default()
+        };
+        let census = selection::Census::of(doc.scene());
+        let message = run(doc, SceneCommand::AddRegion { region });
+        self.select_all(census.added(doc.scene()));
+        self.tool = Tool::Select;
+        Some(message)
     }
 
     /// The Surface and Height brushes: a stroke paints the value; Alt+click takes a cell's.

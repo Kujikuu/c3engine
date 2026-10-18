@@ -140,6 +140,7 @@ impl Studio {
             for (on, label, key) in [
                 (&mut o.npcs, "NPCs", "N"),
                 (&mut o.spawns, "Spawn areas", ""),
+                (&mut o.regions, "Regions", ""),
                 (&mut o.surface, "Surface types", ""),
                 (&mut o.height, "Heights", ""),
             ] {
@@ -196,6 +197,7 @@ impl Studio {
         let mode = ViewMode {
             pan_with_primary: tool == Tool::Inspect,
             ground_brush: (tool == Tool::Ground).then_some(self.editor.brush),
+            region_draft: self.editor.region_draft(self.hover),
             brush: (tool.uses_brush() && tool != Tool::Ground).then(|| {
                 let color = if tool == Tool::Block {
                     colors::BRUSH_BLOCK
@@ -245,6 +247,7 @@ impl Studio {
             objects: self.layers.objects || self.layers.effects || self.overlays.markers,
             npcs: self.overlays.npcs,
             spawns: self.overlays.spawns,
+            regions: self.overlays.regions,
         };
         if let Some(msg) = self.editor.handle(doc, &r.pointer, pickable) {
             self.notify(msg);

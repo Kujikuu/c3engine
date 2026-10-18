@@ -38,6 +38,7 @@ pub mod colors {
     pub const BRUSH_CLEAR: Color32 = Color32::from_rgb(90, 230, 130);
     pub const NPC: Color32 = Color32::from_rgb(120, 220, 255);
     pub const SPAWN: Color32 = Color32::from_rgb(255, 110, 80);
+    pub const REGION: Color32 = Color32::from_rgb(80, 220, 200);
     pub const SELECTED: Color32 = Color32::from_rgb(255, 255, 255);
 
     /// A colour per surface type, the same every time.
@@ -98,6 +99,8 @@ pub struct Overlays {
     pub surface: bool,
     /// Cells' heights, light above zero and dark below.
     pub height: bool,
+    /// Regions (music, safe zones, markets, weather…).
+    pub regions: bool,
 }
 
 /// How the active tool wants the viewport to behave this frame.
@@ -122,6 +125,8 @@ pub struct ViewMode<'a> {
     pub hidden: &'a HashSet<Selection>,
     /// The Ground tool's brush: tiles on each side of the one under the pointer.
     pub ground_brush: Option<i32>,
+    /// A region being dragged out: its first and last cells.
+    pub region_draft: Option<(CellPos, CellPos)>,
 }
 
 /// Pointer state over the map this frame.
@@ -266,6 +271,17 @@ pub fn show(
         mode.hidden,
     );
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
+    if ov.regions {
+        draw_regions(&painter, doc, &mode, rect, to_screen);
+    }
+    if let Some((min, max)) = mode.region_draft {
+        let corners = cell_rect_corners(doc, min, max).map(&to_screen);
+        painter.add(Shape::convex_polygon(
+            corners.to_vec(),
+            colors::REGION.gamma_multiply(0.2),
+            Stroke::new(2.0, colors::REGION),
+        ));
+    }
     if ov.spawns {
         draw_spawns(&painter, doc, mode.hidden, rect, mode.selection, to_screen);
     }
@@ -590,6 +606,40 @@ fn draw_spawns(
     }
 }
 
+/// Regions: their cell rectangles with dashed-looking outlines and what they do.
+fn draw_regions(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    mode: &ViewMode,
+    rect: Rect,
+    to_screen: impl Fn(Pos2) -> Pos2,
+) {
+    for r in &doc.scene().regions {
+        let me = Selection::Region(r.id);
+        if mode.hidden.contains(&me) {
+            continue;
+        }
+        let corners = cell_rect_corners(doc, r.min, r.max).map(&to_screen);
+        if !Rect::from_points(&corners).intersects(rect) {
+            continue;
+        }
+        let chosen = mode.selection.contains(&me);
+        let stroke = match chosen {
+            true => Stroke::new(2.0, colors::SELECTED),
+            false => Stroke::new(1.5, colors::REGION),
+        };
+        let fill = colors::REGION.gamma_multiply(if chosen { 0.18 } else { 0.07 });
+        painter.add(Shape::convex_polygon(corners.to_vec(), fill, stroke));
+        painter.text(
+            to_screen(doc.cell_to_world(r.center())),
+            egui::Align2::CENTER_CENTER,
+            r.label(),
+            egui::FontId::proportional(12.0),
+            Color32::WHITE,
+        );
+    }
+}
+
 /// Screen corners of the cells from `min` to `max` (outer edges, top corner first).
 fn cell_rect_corners(doc: &MapDoc, min: CellPos, max: CellPos) -> [Pos2; 4] {
     let origin = doc.cell_to_world((0, 0));
@@ -710,6 +760,15 @@ fn draw_selection(
                     let p = to_screen(world);
                     painter.circle_stroke(p, 9.0, stroke);
                     painter.circle_filled(p, 3.0, colors::SELECTED.gamma_multiply(alpha));
+                }
+                Selection::Region(id) => {
+                    let Some(r) = scene.regions.iter().find(|r| r.id == id) else {
+                        return;
+                    };
+                    let moved = |c: CellPos| (c.0 + shift.0, c.1 + shift.1);
+                    let corners =
+                        cell_rect_corners(doc, moved(r.min), moved(r.max)).map(&to_screen);
+                    painter.add(Shape::closed_line(corners.to_vec(), stroke));
                 }
                 Selection::Spawn(id) => {
                     let Some(s) = scene.spawns.iter().find(|s| s.id == id) else {

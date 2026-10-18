@@ -218,6 +218,7 @@ impl Studio {
                 spawns: true,
                 surface: false,
                 height: false,
+                regions: true,
             },
             editor: Editor::default(),
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
@@ -447,6 +448,7 @@ impl Studio {
                 objects: true,
                 npcs: true,
                 spawns: true,
+                regions: true,
             };
             let picked = crate::selection::pick(doc.scene(), cell, world, 24.0, everything);
             s.editor.select(picked);
@@ -1213,6 +1215,7 @@ impl Studio {
                 (Key::Num6, Tool::Ground),
                 (Key::Num7, Tool::Surface),
                 (Key::Num8, Tool::Height),
+                (Key::Num9, Tool::Region),
             ] {
                 if i.key_pressed(key) {
                     self.editor.tool = tool;

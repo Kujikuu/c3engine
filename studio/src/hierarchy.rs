@@ -102,6 +102,15 @@ impl Studio {
                     })
                     .collect();
                 tree.group(ui, icons::USERS_THREE, "Spawn areas", &spawns, &mut picked);
+                let regions: Vec<Row> = (scene.regions.iter())
+                    .map(|r| {
+                        (
+                            format!("{}   #{}", r.label(), r.id),
+                            Selection::Region(r.id),
+                        )
+                    })
+                    .collect();
+                tree.group(ui, icons::BOUNDING_BOX, "Regions", &regions, &mut picked);
                 for (icon, group, keep) in [
                     (icons::SPARKLE, "Effects", 0),
                     (icons::TREE, "Objects", 1),

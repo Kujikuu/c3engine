@@ -134,6 +134,7 @@ impl Studio {
             Selection::Portal(_) => (icons::DOOR_OPEN, "Portal"),
             Selection::Npc(_) => (icons::USER, "NPC"),
             Selection::Spawn(_) => (icons::USERS_THREE, "Monster spawn area"),
+            Selection::Region(_) => (icons::BOUNDING_BOX, "Region"),
             Selection::Entity(i) => match scene.entities[i].kind {
                 EntityKind::Sprite { .. } => (icons::TREE, "Cover object"),
                 EntityKind::Prefab { .. } => (icons::MOUNTAINS, "Terrain object"),
@@ -168,6 +169,7 @@ impl Studio {
             Selection::Entity(index) => self.entity_fields(ui, &mut it, index),
             Selection::Npc(id) => self.npc_fields(ui, &mut it, id),
             Selection::Spawn(id) => self.spawn_fields(ui, &mut it, id),
+            Selection::Region(id) => self.region_fields(ui, &mut it, id),
         };
         self.apply_edit(it, &title, command);
         if frame {
@@ -532,6 +534,73 @@ impl Studio {
         Some(SceneCommand::SetSpawn { spawn })
     }
 
+    fn region_fields(
+        &mut self,
+        ui: &mut egui::Ui,
+        it: &mut Interaction,
+        id: u32,
+    ) -> Option<SceneCommand> {
+        let doc = self.doc.as_ref()?;
+        let mut region = doc.scene().regions.iter().find(|r| r.id == id)?.clone();
+        grid(ui, "region", |ui| {
+            row(ui, "Id", |ui| {
+                ui.label(id.to_string())
+                    .on_hover_text("Scripts get it in on_enter_region(id) and on_leave_region(id)");
+            });
+            row(ui, "Name", |ui| text_field(ui, it, &mut region.name));
+            row(ui, "From cell", |ui| cell_field(ui, it, &mut region.min));
+            row(ui, "To cell", |ui| cell_field(ui, it, &mut region.max));
+            for (label, hint, on) in [
+                (
+                    "Safe zone",
+                    "No one fights here: players, monsters and guards",
+                    &mut region.safe,
+                ),
+                (
+                    "No PK",
+                    "Players can't attack each other here, even on a PK map",
+                    &mut region.no_pk,
+                ),
+                (
+                    "Market",
+                    "Players may set up booths here",
+                    &mut region.booth,
+                ),
+            ] {
+                row(ui, label, |ui| {
+                    it.track(ui.checkbox(on, "").on_hover_text(hint));
+                });
+            }
+            row(ui, "Music", |ui| text_field(ui, it, &mut region.music));
+            row(ui, "Sound", |ui| text_field(ui, it, &mut region.sound));
+            row(ui, "Weather", |ui| {
+                weather_field(ui, it, &mut region.weather)
+            });
+            row(ui, "Light", |ui| {
+                ui.horizontal(|ui| {
+                    let mut own = region.light.is_some();
+                    if it.track(ui.checkbox(&mut own, "")).changed() {
+                        region.light = own.then_some([255, 255, 255]);
+                    }
+                    if let Some(color) = &mut region.light {
+                        it.track(ui.color_edit_button_srgb(color));
+                    }
+                });
+            });
+        });
+        let (w, h) = (
+            region.max.0 - region.min.0 + 1,
+            region.max.1 - region.min.1 + 1,
+        );
+        ui.label(
+            RichText::new(format!("{w} × {h} cells · music and sound are asset paths"))
+                .color(theme::TEXT_DIM)
+                .small(),
+        );
+        extra_section(ui, &region.extra);
+        Some(SceneCommand::SetRegion { region })
+    }
+
     /// The map's NPCs and spawn areas: counts, import from server data, export as SQL.
     pub(crate) fn population_section(&mut self, ui: &mut egui::Ui) {
         let Some(doc) = &self.doc else { return };
@@ -691,4 +760,38 @@ fn npc_file_name(npc: &Npc) -> String {
     } else {
         format!("{name}_{}", npc.id)
     }
+}
+
+/// A region's weather: none, or a kind and how much.
+fn weather_field(ui: &mut egui::Ui, it: &mut Interaction, weather: &mut Option<c3_scene::Weather>) {
+    use c3_scene::{Weather, WeatherKind};
+    ui.horizontal(|ui| {
+        let shown = weather.map_or("None", |w| w.kind.label());
+        let mut picked = None;
+        egui::ComboBox::from_id_salt("region weather")
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                if ui.selectable_label(weather.is_none(), "None").clicked() {
+                    picked = Some(None);
+                }
+                for kind in WeatherKind::ALL {
+                    let on = weather.is_some_and(|w| w.kind == kind);
+                    if ui.selectable_label(on, kind.label()).clicked() {
+                        picked = Some(Some(kind));
+                    }
+                }
+            });
+        if let Some(kind) = picked {
+            *weather = kind.map(|kind| Weather {
+                kind,
+                amount: weather.map_or(50, |w| w.amount),
+            });
+            it.changed = true;
+            it.started = true;
+            it.finished = true;
+        }
+        if let Some(w) = weather {
+            it.track(ui.add(DragValue::new(&mut w.amount).range(1..=100).suffix(" %")));
+        }
+    });
 }

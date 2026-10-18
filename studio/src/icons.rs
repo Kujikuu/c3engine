@@ -16,6 +16,7 @@ pub const ARROW_RIGHT: &str = "\u{E06C}";
 pub const ARROW_SQUARE_OUT: &str = "\u{E5DE}";
 pub const ARROW_UP: &str = "\u{E08E}";
 pub const BOOK_OPEN: &str = "\u{E0E6}";
+pub const BOUNDING_BOX: &str = "\u{E6CE}";
 pub const BROOM: &str = "\u{EC54}";
 pub const CARET_RIGHT: &str = "\u{E13A}";
 pub const CHATS: &str = "\u{E17C}";
