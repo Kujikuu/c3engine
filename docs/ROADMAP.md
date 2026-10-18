@@ -185,10 +185,29 @@ milestone makes Conquer itself a complete, editable project. In order:
       game tables (monsters, items, magic, shops, drops, levels, stat points). Any of the 144
       maps opens with its population and plays; an import report says what came in and what
       didn't. The per-map SQL buttons stay for later merges
-- [ ] (2) World editing: the map list (`GameMap.dat`) with create (blank or from a map), clone,
-      rename, delete and properties; a world overview of all maps and their portal links;
-      portals pick a destination map and cell; players travel between maps through portals in
-      Play mode and on the server
+- [ ] (2) Complete map and world editor (user, 2026-10-18). Today the Scene view edits blocked
+      cells, portals, objects, effects, sounds, NPCs and spawn areas, added from menus; there is
+      no drag and drop, no ground painting and no new maps. To do, every edit one undo step
+      through c3-edit and saved to the map's own files (DMap, PUL, scene parts):
+  - [ ] Drag and drop from the Project panel into the Scene view: objects (scene parts, ANI
+        sprites), effects, sounds, models, NPC looks (makes an NPC), monsters (makes a spawn
+        area), ground tiles; a ghost preview snapped to the cell under the cursor; drop on the
+        Hierarchy too
+  - [ ] Placement tools: box and multi-select, move with cell snapping, pixel nudge of sprite
+        offsets, footprint editing, draw order, hide and lock, copy / paste / duplicate (also
+        between maps), align
+  - [ ] Ground: paint the puzzle ground with tiles from tilesets (brush, fill, erase, pick);
+        tilesets from the project's assets
+  - [ ] Cells: height and surface brushes beside the walkability brush; overlays for each
+  - [ ] Layers: parallax backgrounds (sky, water) and their items; interactive layer order
+  - [ ] Regions: music and sound regions, map regions (safe zones, PK-free, booth), weather,
+        light; drawn and edited in the Scene view
+  - [ ] Portals: destination map and cell picker, two-way links, jump to the destination
+  - [ ] Maps: new map wizard (size, default ground), resize, properties (name, id, flags,
+        music, weather), minimap generation; the map list (`GameMap.dat`) with create, clone,
+        rename and delete
+  - [ ] World view: every map as a node with its portal links; open a map from it; players
+        travel between maps through portals in Play mode and on the server
 - [ ] (3) Content editors with previews (forms over the tables, every edit an undoable c3-edit
       command): NPCs (one list across all maps, jump to the map), monsters (look preview,
       stats, drops, where they spawn), items (icon and model preview, stats, which shops sell
