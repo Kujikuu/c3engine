@@ -32,6 +32,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] Studio shell (eframe/egui): toolbar, map list, inspector, status bar, theme, shortcuts
 - [x] Map viewer: streamed ground tiles at client-exact placement, cell grid, blocked cells,
       portals (jump-to), objects, hover inspector, fit/zoom/pan
+- [x] Map editing: Block / Walkable brush (1–21 cells), portal add/move/delete, undo/redo
+      (strokes merge into one step), Save (Ctrl+S) with atomic write + first-save `.bak`,
+      unsaved-changes guard on map switch and quit
+- [ ] Draw scene objects (cover/scene ANI sprites) so maps look complete
 - [ ] Project system (open/save game project)
 - [ ] Asset browser (packages, textures, models)
 - [ ] Map editor (cells, objects, portals, export DMap + Redux tinymap/SQL)

@@ -1,20 +1,14 @@
-//! Map viewport: streams puzzle ground tiles and overlays the DMap cell grid.
-//! World space matches the client: cell (x, y) centre =
-//! (CELL_W*(x-y)/2 + origin_x, CELL_H*(x+y)/2 + origin_y), origin = (CELL_W*width/2, CELL_H/2).
-//! The puzzle is placed at `bg_origin()` (client `GetBgWorldPos`).
+//! Map viewport: draws ground tiles and overlays, handles camera input, and reports
+//! pointer interaction for the active tool (see `editor`).
 
+use crate::doc::{CELL_H, CELL_W, CellPos, MapDoc, TileLookup};
 use c3_formats_tq::{
-    ani::Ani,
-    dmap::{Cell, DMap, InteractiveObj},
-    pul::{EMPTY, GRID_SIZE, Puzzle},
-    texture::Image,
+    dmap::InteractiveObj,
+    pul::{EMPTY, GRID_SIZE},
     vfs::ClientFs,
 };
-use eframe::egui::{self, Color32, Pos2, Rect, Sense, Shape, Stroke, TextureHandle, Vec2};
-use std::collections::HashMap;
+use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 
-pub const CELL_W: f32 = 64.0;
-pub const CELL_H: f32 = 32.0;
 pub const MIN_ZOOM: f32 = 0.03;
 pub const MAX_ZOOM: f32 = 4.0;
 /// Tiles decoded per frame, so panning stays smooth while streaming.
@@ -30,128 +24,8 @@ pub mod colors {
     pub const SOUND: Color32 = Color32::from_rgb(200, 120, 255);
     pub const EFFECT: Color32 = Color32::from_rgb(255, 140, 60);
     pub const HOVER: Color32 = Color32::from_rgb(255, 214, 90);
-}
-
-pub struct MapDoc {
-    pub path: String,
-    pub dmap: DMap,
-    pub puzzle: Puzzle,
-    pub ani: Ani,
-    pub used_tiles: usize,
-    tiles: HashMap<u16, Option<TextureHandle>>,
-}
-
-impl MapDoc {
-    pub fn load(fs: &ClientFs, path: &str) -> Result<Self, String> {
-        let read = |p: &str| fs.read(p).ok_or_else(|| format!("File not found: {p}"));
-        let dmap = DMap::parse(&read(path)?).map_err(|e| format!("{path}: {e}"))?;
-        let pul_path = dmap.puzzle_file.as_str();
-        let puzzle = Puzzle::parse(&read(&pul_path)?).map_err(|e| format!("{pul_path}: {e}"))?;
-        let ani_path = puzzle.ani_file.as_str();
-        let ani = Ani::parse(&read(&ani_path)?).map_err(|e| format!("{ani_path}: {e}"))?;
-        let mut used: Vec<u16> = puzzle
-            .tiles
-            .iter()
-            .copied()
-            .filter(|&t| t != EMPTY)
-            .collect();
-        used.sort_unstable();
-        used.dedup();
-        Ok(Self {
-            path: path.to_owned(),
-            dmap,
-            puzzle,
-            ani,
-            used_tiles: used.len(),
-            tiles: HashMap::new(),
-        })
-    }
-
-    pub fn name(&self) -> &str {
-        self.path.rsplit('/').next().unwrap_or(&self.path)
-    }
-
-    pub fn loaded_tiles(&self) -> usize {
-        self.tiles.len()
-    }
-
-    pub fn origin(&self) -> Vec2 {
-        Vec2::new(CELL_W * self.dmap.width as f32 / 2.0, CELL_H / 2.0)
-    }
-
-    pub fn cell_to_world(&self, x: i32, y: i32) -> Pos2 {
-        let o = self.origin();
-        Pos2::new(
-            CELL_W * (x - y) as f32 / 2.0 + o.x,
-            CELL_H * (x + y) as f32 / 2.0 + o.y,
-        )
-    }
-
-    pub fn world_to_cell(&self, p: Pos2) -> (i32, i32) {
-        let o = self.origin();
-        let a = (p.x - o.x) / (CELL_W / 2.0);
-        let b = (p.y - o.y) / (CELL_H / 2.0);
-        (
-            ((a + b) / 2.0).round() as i32,
-            ((b - a) / 2.0).round() as i32,
-        )
-    }
-
-    pub fn cell(&self, (x, y): (i32, i32)) -> Option<Cell> {
-        (x >= 0 && y >= 0)
-            .then(|| self.dmap.cell(x as u32, y as u32).copied())
-            .flatten()
-    }
-
-    /// Puzzle size in world pixels.
-    pub fn bg_size(&self) -> Vec2 {
-        Vec2::new(self.puzzle.width as f32, self.puzzle.height as f32) * GRID_SIZE as f32
-    }
-
-    /// World position of the puzzle's top-left. Port of `CGameMap::GetBgWorldPos`
-    /// (integer math as in the client).
-    pub fn bg_origin(&self) -> Pos2 {
-        let (bw, bh) = (
-            self.puzzle.width as i32 * GRID_SIZE as i32,
-            self.puzzle.height as i32 * GRID_SIZE as i32,
-        );
-        let (w, h) = (self.dmap.width as i32, self.dmap.height as i32);
-        let (cw, ch) = (CELL_W as i32, CELL_H as i32);
-        let x = cw * w / 2 - bw / 2;
-        let y = ch / 2 + ch * h / 2 - bh / 2 - ((h + 1) % 2) * ch / 2;
-        Pos2::new(x as f32, y as f32)
-    }
-
-    pub fn bg_rect(&self) -> Rect {
-        Rect::from_min_size(self.bg_origin(), self.bg_size())
-    }
-
-    fn tile_texture(
-        &mut self,
-        ctx: &egui::Context,
-        fs: &ClientFs,
-        idx: u16,
-        budget: &mut usize,
-    ) -> Option<TextureHandle> {
-        if let Some(t) = self.tiles.get(&idx) {
-            return t.clone();
-        }
-        if *budget == 0 {
-            return None;
-        }
-        *budget -= 1;
-        let tex = (|| {
-            let frame = self.ani.get(&Puzzle::tile_title(idx))?.frame_str(0)?;
-            let img = Image::decode(&fs.read(&frame)?).ok()?;
-            let color = egui::ColorImage::from_rgba_unmultiplied(
-                [img.width as usize, img.height as usize],
-                &img.rgba,
-            );
-            Some(ctx.load_texture(format!("puzzle{idx}"), color, egui::TextureOptions::LINEAR))
-        })();
-        self.tiles.insert(idx, tex.clone());
-        tex
-    }
+    pub const BRUSH_BLOCK: Color32 = Color32::from_rgb(255, 90, 90);
+    pub const BRUSH_CLEAR: Color32 = Color32::from_rgb(90, 230, 130);
 }
 
 pub struct Camera {
@@ -189,8 +63,30 @@ pub struct Overlays {
     pub objects: bool,
 }
 
+/// How the active tool wants the viewport to behave this frame.
+#[derive(Default, Clone, Copy)]
+pub struct ViewMode {
+    /// Left-drag pans (Inspect tool). Right/middle-drag always pans.
+    pub pan_with_primary: bool,
+    /// Brush preview: radius in cells and colour.
+    pub brush: Option<(i32, Color32)>,
+    /// Portal being dragged; drawn under the cursor.
+    pub dragging_portal: Option<usize>,
+}
+
+/// Pointer state over the map this frame.
+#[derive(Default)]
+pub struct Pointer {
+    /// Hovered cell, only if inside the map.
+    pub cell: Option<CellPos>,
+    pub primary_pressed: bool,
+    pub primary_down: bool,
+    pub primary_released: bool,
+    pub secondary_clicked: bool,
+}
+
 pub struct ViewResult {
-    pub hover_cell: Option<(i32, i32)>,
+    pub pointer: Pointer,
     /// Tiles still waiting to stream in.
     pub streaming: bool,
 }
@@ -201,17 +97,25 @@ pub fn show(
     doc: &mut MapDoc,
     cam: &mut Camera,
     ov: Overlays,
+    mode: ViewMode,
 ) -> ViewResult {
     let (rect, resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
     cam.viewport = rect.size();
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, Color32::from_gray(14));
 
-    if resp.dragged() {
+    let panning = resp.dragged_by(PointerButton::Middle)
+        || resp.dragged_by(PointerButton::Secondary)
+        || (mode.pan_with_primary && resp.dragged_by(PointerButton::Primary));
+    if panning {
         cam.center -= resp.drag_delta() / cam.zoom;
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     } else if resp.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        ui.ctx().set_cursor_icon(if mode.pan_with_primary {
+            egui::CursorIcon::Grab
+        } else {
+            egui::CursorIcon::Crosshair
+        });
     }
     if resp.hovered() {
         let scroll = ui.input(|i| i.smooth_scroll_delta.y);
@@ -226,8 +130,95 @@ pub fn show(
     let to_screen = |w: Pos2| rect.center() + (w - cam.center) * cam.zoom;
     let to_world = |s: Pos2| cam.center + (s - rect.center()) / cam.zoom;
     let view = Rect::from_two_pos(to_world(rect.min), to_world(rect.max));
+    let diamond = |c: Pos2, scale: f32| {
+        let (hw, hh) = (
+            CELL_W / 2.0 * cam.zoom * scale,
+            CELL_H / 2.0 * cam.zoom * scale,
+        );
+        vec![
+            c + Vec2::new(0.0, -hh),
+            c + Vec2::new(hw, 0.0),
+            c + Vec2::new(0.0, hh),
+            c + Vec2::new(-hw, 0.0),
+        ]
+    };
 
-    // Ground tiles, in puzzle-local coordinates.
+    let streaming = draw_ground(ui, &painter, fs, doc, view, to_screen, cam.zoom);
+    draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
+    if ov.objects {
+        draw_objects(&painter, doc, rect, to_screen);
+    }
+
+    // Pointer.
+    let hover_pos = resp.hover_pos().or(if resp.is_pointer_button_down_on() {
+        ui.input(|i| i.pointer.interact_pos())
+    } else {
+        None
+    });
+    let cell = hover_pos
+        .map(|s| doc.world_to_cell(to_world(s)))
+        .filter(|&c| doc.cell(c).is_some());
+    let (pressed, down, released) = ui.input(|i| {
+        (
+            i.pointer.primary_pressed(),
+            i.pointer.primary_down(),
+            i.pointer.primary_released(),
+        )
+    });
+    let pointer = Pointer {
+        cell,
+        primary_pressed: pressed && resp.hovered(),
+        primary_down: down && resp.is_pointer_button_down_on(),
+        primary_released: released,
+        secondary_clicked: resp.secondary_clicked(),
+    };
+
+    if ov.portals || mode.dragging_portal.is_some() {
+        draw_portals(
+            &painter,
+            doc,
+            rect,
+            cam.zoom,
+            to_screen,
+            mode.dragging_portal,
+            cell,
+        );
+    }
+
+    // Brush / hover outline.
+    if let Some(c) = cell {
+        let center = to_screen(doc.cell_to_world(c));
+        match mode.brush {
+            Some((r, color)) => {
+                // A square brush in cell space is a diamond on screen.
+                let pts = diamond(center, (2 * r + 1) as f32);
+                painter.add(Shape::convex_polygon(
+                    pts,
+                    color.gamma_multiply(0.18),
+                    Stroke::new(2.0, color),
+                ));
+            }
+            None => {
+                painter.add(Shape::closed_line(
+                    diamond(center, 1.0),
+                    Stroke::new(2.0, colors::HOVER),
+                ));
+            }
+        }
+    }
+
+    ViewResult { pointer, streaming }
+}
+
+fn draw_ground(
+    ui: &egui::Ui,
+    painter: &egui::Painter,
+    fs: &ClientFs,
+    doc: &mut MapDoc,
+    view: Rect,
+    to_screen: impl Fn(Pos2) -> Pos2,
+    zoom: f32,
+) -> bool {
     let g = GRID_SIZE as f32;
     let bg = doc.bg_origin().to_vec2();
     let (lmin, lmax) = (view.min - bg, view.max - bg);
@@ -249,18 +240,18 @@ pub fn show(
             // +0.5px overlap hides seams between tiles when zoomed.
             let r = Rect::from_min_size(
                 to_screen(Pos2::new(gx as f32 * g, gy as f32 * g) + bg),
-                Vec2::splat(g * cam.zoom + 0.5),
+                Vec2::splat(g * zoom + 0.5),
             );
-            match doc.tile_texture(ui.ctx(), fs, idx, &mut budget) {
-                Some(t) => {
+            match doc.tile(ui.ctx(), fs, idx, &mut budget) {
+                TileLookup::Ready(t) => {
                     painter.image(t.id(), r, uv, Color32::WHITE);
                 }
-                None if !doc.tiles.contains_key(&idx) => {
+                TileLookup::Pending => {
                     streaming = true;
                     painter.rect_filled(r, 0.0, Color32::from_gray(26));
                 }
-                None => {
-                    // Tile failed to load: hatch it so broken content is obvious.
+                // Magenta makes missing content obvious.
+                TileLookup::Failed => {
                     painter.rect_filled(r, 0.0, Color32::from_rgb(60, 0, 60));
                 }
             }
@@ -269,7 +260,28 @@ pub fn show(
     if streaming {
         ui.ctx().request_repaint();
     }
+    streaming
+}
 
+#[allow(clippy::too_many_arguments)]
+fn draw_cells(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    view: Rect,
+    rect: Rect,
+    ov: Overlays,
+    zoom: f32,
+    to_screen: impl Fn(Pos2) -> Pos2,
+    diamond: impl Fn(Pos2, f32) -> Vec<Pos2>,
+) {
+    let cell_px = CELL_W * zoom;
+    // Grid fades in between 24 and 48 px per cell so it never turns into noise.
+    let grid_alpha = ((cell_px - 24.0) / 24.0).clamp(0.0, 1.0);
+    let show_blocked = ov.blocked && cell_px >= 3.0;
+    let show_grid = ov.grid && grid_alpha > 0.0;
+    if !show_blocked && !show_grid {
+        return;
+    }
     // Visible cell range: invert the four view corners.
     let corners = [
         view.min,
@@ -283,108 +295,101 @@ pub fn show(
     let cx1 = (cells.iter().map(|c| c.0).max().unwrap() + 1).min(w - 1);
     let cy0 = (cells.iter().map(|c| c.1).min().unwrap() - 1).max(0);
     let cy1 = (cells.iter().map(|c| c.1).max().unwrap() + 1).min(h - 1);
-    let cell_px = CELL_W * cam.zoom;
 
-    let diamond = |c: Pos2| {
-        let (hw, hh) = (CELL_W / 2.0 * cam.zoom, CELL_H / 2.0 * cam.zoom);
-        vec![
-            c + Vec2::new(0.0, -hh),
-            c + Vec2::new(hw, 0.0),
-            c + Vec2::new(0.0, hh),
-            c + Vec2::new(-hw, 0.0),
-        ]
-    };
-
-    // Grid fades in between 24 and 48 px per cell so it never turns into noise.
-    let grid_alpha = ((cell_px - 24.0) / 24.0).clamp(0.0, 1.0);
-    if (ov.blocked && cell_px >= 3.0) || (ov.grid && grid_alpha > 0.0) {
-        let grid_stroke = Stroke::new(1.0, Color32::from_white_alpha((45.0 * grid_alpha) as u8));
-        for y in cy0..=cy1 {
-            for x in cx0..=cx1 {
-                let c = to_screen(doc.cell_to_world(x, y));
-                if !rect.expand(cell_px).contains(c) {
-                    continue;
-                }
-                let pts = diamond(c);
-                if ov.blocked
-                    && doc
-                        .dmap
-                        .cell(x as u32, y as u32)
-                        .is_some_and(|c| c.mask != 0)
-                {
-                    painter.add(Shape::convex_polygon(
-                        pts.clone(),
-                        colors::BLOCKED,
-                        Stroke::NONE,
-                    ));
-                }
-                if ov.grid && grid_alpha > 0.0 {
-                    painter.add(Shape::closed_line(pts, grid_stroke));
-                }
-            }
-        }
-    }
-
-    if ov.objects {
-        for o in &doc.dmap.interactive {
-            let (pos, color) = match o {
-                InteractiveObj::Cover { cell, .. } => {
-                    (doc.cell_to_world(cell.0, cell.1), colors::COVER)
-                }
-                InteractiveObj::Terrain { cell, .. } => {
-                    (doc.cell_to_world(cell.0, cell.1), colors::TERRAIN)
-                }
-                InteractiveObj::Sound { world, .. } => {
-                    (Pos2::new(world.0 as f32, world.1 as f32), colors::SOUND)
-                }
-                InteractiveObj::Effect { world, .. } | InteractiveObj::EffectNew { world, .. } => {
-                    (Pos2::new(world.0 as f32, world.1 as f32), colors::EFFECT)
-                }
-            };
-            let p = to_screen(pos);
-            if rect.contains(p) {
-                painter.circle(p, 4.0, color, Stroke::new(1.0, Color32::BLACK));
-            }
-        }
-    }
-
-    if ov.portals {
-        for p in &doc.dmap.passages {
-            let c = to_screen(doc.cell_to_world(p.x, p.y));
-            if !rect.expand(40.0).contains(c) {
+    let grid_stroke = Stroke::new(1.0, Color32::from_white_alpha((45.0 * grid_alpha) as u8));
+    for y in cy0..=cy1 {
+        for x in cx0..=cx1 {
+            let c = to_screen(doc.cell_to_world((x, y)));
+            if !rect.expand(cell_px).contains(c) {
                 continue;
             }
-            // Keep portals readable when zoomed far out.
-            let r = (CELL_W / 2.0 * cam.zoom).max(9.0);
-            let pts = vec![
-                c + Vec2::new(0.0, -r / 2.0),
-                c + Vec2::new(r, 0.0),
-                c + Vec2::new(0.0, r / 2.0),
-                c + Vec2::new(-r, 0.0),
-            ];
-            painter.add(Shape::convex_polygon(
-                pts,
-                colors::PORTAL.gamma_multiply(0.8),
-                Stroke::new(1.5, Color32::WHITE),
-            ));
-            painter.text(
-                c + Vec2::new(0.0, -r / 2.0 - 2.0),
-                egui::Align2::CENTER_BOTTOM,
-                format!("Portal {}", p.index),
-                egui::FontId::proportional(12.0),
-                Color32::WHITE,
-            );
+            let pts = diamond(c, 1.0);
+            if show_blocked && doc.cell((x, y)).is_some_and(|c| c.mask != 0) {
+                painter.add(Shape::convex_polygon(
+                    pts.clone(),
+                    colors::BLOCKED,
+                    Stroke::NONE,
+                ));
+            }
+            if show_grid {
+                painter.add(Shape::closed_line(pts, grid_stroke));
+            }
         }
     }
+}
 
-    let hover_cell = resp.hover_pos().map(|s| doc.world_to_cell(to_world(s)));
-    if let Some(cell) = hover_cell.filter(|&c| doc.cell(c).is_some()) {
-        let pts = diamond(to_screen(doc.cell_to_world(cell.0, cell.1)));
-        painter.add(Shape::closed_line(pts, Stroke::new(2.0, colors::HOVER)));
+fn draw_objects(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    rect: Rect,
+    to_screen: impl Fn(Pos2) -> Pos2,
+) {
+    for o in &doc.dmap.interactive {
+        let (pos, color) = match o {
+            InteractiveObj::Cover { cell, .. } => (doc.cell_to_world(*cell), colors::COVER),
+            InteractiveObj::Terrain { cell, .. } => (doc.cell_to_world(*cell), colors::TERRAIN),
+            InteractiveObj::Sound { world, .. } => {
+                (Pos2::new(world.0 as f32, world.1 as f32), colors::SOUND)
+            }
+            InteractiveObj::Effect { world, .. } | InteractiveObj::EffectNew { world, .. } => {
+                (Pos2::new(world.0 as f32, world.1 as f32), colors::EFFECT)
+            }
+        };
+        let p = to_screen(pos);
+        if rect.contains(p) {
+            painter.circle(p, 4.0, color, Stroke::new(1.0, Color32::BLACK));
+        }
     }
+}
 
-    ViewResult {
-        hover_cell,
-        streaming,
+fn draw_portals(
+    painter: &egui::Painter,
+    doc: &MapDoc,
+    rect: Rect,
+    zoom: f32,
+    to_screen: impl Fn(Pos2) -> Pos2,
+    dragging: Option<usize>,
+    hover: Option<CellPos>,
+) {
+    // Keep portals readable when zoomed far out.
+    let r = (CELL_W / 2.0 * zoom).max(9.0);
+    let marker = |c: Pos2, fill: Color32, label: String| {
+        let pts = vec![
+            c + Vec2::new(0.0, -r / 2.0),
+            c + Vec2::new(r, 0.0),
+            c + Vec2::new(0.0, r / 2.0),
+            c + Vec2::new(-r, 0.0),
+        ];
+        painter.add(Shape::convex_polygon(
+            pts,
+            fill,
+            Stroke::new(1.5, Color32::WHITE),
+        ));
+        painter.text(
+            c + Vec2::new(0.0, -r / 2.0 - 2.0),
+            egui::Align2::CENTER_BOTTOM,
+            label,
+            egui::FontId::proportional(12.0),
+            Color32::WHITE,
+        );
+    };
+    for (i, p) in doc.dmap.passages.iter().enumerate() {
+        let c = to_screen(doc.cell_to_world((p.x, p.y)));
+        if !rect.expand(40.0).contains(c) {
+            continue;
+        }
+        let dragged = dragging == Some(i);
+        marker(
+            c,
+            colors::PORTAL.gamma_multiply(if dragged { 0.3 } else { 0.8 }),
+            format!("Portal {}", p.index),
+        );
+        if dragged && let Some(h) = hover {
+            marker(
+                to_screen(doc.cell_to_world(h)),
+                colors::PORTAL,
+                format!("Portal {}", p.index),
+            );
+        }
     }
 }

@@ -1,6 +1,7 @@
-//! Studio panels: toolbar, map list, inspector, status bar.
+//! Studio panels: toolbar, tool palette, map list, inspector, status bar, and prompts.
 
-use crate::app::Studio;
+use crate::app::{Pending, Studio};
+use crate::editor::{MAX_BRUSH, Tool};
 use crate::map_view::colors;
 use crate::theme;
 use eframe::egui::{self, Color32, Key, RichText};
@@ -15,7 +16,53 @@ impl Studio {
                     .color(theme::ACCENT),
             );
             ui.separator();
-            ui.label(RichText::new("Overlays").weak());
+
+            let has_doc = self.doc.is_some();
+            let (can_undo, can_redo) = self
+                .doc
+                .as_ref()
+                .map_or((false, false), |d| (d.can_undo(), d.can_redo()));
+            if ui
+                .add_enabled(can_undo, egui::Button::new("↶ Undo"))
+                .on_hover_text("Undo (Ctrl+Z)")
+                .clicked()
+            {
+                self.undo();
+            }
+            if ui
+                .add_enabled(can_redo, egui::Button::new("↷ Redo"))
+                .on_hover_text("Redo (Ctrl+Y)")
+                .clicked()
+            {
+                self.redo();
+            }
+            let dirty = self.is_dirty();
+            let save = egui::Button::new(RichText::new("💾 Save").color(if dirty {
+                Color32::BLACK
+            } else {
+                Color32::GRAY
+            }))
+            .fill(if dirty {
+                theme::ACCENT
+            } else {
+                Color32::TRANSPARENT
+            });
+            let hint = if dirty {
+                "Save map to the client folder (Ctrl+S)"
+            } else {
+                "No unsaved changes"
+            };
+            if ui
+                .add_enabled(has_doc && dirty, save)
+                .on_hover_text(hint)
+                .on_disabled_hover_text(hint)
+                .clicked()
+            {
+                self.save();
+            }
+
+            ui.separator();
+            ui.label(RichText::new("Show").weak());
             let o = &mut self.overlays;
             theme::toggle_chip(ui, &mut o.grid, "Grid", Color32::from_gray(200), "G");
             theme::toggle_chip(ui, &mut o.blocked, "Blocked", colors::BLOCKED, "B");
@@ -23,29 +70,24 @@ impl Studio {
             theme::toggle_chip(ui, &mut o.objects, "Objects", colors::COVER, "O");
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let enabled = self.doc.is_some();
                 if ui
-                    .add_enabled(enabled, egui::Button::new("Fit"))
+                    .add_enabled(has_doc, egui::Button::new("Fit"))
                     .on_hover_text("Fit map to view (F)")
                     .clicked()
                 {
                     self.fit_pending = true;
                 }
                 if ui
-                    .add_enabled(enabled, egui::Button::new("+"))
+                    .add_enabled(has_doc, egui::Button::new("+"))
                     .on_hover_text("Zoom in (+ or scroll)")
                     .clicked()
                 {
                     self.cam.zoom_by(1.25);
                 }
-                ui.add_sized(
-                    [52.0, 20.0],
-                    egui::Label::new(
-                        RichText::new(format!("{:.0}%", self.cam.zoom * 100.0)).monospace(),
-                    ),
-                );
+                let zoom = RichText::new(format!("{:.0}%", self.cam.zoom * 100.0)).monospace();
+                ui.add_sized([52.0, 20.0], egui::Label::new(zoom));
                 if ui
-                    .add_enabled(enabled, egui::Button::new("−"))
+                    .add_enabled(has_doc, egui::Button::new("−"))
                     .on_hover_text("Zoom out (- or scroll)")
                     .clicked()
                 {
@@ -55,11 +97,49 @@ impl Studio {
         });
     }
 
+    /// Floating tool palette in the viewport's top-left corner.
+    pub(crate) fn tool_palette(&mut self, ctx: &egui::Context, viewport: egui::Rect) {
+        egui::Area::new(egui::Id::unique("tool_palette"))
+            .fixed_pos(viewport.min + egui::vec2(12.0, 12.0))
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 4.0;
+                    for tool in Tool::ALL {
+                        let selected = self.editor.tool == tool;
+                        let text = RichText::new(format!("{}  {}", tool.icon(), tool.label()));
+                        let r = ui
+                            .add_sized([118.0, 26.0], egui::Button::selectable(selected, text))
+                            .on_hover_text(format!(
+                                "{} ({})\n{}",
+                                tool.label(),
+                                tool.key(),
+                                tool.hint()
+                            ));
+                        if r.clicked() {
+                            self.editor.tool = tool;
+                        }
+                    }
+                    if self.editor.tool.uses_brush() {
+                        ui.separator();
+                        ui.label(RichText::new("Brush size").weak().small());
+                        let mut size = self.editor.brush * 2 + 1;
+                        let slider = egui::Slider::new(&mut size, 1..=MAX_BRUSH * 2 + 1)
+                            .step_by(2.0)
+                            .suffix(" cells");
+                        if ui.add(slider).on_hover_text("[ and ] to change").changed() {
+                            self.editor.brush = (size - 1) / 2;
+                        }
+                    }
+                });
+            });
+    }
+
     pub(crate) fn map_list(&mut self, ui: &mut egui::Ui) {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.heading("Maps");
-            ui.label(RichText::new(format!("{}", self.maps.len())).weak());
+            ui.label(RichText::new(self.maps.len().to_string()).weak());
         });
         ui.add_space(4.0);
         let search = ui.add(
@@ -94,17 +174,21 @@ impl Studio {
             .show(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                     for m in &list {
-                        let selected = self.doc.as_ref().is_some_and(|d| &d.path == m);
+                        let doc = self.doc.as_ref().filter(|d| &d.path == m);
                         let name = m.rsplit('/').next().unwrap_or(m);
                         let name = name
                             .strip_suffix(".DMap")
                             .or_else(|| name.strip_suffix(".dmap"))
                             .unwrap_or(name);
+                        let label = match doc {
+                            Some(d) if d.is_dirty() => format!("● {name}"),
+                            _ => name.to_owned(),
+                        };
                         let r = ui.add(
-                            egui::Button::selectable(selected, name)
+                            egui::Button::selectable(doc.is_some(), label)
                                 .min_size(egui::vec2(0.0, 22.0)),
                         );
-                        if selected && self.fit_pending {
+                        if doc.is_some() && self.fit_pending {
                             r.scroll_to_me(Some(egui::Align::Center));
                         }
                         if r.clicked() {
@@ -144,14 +228,8 @@ impl Studio {
                         theme::kv(ui, "Puzzle", &doc.dmap.puzzle_file.as_str());
                         theme::kv(ui, "Tile set", &doc.puzzle.ani_file.as_str());
                         let walkable = doc.dmap.cells.iter().filter(|c| c.mask == 0).count();
-                        theme::kv(
-                            ui,
-                            "Walkable",
-                            &format!(
-                                "{:.0}%",
-                                walkable as f32 * 100.0 / doc.dmap.cells.len().max(1) as f32
-                            ),
-                        );
+                        let pct = walkable as f32 * 100.0 / doc.dmap.cells.len().max(1) as f32;
+                        theme::kv(ui, "Walkable", &format!("{pct:.1}%"));
                         theme::kv(ui, "Objects", &doc.dmap.interactive.len().to_string());
                     });
 
@@ -162,7 +240,7 @@ impl Studio {
                                 let (text, color) = if c.mask == 0 {
                                     ("Walkable", colors::COVER)
                                 } else {
-                                    ("Blocked", Color32::from_rgb(235, 90, 90))
+                                    ("Blocked", theme::DANGER)
                                 };
                                 ui.horizontal(|ui| {
                                     ui.label(RichText::new("Access").weak());
@@ -186,7 +264,12 @@ impl Studio {
                         &format!("Portals ({})", doc.dmap.passages.len()),
                         |ui| {
                             if doc.dmap.passages.is_empty() {
-                                ui.label(RichText::new("This map has no portals.").weak());
+                                ui.label(
+                                    RichText::new(
+                                        "No portals. Use the Portal tool (4) to add one.",
+                                    )
+                                    .weak(),
+                                );
                             }
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
@@ -199,7 +282,7 @@ impl Studio {
                                             .on_hover_text("Click to jump here")
                                             .clicked()
                                         {
-                                            jump = Some(doc.cell_to_world(p.x, p.y));
+                                            jump = Some(doc.cell_to_world((p.x, p.y)));
                                         }
                                     }
                                 },
@@ -231,7 +314,7 @@ impl Studio {
                         self.open_client();
                     }
                     if self.fs.is_none() {
-                        ui.colored_label(Color32::from_rgb(235, 90, 90), "Not loaded");
+                        ui.colored_label(theme::DANGER, "Not loaded");
                     } else {
                         ui.label(RichText::new(format!("{} maps found", self.maps.len())).weak());
                     }
@@ -242,41 +325,91 @@ impl Studio {
     pub(crate) fn status_bar(&self, ui: &mut egui::Ui) {
         ui.horizontal_centered(|ui| {
             if let Some(e) = &self.error {
-                ui.colored_label(Color32::from_rgb(235, 90, 90), format!("⚠ {e}"));
-                return;
-            }
-            match &self.doc {
-                Some(doc) => {
-                    ui.label(&doc.path);
+                ui.colored_label(theme::DANGER, format!("⚠ {e}"));
+            } else if let Some(n) = self.active_notice() {
+                ui.colored_label(colors::COVER, format!("✔ {n}"));
+            } else if let Some(doc) = &self.doc {
+                ui.label(&doc.path);
+                ui.separator();
+                if self.streaming {
+                    ui.add(egui::Spinner::new().size(12.0));
+                    ui.label(format!(
+                        "Loading tiles {}/{}",
+                        doc.loaded_tiles(),
+                        doc.used_tiles
+                    ));
+                } else {
+                    ui.label(RichText::new(format!("{} tiles loaded", doc.loaded_tiles())).weak());
+                }
+                if let Some((x, y)) = self.hover {
                     ui.separator();
-                    if self.streaming {
-                        ui.add(egui::Spinner::new().size(12.0));
-                        ui.label(format!(
-                            "Loading tiles {}/{}",
-                            doc.loaded_tiles(),
-                            doc.used_tiles
-                        ));
-                    } else {
-                        ui.label(
-                            RichText::new(format!("{} tiles loaded", doc.loaded_tiles())).weak(),
-                        );
-                    }
-                    if let Some((x, y)) = self.hover.filter(|&c| doc.cell(c).is_some()) {
-                        ui.separator();
-                        ui.label(RichText::new(format!("Cell {x}, {y}")).monospace());
-                    }
+                    ui.label(RichText::new(format!("Cell {x}, {y}")).monospace());
                 }
-                None => {
-                    ui.label(RichText::new("No map open").weak());
-                }
+            } else {
+                ui.label(RichText::new("No map open").weak());
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let tool = self.editor.tool;
                 ui.label(
-                    RichText::new("Drag to pan · Scroll to zoom · F fit · WASD move")
-                        .weak()
+                    RichText::new(format!(
+                        "{}  ·  Right-drag pans · Scroll zooms",
+                        tool.hint()
+                    ))
+                    .weak()
+                    .small(),
+                );
+                ui.label(
+                    RichText::new(format!("{} {}", tool.icon(), tool.label()))
+                        .color(theme::ACCENT)
                         .small(),
                 );
             });
         });
+    }
+
+    /// Modal asking what to do with unsaved changes before switching maps or quitting.
+    pub(crate) fn unsaved_prompt(&mut self, ctx: &egui::Context) {
+        let Some(pending) = self.pending.clone() else {
+            return;
+        };
+        let name = self.doc.as_ref().map_or("", |d| d.name()).to_owned();
+        let action = match pending {
+            Pending::OpenMap(_) => "opening another map",
+            Pending::Quit => "quitting",
+        };
+        let mut choice: Option<Option<bool>> = None; // Some(Some(save)) or Some(None) = cancel
+        let modal = egui::Modal::new(egui::Id::unique("unsaved_prompt")).show(ctx, |ui| {
+            ui.set_width(380.0);
+            ui.heading("Unsaved changes");
+            ui.add_space(4.0);
+            ui.label(format!("Save changes to {name} before {action}?"));
+            ui.label(
+                RichText::new("A backup of the original is kept as .bak on first save.")
+                    .weak()
+                    .small(),
+            );
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                let save = egui::Button::new(RichText::new("Save").color(Color32::BLACK))
+                    .fill(theme::ACCENT);
+                if ui.add(save).clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
+                    choice = Some(Some(true));
+                }
+                if ui.button("Don't save").clicked() {
+                    choice = Some(Some(false));
+                }
+                if ui.button("Cancel").clicked() {
+                    choice = Some(None);
+                }
+            });
+        });
+        if modal.should_close() && choice.is_none() {
+            choice = Some(None);
+        }
+        match choice {
+            Some(Some(save)) => self.resolve_pending(save, ctx),
+            Some(None) => self.pending = None,
+            None => {}
+        }
     }
 }

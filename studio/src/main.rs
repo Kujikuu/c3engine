@@ -2,6 +2,8 @@
 //! Usage: c3-studio [client_dir] [--map map/map/xxx.DMap] [--zoom 0.5]
 
 mod app;
+mod doc;
+mod editor;
 mod map_view;
 mod panels;
 mod theme;
