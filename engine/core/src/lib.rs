@@ -2,6 +2,7 @@
 //! ([`settings::ProjectSettings`]), read by the simulation, the runtime, the client, the
 //! server and the Studio.
 
+pub mod input;
 pub mod settings;
 
 pub use settings::ProjectSettings;

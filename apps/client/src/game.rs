@@ -7,6 +7,7 @@ use crate::gfx::Gfx;
 use crate::ui_layer::UiLayer;
 use c3_core::ProjectSettings;
 use c3_play::GameModule;
+use c3_play::controls::PlayerControls;
 use c3_play::screen::{GameScreen, MAX_FRAME_SECONDS};
 use c3_play::session::{Session, SessionSetup};
 use c3_scene::CellPos;
@@ -64,8 +65,9 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         "" => project.name().to_owned(),
         name => name.to_owned(),
     };
+    let controls = PlayerControls::load(&title);
     let mut app = GameApp {
-        screen: GameScreen::new(session),
+        screen: GameScreen::new(session, controls),
         window: WindowSetup {
             title,
             icon,
@@ -141,7 +143,9 @@ impl GameApp {
             return;
         };
         let screen = &mut self.screen;
-        ui.run(&gfx.window, |ui| {
+        let mut input = ui.take_input(&gfx.window);
+        screen.before_frame(&mut input);
+        ui.run(&gfx.window, input, |ui| {
             let rect = ui.max_rect();
             let hovered = screen.update(ui, rect, seconds);
             screen.overlay(ui, rect, hovered);
@@ -212,7 +216,12 @@ impl ApplicationHandler for GameApp {
                     g.resize(size.width, size.height);
                 }
             }
-            WindowEvent::RedrawRequested => self.redraw(),
+            WindowEvent::RedrawRequested => {
+                self.redraw();
+                if self.screen.left() {
+                    event_loop.exit();
+                }
+            }
             _ => {}
         }
     }

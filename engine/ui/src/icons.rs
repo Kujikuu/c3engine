@@ -23,6 +23,14 @@ pub fn add_to(fonts: &mut FontDefinitions) {
     }
 }
 
+pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{E038}";
+pub const ARROW_LEFT: &str = "\u{E058}";
+pub const GAME_CONTROLLER: &str = "\u{E26E}";
+pub const HAND_TAP: &str = "\u{EC90}";
+pub const LIST: &str = "\u{E2F0}";
+pub const PLAY: &str = "\u{E3D0}";
+pub const SIGN_OUT: &str = "\u{E42A}";
+pub const PERSON_SIMPLE_RUN: &str = "\u{E730}";
 pub const BACKPACK: &str = "\u{E922}";
 pub const CHAT_CIRCLE_DOTS: &str = "\u{E16C}";
 pub const CHAT_TEXT: &str = "\u{E17A}";

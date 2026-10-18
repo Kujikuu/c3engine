@@ -44,9 +44,13 @@ impl UiLayer {
         let _ = self.state.on_window_event(window, event);
     }
 
-    /// Runs one UI frame with `ui` on the root (whole-window) Ui.
-    pub fn run(&mut self, window: &Window, ui: impl FnMut(&mut egui::Ui)) {
-        let input = self.state.take_egui_input(window);
+    /// The input gathered for the next frame.
+    pub fn take_input(&mut self, window: &Window) -> egui::RawInput {
+        self.state.take_egui_input(window)
+    }
+
+    /// Runs one UI frame of `input` with `ui` on the root (whole-window) Ui.
+    pub fn run(&mut self, window: &Window, input: egui::RawInput, ui: impl FnMut(&mut egui::Ui)) {
         let output = self.ctx.run_ui(input, ui);
         self.state
             .handle_platform_output(window, output.platform_output);

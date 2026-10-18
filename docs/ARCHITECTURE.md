@@ -6,7 +6,8 @@ review in ROADMAP.md).
 ```
 c3engine/
   engine/            game-agnostic engine crates (c3-*)
-    core/      c3-core: Project Settings types (`settings`), shared by every crate
+    core/      c3-core: Project Settings types (`settings`) and the Input System's actions and
+               bindings (`input`), shared by every crate
     assets/    decoded asset types (image, model, sprite set, prefab, effect) and the
                `AssetSource` read trait (planned: asset database, ids, import settings, hot
                reload, packaging, plain PNG/glTF/OGG/TTF)
@@ -37,7 +38,9 @@ c3engine/
     play/      c3-play: playing a game, shared by the client, the server and the Studio's Scene,
                Play and Preview: the game-module seam (`GameModule`: content, `Looks`,
                `GameRules`, sounds, maps, default settings), world, actor, screen (camera by
-               the settings), cursors, session, sim view, game audio, server thread,
+               the settings, reading actions only), cursors, input (gamepads via gilrs, the
+               mapper from devices to actions), controls (player rebinds), touch (the
+               on-screen joystick and buttons), session, sim view, game audio, server thread,
                `settings` (load, new characters, start, tilt, fonts, icon); `basic::BasicGame`, the engine's own game for projects made from
                scratch (placeholder figures, a built-in ground, `blank_scene` for new maps)
     edit/      c3-edit: headless editing API. Typed serializable

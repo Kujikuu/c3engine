@@ -162,6 +162,28 @@ fn labelled_meter(
     );
 }
 
+/// The line of what the controls do, top left of the game.
+pub(crate) fn hint_line(ui: &egui::Ui, view: &GameView) {
+    if view.hint.is_empty() {
+        return;
+    }
+    let painter = ui.painter_at(view.rect);
+    let galley = painter.layout(
+        view.hint.to_owned(),
+        fonts::font(12.0),
+        style::TEXT,
+        view.rect.width() - 40.0,
+    );
+    let pad = egui::vec2(8.0, 5.0);
+    let at = view.rect.left_top() + egui::vec2(10.0, 10.0);
+    painter.rect_filled(
+        Rect::from_min_size(at, galley.size() + pad * 2.0),
+        4.0,
+        style::backing(1.0),
+    );
+    painter.galley(at + pad, galley, style::TEXT);
+}
+
 /// The bottom bar: level, life, mana, experience, money and the window buttons.
 pub(crate) fn bar(
     ui: &mut egui::Ui,

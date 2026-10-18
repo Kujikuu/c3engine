@@ -3,6 +3,7 @@
 //! Unity's Project Settings window. A file may leave out anything; missing values take their
 //! defaults, so a project only stores what it changed.
 
+use crate::input::InputSettings;
 use serde::{Deserialize, Serialize};
 
 /// All of a project's settings.
@@ -12,6 +13,7 @@ pub struct ProjectSettings {
     pub player: PlayerSettings,
     pub cursors: CursorSettings,
     pub camera: CameraSettings,
+    pub input: InputSettings,
     pub gameplay: GameplaySettings,
     pub graphics: GraphicsSettings,
     pub audio: AudioSettings,
@@ -102,6 +104,7 @@ impl ProjectSettings {
             n.save_interval_seconds >= 1.0 && n.join_timeout_seconds >= 1.0,
             "The save interval and join timeout must be 1 second or more",
         );
+        problems.extend(self.input.problems());
         problems
     }
 }

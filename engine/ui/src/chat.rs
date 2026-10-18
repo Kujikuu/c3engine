@@ -90,8 +90,12 @@ impl Chat {
         }
     }
 
+    /// Starts typing a line.
+    pub fn open(&mut self) {
+        self.typing = true;
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui, rect: Rect, actions: &mut Vec<UiAction>) {
-        let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
         let bottom = rect.bottom() - 74.0;
         let painter = ui.painter_at(rect);
         let font = fonts::font(13.0);
@@ -111,9 +115,6 @@ impl Chat {
             painter.galley(pos, galley, *color);
         }
         if !self.typing {
-            if enter && !ui.ctx().egui_wants_keyboard_input() {
-                self.typing = true;
-            }
             return;
         }
         let id = egui::Id::unique("game chat input");

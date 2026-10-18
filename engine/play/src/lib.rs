@@ -15,14 +15,17 @@ pub mod audio;
 pub mod basic;
 pub mod builtin;
 pub mod character;
+pub mod controls;
 pub mod cursor;
 pub mod game;
+pub mod input;
 pub mod module;
 pub mod screen;
 pub mod serve;
 pub mod session;
 pub mod settings;
 pub mod sim_view;
+pub mod touch;
 pub mod world;
 
 pub use character::{Attachment, Character, CharacterMotions, Look, LookKind, PartModel};

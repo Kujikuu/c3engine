@@ -13,10 +13,12 @@ mod dialogue;
 pub mod fonts;
 mod hud;
 pub mod icons;
+mod menu;
 mod quests;
 mod shop;
 pub mod style;
 
+use c3_core::input::{Action, Device};
 use c3_game::{EntityId, Event, Sim};
 use c3_scene::CellPos;
 use egui::{Pos2, Rect, TextureId};
@@ -44,6 +46,30 @@ pub enum UiAction {
     Say(String),
     /// Mute or unmute the game's sound.
     ToggleSound,
+    /// Change what `action` is bound to on the active device (the next key or button).
+    Rebind(Action),
+    /// Back to the game's own controls.
+    ResetControls,
+    /// Leave the game (the client closes; the Studio stops playing).
+    Leave,
+}
+
+/// One action on the Controls page.
+pub struct ControlRow {
+    pub action: Action,
+    /// What it is bound to on the active device, as players read it (`Tab / Y`).
+    pub bindings: String,
+    /// Whether players may rebind it here.
+    pub rebindable: bool,
+}
+
+/// The controls as the menu shows them.
+pub struct ControlsView<'a> {
+    /// The device in use.
+    pub device: Device,
+    pub rows: &'a [ControlRow],
+    /// The action waiting for its new key or button.
+    pub listening: Option<Action>,
 }
 
 /// A line for the host's console (script output, data problems).
@@ -77,6 +103,9 @@ pub struct GameView<'a> {
     pub slots: &'a [(u8, &'a str)],
     /// Whether sound is on; `None` when there is no sound device.
     pub sound: Option<bool>,
+    /// What the controls do, on the device in use (the top hint line).
+    pub hint: &'a str,
+    pub controls: &'a ControlsView<'a>,
 }
 
 impl GameView<'_> {
@@ -103,6 +132,7 @@ pub struct GameUi {
     overlay: hud::Overlay,
     bag_open: bool,
     quests_open: bool,
+    menu: Option<menu::Page>,
     log: Vec<LogLine>,
 }
 
@@ -118,6 +148,58 @@ impl GameUi {
 
     pub fn toggle_quests(&mut self) {
         self.quests_open ^= true;
+    }
+
+    /// Starts typing a chat line.
+    pub fn open_chat(&mut self) {
+        self.chat.open();
+    }
+
+    /// Opens or closes the game menu.
+    /// Opens the menu on its Controls page.
+    pub fn open_controls(&mut self) {
+        self.menu = Some(menu::Page::Controls);
+    }
+
+    pub fn toggle_menu(&mut self) {
+        self.menu = match self.menu {
+            Some(_) => None,
+            None => Some(menu::Page::Main),
+        };
+    }
+
+    /// Whether a window wants the menu buttons (gamepads move between its buttons).
+    pub fn window_open(&self, sim: &Sim, hero: EntityId) -> bool {
+        let player = sim.player(hero);
+        self.menu.is_some()
+            || self.bag_open
+            || self.quests_open
+            || player.is_some_and(|p| p.dialogue.is_some() || p.shop.is_some())
+    }
+
+    /// Closes the topmost window (menu, dialogue, shop, bag, quests); `false` when none was
+    /// open. A dialogue or shop closes through the returned action.
+    pub fn back(&mut self, sim: &Sim, hero: EntityId) -> (bool, Option<UiAction>) {
+        if let Some(page) = self.menu {
+            self.menu = (page == menu::Page::Controls).then_some(menu::Page::Main);
+            return (true, None);
+        }
+        let player = sim.player(hero);
+        if player.is_some_and(|p| p.dialogue.is_some()) {
+            return (true, Some(UiAction::CloseDialogue));
+        }
+        if player.is_some_and(|p| p.shop.is_some()) {
+            return (true, Some(UiAction::CloseShop));
+        }
+        if self.bag_open {
+            self.bag_open = false;
+            return (true, None);
+        }
+        if self.quests_open {
+            self.quests_open = false;
+            return (true, None);
+        }
+        (false, None)
     }
 
     /// A line from the game in the chat log ("Level up!").
@@ -158,19 +240,7 @@ impl GameUi {
         };
         let typing = self.chat.typing;
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();
-        let (bag_key, quest_key, escape) = ui.input(|i| {
-            (
-                i.key_pressed(egui::Key::B),
-                i.key_pressed(egui::Key::L),
-                i.key_pressed(egui::Key::Escape),
-            )
-        });
-        if bag_key && free_keys {
-            self.bag_open ^= true;
-        }
-        if quest_key && free_keys {
-            self.quests_open ^= true;
-        }
+        hud::hint_line(ui, view);
         quests::npc_marks(&ui.painter_at(view.rect), view);
         let mut open = hud::Open {
             bag: &mut self.bag_open,
@@ -192,18 +262,7 @@ impl GameUi {
         if let Some(conversation) = &player.dialogue {
             dialogue::window(ui, view.rect, conversation, free_keys, &mut actions);
         }
-        // Esc closes the topmost window: dialogue, then shop, then bag, then quests.
-        if escape && !typing {
-            if player.dialogue.is_some() {
-                actions.push(UiAction::CloseDialogue);
-            } else if shop.is_some() {
-                actions.push(UiAction::CloseShop);
-            } else if self.bag_open {
-                self.bag_open = false;
-            } else {
-                self.quests_open = false;
-            }
-        }
+        menu::window(ui, view.rect, &mut self.menu, view.controls, &mut actions);
         actions
     }
 }

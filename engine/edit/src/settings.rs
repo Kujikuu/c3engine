@@ -17,7 +17,8 @@ pub enum SettingsCommand {
     /// Sets the setting at `path` (sections and fields joined by dots) to `value`; `null`
     /// clears an optional setting.
     Set { path: String, value: Value },
-    /// Puts the setting at `path` (a field or a whole section) back to its default.
+    /// Puts the setting at `path` (a field, a whole section, or an entry of a list keyed by
+    /// name such as `input.bindings.bag`) back to its default.
     Reset { path: String },
 }
 
@@ -56,10 +57,14 @@ impl SettingsDoc {
     /// Applies `command`, recording it for undo. Refused commands change nothing.
     pub fn execute(&mut self, command: &SettingsCommand) -> Result<Outcome, EditError> {
         let (path, value) = match command {
-            SettingsCommand::Set { path, value } => (path, value.clone()),
-            SettingsCommand::Reset { path } => (path, read(&self.defaults, path)?),
+            SettingsCommand::Set { path, value } => (path, Some(value.clone())),
+            // An entry the defaults don't have goes away.
+            SettingsCommand::Reset { path } => (path, read(&self.defaults, path).ok()),
         };
-        let after = with_value(&self.settings, path, &value)?;
+        let after = match &value {
+            Some(value) => with_value(&self.settings, path, value)?,
+            None => without(&self.settings, path)?,
+        };
         if after == self.settings {
             return Ok(Outcome {
                 summary: "Nothing changed".into(),
@@ -71,7 +76,12 @@ impl SettingsDoc {
             return Err(EditError::InvalidSetting(problem.clone()));
         }
         let summary = match command {
-            SettingsCommand::Set { .. } => format!("Set {path} to {}", short(&value)),
+            SettingsCommand::Set { .. } => {
+                format!(
+                    "Set {path} to {}",
+                    value.as_ref().map_or_else(String::new, short)
+                )
+            }
             SettingsCommand::Reset { .. } => format!("Reset {path}"),
         };
         let before = std::mem::replace(&mut self.settings, after.clone());
@@ -92,6 +102,8 @@ impl SettingsDoc {
     pub fn is_default(&self, path: &str) -> bool {
         match (read(&self.settings, path), read(&self.defaults, path)) {
             (Ok(a), Ok(b)) => same(&a, &b),
+            // An entry the defaults don't have.
+            (Ok(_), Err(_)) => false,
             _ => true,
         }
     }
@@ -198,10 +210,19 @@ fn with_value(
     value: &Value,
 ) -> Result<ProjectSettings, EditError> {
     let mut json = to_json(settings);
-    let slot = json
-        .pointer_mut(&pointer(path))
-        .ok_or_else(|| EditError::NoSetting(path.to_owned()))?;
-    *slot = value.clone();
+    match json.pointer_mut(&pointer(path)) {
+        Some(slot) => *slot = value.clone(),
+        // A new entry of a list keyed by name; a misspelt field is caught below.
+        None => {
+            let (parent, key) = path
+                .rsplit_once('.')
+                .ok_or_else(|| EditError::NoSetting(path.to_owned()))?;
+            let Some(Value::Object(map)) = json.pointer_mut(&pointer(parent)) else {
+                return Err(EditError::NoSetting(path.to_owned()));
+            };
+            map.insert(key.to_owned(), value.clone());
+        }
+    }
     let wrong = || EditError::InvalidSetting(format!("{} doesn't fit {path}", short(value)));
     let after: ProjectSettings = serde_json::from_value(json).map_err(|_| wrong())?;
     // A value the type took but changed (a fraction into a whole number) doesn't fit.
@@ -209,6 +230,18 @@ fn with_value(
         return Err(wrong());
     }
     Ok(after)
+}
+
+/// `settings` without the entry at `path` (of a list keyed by name).
+fn without(settings: &ProjectSettings, path: &str) -> Result<ProjectSettings, EditError> {
+    let no = || EditError::NoSetting(path.to_owned());
+    let (parent, key) = path.rsplit_once('.').ok_or_else(no)?;
+    let mut json = to_json(settings);
+    let Some(Value::Object(map)) = json.pointer_mut(&pointer(parent)) else {
+        return Err(no());
+    };
+    map.remove(key);
+    serde_json::from_value(json).map_err(|_| no())
 }
 
 /// Whether two JSON values are equal, numbers by their value (`2` is `2.0`).
@@ -314,6 +347,34 @@ mod tests {
         ));
         assert_eq!(d.settings(), &ProjectSettings::default());
         assert!(!d.is_dirty());
+    }
+
+    #[test]
+    fn entries_of_keyed_lists_are_added_and_reset() {
+        let mut d = doc();
+        d.execute(&set("input.bindings.bag", json!(["Key I", "Pad Select"])))
+            .unwrap();
+        assert_eq!(
+            d.settings()
+                .input
+                .bindings(c3_core::input::Action::Bag)
+                .len(),
+            2
+        );
+        assert!(!d.is_default("input.bindings.bag"));
+        assert!(matches!(
+            d.execute(&set("input.bindings.bag", json!(["Mouse Wheel"]))),
+            Err(EditError::InvalidSetting(_))
+        ));
+        assert!(matches!(
+            d.execute(&set("input.bindings.fly", json!(["Key F"]))),
+            Err(EditError::InvalidSetting(_) | EditError::NoSetting(_))
+        ));
+        d.execute(&SettingsCommand::Reset {
+            path: "input.bindings.bag".into(),
+        })
+        .unwrap();
+        assert!(d.settings().input.bindings.is_empty());
     }
 
     #[test]

@@ -311,6 +311,11 @@ impl Studio {
         if args.iter().any(|a| a == "--play") {
             s.toggle_play();
         }
+        if args.iter().any(|a| a == "--touch")
+            && let Some(session) = &mut s.playing
+        {
+            session.simulate_touch(true);
+        }
         if let (Some(id), Some(session)) = (
             flag("--talk").and_then(|id| id.parse().ok()),
             &mut s.playing,
@@ -321,6 +326,11 @@ impl Studio {
             && let Some(session) = &mut s.playing
         {
             session.attack_nearest();
+        }
+        if args.iter().any(|a| a == "--controls")
+            && let Some(session) = &mut s.playing
+        {
+            session.open_controls();
         }
         if args.iter().any(|a| a == "--bag")
             && let Some(session) = &mut s.playing
@@ -983,6 +993,12 @@ impl Studio {
 }
 
 impl eframe::App for Studio {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if let Some(session) = &mut self.playing {
+            session.before_frame(raw_input);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.guard_quit(&ctx);

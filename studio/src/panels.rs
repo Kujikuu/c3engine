@@ -229,11 +229,15 @@ impl Studio {
     pub(crate) fn game_panel(&mut self, ui: &mut egui::Ui) {
         if let Some(session) = &mut self.playing {
             session.ui(ui);
+            let left = session.left();
             for line in session.take_log() {
                 match line {
                     c3_ui::LogLine::Info(text) => self.log_info(text),
                     c3_ui::LogLine::Error(text) => self.log_error(text),
                 }
+            }
+            if left {
+                self.toggle_play();
             }
             return;
         }

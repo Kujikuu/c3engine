@@ -15,12 +15,15 @@ use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 
+mod input;
+
 /// The window's sections, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Section {
     Player,
     Cursors,
     Camera,
+    Input,
     Gameplay,
     Graphics,
     Audio,
@@ -29,10 +32,11 @@ pub enum Section {
 }
 
 impl Section {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; 9] = [
         Self::Player,
         Self::Cursors,
         Self::Camera,
+        Self::Input,
         Self::Gameplay,
         Self::Graphics,
         Self::Audio,
@@ -45,6 +49,7 @@ impl Section {
             Self::Player => "Player",
             Self::Cursors => "Cursors",
             Self::Camera => "Camera",
+            Self::Input => "Input",
             Self::Gameplay => "Gameplay",
             Self::Graphics => "Graphics",
             Self::Audio => "Audio",
@@ -58,7 +63,8 @@ impl Section {
             Self::Player => icons::APP_WINDOW,
             Self::Cursors => icons::CURSOR,
             Self::Camera => icons::VIDEO_CAMERA,
-            Self::Gameplay => icons::GAME_CONTROLLER,
+            Self::Input => icons::GAME_CONTROLLER,
+            Self::Gameplay => icons::SWORD,
             Self::Graphics => icons::PAINT_BRUSH,
             Self::Audio => icons::SPEAKER_HIGH,
             Self::Network => icons::GLOBE_SIMPLE,
@@ -74,6 +80,10 @@ impl Section {
                  .cur/.ani cursors). Empty: the system pointer."
             }
             Self::Camera => "How the game's camera sees the map and follows the hero.",
+            Self::Input => {
+                "What players press for each action, on keyboard and mouse, gamepads (Xbox, \
+                 PlayStation, Switch and others) and touch screens."
+            }
             Self::Gameplay => {
                 "The simulation's numbers: timing, ranges, the bag, where players start and \
                  what they start with, and who may use game-master commands."
@@ -106,6 +116,8 @@ pub struct SettingsEditor {
     buffers: HashMap<String, String>,
     /// Cursor previews by image path: the first frame, or why it can't be shown.
     previews: HashMap<String, Result<TextureHandle, String>>,
+    /// The action waiting for a pressed key (Input page).
+    listening: Option<c3_core::input::Action>,
 }
 
 impl SettingsEditor {
@@ -115,6 +127,7 @@ impl SettingsEditor {
             open: false,
             section: Section::Player,
             buffers: HashMap::new(),
+            listening: None,
             previews: HashMap::new(),
         }
     }
@@ -616,6 +629,17 @@ impl Studio {
                     ui.label(RichText::new(section.about()).color(theme::TEXT_DIM));
                     ui.separator();
                     let settings = editor.doc.settings().clone();
+                    let pressed = editor.listening.and_then(|action| {
+                        let key = ui.input(|i| {
+                            i.events.iter().find_map(|e| match e {
+                                egui::Event::Key {
+                                    key, pressed: true, ..
+                                } => Some(*key),
+                                _ => None,
+                            })
+                        })?;
+                        Some((action, key))
+                    });
                     let mut fields = Fields {
                         doc: &editor.doc,
                         edits: Vec::new(),
@@ -626,10 +650,20 @@ impl Studio {
                         maps: &maps,
                         problems: Vec::new(),
                     };
+                    if let Some((action, key)) = pressed {
+                        editor.listening = None;
+                        if key != egui::Key::Escape {
+                            fields.bind_key(&settings.input, action, key);
+                        }
+                    }
                     egui::ScrollArea::vertical()
                         .auto_shrink(false)
                         .show(ui, |ui| {
-                            section_fields(ui, section, &settings, &mut fields);
+                            if section == Section::Input {
+                                fields.input(ui, &settings.input, &mut editor.listening);
+                            } else {
+                                section_fields(ui, section, &settings, &mut fields);
+                            }
                         });
                     edits = fields.edits;
                     problems = fields.problems;
@@ -889,6 +923,8 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                 );
             });
         }
+        // Drawn with the key listener it needs (see the window).
+        Section::Input => {}
         Section::Gameplay => {
             let g = &s.gameplay;
             heading(ui, "Time");

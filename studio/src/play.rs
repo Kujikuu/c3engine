@@ -10,8 +10,10 @@
 
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
+use crate::icons;
 use crate::theme;
 use c3_play::GameModule;
+use c3_play::controls::PlayerControls;
 use c3_play::screen::{GameScreen, MAX_FRAME_SECONDS};
 use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
 use c3_play::session::{Session, SessionSetup};
@@ -82,7 +84,7 @@ impl PlaySession {
             (session, None)
         };
         Ok(Self {
-            screen: GameScreen::new(session),
+            screen: GameScreen::new(session, PlayerControls::session_only()),
             paused: false,
             step: false,
             gpu: GpuView::new(render_state),
@@ -133,6 +135,21 @@ impl PlaySession {
         self.server.as_ref().map(ServerHandle::addr)
     }
 
+    /// Reads the gamepads before the frame (they move between the game's buttons).
+    pub fn before_frame(&mut self, raw: &mut egui::RawInput) {
+        self.screen.before_frame(raw);
+    }
+
+    /// Whether the player chose Leave the game in the game's menu.
+    pub fn left(&self) -> bool {
+        self.screen.left()
+    }
+
+    /// Shows the on-screen touch controls and plays with the mouse as a finger.
+    pub fn simulate_touch(&mut self, on: bool) {
+        self.screen.simulate_touch = on;
+    }
+
     /// Plays by `settings` from now on.
     pub fn set_settings(&mut self, settings: c3_core::ProjectSettings) {
         self.screen.set_settings(settings);
@@ -156,6 +173,11 @@ impl PlaySession {
     /// Opens or closes the quest log, as L does.
     pub fn toggle_quests(&mut self) {
         self.screen.session.toggle_quests();
+    }
+
+    /// Opens the game menu on its Controls page.
+    pub fn open_controls(&mut self) {
+        self.screen.session.open_controls();
     }
 
     /// Says `line` in the game's chat, as typed.
@@ -182,7 +204,7 @@ impl PlaySession {
         self.step = true;
     }
 
-    /// Draws the game into the Game view: the world, the in-game UI and the controls hint.
+    /// Draws the game into the Game view: the world and the in-game UI.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let rect = ui.available_rect_before_wrap();
         ui.allocate_rect(rect, egui::Sense::hover());
@@ -215,44 +237,38 @@ impl PlaySession {
             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
             Color32::WHITE,
         );
-        self.hints(&painter, rect);
         self.screen.overlay(ui, rect, hovered);
+        self.badges(ui, rect);
         ui.ctx().request_repaint();
     }
 
-    /// Controls over the game, like a game's own HUD hints.
-    fn hints(&self, painter: &egui::Painter, rect: Rect) {
-        let run = if self.screen.session.running() {
-            "run"
-        } else {
-            "walk"
-        };
-        let follow = if self.screen.follow {
-            ""
-        } else {
-            " · Space: follow hero"
-        };
-        let hint = format!(
-            "Click: {run} · Click a monster: attack · Click an NPC: talk · Click a drop: pick up · \
-             Tab: attack nearest · R: walk/run · B: bag · L: quests · Enter: chat · Wheel: zoom{follow}"
-        );
-        let font = egui::FontId::proportional(12.0);
-        let galley = painter.layout_no_wrap(hint, font, theme::TEXT);
+    /// What sits over the game: Paused, and the touch simulation toggle.
+    fn badges(&mut self, ui: &mut egui::Ui, rect: Rect) {
         let pad = egui::vec2(8.0, 5.0);
-        let at = rect.left_top() + egui::vec2(10.0, 10.0);
-        painter.rect_filled(
-            Rect::from_min_size(at, galley.size() + pad * 2.0),
-            4.0,
-            Color32::from_black_alpha(150),
+        let painter = ui.painter_at(rect);
+        let toggle = Rect::from_min_size(
+            rect.right_top() + egui::vec2(-40.0, 8.0),
+            egui::vec2(30.0, 26.0),
         );
-        painter.galley(at + pad, galley, theme::TEXT);
+        let resp = ui
+            .put(
+                toggle,
+                egui::Button::new(egui::RichText::new(icons::HAND_TAP).size(16.0))
+                    .selected(self.screen.simulate_touch),
+            )
+            .on_hover_text(
+                "Simulate touch: show the on-screen controls and play with the mouse as a finger",
+            );
+        if resp.clicked() {
+            self.screen.simulate_touch ^= true;
+        }
         if self.paused {
             let galley = painter.layout_no_wrap(
                 "Paused".into(),
                 egui::FontId::proportional(14.0),
                 Color32::WHITE,
             );
-            let at = rect.right_top() + egui::vec2(-galley.size().x - 26.0, 10.0);
+            let at = toggle.left_top() + egui::vec2(-galley.size().x - pad.x * 2.0 - 8.0, 0.0);
             painter.rect_filled(
                 Rect::from_min_size(at, galley.size() + pad * 2.0),
                 4.0,

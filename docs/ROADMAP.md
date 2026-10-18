@@ -39,7 +39,8 @@ an Eudemons-like game (or any of the kind) from the Studio, with everything, Uni
 easy for indies. The foundation (M7) comes first, because every later step needs it.
 - [x] M7 step 1: the game-module seam (done 2026-10-18)
 - [x] M7 step 2: Project Settings (done 2026-10-18)
-- [ ] M7 step 3: Input System
+- [x] M7 step 3: Input System (done 2026-10-18)
+- [ ] M7 step 4: Native asset pipeline
 
 Why this order: see "Review (2026-10-18)" below.
 
@@ -237,7 +238,7 @@ complete project on that engine, then any game of the kind.
         (a busy cursor comes with M9's loading screens)
   - [x] Camera: projection (new-map cell size, tilt), start zoom and limits, wheel speed, pan
         speed, free pan, follow smoothing and dead zone, map edge clamping, shake on hit
-  - [ ] Input: the project's action maps and default bindings per device (step 3)
+  - [x] Input: the project's actions and their bindings per device (step 3)
   - [x] Gameplay: tick, view range, ranges (talk, trade, jump, attack search, monster leash
         and wander), timings (corpse, revive, item life), bag size, the currency's name, start
         map and cell, new character template (level, money, bag, worn), GM permissions
@@ -256,21 +257,30 @@ complete project on that engine, then any game of the kind.
     a from-scratch project (bag 12, Coins, zoom 2, window title and size in the client) and
     the Conquer project (its cursors, Silver and gear; the server serves the 5065 front from
     the settings)
-- [ ] (3) Input System, like Unity's: games read actions (move, walk to, attack, skill 1-n,
-      talk, pick up, open bag, camera zoom...), never raw keys; the project defines action maps
-      and default bindings, players rebind them in game, saved per player
-  - [ ] Devices: keyboard and mouse; gamepads (Xbox, PlayStation, Switch Pro and generic, via
-        `gilrs`) with sticks, triggers, dead zones and rumble; touch (tap, drag, pinch, long
-        press) and pen; device hot-plug; the active device switches prompts and icons
-  - [ ] Control schemes for a click-to-walk game: mouse (click to walk, attack, talk); gamepad
-        (stick moves the hero cell by cell, auto-target nearest with cycle, skill wheel or
-        shoulder pages, a cursor for the world when needed); touch (tap to walk and act,
-        virtual joystick, on-screen skill and action buttons, pinch zoom)
-  - [ ] Game UI navigable with a gamepad (focus, D-pad moves between widgets, confirm/back) and
-        usable by touch (large hit areas, safe areas, UI scale); the Studio's Play mode can
-        simulate touch and show which device is active
-  - [ ] Studio: an Input Actions editor in Project Settings (actions, bindings per device,
-        composites like WASD, modifiers), testable live in Play mode
+- [x] (3) Input System, like Unity's: games read actions (act, move, interact, attack nearest,
+      targets, walk/run, turn, camera pan and zoom, bag, quests, chat, menu...), never raw
+      keys; the project defines each action's bindings, players rebind them in game, saved per
+      player (`controls.toml` in the player's config folder)
+  - [x] Devices: keyboard and mouse; gamepads (Xbox, PlayStation, Switch Pro and generic, via
+        `gilrs`) with sticks, triggers and a dead zone; touch (tap, joystick, buttons, pinch);
+        hot-plug; the device used last switches the hint line and the Controls page
+  - [x] Control schemes for a click-to-walk game: mouse (click to walk, attack, talk); gamepad
+        (stick or D-pad steps the hero cell by cell, interact and attack the nearest, cycle
+        targets with the bumpers); touch (tap to walk and act, virtual joystick, on-screen
+        buttons, pinch zoom)
+  - [x] Game UI navigable with a gamepad (D-pad and stick move the focus, A confirms, B goes
+        back) and usable by touch; the Studio's Play mode simulates touch (`--touch`, the hand
+        button) and the game menu (Menu action) has Controls and Leave
+  - [x] Studio: Project Settings > Input (each action's bindings per device, added from the
+        controls that fit or by pressing a key, removed, reset; dead zone, repeat, when touch
+        controls show), live in Play mode
+  - Later: rumble, long press and pen, a skill wheel or shoulder pages (skills come with step
+    6), modifiers (Shift+key), UI scale and safe areas (with M9's game UI)
+  - Done 2026-10-18: `c3_core::input` (actions, bindings as text like `Keys W A S D`),
+    `c3_play::input` (gilrs pads, the mapper from devices to actions), `controls` (player
+    rebinds), `touch` (the on-screen overlay), `GameScreen` reading actions only. Verified on
+    a from-scratch project and the Conquer project: the Input page, Play with touch controls,
+    the Controls page
 - [ ] (4) Native asset pipeline, the Unity way: plain PNG/JPG sprites, sprite sheets and
       tilesets, glTF models and animations, WAV/OGG/MP3, TTF fonts, used in place with per-asset
       import settings (a sidecar file, like Unity's `.meta`); an asset database with stable ids

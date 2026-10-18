@@ -16,7 +16,7 @@ use c3_online::{Connection, RemoteEvent, Welcome};
 use c3_project::{Project, ProjectSettings};
 use c3_render::camera::Camera2d;
 use c3_scene::{CellPos, Scene, path};
-use c3_ui::{GameUi, GameView, Icons, LogLine, UiAction, style};
+use c3_ui::{ControlsView, GameUi, GameView, Icons, LogLine, UiAction, style};
 use egui::{Pos2, Rect, TextureHandle, TextureId};
 use glam::Vec2;
 use std::collections::HashMap;
@@ -96,6 +96,8 @@ pub struct Session {
     settings: ProjectSettings,
     /// When (UI seconds) the hero was last hit.
     hit_at: Option<f64>,
+    /// The monster the hero has in its sights (gamepad and touch targeting).
+    target: Option<EntityId>,
 }
 
 impl Session {
@@ -227,7 +229,7 @@ impl Session {
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.system(
-            "Welcome! Click to walk, a monster to fight, an NPC to talk. B: bag · L: quests · Enter: chat · /help",
+            "Welcome! Walk around, fight monsters and talk to NPCs: the line at the top names your controls. /help lists the commands.",
             style::GOLD,
         );
         if matches!(link, Link::Remote(_)) {
@@ -246,6 +248,7 @@ impl Session {
             link,
             settings,
             hit_at: None,
+            target: None,
         })
     }
 
@@ -332,6 +335,111 @@ impl Session {
     /// Opens or closes the quest log, as L does.
     pub fn toggle_quests(&mut self) {
         self.ui.toggle_quests();
+    }
+
+    pub fn toggle_menu(&mut self) {
+        self.ui.toggle_menu();
+    }
+
+    /// Opens the menu on its Controls page.
+    pub fn open_controls(&mut self) {
+        self.ui.open_controls();
+    }
+
+    pub fn open_chat(&mut self) {
+        self.ui.open_chat();
+    }
+
+    /// Whether a game window is open (its buttons take the menu controls).
+    pub fn window_open(&self) -> bool {
+        self.ui.window_open(&self.sim, self.hero)
+    }
+
+    /// Closes the topmost game window; `false` when none was open.
+    pub fn back(&mut self) -> bool {
+        let (closed, action) = self.ui.back(&self.sim, self.hero);
+        if let Some(action) = action {
+            self.act(action);
+        }
+        closed
+    }
+
+    /// The living monster the hero has in its sights.
+    pub fn target(&self) -> Option<EntityId> {
+        self.target
+            .filter(|t| self.sim.monster(*t).is_some_and(|m| m.is_alive()))
+    }
+
+    /// Puts the next (`step` 1) or previous (-1) monster around the hero in its sights,
+    /// nearest first.
+    pub fn cycle_target(&mut self, step: i32) {
+        let Some(here) = self.sim.cell_of(self.hero) else {
+            return;
+        };
+        let range = self.settings.gameplay.attack_search;
+        let mut near: Vec<(i32, EntityId)> = self
+            .sim
+            .monsters()
+            .filter(|m| m.is_alive() && c3_game::distance(m.cell, here) <= range)
+            .map(|m| (c3_game::distance(m.cell, here), m.id))
+            .collect();
+        near.sort();
+        if near.is_empty() {
+            self.target = None;
+            return;
+        }
+        let at = self
+            .target()
+            .and_then(|t| near.iter().position(|(_, id)| *id == t));
+        let next = match at {
+            Some(i) => (i as i32 + step).rem_euclid(near.len() as i32) as usize,
+            None => 0,
+        };
+        self.target = Some(near[next].1);
+    }
+
+    /// Acts on what is nearest the hero: the target, else the nearest NPC (talk), drop
+    /// (pick up) or monster (attack).
+    pub fn interact(&mut self) {
+        if let Some(target) = self.target() {
+            return self.input(Input::Attack(target));
+        }
+        let Some(here) = self.sim.cell_of(self.hero) else {
+            return;
+        };
+        let range = self.settings.gameplay.attack_search;
+        let d = |cell: CellPos| c3_game::distance(cell, here);
+        let npc = (self.sim.npcs().iter())
+            .map(|n| (d(n.cell), Input::Talk(n.id)))
+            .min_by_key(|(dist, _)| *dist);
+        let drop = (self.sim.ground_items())
+            .map(|i| (d(i.cell), Input::PickUp(i.id)))
+            .min_by_key(|(dist, _)| *dist);
+        let monster = (self.sim.monsters())
+            .filter(|m| m.is_alive())
+            .map(|m| (d(m.cell), Input::Attack(m.id)))
+            .min_by_key(|(dist, _)| *dist);
+        let nearest = [npc, drop, monster]
+            .into_iter()
+            .flatten()
+            .filter(|(dist, _)| *dist <= range)
+            .min_by_key(|(dist, _)| *dist);
+        if let Some((_, input)) = nearest {
+            self.input(input);
+        }
+    }
+
+    /// Walks the hero a step towards screen direction `dir` (a stick or joystick lean).
+    pub fn step_hero(&mut self, dir: Vec2) {
+        let (Some(feet), Some(here)) = (self.hero_position(), self.sim.cell_of(self.hero)) else {
+            return;
+        };
+        let reach = self.world.scene.projection.cell_w * 1.5;
+        let to = feet + dir.normalize_or_zero() * reach;
+        let cell = self.world.scene.world_to_cell((to.x, to.y));
+        if cell != here {
+            self.input(Input::Walk(cell));
+        }
     }
 
     /// Says `line` in chat, as typed (`/` commands run).
@@ -432,8 +540,15 @@ impl Session {
         }
     }
 
-    /// Draws the in-game UI over the game view and carries out what the player asks.
-    pub fn ui(&mut self, ui: &mut egui::Ui, screen: &Screen, hovered: Option<EntityId>) {
+    /// Draws the in-game UI over the game view and carries out what the player asks of the
+    /// game; returns what is the host's to do (controls, leaving).
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        screen: &Screen,
+        hovered: Option<EntityId>,
+        (hint, controls): (&str, &ControlsView),
+    ) -> Vec<UiAction> {
         let head = |id: EntityId| {
             let feet = self.view.feet(&self.world, id)?;
             Some(screen.to_screen(feet - Vec2::Y * HEAD_HEIGHT))
@@ -450,14 +565,23 @@ impl Session {
             head: &head,
             cell: &cell,
             npc_head: &npc_head,
-            hovered,
+            hovered: hovered.or(self.target()),
             slots: &slots,
             sound: self.audio.muted().map(|m| !m),
+            hint,
+            controls,
         };
         let actions = self.ui.show(ui, &view, &mut self.icons);
+        let mut host = Vec::new();
         for action in actions {
-            self.act(action);
+            match action {
+                UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => {
+                    host.push(action)
+                }
+                action => self.act(action),
+            }
         }
+        host
     }
 
     fn act(&mut self, action: UiAction) {
@@ -471,6 +595,7 @@ impl Session {
             UiAction::Unequip(item) => Input::Unequip(item),
             UiAction::Say(text) => Input::Say(text),
             UiAction::ToggleSound => return self.audio.toggle_muted(),
+            UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => return,
         };
         self.input(input);
     }
