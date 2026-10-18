@@ -176,7 +176,7 @@ In order; each step is playable in the Studio's Play mode:
       `docs/conquer5065_protocol.md`. Checked with the real Conquer.exe (2026-10-18): login,
       map entry, NPCs, monsters, walking, combat, level up, death, chat, quest dialogue. Still
       to check there: jump, teleport, items and equipment, shop buy/sell, other players.
-      Skills over this protocol come with M7 step 5
+      Skills over this protocol come with M7 step 6
 
 ## Review (2026-10-18): where the engine really stands
 A code review against VISION.md found that M3, M5 and M6 were proven on a scratch project with
@@ -222,7 +222,7 @@ complete project on that engine, then any game of the kind.
   - Done 2026-10-18: `engine/play` (c3-play) holds the seam and the runtime;
     `ConquerModule` implements it; `games/registry` (c3-games) picks the game per project.
     `BasicGame` plays projects without TQ content with placeholder figures and a built-in
-    ground (its rules are still Rust; data-driven rules are step 5). File > New Map makes a
+    ground (its rules are still Rust; data-driven rules are step 6). File > New Map makes a
     blank walkable map. Verified with screenshots on a from-scratch project (New Map, Scene
     with NPCs, Play local and through a local server, Preview, `c3-server` + `c3-client`) and
     on the Conquer project (Scene with NPC models, Play, Preview unchanged)
@@ -233,7 +233,7 @@ complete project on that engine, then any game of the kind.
   - [ ] Cursors: normal, attack, talk, pick up, portal, busy..., from project assets, hotspots
   - [ ] Camera: projection (cell size, tilt), zoom levels and limits, wheel speed, follow
         smoothing and dead zone, map edge clamping, shake
-  - [ ] Input: key and mouse bindings (walk, run, attack, skills, windows), rebindable in game
+  - [ ] Input: the project's action maps and default bindings per device (step 3)
   - [ ] Gameplay: tick rate, view range, ranges (talk, reach, jump, leash), timings (corpse,
         revive, item life), bag size, currencies and their names, start map and cell, new
         character templates, GM permissions
@@ -241,23 +241,38 @@ complete project on that engine, then any game of the kind.
         range
   - [ ] Network: ports, protocol fronts, save interval
   - [ ] Localization: string tables and fonts (GBK and Unicode)
-- [ ] (3) Native asset pipeline, the Unity way: plain PNG/JPG sprites, sprite sheets and
+- [ ] (3) Input System, like Unity's: games read actions (move, walk to, attack, skill 1-n,
+      talk, pick up, open bag, camera zoom...), never raw keys; the project defines action maps
+      and default bindings, players rebind them in game, saved per player
+  - [ ] Devices: keyboard and mouse; gamepads (Xbox, PlayStation, Switch Pro and generic, via
+        `gilrs`) with sticks, triggers, dead zones and rumble; touch (tap, drag, pinch, long
+        press) and pen; device hot-plug; the active device switches prompts and icons
+  - [ ] Control schemes for a click-to-walk game: mouse (click to walk, attack, talk); gamepad
+        (stick moves the hero cell by cell, auto-target nearest with cycle, skill wheel or
+        shoulder pages, a cursor for the world when needed); touch (tap to walk and act,
+        virtual joystick, on-screen skill and action buttons, pinch zoom)
+  - [ ] Game UI navigable with a gamepad (focus, D-pad moves between widgets, confirm/back) and
+        usable by touch (large hit areas, safe areas, UI scale); the Studio's Play mode can
+        simulate touch and show which device is active
+  - [ ] Studio: an Input Actions editor in Project Settings (actions, bindings per device,
+        composites like WASD, modifiers), testable live in Play mode
+- [ ] (4) Native asset pipeline, the Unity way: plain PNG/JPG sprites, sprite sheets and
       tilesets, glTF models and animations, WAV/OGG/MP3, TTF fonts, used in place with per-asset
       import settings (a sidecar file, like Unity's `.meta`); an asset database with stable ids
       and references; hot reload for every asset; a native effect format; the Project panel
       imports, renames, moves and deletes with references kept; TQ formats stay importers
-- [ ] (4) Multi-map worlds: the map list as an engine registry (ids, names, properties);
+- [ ] (5) Multi-map worlds: the map list as an engine registry (ids, names, properties);
       portals with a destination map and cell; players move between maps through portals and
       teleports, in Play mode and on the server (one `Sim` per map, transfers between them)
-- [ ] (5) Data-driven gameplay core: attributes and stats defined in data; formulas as scripts
+- [ ] (6) Data-driven gameplay core: attributes and stats defined in data; formulas as scripts
       (rules from tables + scripts, so a game needs no Rust); items with stacks, durability and
       quality; equipment slots defined in data; currencies; skills and magic (targeting, area,
       cooldowns, costs, effects); status effects and buffs; PvP and PK; monster behaviour from
       data (passive, aggressive, ranged, boss); script events beyond talking (kill, use item,
       enter region, timers, login)
-- [ ] (6) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
+- [ ] (7) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
       commands; File > Save saves everything dirty
-- [ ] (7) Renderer gaps the settings and UI need: world text drawn by the engine with project
+- [ ] (8) Renderer gaps the settings and UI need: world text drawn by the engine with project
       fonts (names, damage numbers, chat bubbles), custom cursors drawn in the game, a minimap /
       radar, configurable lighting (today one fixed light)
 
@@ -320,7 +335,13 @@ PUL for the classic client).
 
 ## M12: Ship
 - [ ] Build from the Studio: package a playable client and server from a project (assets
-      packed, settings applied)
+      packed, settings applied), with per-platform build settings
+- [ ] Platforms: Windows, macOS and Linux desktop clients; Android and iOS clients (wgpu on
+      Vulkan/Metal/GLES, touch input, app lifecycle, texture compression and per-platform asset
+      variants, store packaging); the server on Windows and Linux. Consoles (Xbox,
+      PlayStation, Switch) need each maker's licensed SDK and dev kits, so the engine stays
+      portable for them (no Windows-only code in the runtime, input and storage behind the
+      engine) without promising a console build
 - [ ] Server for real use: a database option (SQL) beside account files, an admin console
       (online players, kick, broadcast, save; `c3-server`'s doc already promises `online`, which
       doesn't exist), GM tools with permissions, logs
