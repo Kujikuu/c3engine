@@ -1,7 +1,7 @@
-//! 3D effects placed on the map (fires, fountains, glows), playing forever like the
-//! client's `C3DMapEffect`s.
+//! 3D effects placed on the map: the map's own (fires, fountains, glows), which play
+//! forever like the client's `C3DMapEffect`s, and one-shots such as the click marker.
 
-use c3_assets::effect::Effect;
+use c3_assets::effect::{Effect, Playback};
 use c3_render::effect::{self, EffectMesh, EffectPlayer};
 use c3_render::{Renderer, TextureId};
 use c3_scene::{CellPos, EntityKind, Scene};
@@ -21,6 +21,16 @@ pub struct MapEffect {
 impl MapEffect {
     pub fn effect(&self) -> &Effect {
         &self.effect
+    }
+
+    /// Plays forever (`CGame3DEffectEx::EverPlay`).
+    pub fn endless(mut self) -> Self {
+        self.player = self.player.endless();
+        self
+    }
+
+    pub fn is_finished(&self, now_ms: u64) -> bool {
+        self.player.playback(&self.effect, now_ms) == Playback::Finished
     }
 
     /// World position of the effect's origin.
@@ -92,8 +102,7 @@ impl EffectLibrary {
         })
     }
 
-    /// Effect `name` standing at `spot`, playing forever from `now_ms`
-    /// (`CGame3DEffectEx::EverPlay`).
+    /// Effect `name` standing at `spot`, playing its loops from `now_ms`.
     pub fn place(
         &mut self,
         name: &str,
@@ -111,7 +120,7 @@ impl EffectLibrary {
         } = spot;
         Some(MapEffect {
             cell: scene.world_to_cell(position),
-            player: EffectPlayer::new(&effect, now_ms).endless(),
+            player: EffectPlayer::new(&effect, now_ms),
             placement: effect::ground_placement(&effect, position, 0.0, tilt_deg, rotation, scale),
             effect,
         })
@@ -140,7 +149,8 @@ impl EffectLibrary {
                 spot.rotation = Vec3::new(t.angles[1], 0.0, t.angles[2]);
                 spot.scale = Vec3::from(t.scale);
             }
-            out.extend(self.place(name, content, scene, spot, tilt_deg, now_ms));
+            let placed = self.place(name, content, scene, spot, tilt_deg, now_ms);
+            out.extend(placed.map(MapEffect::endless));
         }
         out
     }

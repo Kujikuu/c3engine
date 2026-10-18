@@ -6,6 +6,7 @@
 //! attach to the body's socket parts (`v_armet`, `v_r_weapon`, `v_l_weapon`).
 
 use crate::Content;
+use c3_anim::Clip;
 use c3_assets::model::Model;
 
 /// Action ids (3DBaseCode/BaseFunc.h).
@@ -47,6 +48,20 @@ pub struct Attachment {
     /// Socket part name in the body (e.g. `v_r_weapon`).
     pub socket: &'static str,
     pub part: PartModel,
+    /// Weapon item id; weapons have their own motion per action.
+    pub weapon: Option<u32>,
+}
+
+/// Clips for one model (one per part), from a motion file.
+pub type Motion = Vec<Clip>;
+
+/// A character's motions for one action.
+#[derive(Debug, Clone, Default)]
+pub struct CharacterMotions {
+    /// Body motion id (3dmotion.ini), for display.
+    pub body_id: Option<u64>,
+    /// One per model: body first, then attachments (`None` = no motion of its own).
+    pub models: Vec<Option<Motion>>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +71,11 @@ pub struct Character {
     /// Body motion id used (3dmotion.ini), for display.
     pub motion_id: Option<u64>,
 }
+
+/// Milliseconds per frame when `Action.dat` has no entry (`GetActionTimeInterval`).
+const DEFAULT_FRAME_MS: u32 = 33;
+/// `Action.dat` wildcard for look or weapon family.
+const ANY: u32 = 999;
 
 const LOOK_UNIT: u64 = 1_000_000;
 /// Armet ids in this family are hair styles.
@@ -126,16 +146,6 @@ impl Content {
         let mut body = self
             .part_model(&self.tables.armor, armor_key)
             .or_else(|_| self.part_model(&self.tables.armor, unit))?;
-        let family = weapon_family(look.l_weapon, look.r_weapon);
-        let motion_id = body_motion_ids(look.look, family, act)
-            .into_iter()
-            .find(|id| self.tables.motions.get(*id).is_some());
-        if let Some(clips) = motion_id
-            .and_then(|id| self.tables.motions.get(id))
-            .and_then(|p| self.load_motion(p))
-        {
-            body.model.apply_motion(&clips);
-        }
         body.model.mark_sockets(
             &self
                 .tables
@@ -166,6 +176,7 @@ impl Content {
             attachments.push(Attachment {
                 socket: "v_armet",
                 part,
+                weapon: None,
             });
         }
         // Weapons: bows are held in the left hand socket; arrows are not drawn at rest.
@@ -174,27 +185,70 @@ impl Content {
             if item == 0 || is_arrow(item) {
                 continue;
             }
-            let Ok(mut part) = self.part_model(&self.tables.weapon, item as u64 % LOOK_UNIT) else {
+            let Ok(part) = self.part_model(&self.tables.weapon, item as u64 % LOOK_UNIT) else {
                 continue;
             };
-            let motion = weapon_motion_ids(look.look, item, act)
-                .into_iter()
-                .find_map(|id| self.tables.weapon_motions.get(id));
-            if let Some(clips) = motion.and_then(|p| self.load_motion(p)) {
-                part.model.apply_motion(&clips);
-            }
             let socket = if is_bow(item) {
                 "v_l_weapon"
             } else {
                 default_socket
             };
-            attachments.push(Attachment { socket, part });
+            attachments.push(Attachment {
+                socket,
+                part,
+                weapon: Some(item),
+            });
         }
-        Ok(Character {
+        let mut character = Character {
             body,
             attachments,
-            motion_id,
-        })
+            motion_id: None,
+        };
+        let motions = self.character_motions(&character, look, act);
+        character.apply_motions(&motions);
+        Ok(character)
+    }
+
+    /// `character`'s motions for action `act` (`C3DRole::SetAction`).
+    pub fn character_motions(
+        &self,
+        character: &Character,
+        look: &Look,
+        act: u32,
+    ) -> CharacterMotions {
+        let family = weapon_family(look.l_weapon, look.r_weapon);
+        let body_id = body_motion_ids(look.look, family, act)
+            .into_iter()
+            .find(|id| self.tables.motions.get(*id).is_some());
+        let body = body_id
+            .and_then(|id| self.tables.motions.get(id))
+            .and_then(|p| self.load_motion(p));
+        let attachments = character.attachments.iter().map(|a| {
+            weapon_motion_ids(look.look, a.weapon?, act)
+                .into_iter()
+                .find_map(|id| self.tables.weapon_motions.get(id))
+                .and_then(|p| self.load_motion(p))
+        });
+        CharacterMotions {
+            body_id,
+            models: std::iter::once(body).chain(attachments).collect(),
+        }
+    }
+
+    /// Milliseconds per animation frame of action `act` (`C3DRoleData::GetActionTimeInterval`:
+    /// exact key, then any look, then any weapon, then both; else 33).
+    pub fn frame_interval(&self, look: &Look, act: u32) -> u32 {
+        let family = weapon_family(look.l_weapon, look.r_weapon);
+        let key = |look: u32, family: u32| look * 1_000_000 + family * 1000 + act;
+        [
+            key(look.look, family),
+            key(ANY, family),
+            key(look.look, ANY),
+            key(ANY, ANY),
+        ]
+        .into_iter()
+        .find_map(|k| self.tables.frame_intervals.get(&k).copied())
+        .unwrap_or(DEFAULT_FRAME_MS)
     }
 
     /// Model + texture of a part-table entry (first part only, as the client does).
@@ -216,6 +270,20 @@ impl Content {
             model: self.load_model_path(path)?,
             texture: self.tables.textures.get(part.texture).map(str::to_owned),
         })
+    }
+}
+
+impl Character {
+    /// Switches to `motions` (from [`Content::character_motions`]).
+    pub fn apply_motions(&mut self, motions: &CharacterMotions) {
+        let models = std::iter::once(&mut self.body.model)
+            .chain(self.attachments.iter_mut().map(|a| &mut a.part.model));
+        for (model, motion) in models.zip(&motions.models) {
+            if let Some(clips) = motion {
+                model.apply_motion(clips);
+            }
+        }
+        self.motion_id = motions.body_id;
     }
 }
 

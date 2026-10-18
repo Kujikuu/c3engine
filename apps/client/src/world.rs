@@ -25,6 +25,9 @@ const OBJECT_DECODE_BUDGET: usize = 12;
 /// Clear colour (linear) behind the map.
 const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 
+/// Effect marking where the player clicked to walk.
+const CLICK_EFFECT: &str = "mouse";
+
 /// World pixels around the view in which effects still play (large effects reach out).
 const EFFECT_CULL_MARGIN: f32 = 400.0;
 
@@ -94,10 +97,15 @@ impl World {
         }
     }
 
-    /// Places effect `name` on `cell`, playing forever.
-    pub fn place_effect(&mut self, name: &str, cell: c3_scene::CellPos) -> Result<(), String> {
+    /// Places effect `name` on `cell`, playing once or `forever`.
+    pub fn place_effect(
+        &mut self,
+        name: &str,
+        cell: c3_scene::CellPos,
+        forever: bool,
+    ) -> Result<(), String> {
         let position = self.scene.cell_to_world(cell);
-        let now_ms = self.started.elapsed().as_millis() as u64;
+        let now_ms = self.now_ms();
         let effect = self
             .effect_library
             .place(
@@ -109,7 +117,8 @@ impl World {
                 now_ms,
             )
             .ok_or_else(|| format!("effect {name} could not be loaded"))?;
-        self.effects.push(effect);
+        self.effects
+            .push(if forever { effect.endless() } else { effect });
         Ok(())
     }
 
@@ -128,13 +137,50 @@ impl World {
         }
     }
 
+    /// Milliseconds since the world was loaded: the clock for animation and movement.
+    pub fn now_ms(&self) -> u64 {
+        self.started.elapsed().as_millis() as u64
+    }
+
+    /// Advances actors (movement, actions) to now and drops finished effects.
+    pub fn tick(&mut self) {
+        let now = self.now_ms();
+        for actor in &mut self.actors {
+            actor.update(now, &self.scene, &self.content);
+        }
+        self.effects.retain(|e| !e.is_finished(now));
+    }
+
+    /// The player's character: the first actor.
+    pub fn hero(&self) -> Option<&Actor> {
+        self.actors.first()
+    }
+
+    pub fn hero_mut(&mut self) -> Option<&mut Actor> {
+        self.actors.first_mut()
+    }
+
+    /// Sends the hero towards world point `target`, marking a walkable target cell with the
+    /// click effect (`CMyShellDlg::SetMouseMove`).
+    pub fn walk_hero_to(&mut self, target: Vec2) {
+        let cell = self.scene.world_to_cell((target.x, target.y));
+        let Some(hero) = self.actors.first_mut() else {
+            return;
+        };
+        hero.walk_to(cell, &self.scene);
+        if self.scene.grid.get(cell).is_some_and(|c| !c.is_blocked()) {
+            // The marker is decoration: a client without it still walks.
+            let _ = self.place_effect(CLICK_EFFECT, cell, false);
+        }
+    }
+
     /// Builds this frame's sprites, posed actors and painter's order.
     pub fn prepare(&mut self, renderer: &mut Renderer, camera: &Camera2d, viewport: Vec2) {
         let view = View {
             rect: camera.view_rect(viewport),
             center: (camera.center.x, camera.center.y),
             zoom: camera.zoom,
-            time_ms: self.started.elapsed().as_millis() as u64,
+            time_ms: self.now_ms(),
         };
         let ground = match self.scene.ground.as_ref() {
             Some(layer) => {
@@ -171,7 +217,8 @@ impl World {
                 p.x >= l - m && p.x <= r + m && p.z >= t - m && p.z <= b + m
             })
             .collect();
-        let cells: Vec<_> = (self.actors.iter().map(|a| a.cell))
+        let now = view.time_ms;
+        let cells: Vec<_> = (self.actors.iter().map(|a| a.draw_cell(&self.scene, now)))
             .chain(effects.iter().map(|&e| self.effects[e].cell))
             .collect();
         let objects = objects::sprites(
@@ -192,7 +239,6 @@ impl World {
         self.order.clear();
         self.order.push(DrawCmd::Sprites(0..base));
         self.posed.clear();
-        let secs = view.time_ms as f32 / 1000.0;
         let eye = camera_eye(view.center);
         for draw in objects.order {
             match draw {
@@ -201,7 +247,7 @@ impl World {
                     _ => self.order.push(DrawCmd::Sprites(base + i..base + i + 1)),
                 },
                 ObjectDraw::Actor(item) if (item as usize) < self.actors.len() => {
-                    self.pose_actor(item as usize, item, secs, renderer);
+                    self.pose_actor(item as usize, item, now, renderer);
                 }
                 ObjectDraw::Actor(item) => {
                     let e = effects[item as usize - self.actors.len()];
@@ -217,14 +263,16 @@ impl World {
         self.posed.push(mesh);
     }
 
-    fn pose_actor(&mut self, a: usize, group: u32, secs: f32, renderer: &mut Renderer) {
-        let role = self.actors[a].pose(&self.scene, self.tilt_deg).transform();
+    fn pose_actor(&mut self, a: usize, group: u32, now_ms: u64, renderer: &mut Renderer) {
+        let role = self.actors[a]
+            .pose(&self.scene, self.tilt_deg, now_ms)
+            .transform();
         for part in self.actors[a].drawables() {
             let actor = &mut self.actors[a];
             let mesh = PosedMesh {
                 texture: actor.texture(part, renderer, &self.content),
-                vertices: actor.posed(part, secs),
-                transform: actor.transform(part, role, secs),
+                vertices: actor.posed(part, now_ms),
+                transform: actor.transform(part, role, now_ms),
                 indices: Indices::Actor { actor: a, part },
                 tint: [1.0; 4],
                 group,

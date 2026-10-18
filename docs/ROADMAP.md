@@ -51,7 +51,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       `c3_render::effect` playback (billboards, camera-facing particles, 30 ms trail steps), blend-mode
       pipelines; map effect entities play in the client, `--effect NAME` previews any effect.
       Next: effects bound to actors (level-up, weapon trails on sockets) sharing the actor's depth
-- [ ] Map + character viewer app
+- [x] Map + character viewer app: `apps/client` hero (default player or `--player`/`--actor`)
+      walks where you click: `c3_scene::path` A* (8 directions, blocked cells, climb ≤ 25,
+      nearest-cell fallback), one cell per walk/run action eased over frames × `Action.dat`
+      interval (walk 500 ms, run 200 ms per cell), R toggles run, camera follows (Space)
 
 ## M3: Studio v1
 - [x] Studio shell (eframe/egui): toolbar, map list, inspector, status bar, theme, shortcuts

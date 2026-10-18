@@ -79,3 +79,36 @@ fn bow_is_held_in_left_socket_with_weapon_motion() {
         ["v_l_weapon"]
     );
 }
+
+#[test]
+fn walk_and_run_have_motions_and_timing() {
+    let Some(c) = content() else { return };
+    let look = Look {
+        look: 3,
+        hair: 310,
+        armor: 130003,
+        r_weapon: 410003,
+        ..Default::default()
+    };
+    let mut ch = c.assemble_character(&look, action::STANDBY).unwrap();
+    for act in [action::WALK_L, action::RUN_L, action::RUN_R] {
+        let motions = c.character_motions(&ch, &look, act);
+        assert_eq!(motions.models.len(), 1 + ch.attachments.len());
+        assert!(
+            motions.body_id.is_some_and(|id| id % 1000 == act as u64),
+            "{act}: {:?}",
+            motions.body_id
+        );
+        ch.apply_motions(&motions);
+        let frames = ch.body.model.frame_count();
+        let ms = c.frame_interval(&look, act);
+        assert!(
+            frames > 0 && (20..200).contains(&ms),
+            "{act}: {frames} frames × {ms} ms"
+        );
+        println!(
+            "action {act}: {frames} frames × {ms} ms = {} ms per step",
+            frames * ms
+        );
+    }
+}

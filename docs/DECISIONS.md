@@ -22,6 +22,7 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · **Classic meshes draw unlit** (texture × colour), as 5065's graphic.ini disables lighting. The Studio's model view keeps a simple light so shapes read clearly · faithful look in the client.
 - 2026-10-18 · Engine blend modes have no destination-alpha factors. The TQ importer maps D3D DESTALPHA→One and INVDESTALPHA→Zero, because the classic back buffer has no alpha channel · ~11% of effects use them.
 - 2026-10-18 · Meshes sample with **repeat** addressing (D3D default; effects scroll UVs), sprites with clamp (no seams between ground tiles). Alpha test is 8/255 for all meshes (client ALPHAREF).
+- 2026-10-18 · Path finding is **A\*** (octile costs), not the classic greedy best-first search, with the classic step rules (8 directions, not blocked, height difference ≤ 25) and the classic fallback to the nearest reachable cell · shorter, predictable paths; the same cells are reachable.
 
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.

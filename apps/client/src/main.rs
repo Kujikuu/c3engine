@@ -1,10 +1,11 @@
 //! C3 Client: the game runtime window.
 //! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002] [--cell x,y] [--zoom 1.0]
 //!                   [--actor <3dobj id> | --player look,hair,armor,armet,rweapon,lweapon]
-//!                   [--action 100] [--dir 0-7] [--effect <3DEffect.ini name>]
+//!                   [--action 100] [--dir 0-7] [--effect <3DEffect.ini name>] [--walk-to x,y] [--run]
 //!
-//! Controls: drag or WASD/arrows to pan · wheel to zoom · F to fit · 1 for 100% · Q/E turn the actor ·
-//! Esc to quit.
+//! A hero (the `--player`/`--actor`, else a default player) stands on the start cell.
+//! Controls: click to walk there · R toggles run · Space follows the hero · drag or WASD/arrows
+//! to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E turn the hero · Esc to quit.
 
 mod actors;
 mod camera;
@@ -12,6 +13,7 @@ mod effects;
 mod gfx;
 mod world;
 
+use c3_scene::path;
 use camera::Camera2d;
 use game_conquer::Content;
 use game_conquer::character::{Look, action};
@@ -30,12 +32,28 @@ const DEFAULT_CLIENT: &str = r"D:\Conquer2\Tools\eosource\client5065";
 const DEFAULT_MAP_ID: u32 = 1002;
 /// World pixels per second when panning with the keyboard, at zoom 1.
 const PAN_SPEED: f32 = 900.0;
+/// Screen pixels the pointer may move before a click becomes a drag.
+const CLICK_SLOP: f32 = 4.0;
+/// Hero when none is given: a newbie with hair, armor and a blade.
+const DEFAULT_HERO: Look = Look {
+    look: 3,
+    hair: 310,
+    armor: 130003,
+    armet: 0,
+    r_weapon: 410003,
+    l_weapon: 0,
+};
 
 struct App {
     world: World,
     gfx: Option<gfx::Gfx>,
     camera: Camera2d,
     fit_pending: bool,
+    /// The camera keeps the hero centred.
+    follow: bool,
+    /// Left button: where it went down, and whether it has turned into a drag.
+    press: Option<(Vec2, bool)>,
+    /// Right button drag anchor.
     drag_from: Option<Vec2>,
     cursor: Vec2,
     keys_down: Vec<KeyCode>,
@@ -87,11 +105,42 @@ impl App {
                 _ => {}
             }
         }
-        self.camera.center += dir.normalize_or_zero() * PAN_SPEED * dt / self.camera.zoom;
+        if dir != Vec2::ZERO {
+            self.follow = false;
+            self.camera.center += dir.normalize_or_zero() * PAN_SPEED * dt / self.camera.zoom;
+        }
+        self.world.tick();
         if self.fit_pending {
             self.camera.fit(self.world.bounds(), self.viewport());
             self.fit_pending = false;
+            self.follow = false;
         }
+        if self.follow
+            && let Some(hero) = self.world.hero()
+        {
+            self.camera.center = hero.position(&self.world.scene, self.world.now_ms());
+        }
+    }
+
+    fn pan(&mut self, by: Vec2) {
+        self.camera.center -= by / self.camera.zoom;
+        self.follow = false;
+    }
+
+    /// Status shown in the title bar.
+    fn status(&self) -> String {
+        let Some(hero) = self.world.hero() else {
+            return String::new();
+        };
+        format!(
+            " — {}{}",
+            if hero.running { "Run (R)" } else { "Walk (R)" },
+            if self.follow {
+                ""
+            } else {
+                " — Space: follow hero"
+            }
+        )
     }
 
     fn redraw(&mut self) {
@@ -109,8 +158,10 @@ impl App {
                 .rsplit('/')
                 .next()
                 .unwrap_or(&self.world.map_path);
+            let status = self.status();
+            let Some(gfx) = &self.gfx else { return };
             gfx.window.set_title(&format!(
-                "C3 Client — {name} — {:.0}% — {fps:.0} fps",
+                "C3 Client — {name} — {:.0}% — {fps:.0} fps{status}",
                 self.camera.zoom * 100.0
             ));
         }
@@ -122,9 +173,15 @@ impl App {
                 KeyCode::Escape => event_loop.exit(),
                 KeyCode::KeyF => self.fit_pending = true,
                 KeyCode::Digit1 => self.camera.zoom = 1.0,
+                KeyCode::Space => self.follow = self.world.hero().is_some(),
+                KeyCode::KeyR => {
+                    if let Some(hero) = self.world.hero_mut() {
+                        hero.running = !hero.running;
+                    }
+                }
                 KeyCode::KeyQ | KeyCode::KeyE => {
-                    if let Some(a) = self.world.actors.first_mut() {
-                        a.turn(if code == KeyCode::KeyQ { -1 } else { 1 });
+                    if let Some(hero) = self.world.hero_mut() {
+                        hero.turn(if code == KeyCode::KeyQ { -1 } else { 1 });
                     }
                 }
                 _ => {}
@@ -179,15 +236,36 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput {
                 state,
-                button: MouseButton::Left | MouseButton::Right,
+                button: MouseButton::Left,
+                ..
+            } => match state {
+                ElementState::Pressed => self.press = Some((self.cursor, false)),
+                ElementState::Released => {
+                    // A click (not a drag) sends the hero there.
+                    if let Some((at, false)) = self.press.take() {
+                        let target = self.camera.screen_to_world(at, self.viewport());
+                        self.world.walk_hero_to(target);
+                    }
+                }
+            },
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Right,
                 ..
             } => {
                 self.drag_from = (state == ElementState::Pressed).then_some(self.cursor);
             }
             WindowEvent::CursorMoved { position, .. } => {
+                let previous = self.cursor;
                 self.cursor = Vec2::new(position.x as f32, position.y as f32);
+                if let Some((at, dragging)) = &mut self.press
+                    && (*dragging || at.distance(self.cursor) > CLICK_SLOP)
+                {
+                    *dragging = true;
+                    self.pan(self.cursor - previous);
+                }
                 if let Some(from) = self.drag_from {
-                    self.camera.center -= (self.cursor - from) / self.camera.zoom;
+                    self.pan(self.cursor - from);
                     self.drag_from = Some(self.cursor);
                 }
             }
@@ -225,6 +303,10 @@ struct Args {
     direction: u8,
     /// Effect to play at the start cell.
     effect: Option<String>,
+    /// Cell the hero sets off to at start.
+    walk_to: Option<(i32, i32)>,
+    /// Start with running on.
+    run: bool,
 }
 
 fn parse_args() -> Args {
@@ -243,10 +325,7 @@ fn parse_args() -> Args {
             .unwrap_or_else(|| DEFAULT_CLIENT.to_owned()),
         map: flag("--map"),
         map_id: flag("--map-id").and_then(|v| v.parse().ok()),
-        cell: flag("--cell").and_then(|v| {
-            let (x, y) = v.split_once(',')?;
-            Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
-        }),
+        cell: flag("--cell").and_then(|v| parse_cell(&v)),
         zoom: flag("--zoom").and_then(|v| v.parse().ok()),
         actor: flag("--actor").and_then(|v| v.parse().ok()),
         player: flag("--player").and_then(|v| parse_look(&v)),
@@ -255,7 +334,15 @@ fn parse_args() -> Args {
             .unwrap_or(action::STANDBY),
         direction: flag("--dir").and_then(|v| v.parse().ok()).unwrap_or(0),
         effect: flag("--effect"),
+        walk_to: flag("--walk-to").and_then(|v| parse_cell(&v)),
+        run: args.iter().any(|a| a == "--run"),
     }
+}
+
+/// `x,y`.
+fn parse_cell(v: &str) -> Option<(i32, i32)> {
+    let (x, y) = v.split_once(',')?;
+    Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
 }
 
 /// `look,hair,armor,armet,rweapon,lweapon` (trailing fields may be omitted).
@@ -303,42 +390,48 @@ fn main() {
     let cell = args
         .cell
         .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
-    let actor = match (&args.player, args.actor) {
-        (Some(look), _) => Some(actors::Actor::from_look(
+    // The hero stands on the walkable cell nearest the start.
+    let hero_cell = path::nearest_walkable(&world.scene.grid, cell, 50).unwrap_or(cell);
+    let hero = match (&args.player, args.actor) {
+        (None, Some(id)) => {
+            actors::Actor::from_model(&world.content, id, hero_cell, args.direction)
+        }
+        (look, _) => actors::Actor::from_look(
             &world.content,
-            look,
+            look.as_ref().unwrap_or(&DEFAULT_HERO),
             args.action,
-            cell,
+            hero_cell,
             args.direction,
-        )),
-        (None, Some(id)) => Some(actors::Actor::from_model(
-            &world.content,
-            id,
-            cell,
-            args.direction,
-        )),
-        (None, None) => None,
+        ),
     };
-    match actor {
-        Some(Ok(a)) => world.actors.push(a),
-        Some(Err(e)) => eprintln!("warning: actor: {e}"),
-        None => {}
+    match hero {
+        Ok(mut a) => {
+            a.running = args.run;
+            if let Some(goal) = args.walk_to {
+                a.walk_to(goal, &world.scene);
+            }
+            world.actors.push(a);
+        }
+        Err(e) => eprintln!("warning: hero: {e}"),
     }
     if let Some(name) = &args.effect
-        && let Err(e) = world.place_effect(name, cell)
+        && let Err(e) = world.place_effect(name, cell, true)
     {
         eprintln!("warning: {e}");
     }
-    let start = args.cell.map(|c| Vec2::from(world.scene.cell_to_world(c)));
+    let has_hero = !world.actors.is_empty();
+    let start = Vec2::from(world.scene.cell_to_world(hero_cell));
     let event_loop = EventLoop::new().expect("event loop");
     let mut app = App {
         world,
         gfx: None,
         camera: Camera2d {
-            center: start.unwrap_or(Vec2::ZERO),
+            center: start,
             zoom: args.zoom.unwrap_or(1.0),
         },
-        fit_pending: start.is_none() && args.zoom.is_none(),
+        fit_pending: !has_hero && args.cell.is_none() && args.zoom.is_none(),
+        follow: has_hero,
+        press: None,
         drag_from: None,
         cursor: Vec2::ZERO,
         keys_down: Vec::new(),

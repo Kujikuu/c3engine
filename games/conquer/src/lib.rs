@@ -13,6 +13,7 @@ use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_formats_tq::{
     ani::Ani,
     c3::C3File,
+    dat::ActionTable,
     effect_io::{self, EffectTable},
     gamemap::GameMapCatalog,
     ini::{Ini, PartTable, PathTable},
@@ -22,6 +23,7 @@ use c3_formats_tq::{
     vfs::ClientFs,
 };
 use c3_scene::Scene;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub use scene_io::Imported;
@@ -54,6 +56,8 @@ struct Tables {
     weapon: PartTable,
     /// Socket part names (`RolePart.ini [Dumy]`), never drawn.
     sockets: Vec<String>,
+    /// `Action.dat`: action key (look·10⁶ + weapon family·10³ + action) → ms per frame.
+    frame_intervals: HashMap<u32, u32>,
 }
 
 impl Tables {
@@ -84,6 +88,9 @@ impl Tables {
             armet: PartTable::parse(&bytes("armet.ini")),
             weapon: PartTable::parse(&bytes("weapon.ini")),
             sockets,
+            frame_intervals: ActionTable::parse(&bytes("Action.dat"))
+                .map(|t| t.entries.iter().map(|e| (e.action, e.interval)).collect())
+                .unwrap_or_default(),
         }
     }
 }
