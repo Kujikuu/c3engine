@@ -6,8 +6,7 @@ use crate::{EntityId, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str =
-    "/money N · /item TYPE [COUNT] · /level N · /heal · /goto X Y · /quest ID STATE [KILLS]";
+pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /level N · /heal · /goto X Y · /quest ID STATE [KILLS]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -52,6 +51,17 @@ impl Sim {
                 p.life = p.stats.max_life;
                 p.mana = p.stats.max_mana;
                 Ok(format!("Level set to {level}."))
+            }
+            "skill" => {
+                let skill = u32::try_from(arg(0)?).map_err(|_| "Bad skill".to_owned())?;
+                let name = (self.rules.skill(skill))
+                    .map(|t| t.name.clone())
+                    .ok_or_else(|| format!("There is no skill {skill}."))?;
+                if self.learn_skill(id, skill) {
+                    Ok(format!("Learned {name}."))
+                } else {
+                    Ok(format!("You already know {name}."))
+                }
             }
             "heal" => {
                 let p = self.players.get_mut(&id).expect("checked above");

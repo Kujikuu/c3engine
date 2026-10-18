@@ -97,6 +97,49 @@ pub struct ItemType {
     pub currency: String,
 }
 
+/// What a skill is aimed at.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillTarget {
+    /// A monster (the caster's target).
+    #[default]
+    Enemy,
+    /// The caster itself (and those around it, with an area).
+    Myself,
+    /// A cell of the ground (with an area: everyone around it).
+    Ground,
+}
+
+/// What a skill does to those it reaches.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillKind {
+    #[default]
+    Damage,
+    Heal,
+}
+
+/// A skill or spell players learn.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SkillType {
+    pub id: u32,
+    pub name: String,
+    pub target: SkillTarget,
+    pub kind: SkillKind,
+    /// Cells from the caster it reaches.
+    pub range: u32,
+    /// Cells around where it lands that it reaches too; 0: only its target.
+    pub area: u32,
+    /// Milliseconds before it can be cast again.
+    pub cooldown_ms: u32,
+    /// Mana a cast costs.
+    pub mana: u32,
+    /// How strong it is (the game's formula reads it: damage, or life healed).
+    pub power: u32,
+    /// The level a player needs to learn it.
+    pub level: u32,
+    /// The effect shown on each one it reaches (or where it lands).
+    pub effect: String,
+}
+
 /// Something a monster leaves on the ground when it dies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Drop {
@@ -131,6 +174,31 @@ pub trait Rules: std::any::Any {
 
     /// Item types NPC `npc` sells (empty if it has no shop).
     fn shop(&self, npc: u32) -> &[u32];
+
+    /// A skill players may learn.
+    fn skill(&self, _id: u32) -> Option<&SkillType> {
+        None
+    }
+
+    /// Damage `skill` cast by `attacker` deals to `target`: its power plus half an attack.
+    fn skill_hit(
+        &self,
+        attacker: &Fighter,
+        target: &Fighter,
+        skill: &SkillType,
+        rng: &mut Rng,
+    ) -> u32 {
+        let a = &attacker.stats;
+        let roll = rng.range(a.attack_min.into(), a.attack_max.max(a.attack_min).into()) as u32;
+        (skill.power + roll / 2)
+            .saturating_sub(target.stats.defence / 2)
+            .max(1)
+    }
+
+    /// Life `skill` cast by `healer` restores.
+    fn skill_heal(&self, _healer: &Fighter, skill: &SkillType) -> u32 {
+        skill.power
+    }
 
     /// Money a shop pays for an item (TQ: a third of its price).
     fn sell_price(&self, kind: u32) -> u64 {

@@ -6,7 +6,7 @@
 use crate::character::{Character, CharacterMotions, Look};
 use c3_assets::Image;
 use c3_audio::MusicRegion;
-use c3_game::{EntityId, Player, Rules, Sim};
+use c3_game::{EntityId, Player, Rules, Sim, SkillType};
 use c3_project::{Project, ProjectSettings};
 use c3_render::SceneAssets;
 use c3_scene::{Npc, Scene};
@@ -111,6 +111,14 @@ pub trait GameModule {
     /// The effect played on a player rising a level.
     fn level_up_effect(&self) -> Option<String> {
         None
+    }
+    /// The effect shown on each one `skill` reaches and the sound of its cast (by default the
+    /// effect the skills table names).
+    fn skill_media(&self, skill: &SkillType) -> (Option<String>, Option<String>) {
+        (
+            (!skill.effect.is_empty()).then(|| skill.effect.clone()),
+            None,
+        )
     }
     /// The effect and sound of using item type `kind`.
     fn item_use(&self, kind: u32) -> (Option<String>, Option<String>) {

@@ -95,8 +95,10 @@ impl Chat {
         self.typing = true;
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, rect: Rect, actions: &mut Vec<UiAction>) {
-        let bottom = rect.bottom() - 74.0;
+    /// Draws the log and the line being typed, `lift` above its usual place (clear of the
+    /// skill bar).
+    pub fn show(&mut self, ui: &mut egui::Ui, rect: Rect, lift: f32, actions: &mut Vec<UiAction>) {
+        let bottom = rect.bottom() - 74.0 - lift;
         let painter = ui.painter_at(rect);
         let font = fonts::font(13.0);
         let mut y = bottom - if self.typing { 28.0 } else { 0.0 };

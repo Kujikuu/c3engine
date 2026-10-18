@@ -6,6 +6,7 @@ use crate::actor::Actor;
 use crate::module::Act;
 use crate::world::World;
 use c3_game::{EntityId, Event, Sim};
+use c3_scene::CellPos;
 use glam::Vec2;
 use std::collections::HashMap;
 /// Clickable box of a role around its feet, in world pixels.
@@ -48,6 +49,37 @@ impl SimView {
         self.actors.get(&id).copied()
     }
 
+    /// A cast: the caster turns to where it lands and strikes; the skill's effect plays on
+    /// each one it reaches, or where it lands when it reached no one.
+    fn show_cast(
+        &self,
+        caster: EntityId,
+        skill: u32,
+        cell: CellPos,
+        targets: &[EntityId],
+        sim: &Sim,
+        world: &mut World,
+    ) {
+        if let Some(i) = self.actor(caster) {
+            world.actors[i].face(cell);
+            let attack = world.game.looks().action(Act::Attack);
+            world.actor_action(i, attack, true);
+        }
+        let Some(t) = sim.rules().skill(skill) else {
+            return;
+        };
+        let Some(effect) = world.game.skill_media(t).0 else {
+            return;
+        };
+        // Decoration: a client without the effect still plays.
+        if targets.is_empty() {
+            let _ = world.place_effect(&effect, cell, false);
+        }
+        for i in targets.iter().filter_map(|&t| self.actor(t)) {
+            let _ = world.actor_effect(i, &effect, false);
+        }
+    }
+
     /// Plays `events` (from [`Sim::take_events`]) on the world's actors.
     pub fn apply(&mut self, events: &[Event], sim: &Sim, world: &mut World) {
         for event in events {
@@ -76,6 +108,12 @@ impl SimView {
                         world.actor_action(i, attack, true);
                     }
                 }
+                Event::Cast {
+                    caster,
+                    skill,
+                    cell,
+                    ref targets,
+                } => self.show_cast(caster, skill, cell, targets, sim, world),
                 Event::Died { id, .. } => {
                     if let Some(i) = self.actor(id) {
                         let die = world.game.looks().action(Act::Die);

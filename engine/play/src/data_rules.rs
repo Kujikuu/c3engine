@@ -10,10 +10,14 @@
 //!   `level`, the attacker's has `roll` (a number between its attack_min and attack_max) and
 //!   `chance` (0 to 99)
 //! - `hit_exp(level, target, damage)` and `kill_exp(level, target)` → experience
+//! - `skill_hit(attacker, target, skill)` → a skill's damage (`skill` holds its power,
+//!   range and area; the attacker's `roll` as for `hit`), `skill_heal(healer, skill)` → life
 
 use crate::module::GameRules;
 use c3_data::{Column, ColumnKind, Table, Value};
-use c3_game::{Drop, Fighter, ItemType, MonsterType, Rng, Rules, Stats};
+use c3_game::{
+    Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
+};
 use c3_script::Formulas;
 use c3_script::formulas::map_int;
 use c3_script::rhai::Map;
@@ -25,6 +29,7 @@ pub const LEVELS: &str = "levels";
 pub const MONSTERS: &str = "monsters";
 pub const ITEMS: &str = "items";
 pub const SHOPS: &str = "shops";
+pub const SKILLS: &str = "skills";
 
 /// A project's first `scripts/rules.rhai`: the engine's own formulas, ready to change.
 pub const FORMULAS_TEMPLATE: &str = r#"// The game's formulas. Every function is optional: take one out and the engine's own
@@ -51,6 +56,17 @@ fn hit_exp(level, target, damage) {
 // Extra experience for the killing blow.
 fn kill_exp(level, target) {
     target.level * 10
+}
+
+// Damage of a skill: its power and half an attack, less half the target's defence.
+fn skill_hit(attacker, target, skill) {
+    let damage = skill.power + attacker.roll / 2 - target.defence / 2;
+    if damage < 1 { 1 } else { damage }
+}
+
+// Life a healing skill restores.
+fn skill_heal(healer, skill) {
+    skill.power
 }
 "#;
 
@@ -192,6 +208,50 @@ pub fn table_templates() -> Vec<Table> {
             ],
             vec![ints(&[1, 1, 1]).collect()],
         ),
+        table(
+            SKILLS,
+            "The skills and spells players learn",
+            skill_columns(),
+            skill_rows(),
+        ),
+    ]
+}
+
+fn skill_columns() -> Vec<Column> {
+    vec![
+        int("id", "The skill (scripts and new characters name it)"),
+        text("name", "What players see"),
+        text("target", "What it is aimed at: enemy, self or ground"),
+        text("kind", "What it does: damage or heal"),
+        int("range", "Cells from the caster it reaches"),
+        int(
+            "area",
+            "Cells around where it lands it reaches too; 0: only its target",
+        ),
+        int("cooldown_ms", "Milliseconds before it can be cast again"),
+        int("mana", "Mana a cast costs"),
+        int("power", "How strong it is (damage, or life healed)"),
+        int("level", "The level needed to learn it"),
+        text("effect", "The effect shown on each one it reaches"),
+    ]
+}
+
+fn skill_rows() -> Vec<Vec<Value>> {
+    let skill = |id, name: &str, target: &str, kind: &str, numbers: &[i64]| {
+        let mut row = vec![
+            Value::Int(id),
+            Value::Text(name.into()),
+            Value::Text(target.into()),
+            Value::Text(kind.into()),
+        ];
+        row.extend(ints(numbers));
+        row.push(Value::Text(String::new()));
+        row
+    };
+    vec![
+        skill(1, "Fire Bolt", "enemy", "damage", &[8, 0, 1500, 10, 18, 1]),
+        skill(2, "Mend", "self", "heal", &[0, 0, 5000, 15, 40, 1]),
+        skill(3, "Quake", "ground", "damage", &[6, 2, 6000, 25, 12, 1]),
     ]
 }
 
@@ -228,6 +288,7 @@ pub struct DataRules {
     items: HashMap<u32, ItemType>,
     levels: BTreeMap<u32, Level>,
     shops: HashMap<u32, Vec<u32>>,
+    skills: HashMap<u32, SkillType>,
     formulas: Option<Formulas>,
     /// Formula failures: those not handed out yet, and every one seen (each is told once).
     problems: RefCell<(Vec<String>, HashSet<String>)>,
@@ -318,6 +379,9 @@ impl DataRules {
         if let Some(t) = read(ITEMS, &mut problems) {
             rules.read_items(&t);
         }
+        if let Some(t) = read(SKILLS, &mut problems) {
+            rules.read_skills(&t, &mut problems);
+        }
         if let Some(t) = read(SHOPS, &mut problems) {
             for row in rows(&t) {
                 rules
@@ -375,6 +439,45 @@ impl DataRules {
             let money = row.int("drop_money").max(0) as u64;
             self.loot.insert(id, Loot { money, items });
             self.monsters.insert(id, monster);
+        }
+    }
+
+    fn read_skills(&mut self, t: &Table, problems: &mut Vec<String>) {
+        for row in rows(t) {
+            let id = row.uint("id");
+            let target = match row.text("target").trim().to_ascii_lowercase().as_str() {
+                "" | "enemy" => SkillTarget::Enemy,
+                "self" => SkillTarget::Myself,
+                "ground" => SkillTarget::Ground,
+                other => {
+                    problems.push(format!(
+                        "skill {id}: target \"{other}\" isn't enemy, self or ground"
+                    ));
+                    SkillTarget::Enemy
+                }
+            };
+            let kind = match row.text("kind").trim().to_ascii_lowercase().as_str() {
+                "" | "damage" => SkillKind::Damage,
+                "heal" => SkillKind::Heal,
+                other => {
+                    problems.push(format!("skill {id}: kind \"{other}\" isn't damage or heal"));
+                    SkillKind::Damage
+                }
+            };
+            let skill = SkillType {
+                id,
+                name: row.text("name").to_owned(),
+                target,
+                kind,
+                range: row.uint("range"),
+                area: row.uint("area"),
+                cooldown_ms: row.uint("cooldown_ms"),
+                mana: row.uint("mana"),
+                power: row.uint("power"),
+                level: row.uint("level"),
+                effect: row.text("effect").to_owned(),
+            };
+            self.skills.insert(id, skill);
         }
     }
 
@@ -436,6 +539,22 @@ fn fighter_map(f: &Fighter) -> Map {
         ("defence", s.defence),
         ("dodge", s.dodge),
         ("dexterity", s.dexterity),
+    ] {
+        map.insert(key.into(), i64::from(value).into());
+    }
+    map
+}
+
+/// A skill's numbers as a script map.
+fn skill_map(s: &SkillType) -> Map {
+    let mut map = Map::new();
+    for (key, value) in [
+        ("id", s.id),
+        ("power", s.power),
+        ("range", s.range),
+        ("area", s.area),
+        ("mana", s.mana),
+        ("level", s.level),
     ] {
         map.insert(key.into(), i64::from(value).into());
     }
@@ -567,6 +686,39 @@ impl Rules for DataRules {
         self.shops.get(&npc).map_or(&[], Vec::as_slice)
     }
 
+    fn skill(&self, id: u32) -> Option<&SkillType> {
+        self.skills.get(&id)
+    }
+
+    fn skill_hit(
+        &self,
+        attacker: &Fighter,
+        target: &Fighter,
+        skill: &SkillType,
+        rng: &mut Rng,
+    ) -> u32 {
+        let a = &attacker.stats;
+        let roll = rng.range(a.attack_min.into(), a.attack_max.max(a.attack_min).into());
+        let scripted = self.formula("skill_hit", |f| {
+            let mut me = fighter_map(attacker);
+            me.insert("roll".into(), roll.into());
+            f.int("skill_hit", (me, fighter_map(target), skill_map(skill)))
+        });
+        match scripted {
+            Some(damage) => uint(damage),
+            None => (skill.power + uint(roll) / 2)
+                .saturating_sub(target.stats.defence / 2)
+                .max(1),
+        }
+    }
+
+    fn skill_heal(&self, healer: &Fighter, skill: &SkillType) -> u32 {
+        self.formula("skill_heal", |f| {
+            f.int("skill_heal", (fighter_map(healer), skill_map(skill)))
+        })
+        .map_or(skill.power, uint)
+    }
+
     fn take_problems(&self) -> Vec<String> {
         std::mem::take(&mut self.problems.borrow_mut().0)
     }
@@ -616,6 +768,9 @@ mod tests {
         assert_eq!(rules.item(2).unwrap().slot, Some(4));
         assert_eq!(rules.item(2).unwrap().bonus.attack_max, 10, "a sword adds");
         assert_eq!(rules.shop(1), &[1]);
+        let quake = rules.skill(3).expect("the quake");
+        assert_eq!((quake.target, quake.area), (SkillTarget::Ground, 2));
+        assert_eq!(rules.skill(2).unwrap().kind, SkillKind::Heal);
         assert_eq!(rules.player_stats(1).max_life, 120);
         assert_eq!(rules.level_exp(1), Some(100));
         assert_eq!(rules.level_exp(2), None, "past the table: the top");

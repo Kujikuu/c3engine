@@ -389,8 +389,16 @@ impl Studio {
         {
             session.toggle_quests();
         }
-        if let (Some(line), Some(session)) = (flag("--say"), &mut s.playing) {
-            session.say(&line);
+        if let Some(session) = &mut s.playing {
+            // Each `--say` in turn.
+            for pair in args.windows(2).filter(|w| w[0] == "--say") {
+                session.say(&pair[1]);
+            }
+        }
+        if let (Some(slot), Some(session)) =
+            (flag("--cast").and_then(|n| n.parse().ok()), &mut s.playing)
+        {
+            session.cast_slot(slot);
         }
         let pick = flag("--pick").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (pick, &s.doc) {

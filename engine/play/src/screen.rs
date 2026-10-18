@@ -379,6 +379,11 @@ impl GameScreen {
         if a.pressed(Action::Interact) {
             self.session.interact();
         }
+        for (slot, action) in Action::SKILLS.into_iter().enumerate() {
+            if a.pressed(action) {
+                self.session.cast_slot(slot);
+            }
+        }
         let turn = i8::from(a.pressed(Action::TurnRight)) - i8::from(a.pressed(Action::TurnLeft));
         if turn != 0
             && let Some(hero) = self.session.world.hero_mut()
@@ -458,6 +463,8 @@ impl GameScreen {
         if clicked && let Some(p) = resp.interact_pointer_pos() {
             self.session.click(screen.to_world(p));
         }
+        self.session
+            .point_at(resp.hover_pos().map(|p| screen.to_world(p)));
     }
 
     fn clicks_with(&self, m: MouseControl) -> bool {

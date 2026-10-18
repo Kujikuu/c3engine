@@ -38,6 +38,11 @@ pub enum Input {
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
     Say(String),
+    /// Cast skill `skill` at `at`.
+    Cast {
+        skill: u32,
+        at: crate::skills::CastAt,
+    },
 }
 
 /// Longest chat line kept.
@@ -49,6 +54,7 @@ impl Sim {
         match input {
             Input::Walk(cell) => self.walk(id, cell),
             Input::Jump(cell) => self.jump(id, cell),
+            Input::Cast { skill, at } => self.cast(id, skill, at),
             Input::EnterPortal(cell) => self.enter_portal(id, cell),
             Input::SetRunning(on) => self.set_running(id, on),
             Input::Attack(target) => self.attack(id, target),

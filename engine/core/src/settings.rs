@@ -267,6 +267,9 @@ pub struct NewCharacter {
     pub bag: Vec<u32>,
     /// Item types worn.
     pub equipment: Vec<u32>,
+    /// Skills they know.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<u32>,
 }
 
 impl Default for NewCharacter {
@@ -276,6 +279,7 @@ impl Default for NewCharacter {
             money: 0,
             bag: Vec::new(),
             equipment: Vec::new(),
+            skills: Vec::new(),
         }
     }
 }

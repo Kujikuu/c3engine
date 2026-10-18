@@ -5,6 +5,7 @@
 
 pub mod character;
 pub mod game;
+mod magic;
 pub mod module;
 pub mod npc;
 pub mod protocol;
@@ -74,6 +75,8 @@ struct Tables {
     /// `Monster.dat` (encrypted): monster type id → drawing size in percent.
     monster_zoom: HashMap<u32, u32>,
     sounds: sound::SoundTables,
+    /// `MagicType.dat`: skill type → its effect and sound.
+    magic: HashMap<u32, magic::MagicMedia>,
 }
 
 impl Tables {
@@ -119,6 +122,7 @@ impl Tables {
                 &bytes("MediaEffect.ini"),
                 &bytes("MusicRegion.ini"),
             ),
+            magic: magic::parse(&bytes("MagicType.dat")),
         }
     }
 }

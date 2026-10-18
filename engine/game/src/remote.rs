@@ -65,6 +65,8 @@ impl Player {
             exp: 0,
             money: 0,
             wallet: Default::default(),
+            skills: Vec::new(),
+            cooldowns: Default::default(),
             ..self.clone()
         }
     }
@@ -97,6 +99,14 @@ impl Event {
             Event::Attacked {
                 attacker, target, ..
             } => vec![attacker, target],
+            Event::Cast {
+                caster,
+                ref targets,
+                ..
+            } => std::iter::once(caster)
+                .chain(targets.iter().copied())
+                .collect(),
+            Event::Healed { target, .. } => vec![target],
             Event::LeveledUp { player, .. }
             | Event::PickedUp { player, .. }
             | Event::Used { player, .. }

@@ -60,6 +60,11 @@ pub enum Task {
     Talk(u32),
     /// Walking to the portal on a cell to go through it.
     Portal(CellPos),
+    /// Closing in to cast a skill.
+    Cast {
+        skill: u32,
+        at: crate::skills::CastAt,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -76,6 +81,12 @@ pub struct Player {
     /// Other currencies, by name (see the settings' `currencies`).
     #[serde(default)]
     pub wallet: BTreeMap<String, u64>,
+    /// Skills it knows, in the order of its skill bar.
+    #[serde(default)]
+    pub skills: Vec<u32>,
+    /// When (game ms) each skill rested will be ready again.
+    #[serde(default)]
+    pub cooldowns: BTreeMap<u32, u64>,
     pub stats: Stats,
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.

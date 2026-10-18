@@ -27,6 +27,7 @@ pub enum ActionKind {
 pub enum ActionGroup {
     World,
     Camera,
+    Skills,
     Windows,
     Menus,
 }
@@ -35,6 +36,7 @@ impl ActionGroup {
     pub fn name(self) -> &'static str {
         match self {
             Self::World => "In the world",
+            Self::Skills => "Skills",
             Self::Camera => "Camera",
             Self::Windows => "Windows",
             Self::Menus => "Menus",
@@ -58,6 +60,15 @@ pub enum Action {
     ToggleRun,
     TurnLeft,
     TurnRight,
+    /// Cast the skill in a slot of the skill bar.
+    Skill1,
+    Skill2,
+    Skill3,
+    Skill4,
+    Skill5,
+    Skill6,
+    Skill7,
+    Skill8,
     /// Move the camera off the hero.
     Pan,
     Zoom,
@@ -76,7 +87,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 28] = [
         Self::Click,
         Self::Move,
         Self::Interact,
@@ -86,6 +97,14 @@ impl Action {
         Self::ToggleRun,
         Self::TurnLeft,
         Self::TurnRight,
+        Self::Skill1,
+        Self::Skill2,
+        Self::Skill3,
+        Self::Skill4,
+        Self::Skill5,
+        Self::Skill6,
+        Self::Skill7,
+        Self::Skill8,
         Self::Pan,
         Self::Zoom,
         Self::Follow,
@@ -97,6 +116,18 @@ impl Action {
         Self::Navigate,
         Self::Confirm,
         Self::Back,
+    ];
+
+    /// The skill bar's slots, in order.
+    pub const SKILLS: [Self; 8] = [
+        Self::Skill1,
+        Self::Skill2,
+        Self::Skill3,
+        Self::Skill4,
+        Self::Skill5,
+        Self::Skill6,
+        Self::Skill7,
+        Self::Skill8,
     ];
 
     pub fn kind(self) -> ActionKind {
@@ -118,6 +149,14 @@ impl Action {
             | Self::ToggleRun
             | Self::TurnLeft
             | Self::TurnRight => ActionGroup::World,
+            Self::Skill1
+            | Self::Skill2
+            | Self::Skill3
+            | Self::Skill4
+            | Self::Skill5
+            | Self::Skill6
+            | Self::Skill7
+            | Self::Skill8 => ActionGroup::Skills,
             Self::Pan | Self::Zoom | Self::Follow | Self::FitMap => ActionGroup::Camera,
             Self::Bag | Self::Quests | Self::Chat | Self::Menu => ActionGroup::Windows,
             Self::Navigate | Self::Confirm | Self::Back => ActionGroup::Menus,
@@ -136,6 +175,14 @@ impl Action {
             Self::ToggleRun => "Walk / run",
             Self::TurnLeft => "Turn left",
             Self::TurnRight => "Turn right",
+            Self::Skill1 => "Skill 1",
+            Self::Skill2 => "Skill 2",
+            Self::Skill3 => "Skill 3",
+            Self::Skill4 => "Skill 4",
+            Self::Skill5 => "Skill 5",
+            Self::Skill6 => "Skill 6",
+            Self::Skill7 => "Skill 7",
+            Self::Skill8 => "Skill 8",
             Self::Pan => "Pan the camera",
             Self::Zoom => "Zoom",
             Self::Follow => "Follow the hero",
@@ -163,6 +210,14 @@ impl Action {
             Self::ToggleRun => b(&["Key R", "Pad North", "Touch Button"]),
             Self::TurnLeft => b(&["Key Q"]),
             Self::TurnRight => b(&["Key E"]),
+            Self::Skill1 => b(&["Key 1", "Touch Button"]),
+            Self::Skill2 => b(&["Key 2", "Touch Button"]),
+            Self::Skill3 => b(&["Key 3"]),
+            Self::Skill4 => b(&["Key 4"]),
+            Self::Skill5 => b(&["Key 5"]),
+            Self::Skill6 => b(&["Key 6"]),
+            Self::Skill7 => b(&["Key 7"]),
+            Self::Skill8 => b(&["Key 8"]),
             Self::Pan => b(&[
                 "Keys W A S D",
                 "Keys ArrowUp ArrowLeft ArrowDown ArrowRight",

@@ -11,11 +11,16 @@ const ARROW: u32 = 300;
 /// Worn, priced in gems.
 const CHARM: u32 = 400;
 
+const FIRE: u32 = 10;
+const MEND: u32 = 11;
+const QUAKE: u32 = 12;
+
 struct TestRules {
     monsters: Vec<MonsterType>,
     potion: ItemType,
     armor: ItemType,
     others: Vec<ItemType>,
+    skills: Vec<SkillType>,
 }
 
 fn monster(id: u32, life: u32, attack: u32, aggressive: bool) -> MonsterType {
@@ -49,9 +54,13 @@ impl Rules for TestRules {
             _ => self.others.iter().find(|t| t.id == kind),
         }
     }
+    fn skill(&self, id: u32) -> Option<&SkillType> {
+        self.skills.iter().find(|s| s.id == id)
+    }
     fn player_stats(&self, level: u32) -> Stats {
         Stats {
             max_life: 100 + 10 * level,
+            max_mana: 100,
             attack_min: 10,
             attack_max: 10,
             attack_range: 1,
@@ -116,6 +125,35 @@ fn rules() -> Box<dyn Rules> {
             durability: 3,
             ..ItemType::default()
         },
+        skills: vec![
+            SkillType {
+                id: FIRE,
+                name: "Fire".into(),
+                range: 5,
+                cooldown_ms: 1000,
+                mana: 10,
+                power: 20,
+                ..SkillType::default()
+            },
+            SkillType {
+                id: MEND,
+                name: "Mend".into(),
+                target: SkillTarget::Myself,
+                kind: SkillKind::Heal,
+                mana: 5,
+                power: 30,
+                ..SkillType::default()
+            },
+            SkillType {
+                id: QUAKE,
+                name: "Quake".into(),
+                target: SkillTarget::Ground,
+                range: 6,
+                area: 2,
+                power: 5,
+                ..SkillType::default()
+            },
+        ],
         others: vec![
             ItemType {
                 id: ARROW,
@@ -710,4 +748,72 @@ fn older_saves_name_items_by_type() {
     let again: PlayerSave =
         ron::from_str(&ron::to_string(&sim.save_player(hero).unwrap()).unwrap()).unwrap();
     assert_eq!(again.equipment[0].durability, Some(3));
+}
+
+#[test]
+fn skills_cost_mana_rest_and_reach_their_area() {
+    let mut sim = Sim::new(
+        Grid::new(40, 40),
+        vec![],
+        vec![
+            spawn(1, SLIME, (9, 5), (9, 5), 1),
+            spawn(2, SLIME, (20, 20), (20, 20), 1),
+            spawn(3, SLIME, (21, 21), (21, 21), 1),
+        ],
+        rules(),
+        12,
+    );
+    let mut settings = sim.settings().clone();
+    settings.monster_wander = 0;
+    sim.set_settings(settings);
+    // At the top level, so no level up refills its mana.
+    let hero = sim.add_player("Hero", (5, 5), 5);
+    let near = sim.monsters().find(|m| m.home == (9, 5)).unwrap().id;
+    sim.cast(hero, FIRE, CastAt::Entity(near));
+    let said = |sim: &mut Sim, text: &str| {
+        sim.take_events()
+            .iter()
+            .any(|e| matches!(e, Event::Message { text: t, .. } if t == text))
+    };
+    assert!(said(&mut sim, "You don't know Fire."));
+    assert!(sim.learn_skill(hero, FIRE));
+    assert!(!sim.learn_skill(hero, 999), "no such skill");
+    // In range: cast at once; 20 power + half of 10 attack = 25 of the slime's 30.
+    sim.cast(hero, FIRE, CastAt::Entity(near));
+    sim.advance(50);
+    assert_eq!(sim.monster(near).unwrap().life, 5);
+    assert_eq!(sim.player(hero).unwrap().mana, 90);
+    let events = sim.take_events();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Cast { skill: FIRE, targets, .. } if targets == &[near]))
+    );
+    // Resting: not again until its cooldown is over.
+    sim.cast(hero, FIRE, CastAt::Entity(near));
+    sim.advance(50);
+    assert!(said(&mut sim, "Fire isn't ready yet."));
+    sim.advance(1000);
+    sim.cast(hero, FIRE, CastAt::Entity(near));
+    sim.advance(50);
+    assert!(
+        !sim.monster(near).unwrap().is_alive(),
+        "the second bolt kills"
+    );
+    // An area hits all within it; out of range, the caster walks up first.
+    sim.learn_skill(hero, QUAKE);
+    sim.cast(hero, QUAKE, CastAt::Cell((20, 21)));
+    assert!(run_until(&mut sim, 20_000, |s| {
+        s.monsters().filter(|m| m.home.0 >= 20).all(|m| m.life < 30)
+    }));
+    let p = sim.player(hero).unwrap();
+    assert!(distance(p.cell, (20, 21)) <= 6, "walked into range");
+    // A heal on oneself, whatever was aimed at.
+    sim.learn_skill(hero, MEND);
+    sim.players.get_mut(&hero).unwrap().life = 50;
+    sim.cast(hero, MEND, CastAt::Cell((0, 0)));
+    sim.advance(50);
+    assert_eq!(sim.player(hero).unwrap().life, 80, "50 + 30");
+    // Known skills are kept.
+    assert_eq!(sim.save_player(hero).unwrap().skills, [FIRE, QUAKE, MEND]);
 }

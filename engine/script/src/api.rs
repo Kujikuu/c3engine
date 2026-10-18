@@ -141,6 +141,21 @@ fn player(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("knows_skill", move |skill: i64| {
+        with(&s, |c| c.player.skills.contains(&skill))
+    });
+    let s = shared.clone();
+    engine.register_fn("learn_skill", move |skill: i64| {
+        with(&s, |c| {
+            if c.player.skills.contains(&skill) {
+                return false;
+            }
+            c.player.skills.push(skill);
+            c.effects.push(Effect::LearnedSkill(skill));
+            true
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("flag", move |name: &str| with(&s, |c| c.player.flag(name)));
     let s = shared.clone();
     engine.register_fn("set_flag", move |name: &str, value: i64| {

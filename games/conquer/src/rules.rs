@@ -1,5 +1,6 @@
 //! Conquer's game rules for the engine's simulation, read from the project's tables (TQ's
-//! `cq_monstertype`, `cq_itemtype`, `cq_levexp`, `cq_goods`, `cq_point_allot`).
+//! `cq_monstertype`, `cq_itemtype`, `cq_levexp`, `cq_goods`, `cq_point_allot`, and
+//! `cq_magictype` for skills: each magic type at its first level, until skill levels come).
 //!
 //! The formulas follow TQ's server where its rules are known (damage − defence, at least 1;
 //! experience per point of damage, scaled by level difference; a kill bonus of 5% of the
@@ -7,7 +8,9 @@
 //! to parity.
 
 use c3_data::{Table, Value};
-use c3_game::{Drop, Fighter, ItemType, MonsterType, Rng, Rules, Stats};
+use c3_game::{
+    Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
+};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -17,6 +20,10 @@ const ACTIVE: i64 = 0x02;
 const MONEY_CHANCE: u32 = 40;
 const LIFE_POTION_CHANCE: u32 = 8;
 const MANA_POTION_CHANCE: u32 = 4;
+/// `cq_magictype.sort` of healing magic (`MAGICSORT_RECRUIT`).
+const SORT_HEAL: i64 = 2;
+/// A `cq_magictype.power` above this is a physical skill: that much over, in percent of a hit.
+const PERCENT_POWER: u32 = 30000;
 /// Profession whose stat growth players get until professions are chosen (Trojan).
 const PROFESSION: i64 = 1;
 /// Milliseconds per walking step and between a player's hits.
@@ -44,6 +51,7 @@ pub struct ConquerRules {
     level_exp: Vec<u64>,
     points: HashMap<u32, Points>,
     shops: HashMap<u32, Vec<u32>>,
+    skills: HashMap<u32, SkillType>,
 }
 
 /// A table's rows read by column name.
@@ -102,7 +110,66 @@ impl ConquerRules {
         load("cq_levexp", &mut |t| rules.read_levels(t));
         load("cq_point_allot", &mut |t| rules.read_points(t));
         load("cq_goods", &mut |t| rules.read_shops(t));
+        if dir
+            .join(format!("cq_magictype{}", c3_data::TABLE_SUFFIX))
+            .exists()
+        {
+            load("cq_magictype", &mut |t| rules.read_magic(t));
+        }
         (rules, problems)
+    }
+
+    /// Magic types at their first level (`level` 0) as skills, by their type.
+    fn read_magic(&mut self, t: &Table) -> Result<(), String> {
+        let rows = Rows::new(
+            t,
+            &[
+                "type",
+                "sort",
+                "name",
+                "level",
+                "use_mp",
+                "power",
+                "distance",
+                "range",
+                "multi",
+                "ground",
+                "delay_ms",
+                "need_level",
+            ],
+        )?;
+        for v in rows.each().filter(|v| int(v[3]) == 0) {
+            let id = uint(v[0]);
+            let kind = if int(v[1]) == SORT_HEAL {
+                SkillKind::Heal
+            } else {
+                SkillKind::Damage
+            };
+            let target = match kind {
+                SkillKind::Heal => SkillTarget::Myself,
+                SkillKind::Damage if int(v[9]) != 0 => SkillTarget::Ground,
+                SkillKind::Damage => SkillTarget::Enemy,
+            };
+            let area = if int(v[8]) != 0 { uint(v[7]) } else { 0 };
+            self.skills.insert(
+                id,
+                SkillType {
+                    id,
+                    name: v[2].as_text().unwrap_or_default().to_owned(),
+                    target,
+                    kind,
+                    range: uint(v[6]).max(1),
+                    area,
+                    cooldown_ms: uint(v[10]).max(500),
+                    mana: uint(v[4]),
+                    // A negative power (Restore's -32768) heals fully.
+                    power: if int(v[5]) < 0 { u32::MAX } else { uint(v[5]) },
+                    level: uint(v[11]),
+                    effect: String::new(),
+                },
+            );
+        }
+        Ok(())
     }
 
     fn read_monsters(&mut self, t: &Table) -> Result<(), String> {
@@ -316,6 +383,10 @@ impl Rules for ConquerRules {
         self.monsters.get(&kind)
     }
 
+    fn skill(&self, id: u32) -> Option<&SkillType> {
+        self.skills.get(&id)
+    }
+
     fn item(&self, kind: u32) -> Option<&ItemType> {
         self.items.get(&kind)
     }
@@ -355,6 +426,27 @@ impl Rules for ConquerRules {
         let a = &attacker.stats;
         let attack = rng.range(a.attack_min.into(), a.attack_max.into()) as u32;
         attack.saturating_sub(target.stats.defence).max(1)
+    }
+
+    /// TQ's skill damage: a physical skill strikes a percentage of a hit, less defence; a
+    /// spell deals its power.
+    fn skill_hit(
+        &self,
+        attacker: &Fighter,
+        target: &Fighter,
+        skill: &SkillType,
+        rng: &mut Rng,
+    ) -> u32 {
+        match skill.power.checked_sub(PERCENT_POWER) {
+            Some(percent) => {
+                let a = &attacker.stats;
+                let attack = rng.range(a.attack_min.into(), a.attack_max.into()) as u32;
+                (attack * percent / 100)
+                    .saturating_sub(target.stats.defence)
+                    .max(1)
+            }
+            None => skill.power.max(1),
+        }
     }
 
     fn hit_exp(&self, level: u32, target: &Fighter, damage: u32) -> u64 {

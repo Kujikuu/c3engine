@@ -43,6 +43,18 @@ pub enum Event {
         id: EntityId,
         killer: Option<EntityId>,
     },
+    /// `caster` cast `skill` at `cell`, reaching `targets` (hits follow as `Attacked`).
+    Cast {
+        caster: EntityId,
+        skill: u32,
+        cell: CellPos,
+        targets: Vec<EntityId>,
+    },
+    /// `target` got `amount` life back.
+    Healed {
+        target: EntityId,
+        amount: u32,
+    },
     Revived(EntityId),
     ExpGained {
         player: EntityId,

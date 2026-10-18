@@ -14,6 +14,8 @@ pub struct PlayerState {
     pub items: BTreeMap<i64, i64>,
     /// Other currencies → how much the player has.
     pub wallet: BTreeMap<String, i64>,
+    /// Skills the player knows.
+    pub skills: Vec<i64>,
     /// Script variables kept with the player (quest steps, counters); unset reads as 0.
     pub flags: BTreeMap<String, i64>,
 }
@@ -95,6 +97,8 @@ pub enum Effect {
         name: String,
         amount: i64,
     },
+    /// The player learned skill `id`.
+    LearnedSkill(i64),
     /// Move the player to `cell` of game map `map`.
     Teleport {
         map: i64,

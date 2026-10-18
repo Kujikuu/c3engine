@@ -86,14 +86,19 @@ impl World {
 
     /// Plays effect `name` at the hero's feet, once or `forever`.
     pub fn hero_effect(&mut self, name: &str, forever: bool) -> Result<(), String> {
+        self.actor_effect(0, name, forever)
+    }
+
+    /// Plays effect `name` on actor `index`, once or `forever`.
+    pub fn actor_effect(&mut self, index: usize, name: &str, forever: bool) -> Result<(), String> {
         let now_ms = self.now_ms();
         let effect = self
             .view
             .library
             .start(name, self.game.assets(), now_ms)
             .ok_or_else(|| format!("effect {name} could not be loaded"))?;
-        let hero = self.actors.first_mut().ok_or("there is no hero")?;
-        hero.add_effect(if forever { effect.endless() } else { effect });
+        let actor = self.actors.get_mut(index).ok_or("there is no such actor")?;
+        actor.add_effect(if forever { effect.endless() } else { effect });
         Ok(())
     }
 

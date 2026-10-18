@@ -12,7 +12,7 @@ use crate::module::GameModule;
 use crate::settings;
 use crate::sim_view::SimView;
 use crate::world::{self, World};
-use c3_game::{EntityId, Event, Input, Sim, WorldUpdate};
+use c3_game::{CastAt, EntityId, Event, Input, Sim, SkillTarget, WorldUpdate};
 use c3_online::{Connection, RemoteEvent, Welcome};
 use c3_project::{Project, ProjectSettings};
 use c3_render::camera::Camera2d;
@@ -109,6 +109,8 @@ pub struct Session {
     hit_at: Option<f64>,
     /// The monster the hero has in its sights (gamepad and touch targeting).
     target: Option<EntityId>,
+    /// Where the pointer is over the world (skills cast where it points).
+    pointer: Option<Vec2>,
     /// How the simulation was set up (the next map's is set up alike; online, its tables).
     setup: GameSetup,
     /// A map change waiting for the host to load the map.
@@ -271,6 +273,7 @@ impl Session {
             link,
             settings,
             hit_at: None,
+            pointer: None,
             target: None,
             setup,
             map_change: None,
@@ -618,6 +621,49 @@ impl Session {
         self.input(Input::Walk(cell));
     }
 
+    /// Where the pointer is over the world, for skills cast where it points.
+    pub fn point_at(&mut self, point: Option<Vec2>) {
+        self.pointer = point;
+    }
+
+    /// Casts the skill in slot `slot` of the hero's skill bar.
+    pub fn cast_slot(&mut self, slot: usize) {
+        let skill = (self.sim.player(self.hero)).and_then(|p| p.skills.get(slot).copied());
+        if let Some(skill) = skill {
+            self.cast_skill(skill);
+        }
+    }
+
+    /// Casts `skill`: an attack at the target, the monster pointed at or the nearest one; a
+    /// blast where the pointer is (else on the foe, else around the hero); a heal on the hero.
+    pub fn cast_skill(&mut self, skill: u32) {
+        let Some(t) = self.sim.rules().skill(skill).cloned() else {
+            return;
+        };
+        let pointed = self.pointer.and_then(|p| self.monster_at(p));
+        let search = self.settings.gameplay.attack_search;
+        let foe = (self.target())
+            .or(pointed)
+            .or_else(|| self.sim.nearest_monster(self.hero, search));
+        let at = match t.target {
+            SkillTarget::Myself => Some(CastAt::Me),
+            SkillTarget::Enemy => foe.map(CastAt::Entity),
+            SkillTarget::Ground => (self.pointer)
+                .map(|p| CastAt::Cell(self.world.scene.world_to_cell((p.x, p.y))))
+                .or(foe.map(CastAt::Entity))
+                .or(Some(CastAt::Me)),
+        };
+        let Some(at) = at else {
+            return self
+                .ui
+                .system(format!("{} needs a target.", t.name), style::BAD);
+        };
+        if let CastAt::Entity(e) = at {
+            self.target = Some(e);
+        }
+        self.input(Input::Cast { skill, at });
+    }
+
     /// Sends the hero after the nearest monster it can reach.
     pub fn attack_nearest(&mut self) {
         let search = self.settings.gameplay.attack_search;
@@ -769,6 +815,11 @@ impl Session {
             UiAction::CloseShop => Input::CloseShop,
             UiAction::Use(item) => Input::Use(item),
             UiAction::Unequip(item) => Input::Unequip(item),
+            UiAction::Cast(slot) => {
+                // Clicked on the skill bar: the pointer is on the bar, not the world.
+                self.pointer = None;
+                return self.cast_slot(slot);
+            }
             UiAction::Say(text) => Input::Say(text),
             UiAction::ToggleSound => return self.audio.toggle_muted(),
             UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => return,

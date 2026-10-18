@@ -8,7 +8,7 @@ use crate::protocol::FRONT_KIND;
 use crate::rules::{ConquerRules, SLOT_NAMES};
 use c3_assets::Image;
 use c3_audio::MusicRegion;
-use c3_game::{EntityId, Player, Rules, Sim};
+use c3_game::{EntityId, Player, Rules, Sim, SkillType};
 use c3_play::{
     Act, Character, CharacterMotions, GameModule, GameRules, Look, LookKind, Looks, PartModel,
 };
@@ -172,6 +172,11 @@ impl GameModule for ConquerModule {
 
     fn level_up_effect(&self) -> Option<String> {
         Some(LEVEL_UP.to_owned())
+    }
+
+    fn skill_media(&self, skill: &SkillType) -> (Option<String>, Option<String>) {
+        let (effect, sound) = self.content.magic_media(skill.id);
+        (effect.map(str::to_owned), sound.map(str::to_owned))
     }
 
     fn item_use(&self, kind: u32) -> (Option<String>, Option<String>) {

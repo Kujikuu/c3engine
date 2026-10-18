@@ -150,6 +150,13 @@ impl Sim {
                 notice(self, money_text(n, &currency));
             }
             Effect::Currency { name, amount } => notice(self, money_text(amount, &name)),
+            Effect::LearnedSkill(skill) => {
+                let skill = u32::try_from(skill).ok().and_then(|s| self.rules.skill(s));
+                if let Some(t) = skill {
+                    let text = format!("You learned {}.", t.name);
+                    notice(self, text);
+                }
+            }
             Effect::Teleport { map, cell } => {
                 let to = c3_scene::PortalTarget {
                     map: u32::try_from(map).unwrap_or(0),
@@ -199,6 +206,7 @@ impl Sim {
             level: p.level.into(),
             money: p.money as i64,
             items,
+            skills: p.skills.iter().map(|&s| i64::from(s)).collect(),
             wallet: (p.wallet.iter())
                 .map(|(k, &v)| (k.clone(), i64::try_from(v).unwrap_or(i64::MAX)))
                 .collect(),
@@ -218,6 +226,11 @@ impl Sim {
             .filter(|(_, v)| **v > 0)
             .map(|(k, &v)| (k.clone(), v as u64))
             .collect();
+        for &skill in &after.skills {
+            if let Ok(skill) = u32::try_from(skill) {
+                self.learn_skill(id, skill);
+            }
+        }
         let kinds: BTreeSet<i64> = before
             .items
             .keys()

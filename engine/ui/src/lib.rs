@@ -42,6 +42,8 @@ pub enum UiAction {
     Use(u32),
     /// Take off worn item `id`.
     Unequip(u32),
+    /// Cast the skill in slot `n` of the skill bar.
+    Cast(usize),
     /// A chat line (commands start with `/`).
     Say(String),
     /// Mute or unmute the game's sound.
@@ -247,7 +249,13 @@ impl GameUi {
             quests: &mut self.quests_open,
         };
         hud::bar(ui, view, player, &mut open, &mut actions);
-        self.chat.show(ui, view.rect, &mut actions);
+        hud::skill_bar(ui, view, player, &mut actions);
+        let lift = if player.skills.is_empty() {
+            0.0
+        } else {
+            hud::SKILL_ROW
+        };
+        self.chat.show(ui, view.rect, lift, &mut actions);
         let shop = player.shop;
         if let Some(npc) = shop {
             shop::window(ui, view, npc, icons, &mut actions);

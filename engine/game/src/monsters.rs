@@ -239,7 +239,7 @@ impl Sim {
         }
     }
 
-    fn kill_monster(&mut self, id: EntityId, killer: Option<EntityId>) {
+    pub(crate) fn kill_monster(&mut self, id: EntityId, killer: Option<EntityId>) {
         let now = self.now_ms;
         let m = self.monsters.get_mut(&id).expect("killing");
         m.died_at_ms = Some(now);

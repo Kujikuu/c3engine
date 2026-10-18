@@ -29,6 +29,9 @@ pub struct PlayerSave {
     /// Other currencies, by name.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub wallet: BTreeMap<String, u64>,
+    /// Skills known.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<u32>,
     #[serde(default)]
     pub flags: BTreeMap<String, i64>,
 }
@@ -111,6 +114,7 @@ impl PlayerSave {
             bag: Vec::new(),
             equipment: Vec::new(),
             wallet: BTreeMap::new(),
+            skills: Vec::new(),
             flags: BTreeMap::new(),
         }
     }
@@ -134,18 +138,20 @@ impl Sim {
         p.exp = save.exp;
         p.money = save.money;
         p.wallet = save.wallet.clone();
+        p.skills = save.skills.clone();
         p.bag = bag;
         p.equipment = worn;
         p.flags = save.flags.clone();
         self.refresh_stats(id);
         let p = self.players.get_mut(&id).expect("just added");
         // A save without life (a new character) starts full.
-        p.life = if save.life == 0 {
-            p.stats.max_life
+        if save.life == 0 {
+            p.life = p.stats.max_life;
+            p.mana = p.stats.max_mana;
         } else {
-            save.life.min(p.stats.max_life)
-        };
-        p.mana = save.mana.min(p.stats.max_mana);
+            p.life = save.life.min(p.stats.max_life);
+            p.mana = save.mana.min(p.stats.max_mana);
+        }
     }
 
     /// Player `id` as stored.
@@ -164,6 +170,7 @@ impl Sim {
             bag: p.bag.iter().map(|i| self.stored_item(i)).collect(),
             equipment: p.equipment.iter().map(|i| self.stored_item(i)).collect(),
             wallet: p.wallet.clone(),
+            skills: p.skills.clone(),
             flags: p.flags.clone(),
         })
     }

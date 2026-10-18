@@ -6,7 +6,8 @@ use crate::fonts;
 use crate::icons;
 use crate::style;
 use crate::{GameView, UiAction, item_name};
-use c3_game::{EntityId, Event, Player, Task};
+use c3_core::input::Action;
+use c3_game::{EntityId, Event, Player, SkillKind, SkillTarget, Task};
 use egui::{Color32, Pos2, Rect};
 
 /// Seconds a damage number rises before it is gone.
@@ -36,6 +37,16 @@ pub(crate) struct Overlay {
 
 impl Overlay {
     pub fn event(&mut self, event: &Event, hero: EntityId, now: f64) {
+        if let Event::Healed { target, amount } = *event
+            && amount > 0
+        {
+            self.floats.push(Float {
+                at: now,
+                entity: target,
+                text: format!("+{amount}"),
+                color: style::GOOD,
+            });
+        }
         if let Event::Attacked {
             attacker,
             target,
@@ -316,6 +327,130 @@ pub(crate) fn bar(
             actions.push(UiAction::ToggleSound);
         }
     }
+}
+
+/// Size of a skill bar slot.
+const SKILL_SLOT: f32 = 34.0;
+/// Height the skill bar takes above the bottom bar.
+pub(crate) const SKILL_ROW: f32 = SKILL_SLOT + 6.0;
+
+/// The skills the hero knows, above the bottom bar: click or press the slot's key to cast;
+/// a resting skill shows its cooldown, one short of mana is dimmed.
+pub(crate) fn skill_bar(
+    ui: &mut egui::Ui,
+    view: &GameView,
+    p: &Player,
+    actions: &mut Vec<UiAction>,
+) {
+    let count = p.skills.len().min(Action::SKILLS.len());
+    if count == 0 {
+        return;
+    }
+    let rules = view.sim.rules();
+    let now = view.sim.now_ms();
+    let gap = 4.0;
+    let width = count as f32 * (SKILL_SLOT + gap) - gap;
+    let top_left = egui::pos2(
+        view.rect.center().x - width / 2.0,
+        view.rect.bottom() - 66.0 - SKILL_SLOT,
+    );
+    let painter = ui.painter_at(view.rect);
+    for (slot, &id) in p.skills.iter().take(count).enumerate() {
+        let Some(t) = rules.skill(id) else {
+            continue;
+        };
+        let rect = Rect::from_min_size(
+            top_left + egui::vec2(slot as f32 * (SKILL_SLOT + gap), 0.0),
+            egui::vec2(SKILL_SLOT, SKILL_SLOT),
+        );
+        let resp = ui.allocate_rect(rect, egui::Sense::click());
+        let short = p.mana < t.mana;
+        let resting = p.cooldowns.get(&id).copied().filter(|&ready| ready > now);
+        let edge = if resp.hovered() {
+            style::GOLD
+        } else {
+            style::EDGE
+        };
+        painter.rect_filled(rect, 5.0, style::PANEL);
+        painter.rect_stroke(
+            rect,
+            5.0,
+            egui::Stroke::new(1.0, edge),
+            egui::StrokeKind::Inside,
+        );
+        let (icon, color) = match t.kind {
+            SkillKind::Heal => (icons::SPARKLE, style::GOOD),
+            SkillKind::Damage => (icons::LIGHTNING, style::GOLD),
+        };
+        let color = if short {
+            color.gamma_multiply(0.35)
+        } else {
+            color
+        };
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            icon,
+            egui::FontId::proportional(18.0),
+            color,
+        );
+        if let Some(ready) = resting {
+            let left = (ready - now) as f32 / t.cooldown_ms.max(1) as f32;
+            let mut cover = rect;
+            cover.set_top(rect.bottom() - rect.height() * left.clamp(0.0, 1.0));
+            painter.rect_filled(cover, 5.0, Color32::from_black_alpha(150));
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                format!("{}", (ready - now).div_ceil(1000)),
+                fonts::font(13.0),
+                Color32::WHITE,
+            );
+        }
+        let key = skill_key(view, slot);
+        if !key.is_empty() {
+            painter.text(
+                rect.left_top() + egui::vec2(3.0, 1.0),
+                egui::Align2::LEFT_TOP,
+                &key,
+                fonts::font(9.5),
+                style::DIM,
+            );
+        }
+        if resp.on_hover_text(skill_tip(t, &key)).clicked() {
+            actions.push(UiAction::Cast(slot));
+        }
+    }
+}
+
+/// A skill's tooltip: its name, cost, reach and rest.
+fn skill_tip(t: &c3_game::SkillType, key: &str) -> String {
+    let aim = match t.target {
+        SkillTarget::Enemy => "at the target",
+        SkillTarget::Myself => "on yourself",
+        SkillTarget::Ground => "where you point",
+    };
+    let mut tip = format!("{}\n{} mana · range {}", t.name, t.mana, t.range);
+    if t.area > 0 {
+        tip += &format!(" · area {}", t.area);
+    }
+    tip += &format!("\nCast {aim}");
+    if t.cooldown_ms > 0 {
+        tip += &format!(" · rests {:.1} s", t.cooldown_ms as f32 / 1000.0);
+    }
+    if !key.is_empty() {
+        tip += &format!(" ({key})");
+    }
+    tip
+}
+
+/// The keys of skill bar slot `slot`, as the Controls page shows them.
+fn skill_key(view: &GameView, slot: usize) -> String {
+    let action = Action::SKILLS[slot];
+    (view.controls.rows.iter())
+        .find(|r| r.action == action)
+        .map(|r| r.bindings.clone())
+        .unwrap_or_default()
 }
 
 /// The names of the other players in view, over their heads.

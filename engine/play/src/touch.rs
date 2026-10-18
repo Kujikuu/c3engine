@@ -30,6 +30,7 @@ fn icon(action: Action) -> &'static str {
         Action::Menu => icons::LIST,
         Action::Quests => icons::SCROLL,
         Action::Chat => icons::CHAT_TEXT,
+        Action::Skill1 | Action::Skill2 => icons::LIGHTNING,
         _ => icons::STAR,
     }
 }

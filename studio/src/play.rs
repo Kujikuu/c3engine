@@ -214,6 +214,11 @@ impl PlaySession {
         self.screen.session.say(line);
     }
 
+    /// Casts the skill in slot `slot` of the hero's skill bar.
+    pub fn cast_slot(&mut self, slot: usize) {
+        self.screen.session.cast_slot(slot);
+    }
+
     /// Lines for the Studio's console since the last call.
     pub fn take_log(&mut self) -> Vec<LogLine> {
         let mut log = self.screen.session.take_log();

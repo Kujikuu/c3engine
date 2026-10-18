@@ -53,6 +53,8 @@ impl Sim {
                 mana: stats.max_mana,
                 money: 0,
                 wallet: Default::default(),
+                skills: Vec::new(),
+                cooldowns: Default::default(),
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),
@@ -508,6 +510,7 @@ impl Sim {
             Task::PickUp(item) => self.walk_to_item(id, item),
             Task::Talk(npc) => self.walk_to_npc(id, npc),
             Task::Portal(cell) => self.walk_to_portal(id, cell),
+            Task::Cast { skill, at } => self.walk_to_cast(id, skill, at),
         }
     }
 

@@ -1075,6 +1075,12 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                     "gameplay.new_character.equipment",
                     &g.new_character.equipment,
                 );
+                f.numbers(
+                    ui,
+                    ("Skills", "Skills they know, in skill bar order"),
+                    "gameplay.new_character.skills",
+                    &g.new_character.skills,
+                );
             });
             heading(ui, "Game masters");
             grid(ui, "gameplay gm", |ui| {

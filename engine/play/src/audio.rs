@@ -78,6 +78,13 @@ impl GameAudio {
                 }
                 Event::Attacked { attacker, .. } => (attacker, Act::Attack),
                 Event::Died { id, .. } => (id, Act::Die),
+                Event::Cast { caster, skill, .. } => {
+                    let sound = (sim.rules().skill(skill)).and_then(|t| self.game.skill_media(t).1);
+                    if let (Some(sound), Some(cell)) = (sound, sim.cell_of(caster)) {
+                        self.audio.play_at(&sound, distance(here, cell) as f32);
+                    }
+                    continue;
+                }
                 Event::Used { player, kind } if player == hero => {
                     if let (_, Some(sound)) = self.game.item_use(kind) {
                         self.audio.play(&sound, 1.0);
