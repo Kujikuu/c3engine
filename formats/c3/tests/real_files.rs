@@ -582,3 +582,77 @@ fn gamemap_catalog_round_trips_and_resolves() {
     );
     assert!(!cat.entries.is_empty());
 }
+
+#[test]
+fn masks_tme_and_regions_round_trip() {
+    use c3_formats_tq::{mask::AlphaMask, rgn::Region, texture::decode_image, tme::TerrainEffect};
+    let Some(dir) = client_dir() else { return };
+    let mut failed = Vec::new();
+
+    // Masks: sized by their paired image (DDS, else TGA), loose or packed, as the client does.
+    let fs = c3_formats_tq::vfs::ClientFs::open(&dir).unwrap();
+    let masks = files_with_ext(&dir, "msk");
+    let mut paired = 0;
+    let mut unpaired = Vec::new();
+    let mut truncated = Vec::new();
+    for p in &masks {
+        let rel = p
+            .strip_prefix(&dir)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        let stem = &rel[..rel.len() - 3];
+        let Some(bytes) = ["DDS", "TGA"]
+            .iter()
+            .find_map(|e| fs.read(&format!("{stem}{e}")))
+        else {
+            unpaired.push(rel);
+            continue;
+        };
+        let img = decode_image(&bytes).unwrap();
+        let raw = std::fs::read(p).unwrap();
+        match AlphaMask::parse(&raw, img.width, img.height) {
+            Ok(m) if m.to_bytes() == raw => {
+                paired += 1;
+                if m.is_truncated() {
+                    truncated.push(rel);
+                }
+            }
+            Ok(_) => failed.push(format!("{}: bytes differ", p.display())),
+            Err(e) => failed.push(format!("{}: {e}", p.display())),
+        }
+    }
+
+    let tmes = files_with_ext(&dir, "tme");
+    for p in &tmes {
+        let raw = std::fs::read(p).unwrap();
+        match TerrainEffect::parse(&raw) {
+            Ok(t) if t.to_bytes() == raw => {}
+            Ok(_) => failed.push(format!("{}: bytes differ", p.display())),
+            Err(e) => failed.push(format!("{}: {e}", p.display())),
+        }
+    }
+
+    let regions = files_with_ext(&dir, "rgn");
+    for p in &regions {
+        let raw = std::fs::read(p).unwrap();
+        match Region::parse(&raw) {
+            Ok(r) if r.to_bytes() == raw => {}
+            Ok(_) => failed.push(format!("{}: bytes differ", p.display())),
+            Err(e) => failed.push(format!("{}: {e}", p.display())),
+        }
+    }
+    eprintln!(
+        "masks: {paired}/{} paired with an image · tme: {} · rgn: {}",
+        masks.len(),
+        tmes.len(),
+        regions.len()
+    );
+    eprintln!("masks without an image: {unpaired:?}; truncated masks: {truncated:?}");
+    assert!(
+        failed.is_empty(),
+        "{} failed:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
