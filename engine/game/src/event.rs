@@ -3,8 +3,9 @@
 
 use crate::EntityId;
 use c3_scene::CellPos;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Event {
     /// A monster, player or ground item came into the world.
     Appeared(EntityId),
@@ -81,6 +82,18 @@ pub enum Event {
     ShopOpened {
         player: EntityId,
         npc: u32,
+    },
+    /// The player said something (those around hear it).
+    Chat {
+        player: EntityId,
+        name: String,
+        text: String,
+    },
+    /// The answer to the player's chat command (`ok`: it worked).
+    CommandReply {
+        player: EntityId,
+        ok: bool,
+        text: String,
     },
     /// A script printed (for the console).
     ScriptLog(String),

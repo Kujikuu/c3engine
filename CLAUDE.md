@@ -32,7 +32,7 @@ append decisions, document formats as you implement them.
   target's `display_view` (gamma-space view) so colours match. Maps draw through
   `c3_render::scene_view::SceneView` in both the client and the Studio; never fork that path.
 - Screenshots for verification: `& .\scripts\shot.ps1 -App client|studio -Out x.png -AppArgs @(<app args>)` (`PrintWindow`, works when the window is behind others).
-  Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --play --talk <npc>
+  Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --online --play --talk <npc>
   --attack --bag --quests --say "/cmd" --script <name> --table <name> --dialogue <name> --node <id>
   --show <panel>`. `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.
@@ -42,3 +42,7 @@ append decisions, document formats as you implement them.
   `D:\Conquer2\Tools\eosource\client5065` (skip gracefully if absent).
 - Build: `cargo build` · Test: `cargo test` · Lint: `cargo clippy --all-targets`.
 - Toolchain: stable-x86_64-pc-windows-msvc. If `cargo` isn't on PATH, add `%USERPROFILE%\.cargo\bin`.
+- Online: `c3-server <project> --map map/map/newplain.DMap --cell 405,357 --listen 127.0.0.1`
+  (port 7101), then `c3-client --project <project> --server 127.0.0.1:7101 --account alice
+  --password pw`. Debug builds use line-tables-only debug info (full info overflows the MSVC
+  PDB); `target/` grows fast, and D: has filled up before: `cargo clean --profile dev` frees it.

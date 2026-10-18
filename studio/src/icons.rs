@@ -44,6 +44,7 @@ pub const FILE: &str = "\u{E230}";
 pub const FLOPPY_DISK: &str = "\u{E248}";
 pub const FOLDER_OPEN: &str = "\u{E256}";
 pub const GAME_CONTROLLER: &str = "\u{E26E}";
+pub const HARD_DRIVES: &str = "\u{E2A0}";
 pub const HAND: &str = "\u{E298}";
 pub const INFO: &str = "\u{E2CE}";
 pub const KEY: &str = "\u{E2D6}";

@@ -5,3 +5,8 @@ members = ["engine/*", "formats/*", "games/*", "studio", "apps/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+
+# Full debug info for the whole graph overflows the MSVC linker's PDB (LNK1140); line tables
+# keep backtraces readable.
+[profile.dev]
+debug = "line-tables-only"

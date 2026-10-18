@@ -61,6 +61,7 @@ impl Overlay {
         self.floats.retain(|f| now - f.at < FLOAT_SECONDS);
         let painter = ui.painter_at(view.rect);
         drop_labels(&painter, view);
+        player_names(&painter, view);
         let fighting = view.player().and_then(|p| match p.task {
             Task::Attack(t) => Some(t),
             _ => None,
@@ -292,6 +293,30 @@ pub(crate) fn bar(
         if ui.put(at, button).on_hover_text(hint).clicked() {
             actions.push(UiAction::ToggleSound);
         }
+    }
+}
+
+/// The names of the other players in view, over their heads.
+fn player_names(painter: &egui::Painter, view: &GameView) {
+    for p in view.sim.players().filter(|p| p.id != view.hero) {
+        let Some(at) = (view.head)(p.id) else {
+            continue;
+        };
+        if !view.rect.contains(at) {
+            continue;
+        }
+        let galley =
+            painter.layout_no_wrap(p.name.clone(), FontId::proportional(12.0), Color32::WHITE);
+        let pos = at + egui::vec2(-galley.size().x / 2.0, -galley.size().y - 4.0);
+        painter.rect_filled(
+            Rect::from_min_size(
+                pos - egui::vec2(4.0, 1.0),
+                galley.size() + egui::vec2(8.0, 2.0),
+            ),
+            3.0,
+            style::backing(0.9),
+        );
+        painter.galley(pos, galley, Color32::WHITE);
     }
 }
 

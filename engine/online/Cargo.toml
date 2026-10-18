@@ -1,0 +1,13 @@
+[package]
+name = "c3-online"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+c3-game = { version = "0.1.0", path = "../game" }
+c3-net = { version = "0.1.0", path = "../net" }
+c3-scene = { version = "0.1.0", path = "../scene" }
+postcard = { version = "1", features = ["use-std"] }
+ron = "0.12.2"
+serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.10"

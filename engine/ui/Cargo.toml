@@ -6,5 +6,6 @@ edition.workspace = true
 [dependencies]
 c3-game = { version = "0.1.0", path = "../game" }
 c3-scene = { version = "0.1.0", path = "../scene" }
-egui = "0.37.0"
+# `icons::install` builds on egui's bundled fonts (eframe turns them on; other hosts may not).
+egui = { version = "0.37.0", features = ["default_fonts"] }
 c3-script = { version = "0.1.0", path = "../script" }

@@ -4,6 +4,8 @@
 //!
 //! The game is `game_conquer::screen::GameScreen` (simulation, scripts, world, in-game UI,
 //! camera and controls), the same the client runs; Play mode gives it a renderer and pausing.
+//! Played *online*, a local game server runs the map on its own thread and the Game view is
+//! its client, as players will play it.
 
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
@@ -14,7 +16,9 @@ use c3_ui::LogLine;
 use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::egui_wgpu;
 use game_conquer::screen::{GameScreen, MAX_FRAME_SECONDS};
+use game_conquer::serve::{ServeSetup, ServedMap, ServerHandle};
 use game_conquer::session::{Session, SessionSetup};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 /// Game time one Step runs.
@@ -26,7 +30,12 @@ pub struct PlaySetup {
     pub tables: Option<PathBuf>,
     /// Game map ids of the map being played (script teleports within it work).
     pub map_ids: Vec<u32>,
+    /// Play through a local game server.
+    pub online: bool,
 }
+
+/// The account Play mode logs in to its local server with.
+const PLAY_ACCOUNT: &str = "player";
 
 /// A game being played in the Game view.
 pub struct PlaySession {
@@ -36,6 +45,8 @@ pub struct PlaySession {
     step: bool,
     /// The game's own renderer: its textures live there.
     gpu: GpuView,
+    /// The local server, when playing online.
+    server: Option<ServerHandle>,
 }
 
 impl PlaySession {
@@ -47,27 +58,73 @@ impl PlaySession {
         render_state: &egui_wgpu::RenderState,
         setup: PlaySetup,
     ) -> Result<Self, String> {
-        let seed = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(1, |d| d.as_secs());
-        let session = Session::start(
-            client.shared_content(),
-            doc.name().to_owned(),
-            doc.scene().clone(),
-            SessionSetup {
-                scripts: setup.scripts,
-                tables: setup.tables,
-                map_ids: setup.map_ids,
-                start,
-                seed,
-            },
-        )?;
+        let (session, server) = if setup.online {
+            let (session, server) = Self::join_local_server(client, doc, start, setup)?;
+            (session, Some(server))
+        } else {
+            let seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(1, |d| d.as_secs());
+            let session = Session::start(
+                client.shared_content(),
+                doc.name().to_owned(),
+                doc.scene().clone(),
+                SessionSetup {
+                    scripts: setup.scripts,
+                    tables: setup.tables,
+                    map_ids: setup.map_ids,
+                    start,
+                    seed,
+                },
+            )?;
+            (session, None)
+        };
         Ok(Self {
             screen: GameScreen::new(session),
             paused: false,
             step: false,
             gpu: GpuView::new(render_state),
+            server,
         })
+    }
+
+    /// Starts a local server on `doc` (a fresh account folder each time) and joins it.
+    fn join_local_server(
+        client: &Client,
+        doc: &MapDoc,
+        start: CellPos,
+        setup: PlaySetup,
+    ) -> Result<(Session, ServerHandle), String> {
+        let accounts = std::env::temp_dir().join(format!("c3-play-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&accounts);
+        let server = ServerHandle::spawn(
+            vec![ServedMap {
+                key: doc.name().to_owned(),
+                scene: doc.scene().clone(),
+                map_ids: setup.map_ids,
+                start,
+            }],
+            ServeSetup {
+                listen: "127.0.0.1:0".into(),
+                scripts: setup.scripts,
+                tables: setup.tables.clone(),
+                accounts,
+            },
+        )?;
+        let session = Session::join_scene(
+            client.shared_content(),
+            doc.scene().clone(),
+            setup.tables,
+            &server.addr().to_string(),
+            PLAY_ACCOUNT,
+            PLAY_ACCOUNT,
+        )?;
+        Ok((session, server))
+    }
+
+    /// The local server's address, when playing online.
+    pub fn server_addr(&self) -> Option<SocketAddr> {
+        self.server.as_ref().map(ServerHandle::addr)
     }
 
     /// Walks the hero up to NPC `id` and talks to it, as if it was clicked.
@@ -97,7 +154,16 @@ impl PlaySession {
 
     /// Lines for the Studio's console since the last call.
     pub fn take_log(&mut self) -> Vec<LogLine> {
-        self.screen.session.take_log()
+        let mut log = self.screen.session.take_log();
+        if let Some(server) = &self.server {
+            log.extend(
+                server
+                    .take_log()
+                    .into_iter()
+                    .map(|line| LogLine::Info(format!("Server: {line}"))),
+            );
+        }
+        log
     }
 
     /// Runs one frame of game time (while paused).

@@ -2,9 +2,10 @@
 //! and drops. The simulation asks; a game (`games/conquer`) answers from its tables.
 
 use crate::rng::Rng;
+use serde::{Deserialize, Serialize};
 
 /// Fighting numbers of a player or monster.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Stats {
     pub max_life: u32,
     pub max_mana: u32,

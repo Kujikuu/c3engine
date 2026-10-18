@@ -1,18 +1,20 @@
-//! A Conquer game played on this machine: the engine's simulation with Conquer's rules and
-//! the project's scripts, shown in a [`World`] with the in-game UI. The Studio's Play mode
-//! and the client host it; they own the window, camera and renderer and pass input in.
-//! (In M6 the client's session talks to a server instead of running the simulation.)
+//! A Conquer game being played: the engine's simulation with Conquer's rules and the
+//! project's scripts, shown in a [`World`] with the in-game UI. The simulation runs here
+//! ([`Session::start`]) or on a game server this session mirrors ([`Session::join`]); either
+//! way the view and UI read the same `Sim`. The Studio's Play mode and the client host it;
+//! they own the window, camera and renderer and pass input in.
 
 use crate::Content;
-use crate::character::DEFAULT_HERO;
-use crate::rules::{ConquerRules, SLOT_NAMES};
+use crate::game::{self, GameSetup};
+use crate::rules::SLOT_NAMES;
 use crate::sim_view::SimView;
 use crate::sound::GameAudio;
 use crate::world::World;
-use c3_game::{EntityId, Event, Rules, Sim};
+use c3_game::{EntityId, Event, Input, Sim, WorldUpdate};
+use c3_online::{Connection, RemoteEvent, Welcome};
+use c3_project::Project;
 use c3_render::camera::Camera2d;
 use c3_scene::{CellPos, Scene, path};
-use c3_script::{Quest, ScriptHost, quest};
 use c3_ui::{GameUi, GameView, Icons, LogLine, UiAction, style};
 use egui::{Pos2, Rect, TextureHandle, TextureId};
 use glam::Vec2;
@@ -20,8 +22,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-/// Money the hero starts with, to try shops.
-const START_MONEY: u64 = 1000;
 /// Cells within which "attack nearest" looks for a monster.
 const ATTACK_SEARCH: i32 = 10;
 /// How far (cells) the hero may start from the asked cell.
@@ -32,6 +32,26 @@ const HEAD_HEIGHT: f32 = 110.0;
 const CLICK_EFFECT: &str = "mouse";
 /// Effect played on the hero when it rises a level.
 const LEVEL_UP: &str = "LevelUp";
+/// How long joining a server may take.
+const JOIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+
+/// Where the game runs.
+enum Link {
+    Local,
+    /// On a server; the session's `Sim` mirrors it.
+    Remote(Connection),
+}
+
+/// A session's parts, gathered before it opens.
+struct Opening {
+    map_path: String,
+    scene: Scene,
+    sim: Sim,
+    hero: EntityId,
+    map_ids: Vec<u32>,
+    problems: Vec<String>,
+    link: Link,
+}
 
 /// Where a session finds the project's game and where the hero starts.
 pub struct SessionSetup {
@@ -74,10 +94,11 @@ pub struct Session {
     icons: ItemIcons,
     audio: GameAudio,
     log: Vec<LogLine>,
+    link: Link,
 }
 
 impl Session {
-    /// Starts a game on `scene` (map `map_path` of `content`).
+    /// Starts a game on `scene` (map `map_path` of `content`), simulated here.
     pub fn start(
         content: Rc<Content>,
         map_path: String,
@@ -86,62 +107,113 @@ impl Session {
     ) -> Result<Self, String> {
         let start = path::nearest_walkable(&scene.grid, setup.start, START_SEARCH)
             .ok_or("there is no walkable cell near the start")?;
-        let mut log = Vec::new();
-        let rules: Box<dyn Rules> = match &setup.tables {
-            Some(dir) => {
-                let (rules, problems) = ConquerRules::from_tables(dir);
-                log.extend(
-                    problems
-                        .into_iter()
-                        .map(|p| LogLine::Error(format!("Game rules: {p}"))),
-                );
-                Box::new(rules)
-            }
-            None => Box::new(ConquerRules::default()),
+        let game = GameSetup {
+            scripts: setup.scripts,
+            tables: setup.tables,
+            map_ids: setup.map_ids.clone(),
+            seed: setup.seed,
         };
-        let mut sim = Sim::new(
-            scene.grid.clone(),
-            scene.npcs.clone(),
-            scene.spawns.clone(),
-            rules,
-            setup.seed,
-        );
-        if let Some(dir) = &setup.tables {
-            let file = dir.join(format!("{}{}", quest::QUEST_TABLE, c3_data::TABLE_SUFFIX));
-            match c3_data::load_table(&file) {
-                Ok(table) => sim.set_quests(Quest::all(&table)),
-                Err(e) if file.exists() => log.push(LogLine::Error(format!("Quests: {e}"))),
-                Err(_) => {}
-            }
+        let (mut sim, problems) = game::new_sim(&scene, &game);
+        let hero = sim.add_saved_player(&game::new_character("Hero", start));
+        Self::open(
+            content,
+            Opening {
+                map_path,
+                scene,
+                sim,
+                hero,
+                map_ids: setup.map_ids,
+                problems,
+                link: Link::Local,
+            },
+        )
+    }
+
+    /// Joins the game server at `addr` as `account` (a new name makes the account), showing
+    /// the map of `project` it puts the player on.
+    pub fn join(
+        content: Rc<Content>,
+        project: &Project,
+        addr: &str,
+        account: &str,
+        password: &str,
+    ) -> Result<Self, String> {
+        let (conn, welcome, updates) = Connection::join(addr, account, password, JOIN_TIMEOUT)?;
+        let scene = game::load_map(project, &content, &welcome.map)?;
+        Self::joined(
+            content,
+            scene,
+            Some(project.tables_dir()),
+            (conn, welcome, updates),
+        )
+    }
+
+    /// Joins the game server at `addr`, which serves `scene` (the Studio's local server
+    /// plays the map as it is being edited); `tables` are the project's.
+    pub fn join_scene(
+        content: Rc<Content>,
+        scene: Scene,
+        tables: Option<PathBuf>,
+        addr: &str,
+        account: &str,
+        password: &str,
+    ) -> Result<Self, String> {
+        let joined = Connection::join(addr, account, password, JOIN_TIMEOUT)?;
+        Self::joined(content, scene, tables, joined)
+    }
+
+    fn joined(
+        content: Rc<Content>,
+        scene: Scene,
+        tables: Option<PathBuf>,
+        (conn, welcome, updates): (Connection, Welcome, Vec<WorldUpdate>),
+    ) -> Result<Self, String> {
+        let (mut sim, problems) = game::mirror_sim(&scene, tables.as_ref());
+        for update in updates {
+            sim.apply_update(update);
         }
-        if let Some(dir) = setup.scripts {
-            sim.set_scripts(ScriptHost::new(dir, setup.tables), setup.map_ids.clone());
-        }
-        let hero = sim.add_player("Hero", start, 1);
-        sim.set_money(hero, START_MONEY);
-        let gear = [
-            DEFAULT_HERO.armor,
-            DEFAULT_HERO.armet,
-            DEFAULT_HERO.r_weapon,
-            DEFAULT_HERO.l_weapon,
-        ];
-        for kind in gear {
-            sim.equip(hero, kind);
-        }
+        Self::open(
+            content,
+            Opening {
+                map_path: welcome.map,
+                scene,
+                sim,
+                hero: welcome.hero,
+                map_ids: welcome.map_ids,
+                problems,
+                link: Link::Remote(conn),
+            },
+        )
+    }
+
+    fn open(content: Rc<Content>, o: Opening) -> Result<Self, String> {
+        let Opening {
+            map_path,
+            scene,
+            mut sim,
+            hero,
+            map_ids,
+            problems,
+            link,
+        } = o;
+        let mut log: Vec<LogLine> = problems.into_iter().map(LogLine::Error).collect();
         // What happened while setting up is shown by attaching the view; keep the warnings.
         for event in sim.take_events() {
             if let Event::Warning(text) = event {
                 log.push(LogLine::Error(text));
             }
         }
-        let audio = GameAudio::new(content.clone(), setup.map_ids.clone());
+        let audio = GameAudio::new(content.clone(), map_ids);
         let mut world = World::new(content.clone(), map_path, scene);
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.system(
-            "Welcome! Click to walk, a monster to fight, an NPC to talk. B: bag · Enter: chat · /help",
+            "Welcome! Click to walk, a monster to fight, an NPC to talk. B: bag · L: quests · Enter: chat · /help",
             style::GOLD,
         );
+        if matches!(link, Link::Remote(_)) {
+            ui.system("Connected to the server.", style::GOOD);
+        }
         Ok(Self {
             sim,
             hero,
@@ -151,7 +223,24 @@ impl Session {
             icons: ItemIcons::new(content),
             audio,
             log,
+            link,
         })
+    }
+
+    /// Whether the game runs on a server: `Some(connected)`, or `None` when local.
+    pub fn online(&self) -> Option<bool> {
+        match &self.link {
+            Link::Local => None,
+            Link::Remote(conn) => Some(conn.is_open()),
+        }
+    }
+
+    /// Asks the game for `input`: the local simulation, or the server.
+    fn input(&mut self, input: Input) {
+        match &self.link {
+            Link::Local => self.sim.input(self.hero, input),
+            Link::Remote(conn) => conn.send(input),
+        }
     }
 
     /// Lines for the host's console since the last call.
@@ -172,7 +261,7 @@ impl Session {
 
     pub fn toggle_running(&mut self) {
         let running = self.running();
-        self.sim.set_running(self.hero, !running);
+        self.input(Input::SetRunning(!running));
     }
 
     pub fn toggle_bag(&mut self) {
@@ -196,13 +285,13 @@ impl Session {
 
     /// Walks the hero up to NPC `id` and talks to it, as if it was clicked.
     pub fn talk_to(&mut self, npc: u32) {
-        self.sim.talk(self.hero, npc);
+        self.input(Input::Talk(npc));
     }
 
     /// Sends the hero after the nearest monster it can reach.
     pub fn attack_nearest(&mut self) {
         if let Some(target) = self.sim.nearest_monster(self.hero, ATTACK_SEARCH) {
-            self.sim.attack(self.hero, target);
+            self.input(Input::Attack(target));
         }
     }
 
@@ -215,14 +304,14 @@ impl Session {
     /// walk there.
     pub fn click(&mut self, point: Vec2) {
         if let Some(npc) = self.world.npc_at(point).map(|n| n.id) {
-            self.sim.talk(self.hero, npc);
+            self.input(Input::Talk(npc));
         } else if let Some(monster) = self.monster_at(point) {
-            self.sim.attack(self.hero, monster);
+            self.input(Input::Attack(monster));
         } else if let Some(item) = self.view.item_at(&self.sim, &self.world, point) {
-            self.sim.pick_up(self.hero, item);
+            self.input(Input::PickUp(item));
         } else {
             let cell = self.world.scene.world_to_cell((point.x, point.y));
-            self.sim.walk(self.hero, cell);
+            self.input(Input::Walk(cell));
             if self
                 .world
                 .scene
@@ -238,7 +327,22 @@ impl Session {
 
     /// Runs `seconds` of game and shows what happened (`now`: UI time in seconds).
     pub fn advance(&mut self, seconds: f32, now: f64) {
-        self.sim.advance((seconds * 1000.0).round() as u64);
+        match &mut self.link {
+            Link::Local => self.sim.advance((seconds * 1000.0).round() as u64),
+            Link::Remote(conn) => {
+                for event in conn.poll() {
+                    match event {
+                        RemoteEvent::Update(update) => self.sim.apply_update(update),
+                        RemoteEvent::Closed(why) => {
+                            let why =
+                                why.unwrap_or_else(|| "the server closed the connection".into());
+                            self.ui.system(format!("Disconnected: {why}"), style::BAD);
+                        }
+                        RemoteEvent::Welcome(_) | RemoteEvent::Refused(_) => {}
+                    }
+                }
+            }
+        }
         let events = self.sim.take_events();
         self.view.apply(&events, &self.sim, &mut self.world);
         self.ui.events(&events, &self.sim, self.hero, now);
@@ -294,26 +398,18 @@ impl Session {
     }
 
     fn act(&mut self, action: UiAction) {
-        let hero = self.hero;
-        match action {
-            UiAction::Answer(i) => self.sim.answer(hero, i),
-            UiAction::CloseDialogue => self.sim.close_dialogue(hero),
-            UiAction::Buy { npc, kind } => self.sim.buy(hero, npc, kind),
-            UiAction::Sell { npc, item } => self.sim.sell(hero, npc, item),
-            UiAction::CloseShop => self.sim.close_shop(hero),
-            UiAction::Use(item) => self.sim.use_item(hero, item),
-            UiAction::Unequip(item) => self.sim.unequip(hero, item),
-            UiAction::ToggleSound => self.audio.toggle_muted(),
-            UiAction::Say(text) if text.starts_with('/') => match self.sim.command(hero, &text) {
-                Ok(answer) => self.ui.system(answer, style::GOOD),
-                Err(why) => self.ui.system(why, style::WARN),
-            },
-            UiAction::Say(text) => {
-                let name = self.sim.player(hero).map_or("You", |p| p.name.as_str());
-                let line = format!("{name}: {text}");
-                self.ui.system(line, style::TEXT);
-            }
-        }
+        let input = match action {
+            UiAction::Answer(i) => Input::Answer(i),
+            UiAction::CloseDialogue => Input::CloseDialogue,
+            UiAction::Buy { npc, kind } => Input::Buy { npc, kind },
+            UiAction::Sell { npc, item } => Input::Sell { npc, item },
+            UiAction::CloseShop => Input::CloseShop,
+            UiAction::Use(item) => Input::Use(item),
+            UiAction::Unequip(item) => Input::Unequip(item),
+            UiAction::Say(text) => Input::Say(text),
+            UiAction::ToggleSound => return self.audio.toggle_muted(),
+        };
+        self.input(input);
     }
 }
 

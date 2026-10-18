@@ -4,20 +4,21 @@ use crate::EntityId;
 use crate::rules::{Fighter, Stats};
 use c3_scene::CellPos;
 use c3_script::Conversation;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
 /// Items a player's bag holds.
 pub const BAG_SIZE: usize = 40;
 
 /// One item someone carries; `id` is unique in the world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     pub id: u32,
     pub kind: u32,
 }
 
 /// What a player is doing.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Task {
     #[default]
     Idle,
@@ -31,7 +32,7 @@ pub enum Task {
     Talk(u32),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub id: EntityId,
     pub name: String,
@@ -80,7 +81,7 @@ impl Player {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Monster {
     pub id: EntityId,
     /// Its monster type.
@@ -115,7 +116,7 @@ impl Monster {
 }
 
 /// Money or an item lying on the ground.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroundItem {
     pub id: EntityId,
     pub cell: CellPos,

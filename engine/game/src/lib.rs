@@ -9,24 +9,31 @@ mod dialogue;
 mod entity;
 mod event;
 mod index;
+mod input;
 mod monsters;
 mod players;
 mod quests;
+mod remote;
 mod rng;
 mod rules;
+mod save;
 mod sim;
 
 pub use commands::HELP as COMMAND_HELP;
 pub use entity::{BAG_SIZE, GroundItem, Item, Monster, Player, Task};
 pub use event::Event;
+pub use input::{Input, MAX_CHAT};
+pub use remote::{EntityState, VIEW_RANGE, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{Drop, Fighter, ItemType, MonsterType, Rules, Stats};
+pub use save::PlayerSave;
 pub use sim::{Sim, TICK_MS};
 
 use c3_scene::CellPos;
+use serde::{Deserialize, Serialize};
 
 /// A player, monster or ground item; unique in a [`Sim`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EntityId(pub u32);
 
 /// How long a dead monster lies before it vanishes (ms).

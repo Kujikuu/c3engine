@@ -17,6 +17,8 @@ c3engine/
     script/    Rhai script host: sandboxed, hot reload, NPC dialogue + quest API, editor
                diagnostics; dialogue graphs (`dialogues/*.dialogue.ron`) compiled to scripts;
                the quest model (`tables/quests.table.ron`, state in player variables)
+    online/    c3-online: the engine's client/server protocol over c3-net: GameServer (maps,
+               logins, per-player views, saves), Connection (a client's end), Accounts
     project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
                sources, recent projects)
     game/      c3-game: the simulation shared by Play mode, client and server: one map's
@@ -30,13 +32,16 @@ c3engine/
   formats/
     c3/        c3-formats-tq: TQ format plugins (read + write)
   games/
-    conquer/   game-conquer: 5065 protocol + crypto, rules, UI, content (Redux compatible)
+    conquer/   game-conquer: rules, content, session (local or joined), `game.rs` (maps,
+               simulations and new characters for every host), `serve.rs` (a server thread);
+               5065 protocol + crypto next
   studio/      c3-studio: egui editor (map, model, anim, effect, UI, tables, scripts, dialogue
                graphs + quests, assistant)
   apps/
     client/    c3-client: plays a game project (`game.rs`: GameScreen + egui-winit/egui-wgpu
                UI layer) or views a Conquer client's maps (`main.rs` viewer)
-    server/    (planned) c3-server: game server built from a project (accounts, database)
+    server/    c3-server: serves a game project's maps to clients (engine protocol; accounts and
+               characters in `<project>/server/accounts`)
     mcp/       (planned) c3-mcp: MCP server exposing c3-edit to external AI agents
   docs/        this documentation (source of truth for context)
 ```

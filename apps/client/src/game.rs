@@ -1,9 +1,10 @@
 //! Playing a game project: the project's map with its NPCs and monsters, its rules and
-//! scripts, and the in-game UI — the same game the Studio's Play mode runs, in its own window.
+//! scripts, and the in-game UI — the same game the Studio's Play mode runs, in its own window,
+//! simulated here or played on a game server.
 
 use crate::gfx::Gfx;
 use crate::ui_layer::UiLayer;
-use c3_scene::{CellPos, Scene};
+use c3_scene::CellPos;
 use game_conquer::Content;
 use game_conquer::screen::{GameScreen, MAX_FRAME_SECONDS};
 use game_conquer::session::{Session, SessionSetup};
@@ -18,6 +19,14 @@ use winit::window::{Window, WindowId};
 /// Twin City.
 const DEFAULT_MAP_ID: u32 = 1002;
 
+/// A game server to play on.
+pub struct Online {
+    /// `host:port`.
+    pub server: String,
+    pub account: String,
+    pub password: String,
+}
+
 /// What to play.
 pub struct GameArgs {
     pub project: String,
@@ -25,6 +34,8 @@ pub struct GameArgs {
     pub map: Option<String>,
     pub map_id: Option<u32>,
     pub cell: Option<CellPos>,
+    /// Play on a server (which picks the map) instead of here.
+    pub online: Option<Online>,
 }
 
 /// Opens the game window and plays until it is closed.
@@ -34,27 +45,10 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         .tq_client()
         .ok_or("the project has no Conquer content to play")?;
     let content = Rc::new(Content::open(content_dir)?);
-    let (path, scene) = load_map(&project, &content, &args)?;
-    let g = &scene.grid;
-    let start = args
-        .cell
-        .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
-    let seed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(1, |d| d.as_secs());
-    let map_ids = content.map_ids_for_path(&path);
-    let session = Session::start(
-        content,
-        path,
-        scene,
-        SessionSetup {
-            scripts: Some(project.scripts_dir()),
-            tables: Some(project.tables_dir()),
-            map_ids,
-            start,
-            seed,
-        },
-    )?;
+    let session = match &args.online {
+        Some(o) => Session::join(content, &project, &o.server, &o.account, &o.password)?,
+        None => local_session(&project, content, &args)?,
+    };
     let mut app = GameApp {
         screen: GameScreen::new(session),
         title: format!("{} — C3 Client", project.name()),
@@ -66,22 +60,15 @@ pub fn run(args: GameArgs) -> Result<(), String> {
     event_loop.run_app(&mut app).map_err(|e| e.to_string())
 }
 
-/// The map to play: `--map` names an engine scene or a content map file (with the project's
-/// population for it); otherwise `--map-id` (default Twin City) from the content's catalog.
-fn load_map(
+/// A game simulated here on the map `--map` names (an engine scene or a content map file),
+/// else `--map-id` (default Twin City) from the content's catalog.
+fn local_session(
     project: &c3_project::Project,
-    content: &Content,
+    content: Rc<Content>,
     args: &GameArgs,
-) -> Result<(String, Scene), String> {
-    if let Some(name) = &args.map
-        && project.map_names().contains(name)
-    {
-        let scene = c3_scene::native::load_scene(&project.map_file(name))
-            .map_err(|e| format!("map {name}: {e}"))?;
-        return Ok((name.clone(), scene));
-    }
-    let path = match &args.map {
-        Some(path) => path.clone(),
+) -> Result<Session, String> {
+    let key = match &args.map {
+        Some(map) => map.clone(),
         None => {
             let id = args.map_id.unwrap_or(DEFAULT_MAP_ID);
             content
@@ -89,14 +76,27 @@ fn load_map(
                 .ok_or(format!("map {id} is not in GameMap.dat"))?
         }
     };
-    let mut scene = content.load_map(&path)?.scene;
-    // The project keeps a content map's NPCs and spawn areas next to its maps.
-    let stem = path.rsplit(['/', '\\']).next().unwrap_or(&path);
-    let stem = stem.rsplit_once('.').map_or(stem, |(s, _)| s);
-    let population = c3_scene::native::load_population(&project.population_file(stem))
-        .map_err(|e| e.to_string())?;
-    scene.set_population(population);
-    Ok((path, scene))
+    let scene = game_conquer::game::load_map(project, &content, &key)?;
+    let g = &scene.grid;
+    let start = args
+        .cell
+        .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(1, |d| d.as_secs());
+    let map_ids = content.map_ids_for_path(&key);
+    Session::start(
+        content,
+        key,
+        scene,
+        SessionSetup {
+            scripts: Some(project.scripts_dir()),
+            tables: Some(project.tables_dir()),
+            map_ids,
+            start,
+            seed,
+        },
+    )
 }
 
 struct GameApp {

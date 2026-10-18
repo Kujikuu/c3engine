@@ -5,9 +5,11 @@
 
 pub mod actor;
 pub mod character;
+pub mod game;
 pub mod npc;
 pub mod rules;
 pub mod screen;
+pub mod serve;
 pub mod server_data;
 pub mod session;
 pub mod sim_view;

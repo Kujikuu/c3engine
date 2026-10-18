@@ -2,7 +2,8 @@
 //!
 //! Playing a game project: `c3-client --project <folder> [--map <project map> |
 //! map/map/xxx.DMap | --map-id 1002] [--cell x,y]` runs the project's game (monsters, NPCs,
-//! scripts, in-game UI); see `game.rs`.
+//! scripts, in-game UI) on this machine; with `--server host:port --account <name>
+//! [--password <pw>]` it plays on that game server instead (see `game.rs`).
 //!
 //! Viewing a Conquer client's maps: `c3-client [client_dir] [--map map/map/xxx.DMap |
 //! --map-id 1002] [--cell x,y] [--zoom 1.0] [--actor <3dobj id> | --player
@@ -291,6 +292,10 @@ struct Args {
     client: String,
     /// Game project to play: its maps, with art from its Conquer client source.
     project: Option<String>,
+    /// Game server to play on (with `project`), and the account to log in with.
+    server: Option<String>,
+    account: Option<String>,
+    password: Option<String>,
     map: Option<String>,
     map_id: Option<u32>,
     /// Start centred on this cell instead of fitting the whole map.
@@ -327,6 +332,9 @@ fn parse_args() -> Args {
         map: flag("--map"),
         map_id: flag("--map-id").and_then(|v| v.parse().ok()),
         project: flag("--project"),
+        server: flag("--server"),
+        account: flag("--account"),
+        password: flag("--password"),
         cell: flag("--cell").and_then(|v| parse_cell(&v)),
         zoom: flag("--zoom").and_then(|v| v.parse().ok()),
         actor: flag("--actor").and_then(|v| v.parse().ok()),
@@ -385,11 +393,17 @@ fn load_world(args: &Args) -> Result<World, String> {
 fn main() {
     let args = parse_args();
     if let Some(project) = args.project.clone() {
+        let online = args.server.map(|server| game::Online {
+            server,
+            account: args.account.unwrap_or_else(|| "player".into()),
+            password: args.password.unwrap_or_else(|| "player".into()),
+        });
         let game = game::GameArgs {
             project,
             map: args.map,
             map_id: args.map_id,
             cell: args.cell,
+            online,
         };
         if let Err(e) = game::run(game) {
             eprintln!("error: {e}");

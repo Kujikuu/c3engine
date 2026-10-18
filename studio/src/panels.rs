@@ -536,6 +536,15 @@ impl Studio {
                     false => (icons::PLAY, "Playing"),
                 };
                 ui.colored_label(theme::ACCENT, theme::icon_text(icon, state));
+                if let Some(addr) = session.server_addr() {
+                    ui.label(
+                        RichText::new(theme::icon_text(
+                            icons::HARD_DRIVES,
+                            &format!("through a local server at {addr}"),
+                        ))
+                        .color(theme::TEXT_DIM),
+                    );
+                }
                 ui.label(RichText::new("Stop (Ctrl+P) returns to editing").color(theme::TEXT_DIM));
             } else if let Some(doc) = &self.doc {
                 ui.label(self.save_target().unwrap_or_else(|| doc.name().to_owned()));

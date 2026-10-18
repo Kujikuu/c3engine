@@ -74,6 +74,10 @@ impl Chat {
             }
             Event::Message { player, text } if *player == hero => Some((text.clone(), style::WARN)),
             Event::Notice { player, text } if *player == hero => Some((text.clone(), style::GOLD)),
+            Event::Chat { name, text, .. } => Some((format!("{name}: {text}"), style::TEXT)),
+            Event::CommandReply { player, ok, text } if *player == hero => {
+                Some((text.clone(), if *ok { style::GOOD } else { style::WARN }))
+            }
             _ => None,
         };
         if let Some((text, color)) = line {

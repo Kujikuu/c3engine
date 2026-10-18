@@ -86,6 +86,8 @@ pub struct Studio {
     /// The Dialogue panel: dialogue graphs, the one being edited, and the quests.
     pub(crate) dialogues: crate::dialogue_panel::DialoguePanel,
     pub(crate) focus: Focus,
+    /// Play runs a local game server and joins it.
+    pub(crate) play_online: bool,
     /// The open map drawn as the game draws it; needs the project's content.
     pub(crate) live_scene: Option<LiveScene>,
     /// Which parts of the scene the Scene view draws.
@@ -175,6 +177,7 @@ impl Studio {
             data: Default::default(),
             scripts: Default::default(),
             dialogues: Default::default(),
+            play_online: false,
             focus: Focus::Scene,
             live_scene: None,
             layers: Layers::default(),
@@ -268,6 +271,7 @@ impl Studio {
         {
             s.show_panel(panel);
         }
+        s.play_online = args.iter().any(|a| a == "--online");
         if args.iter().any(|a| a == "--play") {
             s.toggle_play();
         }

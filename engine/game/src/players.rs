@@ -63,6 +63,20 @@ impl Sim {
         p.path = path::find_path(&self.grid, p.cell, goal, &PLAYER_PATH).into();
     }
 
+    /// Whether a player can walk from `from` to `to` in a few steps (`to` walkable, a short
+    /// path between).
+    pub fn reachable(&self, from: CellPos, to: CellPos, max_steps: usize) -> bool {
+        if from == to {
+            return self.walkable(to);
+        }
+        let rules = PathRules {
+            max_nodes: 2_000,
+            ..PLAYER_PATH
+        };
+        let path = path::find_path(&self.grid, from, to, &rules);
+        path.last() == Some(&to) && path.len() <= max_steps
+    }
+
     /// Walks the player to `goal` (or as near as it can get).
     pub fn walk(&mut self, id: EntityId, goal: CellPos) {
         self.stop_talking(id);

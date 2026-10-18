@@ -1,6 +1,7 @@
 //! What a script talks to and what it answers: the player it may change, the NPC it speaks
 //! for, and the dialogue page it builds.
 
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// The player a script runs for: read and changed by the script, kept by the game.
@@ -40,14 +41,14 @@ impl PlayerState {
 }
 
 /// The NPC a dialogue is with.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NpcInfo {
     pub id: u32,
     pub name: String,
 }
 
 /// One answer the player can pick.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialogOption {
     pub label: String,
     /// Script function run when picked; `None` closes the dialogue.
@@ -55,7 +56,7 @@ pub struct DialogOption {
 }
 
 /// What the NPC says and the answers offered.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialogPage {
     pub lines: Vec<String>,
     pub options: Vec<DialogOption>,

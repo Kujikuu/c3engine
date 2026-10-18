@@ -4,7 +4,7 @@
 use crate::dialog::{DialogPage, Effect, NpcInfo, PlayerState};
 use crate::host::{ScriptError, ScriptHost, TALK};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Conversation {
     pub script: String,
     pub npc: NpcInfo,

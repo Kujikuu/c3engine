@@ -255,7 +255,7 @@ impl Studio {
 
             // Play controls in the middle.
             let middle = ui.available_rect_before_wrap().center().x;
-            let width = 3.0 * 30.0;
+            let width = 4.0 * 30.0;
             ui.add_space((middle - ui.cursor().left() - width / 2.0).max(8.0));
             let playing = self.playing.is_some();
             let play_hint = if playing {
@@ -270,18 +270,35 @@ impl Studio {
                 }
             });
             let paused = self.playing.as_ref().is_some_and(|p| p.paused);
-            ui.add_enabled_ui(playing, |ui| {
-                if theme::icon_toggle(ui, paused, icons::PAUSE, "Pause (Ctrl+Shift+P)").clicked()
+            let online = self.playing.as_ref().is_some_and(|p| p.server_addr().is_some());
+            ui.add_enabled_ui(playing && !online, |ui| {
+                let pause = theme::icon_toggle(ui, paused, icons::PAUSE, "Pause (Ctrl+Shift+P)")
+                    .on_disabled_hover_text("A server keeps its own time: online play can't pause");
+                if pause.clicked()
                     && let Some(session) = &mut self.playing
                 {
                     session.paused ^= true;
                 }
-                let step = theme::icon_toggle(ui, false, icons::SKIP_FORWARD, "Step one frame");
+                let step = theme::icon_toggle(ui, false, icons::SKIP_FORWARD, "Step one frame")
+                    .on_disabled_hover_text("A server keeps its own time: online play can't step");
                 if step.clicked()
                     && let Some(session) = &mut self.playing
                 {
                     session.paused = true;
                     session.step();
+                }
+            });
+            ui.add_enabled_ui(!playing, |ui| {
+                let hint = if self.play_online {
+                    "Online: Play runs a local game server and joins it, as players will (click for offline)"
+                } else {
+                    "Offline: Play simulates the game in the Studio (click to play through a local server)"
+                };
+                if theme::icon_toggle(ui, self.play_online, icons::HARD_DRIVES, hint)
+                    .on_disabled_hover_text("Stop playing to switch between offline and online")
+                    .clicked()
+                {
+                    self.play_online ^= true;
                 }
             });
 
@@ -318,6 +335,7 @@ impl Studio {
                 MapRef::Client(path) => client.map_ids(path),
                 MapRef::Project(_) => Vec::new(),
             },
+            online: self.play_online,
         };
         match crate::play::PlaySession::start(client, doc, start, state, setup) {
             Ok(session) => {

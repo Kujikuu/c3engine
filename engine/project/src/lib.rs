@@ -187,6 +187,11 @@ impl Project {
         self.root.join("scripts")
     }
 
+    /// Folder the project's game server keeps its data in (accounts and characters).
+    pub fn server_dir(&self) -> PathBuf {
+        self.root.join("server")
+    }
+
     /// Folder holding the project's dialogue graphs (`dialogues/**/*.dialogue.ron`).
     pub fn dialogues_dir(&self) -> PathBuf {
         self.root.join("dialogues")
