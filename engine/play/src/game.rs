@@ -69,6 +69,7 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     sim.set_map_ids(setup.map_ids.clone());
     sim.set_pk(setup.pk);
     sim.set_portals(&scene.portals);
+    sim.set_regions(scene.regions.clone());
     if let Some(dir) = &setup.scripts {
         sim.set_scripts(
             ScriptHost::new(dir, setup.tables.clone()),
@@ -89,6 +90,7 @@ pub fn mirror_sim(
     let (rules, mut problems) = rules_of(game, tables);
     let mut sim = Sim::new(scene.grid.clone(), scene.npcs.clone(), Vec::new(), rules, 0);
     sim.set_settings(settings.clone());
+    sim.set_regions(scene.regions.clone());
     sim.set_quests(quests(tables, &mut problems));
     (sim, problems)
 }

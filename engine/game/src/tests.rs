@@ -1039,3 +1039,59 @@ fn the_events_script_hears_login_maps_kills_uses_and_timers() {
     assert_eq!(sim.player(hero).unwrap().flags["used"], i64::from(POTION));
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn safe_and_no_pk_regions_stop_fights_and_scripts_hear_regions() {
+    use c3_scene::Region;
+    let dir = std::env::temp_dir().join(format!("c3-game-regions-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_enter_region(id) { set_flag(\"in\", id); }\n\
+         fn on_leave_region(id) { set_flag(\"out\", id); }\n",
+    )
+    .unwrap();
+    let mut sim = Sim::new(
+        Grid::new(40, 40),
+        vec![],
+        vec![spawn(1, WOLF, (6, 6), (6, 6), 1)],
+        rules(),
+        3,
+    );
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    sim.set_regions(vec![
+        Region {
+            id: 1,
+            min: (0, 0),
+            max: (9, 9),
+            safe: true,
+            ..Region::default()
+        },
+        Region {
+            id: 2,
+            min: (20, 20),
+            max: (29, 29),
+            no_pk: true,
+            ..Region::default()
+        },
+    ]);
+    sim.set_pk(true);
+    // A wolf right next to a player in a safe zone leaves it be.
+    let hero = sim.add_player("Hero", (5, 5), 1);
+    sim.advance(10_000);
+    let p = sim.player(hero).unwrap();
+    assert_eq!(p.life, p.stats.max_life, "safe from the wolf");
+    assert_eq!(p.flags["in"], 1, "on_enter_region");
+    // Two players in the no-PK zone can't fight.
+    let a = sim.add_player("A", (25, 25), 1);
+    let b = sim.add_player("B", (26, 25), 1);
+    sim.attack(a, b);
+    sim.advance(3000);
+    let life = sim.player(b).unwrap().stats.max_life;
+    assert_eq!(sim.player(b).unwrap().life, life, "no PK here");
+    // Walking out tells the script.
+    sim.walk(hero, (15, 15));
+    sim.advance(10_000);
+    assert_eq!(sim.player(hero).unwrap().flags["out"], 1, "on_leave_region");
+    std::fs::remove_dir_all(dir).ok();
+}

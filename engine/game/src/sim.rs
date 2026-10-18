@@ -43,6 +43,8 @@ pub struct Sim {
     /// Portals that lead somewhere: their cells and destinations.
     pub(crate) portals: Vec<(CellPos, c3_scene::PortalTarget)>,
     pub(crate) quests: Vec<c3_script::Quest>,
+    /// The map's regions (safe zones, markets…).
+    pub(crate) regions: Vec<c3_scene::Region>,
 }
 
 impl Sim {
@@ -82,6 +84,7 @@ impl Sim {
             pk: false,
             portals: Vec::new(),
             quests: Vec::new(),
+            regions: Vec::new(),
         };
         sim.fill_spawns();
         sim
@@ -143,6 +146,7 @@ impl Sim {
         for id in ids {
             self.tick_monster(id);
         }
+        self.tick_regions();
         self.tick_spawns();
         self.expire_items();
         for problem in self.rules.take_problems() {

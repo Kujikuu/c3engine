@@ -17,6 +17,7 @@ mod players;
 mod portals;
 mod pvp;
 mod quests;
+mod regions;
 mod remote;
 mod rng;
 mod rules;

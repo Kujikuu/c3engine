@@ -33,6 +33,7 @@ pub mod session;
 pub mod settings;
 pub mod sim_view;
 pub mod touch;
+pub mod weather;
 pub mod world;
 
 pub use character::{Attachment, Character, CharacterMotions, Look, LookKind, PartModel};

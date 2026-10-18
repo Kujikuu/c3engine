@@ -39,11 +39,21 @@ pub fn pk_map(settings: &ProjectSettings, map_ids: &[u32]) -> bool {
 /// The scene light of the map answering to `map_ids`: its own (the map list's `light`), or
 /// the project's.
 pub fn map_light(settings: &ProjectSettings, map_ids: &[u32]) -> c3_render::Light {
+    place_light(settings, map_ids, None)
+}
+
+/// The scene light of a place on the map answering to `map_ids`: the region's `region`
+/// light, else the map's, else the project's.
+pub fn place_light(
+    settings: &ProjectSettings,
+    map_ids: &[u32],
+    region: Option<[u8; 3]>,
+) -> c3_render::Light {
     let mut graphics = settings.graphics.clone();
-    if let Some(light) = (settings.maps.iter())
+    let map = (settings.maps.iter())
         .find(|m| map_ids.contains(&m.id))
-        .and_then(|m| m.light)
-    {
+        .and_then(|m| m.light);
+    if let Some(light) = region.or(map) {
         graphics.light = light;
     }
     crate::world::scene_light(&graphics)

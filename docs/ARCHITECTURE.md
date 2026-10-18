@@ -108,7 +108,8 @@ tables/*.table.ron + scripts/rules.rhai ──► c3_play::data_rules::DataRules
    shops, skills (target, kind, range, area, cooldown, mana, power, status), statuses
 Sim: skills.rs (cast task), statuses.rs, pvp.rs, monster_ai.rs, script_events.rs
    ──► Event::Cast / Healed / StatusStarted / StatusEnded ──► SimView effects, HUD, audio
-scripts/events.rhai: on_login, on_enter(map), on_kill(monster), on_use(item), on_timer(name)
+scripts/events.rhai: on_login, on_enter(map), on_kill(monster), on_use(item), on_timer(name),
+on_enter_region(id), on_leave_region(id)
 ```
 
 ## Drawing a scene: one path for the game and the editor

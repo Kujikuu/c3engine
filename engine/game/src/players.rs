@@ -58,6 +58,7 @@ impl Sim {
                 statuses: Vec::new(),
                 pk_kills: 0,
                 timers: Vec::new(),
+                regions: Vec::new(),
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),

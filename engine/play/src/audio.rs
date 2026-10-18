@@ -102,7 +102,8 @@ impl GameAudio {
         }
     }
 
-    /// Music for where the hero stands (`now` in seconds).
+    /// Music and ambience for where the hero stands (`now` in seconds): a region's own
+    /// music first, then the game's music regions, then the map's music.
     pub fn update(&mut self, sim: &Sim, hero: EntityId, now: f64) {
         let Some(cell) = sim.player(hero).map(|p| p.cell) else {
             return;
@@ -110,8 +111,19 @@ impl GameAudio {
         if let Some(track) = self.music.update(&self.map_ids, cell, now) {
             self.region_music = track;
         }
-        let track = self.region_music.as_ref().or(self.map_music.as_ref());
+        let here = |pick: fn(&c3_scene::Region) -> &String| {
+            sim.regions_at(cell)
+                .map(pick)
+                .find(|s| !s.is_empty())
+                .cloned()
+        };
+        let own = here(|r| &r.music);
+        let track = own
+            .as_ref()
+            .or(self.region_music.as_ref())
+            .or(self.map_music.as_ref());
         self.audio.set_music(track.map(String::as_str));
+        self.audio.set_ambience(here(|r| &r.sound).as_deref());
     }
 }
 

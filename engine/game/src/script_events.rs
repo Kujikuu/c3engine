@@ -1,8 +1,9 @@
 //! What happens to players beyond talking, as the project's events script says
 //! (`scripts/events.rhai`, every function optional): `on_login()` when a player comes into
 //! the game, `on_enter(map)` on each map it arrives on, `on_kill(monster)` and
-//! `on_use(item)` with the type's id, and `on_timer(name)` when a timer the script started
-//! (`start_timer(name, seconds)`) runs out. They see and change the player as NPC scripts
+//! `on_use(item)` with the type's id, `on_timer(name)` when a timer the script started
+//! (`start_timer(name, seconds)`) runs out, and `on_enter_region(id)` / `on_leave_region(id)`
+//! as the player walks into or out of one of the map's regions. They see and change the player as NPC scripts
 //! do; a page they build opens as a dialogue.
 
 use crate::EntityId;

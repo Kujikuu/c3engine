@@ -113,6 +113,7 @@ impl Sim {
                 p.is_alive()
                     && distance(p.cell, cell) <= view.max(1) * 2
                     && (boss || distance(cell, home) <= leash)
+                    && self.may_fight(cell, p.cell, false)
             })
         });
         let target = target.or_else(|| {
@@ -121,7 +122,10 @@ impl Sim {
             }
             self.index
                 .near(cell, view)
-                .filter(|(e, _)| self.players.get(e).is_some_and(|p| p.is_alive()))
+                .filter(|(e, c)| {
+                    self.players.get(e).is_some_and(|p| p.is_alive())
+                        && self.may_fight(cell, *c, false)
+                })
                 .min_by_key(|(_, c)| distance(*c, cell))
                 .map(|(e, _)| e)
         });

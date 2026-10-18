@@ -1,5 +1,6 @@
 //! c3-audio: the game's sound. [`Audio`] plays one-shot sounds (actions, effects, UI) softer
-//! with distance from the listener, and one music track at a time; sound files come from the
+//! with distance from the listener, one music track and one looped ambience (wind, a crowd)
+//! at a time; sound files come from the
 //! game through a loader ([`SoundFile`]: the bytes and how loud and whether to loop), decoded
 //! as WAV, OGG Vorbis or MP3. [`MusicDirector`] picks music by where the
 //! player stands (music regions). Without a sound device everything stays silent.
@@ -48,12 +49,27 @@ struct Loaded {
     looped: bool,
 }
 
+/// A sound that plays on until replaced: the music or the ambience.
+#[derive(Default)]
+struct Channel {
+    player: Option<Player>,
+    /// The file playing.
+    path: Option<String>,
+}
+
+/// Which [`Channel`] (music or ambience).
+#[derive(Clone, Copy)]
+enum Line {
+    Music,
+    Ambience,
+}
+
 pub struct Audio {
     /// The sound device; `None` when there is none (silent).
     sink: Option<MixerDeviceSink>,
-    music: Option<Player>,
-    /// The music track playing.
-    music_path: Option<String>,
+    music: Channel,
+    /// Looped while the listener is somewhere (a region's sound).
+    ambience: Channel,
     load: Loader,
     /// Loaded files (`None`: missing or unreadable, not tried again).
     files: HashMap<String, Option<Loaded>>,
@@ -92,8 +108,8 @@ impl Audio {
         });
         Self {
             sink,
-            music: None,
-            music_path: None,
+            music: Channel::default(),
+            ambience: Channel::default(),
             load,
             files: HashMap::new(),
             muted: false,
@@ -106,12 +122,31 @@ impl Audio {
         self.volumes
     }
 
-    /// Plays at `volumes` from now on (the music playing too).
+    /// Plays at `volumes` from now on (the music and ambience playing too).
     pub fn set_volumes(&mut self, volumes: Volumes) {
         self.volumes = volumes;
-        if let Some(music) = &self.music {
-            music.set_volume(volumes.master * volumes.music);
+        for track in [Line::Music, Line::Ambience] {
+            let volume = self.channel_volume(track);
+            if let Some(player) = &self.channel(track).player {
+                player.set_volume(volume);
+            }
         }
+    }
+
+    fn channel(&mut self, track: Line) -> &mut Channel {
+        match track {
+            Line::Music => &mut self.music,
+            Line::Ambience => &mut self.ambience,
+        }
+    }
+
+    /// A channel's loudness from the volumes (before each file's own).
+    fn channel_volume(&self, track: Line) -> f32 {
+        let kind = match track {
+            Line::Music => self.volumes.music,
+            Line::Ambience => self.volumes.sound,
+        };
+        self.volumes.master * kind
     }
 
     /// Whether a sound device is open.
@@ -123,14 +158,16 @@ impl Audio {
         self.muted
     }
 
-    /// Mutes or unmutes everything (music pauses while muted).
+    /// Mutes or unmutes everything (music and ambience pause while muted).
     pub fn set_muted(&mut self, muted: bool) {
         self.muted = muted;
-        if let Some(music) = &self.music {
-            if muted {
-                music.pause();
-            } else {
-                music.play();
+        for channel in [&self.music, &self.ambience] {
+            if let Some(player) = &channel.player {
+                if muted {
+                    player.pause();
+                } else {
+                    player.play();
+                }
             }
         }
     }
@@ -192,22 +229,34 @@ impl Audio {
 
     /// Starts music `path` (from its start) unless it is already playing; `None` stops it.
     pub fn set_music(&mut self, path: Option<&str>) {
-        if self.music_path.as_deref() == path {
+        self.start(Line::Music, path, false);
+    }
+
+    /// Loops sound `path` (from its start) unless it is already playing; `None` stops it.
+    pub fn set_ambience(&mut self, path: Option<&str>) {
+        self.start(Line::Ambience, path, true);
+    }
+
+    /// Plays `path` on `track` in place of what plays there; `looped`, or as the file says.
+    fn start(&mut self, track: Line, path: Option<&str>, looped: bool) {
+        if self.channel(track).path.as_deref() == path {
             return;
         }
-        if let Some(old) = self.music.take() {
+        let channel = self.channel(track);
+        if let Some(old) = channel.player.take() {
             old.stop();
         }
-        self.music_path = path.map(str::to_owned);
-        let (Some(path), Some(sink)) = (path, &self.sink) else {
+        channel.path = path.map(str::to_owned);
+        let Some(path) = path else { return };
+        let Some(mixer) = self.sink.as_ref().map(|s| s.mixer().clone()) else {
             return;
         };
-        let player = Player::connect_new(sink.mixer());
         let Some((source, file)) = self.decode(path) else {
             return;
         };
-        player.set_volume(file.volume * self.volumes.master * self.volumes.music);
-        if file.looped {
+        let player = Player::connect_new(&mixer);
+        player.set_volume(file.volume * self.channel_volume(track));
+        if looped || file.looped {
             player.append(source.repeat_infinite());
         } else {
             player.append(source);
@@ -215,7 +264,7 @@ impl Audio {
         if self.muted {
             player.pause();
         }
-        self.music = Some(player);
+        self.channel(track).player = Some(player);
     }
 }
 

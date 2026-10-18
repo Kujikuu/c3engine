@@ -19,12 +19,16 @@ impl Sim {
 
     /// Where `target` stands, if `attacker` may fight it: a living monster, or on a PK map
     /// another living player.
+    /// Neither may stand in a safe zone, nor two players in a no-PK zone.
     pub(crate) fn foe_cell(&self, attacker: EntityId, target: EntityId) -> Option<CellPos> {
+        let from = (self.players.get(&attacker).map(|p| p.cell))
+            .or_else(|| self.monsters.get(&attacker).map(|m| m.cell))?;
         if let Some(m) = self.monsters.get(&target) {
-            return m.is_alive().then_some(m.cell);
+            return (m.is_alive() && self.may_fight(from, m.cell, false)).then_some(m.cell);
         }
         let p = self.players.get(&target)?;
-        (self.pk && target != attacker && p.is_alive()).then_some(p.cell)
+        let allowed = self.pk && target != attacker && p.is_alive();
+        (allowed && self.may_fight(from, p.cell, true)).then_some(p.cell)
     }
 
     /// Player `id` hits player `target` (on a PK map).

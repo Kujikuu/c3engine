@@ -117,6 +117,8 @@ pub struct Session {
     map_change: Option<MapChange>,
     /// The map drawn small, under the radar.
     minimap: Minimap,
+    /// What falls from the sky where the hero stands.
+    weather: crate::weather::WeatherOverlay,
 }
 
 /// A map's minimap: the image until the UI uploads it, then its texture.
@@ -318,6 +320,7 @@ impl Session {
             setup,
             map_change: None,
             minimap,
+            weather: Default::default(),
         })
     }
 
@@ -748,6 +751,17 @@ impl Session {
     }
 
     /// Runs `seconds` of game and shows what happened (`now`: UI time in seconds).
+    /// The light and weather of the place the hero stands (its regions', else the map's).
+    fn place_presentation(&mut self) {
+        let Some(cell) = self.sim.player(self.hero).map(|p| p.cell) else {
+            return;
+        };
+        let light = self.sim.regions_at(cell).find_map(|r| r.light);
+        self.world.light = settings::place_light(&self.settings, &self.setup.map_ids, light);
+        self.weather
+            .set(self.sim.regions_at(cell).find_map(|r| r.weather));
+    }
+
     pub fn advance(&mut self, seconds: f32, now: f64) {
         match &mut self.link {
             Link::Local => self.sim.advance((seconds * 1000.0).round() as u64),
@@ -792,6 +806,7 @@ impl Session {
         self.ui.events(&events, &self.sim, self.hero, now);
         self.audio.events(&events, &self.sim, self.hero);
         self.audio.update(&self.sim, self.hero, now);
+        self.place_presentation();
         self.hero_effects(&events);
         self.world.advance(seconds);
         self.world.tick();
@@ -856,6 +871,9 @@ impl Session {
             controls,
             minimap,
         };
+        let dt = ui.input(|i| i.stable_dt).min(0.1);
+        self.weather
+            .show(&ui.painter_at(screen.rect), screen.rect, dt);
         let actions = self.ui.show(ui, &view, &mut self.icons);
         let mut host = Vec::new();
         for action in actions {

@@ -404,7 +404,13 @@ PUL for the classic client).
     file, or a sprite on a cell with its offset) added from the Project selection; undoable
     commands. Layer sprites (classic `C2DMapSceneObj`) now draw and animate. Dropped
     pictures stand on their cell by their pivot
-- [ ] Regions: music, sound, safe zone, PK-free, booth, weather, light, script triggers
+- [x] Regions: music, sound, safe zone, PK-free, booth, weather, light, script triggers
+  - Done 2026-10-18: regions live with the map's population (beside a DMap too); the Region
+    tool (9) drags one out, the Hierarchy lists them and the Inspector sets name, cells,
+    safe zone (no one fights), no PK, market (booths), music, looped sound, weather (rain,
+    snow, leaves) and light. In play: fights stop in safe and no-PK zones, region music and
+    ambience play, light and weather follow the hero, and events.rhai hears
+    on_enter_region(id) / on_leave_region(id). Booths themselves come with M12's trade
 - [ ] Portals: destination picker, two-way links, jump to the destination
 - [ ] World view: every map as a node with its portal links; open a map from it
 
