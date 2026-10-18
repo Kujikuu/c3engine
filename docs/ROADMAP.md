@@ -216,7 +216,7 @@ is not implemented), the M2 renderer, the scene/command layer, the simulation co
 engine protocol. The milestones below build the engine on them first, then Conquer as a
 complete project on that engine, then any game of the kind.
 
-## M7: Engine foundation (make it an engine, not a Conquer tool)
+## M7: Engine foundation (make it an engine, not a Conquer tool) [x] (complete 2026-10-18)
 - [x] (1) Game-module seam: a `GameModule` interface the client, the server and the Studio
       (Scene, Play, Preview) go through: content and asset loading, rules, character looks,
       sound mapping, UI hooks. The generic parts stuck in `games/conquer` (world, actor, screen,
@@ -351,9 +351,15 @@ complete project on that engine, then any game of the kind.
     already were. Undo and Redo act on the focused document, and the Undo History panel
     lists that document's steps (map, table, script, dialogue, settings or assets). File >
     Save writes every dirty document; settings and assets save as they change
-- [ ] (8) Renderer gaps the settings and UI need: world text drawn by the engine with project
+- [x] (8) Renderer gaps the settings and UI need: world text drawn by the engine with project
       fonts (names, damage numbers, chat bubbles), custom cursors drawn in the game, a minimap /
       radar, configurable lighting (today one fixed light)
+  - Done 2026-10-18: names, damage numbers and chat bubbles (8 s over the speaker, kept below
+    the hint line) draw in the project's fonts; the game's cursors were done earlier. A radar
+    in the top-right corner shows walkable ground turned like the map, monsters, NPCs, other
+    players and portals. Graphics settings gain the scene light (a colour over the map,
+    sprites and solid meshes; effects keep their glow) and sun shading for models. Verified
+    with screenshots on the from-scratch project and the Conquer project
 
 ## M8: Complete map and world editor
 Every edit one undo step through c3-edit; maps saved to their own files (native scene, or DMap /
