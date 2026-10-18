@@ -2,8 +2,10 @@
 //! Ported from the client's chunk walk (`3DBaseCode/3DEffect.cpp` `C3DEffect::Load`).
 //!
 //! The container keeps every chunk's raw bytes, so files round-trip byte-for-byte.
-//! Typed decoders exist per chunk kind: [`phy`] (mesh) and [`motion`] (skeletal motion).
+//! Typed decoders exist per chunk kind: [`phy`] (mesh), [`motion`] (skeletal motion) and
+//! [`effect`] (trails, particles, camera paths).
 
+pub mod effect;
 pub mod motion;
 pub mod phy;
 
@@ -32,7 +34,9 @@ impl Chunk {
             b"MOTI" => ChunkKind::Motion,
             b"SMOT" => ChunkKind::ShapeMotion,
             b"SHAP" => ChunkKind::Shape,
-            b"PTCL" | b"PTCX" | b"PTC3" => ChunkKind::Particles,
+            b"PTCL" => ChunkKind::Particles,
+            b"PTCX" | b"PTC3" => ChunkKind::ParticlesExtended,
+            b"CAME" => ChunkKind::Camera,
             _ => ChunkKind::Unknown,
         }
     }
@@ -45,6 +49,9 @@ pub enum ChunkKind {
     ShapeMotion,
     Shape,
     Particles,
+    /// PTCX/PTC3: not used by 5065 content; kept raw.
+    ParticlesExtended,
+    Camera,
     Unknown,
 }
 

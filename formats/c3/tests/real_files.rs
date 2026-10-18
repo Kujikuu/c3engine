@@ -333,7 +333,7 @@ fn every_map_imports_to_scene_and_exports_back() {
 /// decode and re-encode to the exact chunk bytes.
 #[test]
 fn c3_models_round_trip() {
-    use c3_formats_tq::c3::{C3File, ChunkKind, motion::Motion, phy::Mesh};
+    use c3_formats_tq::c3::{C3File, ChunkKind, effect, motion::Motion, phy::Mesh};
     use std::collections::BTreeMap;
     let Some(dir) = client_dir() else { return };
     let a = wdf::Wdf::open(dir.join("c3.wdf")).unwrap();
@@ -360,7 +360,14 @@ fn c3_models_round_trip() {
             let result = match c.kind() {
                 ChunkKind::Phy(layout) => Mesh::parse(&c.body, layout).map(|m| m.to_bytes()),
                 ChunkKind::Motion => Motion::parse(&c.body).map(|m| m.to_bytes()),
-                _ => continue,
+                ChunkKind::Shape => effect::Shape::parse(&c.body).map(|m| m.to_bytes()),
+                ChunkKind::ShapeMotion => effect::ShapeMotion::parse(&c.body).map(|m| m.to_bytes()),
+                ChunkKind::Particles => effect::Particles::parse(&c.body).map(|m| m.to_bytes()),
+                ChunkKind::Camera => effect::CameraPath::parse(&c.body).map(|m| m.to_bytes()),
+                ChunkKind::ParticlesExtended | ChunkKind::Unknown => {
+                    failed.push(format!("{:#x}: unexpected chunk {}", e.uid, c.id_str()));
+                    continue;
+                }
             };
             match result {
                 Ok(bytes) if bytes == c.body => {}
