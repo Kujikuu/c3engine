@@ -24,6 +24,10 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · Meshes sample with **repeat** addressing (D3D default; effects scroll UVs), sprites with clamp (no seams between ground tiles). Alpha test is 8/255 for all meshes (client ALPHAREF).
 - 2026-10-18 · Path finding is **A\*** (octile costs), not the classic greedy best-first search, with the classic step rules (8 directions, not blocked, height difference ≤ 25) and the classic fallback to the nearest reachable cell · shorter, predictable paths; the same cells are reachable.
 
+- 2026-10-18 · **Vision widened (user):** a complete Conquer-like game made entirely in a Unity/UE5-style Studio, as easy as possible, with AI built in. Still C3-style 2.5D games only, no full 3D.
+- 2026-10-18 · **AI integration = Studio assistant + MCP** (user choice): a Claude chat panel that edits projects, and an MCP server so external agents (Claude Code) can drive the Studio. Both go through one command layer (`engine/edit`): every edit is a typed, serializable, undoable command. Game AI (behaviour trees, LLM NPCs) and AI asset generation are not planned for now.
+- 2026-10-18 · **The engine has its own game server** (user choice), built from the same project as the client. Redux stays usable for Conquer 5065 meanwhile.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

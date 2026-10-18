@@ -3,24 +3,43 @@
 C3Engine is a game engine and studio written in Rust, modelled on TQ Digital's
 "Conquer III (C3)" engine, which powered Conquer Online, Eudemons and others.
 
-**Goal:** TQ's C3 engine with a Unity-style editor. Anyone can make games of the kind C3
-made (2D/2.5D isometric online RPGs: tiled maps, 3D characters, effects, cell-based
-movement, client/server play) entirely in the Studio, without touching engine code.
-Conquer Online (5065, served by Redux) is the first game and the proving ground, but it is a
-game project, never part of the engine.
+**Goal:** TQ's C3 engine with a Unity/UE5-style editor and AI built in. One person can make a
+complete online game like Conquer (client, server, content and rules) entirely in the Studio,
+controlling everything visually, as easily as possible, without touching engine code.
+Conquer Online 5065 is the first game project and the proving ground, never part of the engine.
 
-Full 3D games (perspective cameras, physics, open worlds) are out of scope for now. The
-renderer and scene model must not rule them out, so they can come later.
+Scope is the kind of games C3 made: 2D/2.5D isometric online RPGs (tiled maps, 3D
+characters, effects, cell-based movement, client/server play). Full 3D is not a goal for now.
 
-## The Studio, Unity-style
-- **Projects:** create or open a game project folder; it holds the game's own assets,
-  tables and scripts. Conquer is one project, imported from the 5065 client.
-- **Asset browser:** every model, effect, sprite, map, sound and table, with live previews.
-- **Scene editor:** maps with their ground, objects, effects, NPCs, monsters and portals,
-  placed and edited on engine types; an inspector for whatever is selected.
-- **Play mode:** press Play to run the game inside the Studio, and stop to return to editing.
-- **Game logic in the project:** scripts and data tables, not engine code.
-- **Build:** package a playable client (and server data) from the project.
+## A complete game, all from the Studio
+- **World:** maps, objects, effects, portals, regions, music, NPCs, monster spawns.
+- **Characters:** looks, equipment, actions, animations, effects.
+- **Gameplay:** stats, levels, combat and skills, items and inventory, drops, shops, trade,
+  quests and NPC dialogue, teams, guilds, chat. Defined as data tables plus scripts.
+- **Game UI:** designed in a UI editor (windows, HUD, dialogs), not hard-coded.
+- **Server:** the engine has its own game server, built from the same project (maps, tables,
+  scripts), with accounts and a database. Redux stays usable for Conquer 5065 meanwhile.
+- **Ship:** build the client and server from the project in one step.
+
+## The Studio, Unity/UE5-style
+- **Projects:** each game is a project folder with its own assets, tables and scripts.
+  Conquer is imported into one from the 5065 client.
+- **Asset browser** with live previews; **scene editor** with an inspector for the selection;
+  **table editors** for items, skills, monsters; **script editor**; **UI editor**.
+- **Play mode:** press Play to run the game (client and a local server) inside the Studio.
+- **Easiest possible:** sensible defaults, templates, previews everywhere, undo for everything,
+  clear errors that say how to fix them.
+
+## AI built in
+- **Studio assistant:** a chat panel (Claude) that creates and edits game content on request
+  ("make a fire dungeon map", "add a level-30 boss with these drops", "write this quest"). It
+  works through the same editor commands as a person: every change is previewed, undoable and
+  shown in the history.
+- **Driven by AI agents:** the Studio exposes its commands as an API / MCP server, so tools
+  like Claude Code can open projects, query them and edit them from outside.
+- **Foundation:** every edit in the Studio is a typed, serializable command with undo. The UI,
+  the assistant and external agents all use that one command layer, so AI can do anything a
+  person can, and nothing a person couldn't undo.
 
 ## Principles
 1. **Engine is game-agnostic.** Nothing under `engine/` or `studio/` may reference Conquer.
@@ -30,10 +49,11 @@ renderer and scene model must not rule them out, so they can come later.
    so legacy content loads and new content can be exported back to the classic client.
 3. **Data-driven.** Items, skills, monsters, UI layouts are tables + scripts edited in Studio.
 4. **Studio = the engine in editor mode.** What you edit is exactly what players see.
-5. **Round-trip safety.** Every format parser must load → save byte-identical on real files.
-6. **No encryption** of the engine's own files (see DECISIONS.md).
+5. **One command layer.** All edits (UI, assistant, agents) go through typed commands with undo.
+6. **Round-trip safety.** Every format parser must load → save byte-identical on real files.
+7. **No encryption** of the engine's own files (see DECISIONS.md).
 
 ## Non-goals (for now)
-- Full 3D games (see above).
+- Full 3D games.
 - Mobile / web targets.
 - Building our own physics engine. Use one if a game needs it.

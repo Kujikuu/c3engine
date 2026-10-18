@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 1: project system (create/open a game project; import Conquer 5065 into one)
+- [ ] M3 step 1: project system, then step 2: the c3-edit command layer (foundation for AI)
 
 ## M2: Renderer [~] (one item left)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -55,7 +55,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [ ] Effects bound to actors (level-up on the body, weapon trails on sockets), sharing the actor's
       depth so they wrap around it
 
-## M3: Studio, Unity-style editor (see VISION.md)
+## M3: Studio core, Unity/UE5-style editor (see VISION.md)
 Done so far:
 - [x] Studio shell (eframe/egui): toolbar, map list, inspector, status bar, theme, shortcuts
 - [x] Map viewer: streamed ground tiles at client-exact placement, cell grid, blocked cells,
@@ -65,31 +65,47 @@ Done so far:
       unsaved-changes guard on map switch and quit
 - [x] Models workspace: skinned model preview through `c3-render`
 
-Toward the Unity-style editor, in order:
+Toward the Unity/UE5-style editor, in order:
 - [ ] (1) Project system: create/open a game project folder (manifest, asset folders, recent
       projects, welcome screen); "Import from Conquer 5065 client" creates a Conquer project
-- [ ] (2) Native asset formats the project stores (scene, model, effect, sprite set; unencrypted,
+- [ ] (2) Command layer `engine/edit` (c3-edit): every project change is a typed, serializable
+      command with undo/redo; read-only queries with schemas; existing map editing moves onto it.
+      The foundation for the assistant and MCP (M4)
+- [ ] (3) Native asset formats the project stores (scene, model, effect, sprite set; unencrypted,
       readable), with the TQ importers/exporters as converters
-- [ ] (3) Asset browser: folders, search, thumbnails, live preview of models, effects, sprites, maps
-- [ ] (4) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
+- [ ] (4) Asset browser: folders, search, thumbnails, live preview of models, effects, sprites, maps
+- [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
       as the client does
-- [ ] (5) Scene editor: place/move/delete objects, effects, NPCs, monsters and portals; inspector for
-      the selection; undo/redo; export DMap + Redux data
-- [ ] (6) Play mode: run the game inside the Studio from the current map, stop to return to editing
-- [ ] (7) Model / animation / effect viewers: actions, sockets, equipment, timeline
+- [ ] (6) Scene editor: place/move/delete objects, effects, NPCs, monster spawns and portals;
+      inspector for the selection; export DMap + Redux data
+- [ ] (7) Play mode (offline): walk the current map inside the Studio, stop to return to editing
+- [ ] (8) Model / animation / effect viewers: actions, sockets, equipment, timeline
 
-## M4: Conquer game module
-- [ ] 5065 cipher + packet framework
-- [ ] Login / account server → game server
-- [ ] Spawn, walk, jump, other players, NPCs
-- [ ] Combat, items, UI parity
+## M4: AI integration
+- [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
+- [ ] Studio assistant panel (`engine/ai`, Claude API): chat that edits the project through c3-edit
+      tools; shows each change, applies on confirm, one undo step per request; API key in settings
+- [ ] Project context for AI: schemas, tables, map summaries and docs the model can query
 
-## M5: Data + scripting
-- [ ] Data tables editor (items, skills, monsters)
-- [ ] Scripting host; gameplay without recompiling
-- [ ] Prove generality: a tiny second sample game
+## M5: Gameplay framework (shared by client and server)
+- [ ] `engine/game`: entities, stats and levels, combat and skills, items and inventory, drops,
+      shops, trade, teams, guilds, chat; rules from project tables + scripts
+- [ ] Data table editors: items, skills, monsters, NPCs, shops, drop lists
+- [ ] Scripting host (Rhai or Lua): quests, NPC dialogue, events; gameplay without recompiling
+- [ ] Quest / dialogue editor
+- [ ] Game UI system (`engine/ui`) + UI editor: windows, HUD, dialogs
+- [ ] Audio (`engine/audio`): music regions, action and effect sounds
 
-## M6: Ship
-- [ ] Build from the Studio: package a playable client (and server data) from a project
+## M6: Networking + engine server
+- [ ] `engine/net`: transport, packet framework, cipher trait
+- [ ] Game server (`apps/server`) built from a project: accounts, database, maps, spawns, NPCs
+- [ ] Client ↔ server play: login, spawn, walk/jump, other players, monsters, combat
+- [ ] Play mode with a local server inside the Studio
+- [ ] Conquer 5065 protocol + cipher in `games/conquer` (Redux-compatible client)
+
+## M7: Prove + ship
+- [ ] Conquer feature parity as a project (combat, items, UI)
+- [ ] Prove generality: a small second sample game made only in the Studio
+- [ ] Build from the Studio: package a playable client and server from a project
 - [ ] Launcher/patcher
 - [ ] glTF import/export (Blender pipeline) for models + animations
