@@ -148,16 +148,21 @@ impl Sim {
             Effect::Money(n) if n >= 0 => notice(self, format!("You received {n} silver.")),
             Effect::Money(n) => notice(self, format!("You paid {} silver.", -n)),
             Effect::Teleport { map, cell } => {
-                let here = map == 0 || self.map_ids.iter().any(|&m| i64::from(m) == map);
-                let to = (cell.0 as i32, cell.1 as i32);
-                if here && self.walkable(to) {
-                    self.close_dialogue(id);
-                    self.place(id, to);
-                } else {
+                let to = c3_scene::PortalTarget {
+                    map: u32::try_from(map).unwrap_or(0),
+                    cell: (cell.0 as i32, cell.1 as i32),
+                };
+                if self.is_this_map(to.map) && !self.walkable(to.cell) {
                     self.message(
                         id,
-                        format!("Map {map} isn't running here, so the teleport to ({}, {}) can't happen.", to.0, to.1),
+                        format!(
+                            "({}, {}) can't be stood on, so the teleport can't happen.",
+                            to.cell.0, to.cell.1
+                        ),
                     );
+                } else {
+                    self.close_dialogue(id);
+                    self.travel(id, to);
                 }
             }
             Effect::OpenShop => {

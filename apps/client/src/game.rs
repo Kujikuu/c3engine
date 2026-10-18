@@ -8,6 +8,7 @@ use crate::ui_layer::UiLayer;
 use c3_core::ProjectSettings;
 use c3_play::GameModule;
 use c3_play::controls::PlayerControls;
+use c3_play::map_list::MapList;
 use c3_play::screen::{GameScreen, MAX_FRAME_SECONDS};
 use c3_play::session::{Session, SessionSetup};
 use c3_scene::CellPos;
@@ -53,6 +54,7 @@ pub fn run(args: GameArgs) -> Result<(), String> {
     for problem in font_problems {
         eprintln!("warning: {problem}");
     }
+    let maps = MapList::new(&project, &*game, &settings);
     let session = match &args.online {
         Some(o) => Session::join(
             Rc::clone(&game),
@@ -62,7 +64,7 @@ pub fn run(args: GameArgs) -> Result<(), String> {
             &o.account,
             &o.password,
         )?,
-        None => local_session(&project, Rc::clone(&game), &settings, &args)?,
+        None => local_session(&project, Rc::clone(&game), &settings, &maps, &args)?,
     };
     let title = match settings.player.game_name.as_str() {
         "" => project.name().to_owned(),
@@ -77,6 +79,8 @@ pub fn run(args: GameArgs) -> Result<(), String> {
             fonts: Some(fonts),
         },
         settings,
+        project,
+        maps,
         gfx: None,
         ui: None,
         last_frame: Instant::now(),
@@ -91,6 +95,7 @@ fn local_session(
     project: &c3_project::Project,
     game: Rc<dyn GameModule>,
     settings: &ProjectSettings,
+    maps: &MapList,
     args: &GameArgs,
 ) -> Result<Session, String> {
     let key = match &args.map {
@@ -101,7 +106,9 @@ fn local_session(
     let scene = game.load_map(project, &key)?;
     let start =
         (args.cell).unwrap_or_else(|| c3_play::settings::start_cell(&settings.gameplay, &scene));
-    let map_ids = game.map_ids(&key);
+    let map_ids = maps
+        .by_key(&key)
+        .map_or_else(|| game.map_ids(&key), |m| m.ids.clone());
     Session::start(
         game,
         key,
@@ -129,6 +136,9 @@ struct GameApp {
     screen: GameScreen,
     window: WindowSetup,
     settings: ProjectSettings,
+    project: c3_project::Project,
+    /// The game's maps (portals name them by id).
+    maps: MapList,
     gfx: Option<Gfx>,
     ui: Option<UiLayer>,
     last_frame: Instant,
@@ -153,6 +163,7 @@ impl GameApp {
             let hovered = screen.update(ui, rect, seconds);
             screen.overlay(ui, rect, hovered);
         });
+        screen.follow_map_change(&self.project, &self.maps, &mut gfx.renderer);
         let viewport = screen.viewport();
         let camera = &screen.view_camera();
         let view_rect = camera.view_rect(viewport);

@@ -7,6 +7,7 @@
 use crate::audio::GameAudio;
 use crate::cursor::CursorKind;
 use crate::game::{self, GameSetup};
+use crate::map_list::{MapInfo, MapList};
 use crate::module::GameModule;
 use crate::settings;
 use crate::sim_view::SimView;
@@ -45,6 +46,7 @@ struct Opening {
     problems: Vec<String>,
     link: Link,
     settings: ProjectSettings,
+    setup: GameSetup,
 }
 
 /// Where a session finds the project's game and where the hero starts.
@@ -81,6 +83,15 @@ impl Screen<'_> {
     }
 }
 
+/// The hero is to go to another map.
+#[derive(Debug, Clone)]
+pub enum MapChange {
+    /// Through a portal or a teleport here: map `map` (an id), at `cell`.
+    Local { map: u32, cell: CellPos },
+    /// The server moved the hero to another map.
+    Remote(Welcome),
+}
+
 pub struct Session {
     pub sim: Sim,
     pub hero: EntityId,
@@ -98,6 +109,10 @@ pub struct Session {
     hit_at: Option<f64>,
     /// The monster the hero has in its sights (gamepad and touch targeting).
     target: Option<EntityId>,
+    /// How the simulation was set up (the next map's is set up alike; online, its tables).
+    setup: GameSetup,
+    /// A map change waiting for the host to load the map.
+    map_change: Option<MapChange>,
 }
 
 impl Session {
@@ -118,6 +133,7 @@ impl Session {
             settings: setup.settings.gameplay.clone(),
         };
         let (mut sim, problems) = game::new_sim(&scene, &game_setup, &*game.rules());
+        let local_setup = game_setup.clone();
         let hero = sim.add_saved_player(&settings::new_character(
             &setup.settings.gameplay,
             "Hero",
@@ -134,6 +150,7 @@ impl Session {
                 problems,
                 link: Link::Local,
                 settings: setup.settings,
+                setup: local_setup,
             },
         )
     }
@@ -196,6 +213,11 @@ impl Session {
                 hero: welcome.hero,
                 map_ids: welcome.map_ids,
                 problems,
+                setup: GameSetup {
+                    tables,
+                    settings: settings.gameplay.clone(),
+                    ..GameSetup::default()
+                },
                 link: Link::Remote(conn),
                 settings,
             },
@@ -212,6 +234,7 @@ impl Session {
             problems,
             link,
             settings,
+            setup,
         } = o;
         let mut log: Vec<LogLine> = problems.into_iter().map(LogLine::Error).collect();
         // What happened while setting up is shown by attaching the view; keep the warnings.
@@ -249,7 +272,122 @@ impl Session {
             settings,
             hit_at: None,
             target: None,
+            setup,
+            map_change: None,
         })
+    }
+
+    /// Takes the hero to the map of the waiting map change, loaded from `project` (the map
+    /// ids resolved by `maps`); old textures are freed from `renderer`. Returns the map's
+    /// name, or why it couldn't go; `None` when no change waits.
+    pub fn follow_map_change(
+        &mut self,
+        project: &Project,
+        maps: &MapList,
+        renderer: &mut c3_render::Renderer,
+    ) -> Option<Result<String, String>> {
+        let change = self.map_change.take()?;
+        let game = Rc::clone(&self.world.game);
+        Some(match change {
+            MapChange::Local { map, cell } => {
+                let Some(info) = maps.by_id(map) else {
+                    let text = format!("There is no map {map}.");
+                    self.ui.system(&text, style::BAD);
+                    return Some(Err(text));
+                };
+                let info = info.clone();
+                game.load_map(project, &info.key).and_then(|scene| {
+                    self.enter_map_here(&info, scene, cell, renderer)?;
+                    Ok(info.name)
+                })
+            }
+            MapChange::Remote(welcome) => {
+                let name = maps
+                    .by_key(&welcome.map)
+                    .map_or_else(|| welcome.map.clone(), |m| m.name.clone());
+                let music = maps.by_key(&welcome.map).map(|m| m.music.clone());
+                game.load_map(project, &welcome.map).map(|scene| {
+                    self.enter_map_online(welcome, scene, music, renderer);
+                    name
+                })
+            }
+        })
+        .map(|r| r.inspect_err(|e| self.ui.system(e, style::BAD)))
+    }
+
+    /// The hero (as it is) on `cell` of `scene`, a new simulation of map `info`.
+    fn enter_map_here(
+        &mut self,
+        info: &MapInfo,
+        scene: Scene,
+        cell: CellPos,
+        renderer: &mut c3_render::Renderer,
+    ) -> Result<(), String> {
+        let mut setup = self.setup.clone();
+        setup.map_ids = info.ids.clone();
+        let mut save = self.sim.save_player(self.hero).ok_or("the hero is gone")?;
+        save.map = info.key.clone();
+        save.cell = path::nearest_walkable(&scene.grid, cell, START_SEARCH).ok_or_else(|| {
+            format!(
+                "{} has no walkable cell near {}, {}",
+                info.name, cell.0, cell.1
+            )
+        })?;
+        let (mut sim, problems) = game::new_sim(&scene, &setup, &*self.world.game.rules());
+        self.report(problems);
+        let hero = sim.add_saved_player(&save);
+        sim.take_events();
+        self.setup = setup;
+        self.replace_world(sim, hero, info.key.clone(), scene, renderer)?;
+        self.audio.set_map(info.ids.clone(), non_empty(&info.music));
+        self.ui
+            .system(format!("You arrive in {}.", info.name), style::GOLD);
+        Ok(())
+    }
+
+    /// The server's map `welcome` names: a mirror of it, filled by the updates to come.
+    fn enter_map_online(
+        &mut self,
+        welcome: Welcome,
+        scene: Scene,
+        music: Option<String>,
+        renderer: &mut c3_render::Renderer,
+    ) {
+        let (sim, problems) = game::mirror_sim(
+            &scene,
+            self.setup.tables.as_ref(),
+            &*self.world.game.rules(),
+            &self.settings.gameplay,
+        );
+        self.report(problems);
+        if let Err(e) = self.replace_world(sim, welcome.hero, welcome.map.clone(), scene, renderer)
+        {
+            self.ui.system(e, style::BAD);
+        }
+        self.audio
+            .set_map(welcome.map_ids, music.as_deref().and_then(non_empty));
+    }
+
+    /// Plays `sim` (hero `hero`) on `scene` from now on, the old world's textures freed.
+    fn replace_world(
+        &mut self,
+        sim: Sim,
+        hero: EntityId,
+        map_path: String,
+        scene: Scene,
+        renderer: &mut c3_render::Renderer,
+    ) -> Result<(), String> {
+        let tilt = settings::tilt_deg(&self.settings, &*self.world.game);
+        let mut world = World::new(Rc::clone(&self.world.game), map_path, scene, tilt);
+        world.background = self.world.background;
+        let view = SimView::attach(&sim, hero, &mut world)?;
+        self.world.release(renderer);
+        self.world = world;
+        self.view = view;
+        self.sim = sim;
+        self.hero = hero;
+        self.target = None;
+        Ok(())
     }
 
     pub fn settings(&self) -> &ProjectSettings {
@@ -463,6 +601,11 @@ impl Session {
         self.input(Input::Talk(npc));
     }
 
+    /// Walks the hero to `cell`, as if it was clicked (through the portal there, if any).
+    pub fn walk_to(&mut self, cell: CellPos) {
+        self.input(Input::Walk(cell));
+    }
+
     /// Sends the hero after the nearest monster it can reach.
     pub fn attack_nearest(&mut self) {
         let search = self.settings.gameplay.attack_search;
@@ -505,13 +648,24 @@ impl Session {
                                 why.unwrap_or_else(|| "the server closed the connection".into());
                             self.ui.system(format!("Disconnected: {why}"), style::BAD);
                         }
-                        RemoteEvent::Welcome(_) | RemoteEvent::Refused(_) => {}
+                        // Let in again: the server moved the hero to another map.
+                        RemoteEvent::Welcome(welcome) => {
+                            self.map_change = Some(MapChange::Remote(welcome));
+                        }
+                        RemoteEvent::Refused(_) => {}
                     }
                 }
             }
         }
         let events = self.sim.take_events();
         let hero = self.hero;
+        for event in &events {
+            if let Event::Travel { player, map, cell } = *event
+                && player == hero
+            {
+                self.map_change = Some(MapChange::Local { map, cell });
+            }
+        }
         if events
             .iter()
             .any(|e| matches!(e, Event::Attacked { target, .. } if *target == hero))
@@ -643,4 +797,9 @@ impl Icons for ItemIcons {
 /// How long joining a server may take.
 fn join_timeout(settings: &ProjectSettings) -> std::time::Duration {
     std::time::Duration::from_secs_f64(settings.network.join_timeout_seconds.max(1.0))
+}
+
+/// `text` when it isn't empty.
+fn non_empty(text: &str) -> Option<String> {
+    (!text.is_empty()).then(|| text.to_owned())
 }

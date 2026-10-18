@@ -509,9 +509,21 @@ impl Studio {
                 .into_iter()
                 .map(|spawn| SceneCommand::AddSpawn { spawn }),
         );
+        // Where the map's portals lead, for those it has.
+        let portals = &doc.scene().portals;
+        commands.extend(
+            population
+                .links
+                .into_iter()
+                .filter(|link| portals.iter().any(|p| p.id == link.portal))
+                .map(|link| SceneCommand::SetPortalTarget {
+                    id: link.portal,
+                    to: Some(link.to),
+                }),
+        );
         if commands.is_empty() {
             self.notify(format!(
-                "{} has no NPCs or spawn areas for this map",
+                "{} has no NPCs, spawn areas or portal destinations for this map",
                 file.display()
             ));
             return;
@@ -526,7 +538,7 @@ impl Studio {
             self.log_error(format!("Import skipped a row: {why}"));
         }
         self.notify(match refused.len() {
-            0 => format!("Imported {added} NPCs and spawn areas"),
+            0 => format!("Imported {added} NPCs, spawn areas and portal destinations"),
             n => format!("Imported {added}; skipped {n} (see the Console)"),
         });
     }

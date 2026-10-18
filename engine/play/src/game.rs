@@ -64,6 +64,8 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     );
     sim.set_settings(setup.settings.clone());
     sim.set_quests(quests(setup.tables.as_ref(), &mut problems));
+    sim.set_map_ids(setup.map_ids.clone());
+    sim.set_portals(&scene.portals);
     if let Some(dir) = &setup.scripts {
         sim.set_scripts(
             ScriptHost::new(dir, setup.tables.clone()),

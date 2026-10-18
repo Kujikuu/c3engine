@@ -13,6 +13,7 @@ mod index;
 mod input;
 mod monsters;
 mod players;
+mod portals;
 mod quests;
 mod remote;
 mod rng;

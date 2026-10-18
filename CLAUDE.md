@@ -37,7 +37,7 @@ append decisions, document formats as you implement them.
   target's `display_view` (gamma-space view) so colours match. Maps draw through
   `c3_render::scene_view::SceneView` in both the client and the Studio; never fork that path.
 - Screenshots for verification: `& .\scripts\shot.ps1 -App client|studio -Out x.png -AppArgs @(<app args>)` (`PrintWindow`, works when the window is behind others).
-  Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --online --play --talk <npc>
+  Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --online --play --walk x,y --talk <npc>
   --attack --bag --quests --say "/cmd" --script <name> --table <name> --dialogue <name> --node <id>
   --show <panel> --exec <commands.json> --new-map [name] --make-map <name> --settings [section] --touch --controls --effect <path> --asset-exec <commands.json>`; `--model` takes a TQ id or a glTF asset path. `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.

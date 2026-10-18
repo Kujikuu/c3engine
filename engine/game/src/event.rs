@@ -17,6 +17,12 @@ pub enum Event {
         to: CellPos,
         running: bool,
     },
+    /// Player `player` leaves for cell `cell` of map `map` (another map: the host moves it).
+    Travel {
+        player: EntityId,
+        map: u32,
+        cell: CellPos,
+    },
     /// Put somewhere at once (a teleport or a revive).
     Placed {
         id: EntityId,

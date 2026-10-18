@@ -13,6 +13,8 @@ pub enum Input {
     Walk(CellPos),
     /// Jump to a cell (within `JUMP_RANGE`, onto walkable ground).
     Jump(CellPos),
+    /// Walk to the portal on a cell and go through it.
+    EnterPortal(CellPos),
     SetRunning(bool),
     Attack(EntityId),
     PickUp(EntityId),
@@ -47,6 +49,7 @@ impl Sim {
         match input {
             Input::Walk(cell) => self.walk(id, cell),
             Input::Jump(cell) => self.jump(id, cell),
+            Input::EnterPortal(cell) => self.enter_portal(id, cell),
             Input::SetRunning(on) => self.set_running(id, on),
             Input::Attack(target) => self.attack(id, target),
             Input::PickUp(item) => self.pick_up(id, item),

@@ -597,6 +597,23 @@ impl GameScreen {
         };
     }
 
+    /// Takes the hero to another map when it went through a portal (see
+    /// [`Session::follow_map_change`]); the camera jumps to it there.
+    pub fn follow_map_change(
+        &mut self,
+        project: &c3_project::Project,
+        maps: &crate::map_list::MapList,
+        renderer: &mut c3_render::Renderer,
+    ) -> Option<Result<String, String>> {
+        let moved = self.session.follow_map_change(project, maps, renderer)?;
+        if moved.is_ok()
+            && let Some(hero) = self.session.hero_position()
+        {
+            self.camera.center = hero;
+        }
+        Some(moved)
+    }
+
     /// Keeps the view inside the map when the settings ask for it.
     fn clamp_to_map(&mut self) {
         if !self.camera_settings().clamp_to_map {

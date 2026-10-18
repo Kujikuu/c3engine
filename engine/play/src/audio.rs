@@ -13,6 +13,10 @@ pub struct GameAudio {
     music: MusicDirector,
     map_ids: Vec<u32>,
     game: Rc<dyn GameModule>,
+    /// The music of the region the hero stands in (the game's music regions).
+    region_music: Option<String>,
+    /// The map's own music (its entry in the map list), when no region has any.
+    map_music: Option<String>,
 }
 
 impl GameAudio {
@@ -24,7 +28,17 @@ impl GameAudio {
             music: MusicDirector::new(game.music_regions()),
             map_ids,
             game,
+            region_music: None,
+            map_music: None,
         }
+    }
+
+    /// Plays on map `map_ids` from now on, `music` being the map's own.
+    pub fn set_map(&mut self, map_ids: Vec<u32>, music: Option<String>) {
+        self.map_ids = map_ids;
+        self.map_music = music;
+        self.music = MusicDirector::new(self.game.music_regions());
+        self.region_music = None;
     }
 
     /// `None` without a sound device, else whether sound is muted.
@@ -87,8 +101,10 @@ impl GameAudio {
             return;
         };
         if let Some(track) = self.music.update(&self.map_ids, cell, now) {
-            self.audio.set_music(track.as_deref());
+            self.region_music = track;
         }
+        let track = self.region_music.as_ref().or(self.map_music.as_ref());
+        self.audio.set_music(track.map(String::as_str));
     }
 }
 

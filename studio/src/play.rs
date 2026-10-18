@@ -14,6 +14,7 @@ use crate::icons;
 use crate::theme;
 use c3_play::GameModule;
 use c3_play::controls::PlayerControls;
+use c3_play::map_list::MapList;
 use c3_play::screen::{GameScreen, MAX_FRAME_SECONDS};
 use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
 use c3_play::session::{Session, SessionSetup};
@@ -38,6 +39,10 @@ pub struct PlaySetup {
     pub online: bool,
     /// The project's settings.
     pub settings: c3_core::ProjectSettings,
+    /// The open project (portals to its other maps take the hero there).
+    pub project: Option<c3_project::Project>,
+    /// The game's maps.
+    pub maps: MapList,
 }
 
 /// The account Play mode logs in to its local server with.
@@ -53,6 +58,8 @@ pub struct PlaySession {
     gpu: GpuView,
     /// The local server, when playing online.
     server: Option<ServerHandle>,
+    project: Option<c3_project::Project>,
+    maps: MapList,
 }
 
 impl PlaySession {
@@ -64,6 +71,8 @@ impl PlaySession {
         render_state: &egui_wgpu::RenderState,
         setup: PlaySetup,
     ) -> Result<Self, String> {
+        let project = setup.project.clone();
+        let maps = setup.maps.clone();
         let (session, server) = if setup.online {
             let (session, server) = Self::join_local_server(game, doc, start, setup)?;
             (session, Some(server))
@@ -89,6 +98,8 @@ impl PlaySession {
             step: false,
             gpu: GpuView::new(render_state),
             server,
+            project,
+            maps,
         })
     }
 
@@ -160,6 +171,11 @@ impl PlaySession {
         self.screen.session.talk_to(id);
     }
 
+    /// Walks the hero to `cell`, as if it was clicked.
+    pub fn walk_to(&mut self, cell: CellPos) {
+        self.screen.session.walk_to(cell);
+    }
+
     /// Sends the hero after the nearest monster it can reach.
     pub fn attack_nearest(&mut self) {
         self.screen.session.attack_nearest();
@@ -222,6 +238,10 @@ impl PlaySession {
             0.0
         };
         let hovered = self.screen.update(ui, rect, seconds);
+        if let Some(project) = &self.project {
+            self.screen
+                .follow_map_change(project, &self.maps, &mut self.gpu.renderer);
+        }
 
         let ppp = ui.ctx().pixels_per_point();
         let size = [

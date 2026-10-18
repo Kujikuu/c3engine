@@ -27,6 +27,8 @@ pub enum Task {
     PickUp(EntityId),
     /// Walking up to NPC `id` to talk to it.
     Talk(u32),
+    /// Walking to the portal on a cell to go through it.
+    Portal(CellPos),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

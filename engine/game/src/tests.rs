@@ -499,3 +499,61 @@ fn kills_count_towards_taken_kill_quests() {
             .any(|e| matches!(e, Event::Notice { text, .. } if text.starts_with("quest 1: done")))
     );
 }
+
+#[test]
+fn portals_place_here_and_send_travellers_away() {
+    use c3_scene::{Portal, PortalTarget};
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 8);
+    sim.set_map_ids(vec![1]);
+    sim.set_portals(&[
+        // To a cell of this map.
+        Portal {
+            cell: (5, 5),
+            id: 0,
+            to: Some(PortalTarget {
+                map: 1,
+                cell: (20, 20),
+            }),
+        },
+        // To another map.
+        Portal {
+            cell: (10, 3),
+            id: 1,
+            to: Some(PortalTarget {
+                map: 2,
+                cell: (7, 8),
+            }),
+        },
+        // Leads nowhere: not a portal to the game.
+        Portal {
+            cell: (12, 12),
+            id: 2,
+            to: None,
+        },
+    ]);
+    assert!(sim.portal_at((12, 12)).is_none());
+    let hero = sim.add_player("Hero", (2, 2), 1);
+    sim.input(hero, Input::Walk((5, 5)));
+    assert!(run_until(&mut sim, 10_000, |s| s
+        .player(hero)
+        .unwrap()
+        .cell
+        == (20, 20)));
+    sim.take_events();
+    sim.input(hero, Input::EnterPortal((10, 3)));
+    let travelled = run_until(&mut sim, 20_000, |s| {
+        s.events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Travel {
+                    map: 2,
+                    cell: (7, 8),
+                    ..
+                }
+            )
+        })
+    });
+    assert!(travelled);
+    // The host moves the traveller; until then it stands by the portal.
+    assert!(distance(sim.player(hero).unwrap().cell, (10, 3)) <= portals::PORTAL_REACH);
+}

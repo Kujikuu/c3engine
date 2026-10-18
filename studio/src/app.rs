@@ -353,6 +353,11 @@ impl Studio {
         ) {
             session.talk_to(id);
         }
+        if let (Some(cell), Some(session)) =
+            (flag("--walk").and_then(|c| parse_cell(&c)), &mut s.playing)
+        {
+            session.walk_to(cell);
+        }
         if args.iter().any(|a| a == "--attack")
             && let Some(session) = &mut s.playing
         {

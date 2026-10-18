@@ -52,7 +52,7 @@ impl Sim {
         id
     }
 
-    fn living(&mut self, id: EntityId) -> Option<&mut Player> {
+    pub(crate) fn living(&mut self, id: EntityId) -> Option<&mut Player> {
         self.players.get_mut(&id).filter(|p| p.is_alive())
     }
 
@@ -98,6 +98,10 @@ impl Sim {
 
     /// Walks the player to `goal` (or as near as it can get).
     pub fn walk(&mut self, id: EntityId, goal: CellPos) {
+        // Walking to a portal goes through it.
+        if self.portal_at(goal).is_some() {
+            return self.enter_portal(id, goal);
+        }
         self.stop_talking(id);
         let Some(p) = self.living(id) else { return };
         p.task = Task::Walk;
@@ -385,6 +389,7 @@ impl Sim {
             Task::Attack(target) => self.chase_and_hit(id, target),
             Task::PickUp(item) => self.walk_to_item(id, item),
             Task::Talk(npc) => self.walk_to_npc(id, npc),
+            Task::Portal(cell) => self.walk_to_portal(id, cell),
         }
     }
 
@@ -406,11 +411,17 @@ impl Sim {
         self.index.moved(id, p.cell, next);
         p.cell = next;
         p.next_step_ms = now + p.step_ms();
+        let walking = matches!(p.task, Task::Walk);
         self.events.push(Event::Moved {
             id,
             to: next,
             running: p.running,
         });
+        // Stepping onto a portal on the way somewhere goes through it, as in the classic game.
+        if walking && let Some(to) = self.portal_at(next) {
+            self.travel(id, to);
+            return false;
+        }
         true
     }
 

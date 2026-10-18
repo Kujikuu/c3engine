@@ -193,6 +193,14 @@ impl World {
     }
 
     /// Stops every effect: the map's and those the actors carry.
+    /// Frees the world's GPU textures; call before dropping it.
+    pub fn release(&mut self, renderer: &mut c3_render::Renderer) {
+        for actor in self.actors.iter_mut().chain(&mut self.retired) {
+            actor.release_textures(renderer);
+        }
+        self.view.release(renderer);
+    }
+
     /// Reads the game's art again (the project's assets changed on disk); effects playing on
     /// roles stop.
     pub fn reload_assets(&mut self, renderer: &mut c3_render::Renderer) {
