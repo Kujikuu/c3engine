@@ -13,30 +13,88 @@ use std::collections::HashMap;
 const CULL_MARGIN: f32 = 1200.0;
 
 #[derive(Clone, Copy)]
-struct FrameTexture {
-    id: TextureId,
-    size: (f32, f32),
+pub(crate) struct FrameTexture {
+    pub id: TextureId,
+    pub size: (f32, f32),
 }
 
-/// Loaded sprite sets, prefabs and frame textures. Clear it when the scene changes.
+/// A sprite frame looked up for drawing.
+pub(crate) enum Frame {
+    Ready(FrameTexture),
+    /// The set, animation or image doesn't load.
+    Missing,
+    /// Waits for a later frame's loading budget.
+    Loading,
+}
+
+/// Loaded prefabs and sprite frames. Clear it when the scene changes.
 #[derive(Default)]
 pub struct ObjectCache {
-    sets: HashMap<String, Option<SpriteSet>>,
     prefabs: HashMap<String, Option<Prefab>>,
-    frames: HashMap<String, Option<FrameTexture>>,
+    frames: FrameCache,
 }
 
 impl ObjectCache {
+    pub fn clear(&mut self, renderer: &mut Renderer) {
+        self.frames.clear(renderer);
+        self.prefabs.clear();
+    }
+
+    pub fn loaded_frames(&self) -> usize {
+        self.frames.frames.len()
+    }
+}
+
+/// Loaded sprite sets and their frames' textures.
+#[derive(Default)]
+pub(crate) struct FrameCache {
+    sets: HashMap<String, Option<SpriteSet>>,
+    frames: HashMap<String, Option<FrameTexture>>,
+}
+
+impl FrameCache {
     pub fn clear(&mut self, renderer: &mut Renderer) {
         for t in self.frames.drain().filter_map(|(_, t)| t) {
             renderer.release_texture(t.id);
         }
         self.sets.clear();
-        self.prefabs.clear();
     }
 
-    pub fn loaded_frames(&self) -> usize {
-        self.frames.len()
+    /// The frame of `set`'s `animation` showing at `time_ms`, loading at most `budget` more
+    /// images (counted down).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn frame(
+        &mut self,
+        assets: &dyn SceneAssets,
+        renderer: &mut Renderer,
+        set: &str,
+        animation: &str,
+        frame_ms: u32,
+        time_ms: u64,
+        budget: &mut usize,
+    ) -> Frame {
+        let loaded = (self.sets.entry(set.to_owned())).or_insert_with(|| assets.sprite_set(set));
+        let Some(frames) = (loaded.as_ref())
+            .and_then(|s| s.frames(animation))
+            .filter(|f| !f.is_empty())
+        else {
+            return Frame::Missing;
+        };
+        let frame = &frames[(time_ms / frame_ms.max(1) as u64) as usize % frames.len()];
+        let texture = match self.frames.get(frame) {
+            Some(t) => *t,
+            None if *budget > 0 => {
+                *budget -= 1;
+                let t = assets.image(frame).map(|img| FrameTexture {
+                    size: (img.width as f32, img.height as f32),
+                    id: renderer.upload_texture(&img),
+                });
+                self.frames.insert(frame.clone(), t);
+                t
+            }
+            None => return Frame::Loading,
+        };
+        texture.map_or(Frame::Missing, Frame::Ready)
     }
 }
 
@@ -159,35 +217,23 @@ pub fn sprites(
                 .push(ObjectDraw::Actor((index - items.len()) as u32));
             continue;
         };
-        let set = cache
-            .sets
-            .entry(item.set.to_owned())
-            .or_insert_with(|| assets.sprite_set(item.set));
-        let Some(frames) = set
-            .as_ref()
-            .and_then(|s| s.frames(item.animation))
-            .filter(|f| !f.is_empty())
-        else {
-            continue;
-        };
-        let frame = &frames[(time_ms / item.frame_ms.max(1) as u64) as usize % frames.len()];
-        let texture = match cache.frames.get(frame) {
-            Some(t) => *t,
-            None if budget > 0 => {
-                budget -= 1;
-                let t = assets.image(frame).map(|img| FrameTexture {
-                    size: (img.width as f32, img.height as f32),
-                    id: renderer.upload_texture(&img),
-                });
-                cache.frames.insert(frame.clone(), t);
-                t
-            }
-            None => {
+        let frame = cache.frames.frame(
+            assets,
+            renderer,
+            item.set,
+            item.animation,
+            item.frame_ms,
+            time_ms,
+            &mut budget,
+        );
+        let t = match frame {
+            Frame::Ready(t) => t,
+            Frame::Missing => continue,
+            Frame::Loading => {
                 out.streaming = true;
                 continue;
             }
         };
-        let Some(t) = texture else { continue };
         let (cx, cy) = scene.cell_to_world(item.footprint.cell);
         out.order.push(ObjectDraw::Sprite(out.sprites.len() as u32));
         out.sprites.push(Sprite {

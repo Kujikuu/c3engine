@@ -337,7 +337,10 @@ impl Studio {
         egui::ScrollArea::vertical()
             .auto_shrink(false)
             .show(ui, |ui| {
-                if self.row_inspector(ui) || self.selection_inspector(ui) {
+                if self.row_inspector(ui)
+                    || self.selection_inspector(ui)
+                    || self.layer_inspector(ui)
+                {
                     return;
                 }
                 if self.editor.tool == Tool::Ground && self.doc.is_some() {

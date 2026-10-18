@@ -398,7 +398,12 @@ PUL for the classic client).
     (Alt+click takes a cell's), one undo step per stroke; overlays colour surface types and
     shade heights (values written in the cells when zoomed in), shown while the tool is on or
     from Layers
-- [ ] Layers: parallax backgrounds (sky, water) and their items; layer order
+- [x] Layers: parallax backgrounds (sky, water) and their items; layer order
+  - Done 2026-10-18: the Hierarchy lists the map's parallax layers and Create > Layer adds
+    one; the Inspector edits a layer's order and scroll rate and its items (a tiled ground
+    file, or a sprite on a cell with its offset) added from the Project selection; undoable
+    commands. Layer sprites (classic `C2DMapSceneObj`) now draw and animate. Dropped
+    pictures stand on their cell by their pivot
 - [ ] Regions: music, sound, safe zone, PK-free, booth, weather, light, script triggers
 - [ ] Portals: destination picker, two-way links, jump to the destination
 - [ ] World view: every map as a node with its portal links; open a map from it

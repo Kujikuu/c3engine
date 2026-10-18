@@ -139,6 +139,8 @@ pub struct Editor {
     /// A selection box being dragged out: the world point it started at, and where it reaches.
     boxing: Option<((f32, f32), (f32, f32))>,
     pub ground: GroundBrush,
+    /// The parallax layer the Inspector shows (picked in the Hierarchy).
+    pub layer: Option<usize>,
     /// What the Surface and Height tools paint.
     pub surface: u16,
     pub height: i16,
@@ -163,6 +165,7 @@ impl Default for Editor {
             },
             surface: 1,
             height: 0,
+            layer: None,
             hidden: HashSet::new(),
             locked: HashSet::new(),
         }
@@ -186,11 +189,14 @@ impl Editor {
 
     /// Selects `selection` alone (or nothing).
     pub fn select(&mut self, selection: Option<Selection>) {
-        self.selection = selection.into_iter().collect();
+        self.select_all(selection.into_iter().collect());
     }
 
     /// Selects all of `selection` (the first shows in the Inspector).
     pub fn select_all(&mut self, selection: Vec<Selection>) {
+        if !selection.is_empty() {
+            self.layer = None;
+        }
         self.selection = selection;
     }
 

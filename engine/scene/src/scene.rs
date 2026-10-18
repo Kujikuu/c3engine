@@ -168,7 +168,7 @@ pub struct Entity {
     pub kind: EntityKind,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub enum LayerItem {
     Sprite {
         asset: String,
@@ -185,7 +185,7 @@ pub enum LayerItem {
 }
 
 /// Background/foreground layer drawn with its own scroll rate.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct ParallaxLayer {
     /// Draw order slot among all layers.
     pub order: i32,

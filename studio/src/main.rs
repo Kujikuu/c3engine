@@ -25,6 +25,7 @@ mod hierarchy;
 mod home;
 mod hot_reload;
 mod icons;
+mod layer_inspector;
 mod live_scene;
 mod map_view;
 mod maps;

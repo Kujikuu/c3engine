@@ -5,9 +5,11 @@
 //! `rate`% of the camera's offset from that point. Layers with a scroll speed drift by
 //! `speed · rate · t / 100 000` pixels and repeat endlessly; others are drawn once.
 //! Drawn in world space: a layer point `L` lands at `L + (camera − centre)·(1 − rate/100)`.
+//! A layer's sprites (`C2DMapSceneObj`) stand on their cells and animate, shifted alike.
 
 use crate::assets::SceneAssets;
 use crate::ground::{self, GroundCache, GroundSprites};
+use crate::objects::{Frame, FrameCache};
 use crate::{Renderer, Sprite, View};
 use c3_scene::{LayerItem, Scene, TileLayer};
 use std::collections::HashMap;
@@ -17,6 +19,7 @@ use std::collections::HashMap;
 pub struct ParallaxCache {
     layers: HashMap<String, Option<TileLayer>>,
     tiles: HashMap<String, GroundCache>,
+    sprites: FrameCache,
 }
 
 impl ParallaxCache {
@@ -26,6 +29,7 @@ impl ParallaxCache {
         }
         self.tiles.clear();
         self.layers.clear();
+        self.sprites.clear(renderer);
     }
 }
 
@@ -59,9 +63,47 @@ pub fn sprites(
             (camera.0 - centre.0) * (1.0 - rx),
             (camera.1 - centre.1) * (1.0 - ry),
         );
+        let mut budget = budget;
         for item in &layer.items {
-            let LayerItem::Tiles { asset } = item else {
-                continue;
+            let asset = match item {
+                LayerItem::Tiles { asset } => asset,
+                LayerItem::Sprite {
+                    asset,
+                    animation,
+                    cell,
+                    offset,
+                    frame_ms,
+                    ..
+                } => {
+                    let frame = cache.sprites.frame(
+                        assets,
+                        renderer,
+                        asset,
+                        animation,
+                        *frame_ms,
+                        view.time_ms,
+                        &mut budget,
+                    );
+                    match frame {
+                        Frame::Ready(t) => {
+                            let (cx, cy) = scene.cell_to_world(*cell);
+                            out.sprites.push(Sprite {
+                                rect: [
+                                    cx + offset.0 as f32 + shift.0,
+                                    cy + offset.1 as f32 + shift.1,
+                                    t.size.0,
+                                    t.size.1,
+                                ],
+                                uv: [0.0, 0.0, 1.0, 1.0],
+                                texture: Some(t.id),
+                                tint: [1.0; 4],
+                            });
+                        }
+                        Frame::Loading => out.streaming = true,
+                        Frame::Missing => {}
+                    }
+                    continue;
+                }
             };
             let loaded = cache
                 .layers

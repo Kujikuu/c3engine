@@ -14,10 +14,10 @@ use std::collections::BTreeMap;
 
 /// Tracks the widgets of one edit so a drag or a text-field visit becomes one undo step.
 #[derive(Default)]
-struct Interaction {
-    changed: bool,
-    started: bool,
-    finished: bool,
+pub(crate) struct Interaction {
+    pub changed: bool,
+    pub started: bool,
+    pub finished: bool,
 }
 
 impl Interaction {
@@ -30,13 +30,13 @@ impl Interaction {
 }
 
 /// A labelled row in the property grid.
-fn row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
+pub(crate) fn row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
     ui.label(RichText::new(label).color(theme::TEXT_DIM));
     add(ui);
     ui.end_row();
 }
 
-fn grid(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
+pub(crate) fn grid(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
     egui::Grid::new(id)
         .num_columns(2)
         .spacing([10.0, 6.0])
@@ -82,7 +82,7 @@ fn destination_field(
 }
 
 /// Two drag fields for a cell.
-fn cell_field(ui: &mut egui::Ui, it: &mut Interaction, cell: &mut CellPos) {
+pub(crate) fn cell_field(ui: &mut egui::Ui, it: &mut Interaction, cell: &mut CellPos) {
     ui.horizontal(|ui| {
         it.track(ui.add(DragValue::new(&mut cell.0).prefix("x ").speed(0.2)));
         it.track(ui.add(DragValue::new(&mut cell.1).prefix("y ").speed(0.2)));
@@ -93,7 +93,11 @@ fn text_field(ui: &mut egui::Ui, it: &mut Interaction, text: &mut String) {
     it.track(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
 }
 
-fn number<T: egui::emath::Numeric>(ui: &mut egui::Ui, it: &mut Interaction, value: &mut T) {
+pub(crate) fn number<T: egui::emath::Numeric>(
+    ui: &mut egui::Ui,
+    it: &mut Interaction,
+    value: &mut T,
+) {
     it.track(ui.add(DragValue::new(value).speed(0.2)));
 }
 
@@ -176,7 +180,12 @@ impl Studio {
     }
 
     /// Runs an Inspector edit, merging one drag or text-field visit into one undo step.
-    fn apply_edit(&mut self, it: Interaction, title: &str, command: Option<SceneCommand>) {
+    pub(crate) fn apply_edit(
+        &mut self,
+        it: Interaction,
+        title: &str,
+        command: Option<SceneCommand>,
+    ) {
         let Some(doc) = &mut self.doc else { return };
         if it.finished {
             doc.end_group();

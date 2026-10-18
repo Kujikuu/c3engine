@@ -47,6 +47,7 @@ impl Studio {
             doc.name().to_owned()
         };
         let mut picked = None;
+        let mut picked_layer = None;
         ui.horizontal(|ui| {
             ui.label(RichText::new(theme::icon_text(icons::MAP_TRIFOLD, &name)).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -119,21 +120,32 @@ impl Studio {
                         .collect();
                     tree.group(ui, icon, group, &rows, &mut picked);
                 }
-                ui.add_enabled_ui(false, |ui| {
-                    let header =
-                        theme::icon_text(icons::STACK, &format!("Layers ({})", scene.layers.len()));
-                    egui::CollapsingHeader::new(header)
-                        .id_salt("Layers")
-                        .show(ui, |ui| {
-                            for l in &scene.layers {
-                                ui.label(format!(
-                                    "Layer {} · scroll {}%",
-                                    l.order, l.scroll_rate.0
-                                ));
+                let header =
+                    theme::icon_text(icons::STACK, &format!("Layers ({})", scene.layers.len()));
+                egui::CollapsingHeader::new(header)
+                    .id_salt("Layers")
+                    .show(ui, |ui| {
+                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                            for (i, l) in scene.layers.iter().enumerate() {
+                                let label = format!(
+                                    "Layer {} · scroll {}% · {} items",
+                                    l.order,
+                                    l.scroll_rate.0,
+                                    l.items.len()
+                                );
+                                let on = self.editor.layer == Some(i);
+                                if ui.add(egui::Button::selectable(on, label)).clicked() {
+                                    picked_layer = Some(i);
+                                }
                             }
                         });
-                });
+                    });
             });
+        if let Some(i) = picked_layer {
+            self.editor.select(None);
+            self.editor.layer = Some(i);
+            self.inspect_asset = false;
+        }
         if let Some(selection) = picked {
             self.editor.select(Some(selection));
             self.inspect_asset = false;
@@ -174,6 +186,14 @@ impl Studio {
             self.create(SceneCommand::AddSpawn {
                 spawn: new_spawn(at),
             });
+            ui.close();
+        }
+        if ui
+            .button(theme::icon_text(icons::STACK, "Layer"))
+            .on_hover_text("A parallax layer: sky, water or far scenery behind the map")
+            .clicked()
+        {
+            self.add_layer();
             ui.close();
         }
         ui.menu_button(theme::icon_text(icons::SPARKLE, "Effect"), |ui| {

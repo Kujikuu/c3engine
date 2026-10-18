@@ -4,6 +4,7 @@
 
 mod cells;
 mod ground;
+mod layers;
 mod objects;
 mod population;
 mod portals;
@@ -80,6 +81,19 @@ pub enum SceneCommand {
         #[serde(default)]
         image: Option<String>,
     },
+    /// Adds a parallax layer (sky, water, far scenery) at `index` in the list, or at the end.
+    AddLayer {
+        layer: c3_scene::ParallaxLayer,
+        #[serde(default)]
+        index: Option<usize>,
+    },
+    /// Replaces layer `index` with `layer`.
+    SetLayer {
+        index: usize,
+        layer: c3_scene::ParallaxLayer,
+    },
+    /// Deletes layer `index`.
+    RemoveLayer { index: usize },
     /// Sets every tile joined to `at` that shows what it shows to `image` (null: clears).
     FillGround {
         at: (u32, u32),
@@ -108,6 +122,10 @@ enum Change {
     Spawns {
         before: Vec<Spawn>,
         after: Vec<Spawn>,
+    },
+    Layers {
+        before: Vec<c3_scene::ParallaxLayer>,
+        after: Vec<c3_scene::ParallaxLayer>,
     },
     /// The ground layer.
     Ground {
@@ -168,6 +186,9 @@ impl SceneDoc {
                 self.paint_ground(tiles, image.as_deref())?
             }
             SceneCommand::FillGround { at, image } => self.fill_ground(*at, image.as_deref())?,
+            SceneCommand::AddLayer { layer, index } => self.add_layer(layer, *index)?,
+            SceneCommand::SetLayer { index, layer } => self.set_layer(*index, layer)?,
+            SceneCommand::RemoveLayer { index } => self.remove_layer(*index)?,
         };
         let changed = change.is_some();
         if let Some(change) = change {
@@ -214,6 +235,9 @@ impl SceneDoc {
             }
             Change::Spawns { before, after } => {
                 self.scene.spawns = pick(forward, before, after).clone()
+            }
+            Change::Layers { before, after } => {
+                self.scene.layers = pick(forward, before, after).clone()
             }
             Change::Ground { before, after } => {
                 self.scene.ground = Some((**pick(forward, before, after)).clone())

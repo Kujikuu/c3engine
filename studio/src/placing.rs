@@ -22,12 +22,11 @@ impl Studio {
                 let assets = self.game.as_ref()?.assets();
                 let set = assets.sprite_set(rel)?;
                 let animation = set.animations.keys().next()?.clone();
-                // A plain image without import settings stands on the cell by its bottom
-                // middle; the project's images place themselves by their pivot.
-                let own = self.editable_root(key.root);
-                let offset = match assets.image(rel).filter(|_| !own) {
-                    Some(image) => (-(image.width as i32) / 2, -(image.height as i32)),
-                    None => (0, 0),
+                // A picture stands on its cell by its pivot (the project's import setting,
+                // else the middle of its bottom edge); sprite sets carry their own offsets.
+                let offset = match AssetKind::of(rel) {
+                    AssetKind::Texture => self.pivot_offset(rel)?,
+                    _ => (0, 0),
                 };
                 EntityKind::Sprite {
                     asset: rel.to_owned(),
@@ -55,6 +54,22 @@ impl Studio {
             placement: Placement::Cell(at),
             kind,
         })
+    }
+
+    /// Where a picture's top left goes from its cell so its pivot stands on it.
+    fn pivot_offset(&self, path: &str) -> Option<(i32, i32)> {
+        let game = self.game.as_ref()?;
+        let image = game.assets().image(path)?;
+        let import = game
+            .native()
+            .and_then(|n| n.image_import(path))
+            .unwrap_or_default();
+        let [_, _, w, h] = import.frame_rect(0, image.width, image.height)?;
+        let [px, py] = import.pivot;
+        Some((
+            -(px * w as f32).round() as i32,
+            -(py * h as f32).round() as i32,
+        ))
     }
 
     /// Places table row `row` on cell `at`: a monster type makes a spawn area of it.

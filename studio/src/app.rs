@@ -319,6 +319,9 @@ impl Studio {
                 _ => GroundMode::Paint,
             };
         }
+        if let Some(index) = flag("--layer").and_then(|l| l.parse().ok()) {
+            s.editor.layer = Some(index);
+        }
         if args.iter().any(|a| a == "--minimap") {
             s.generate_minimap();
         }
