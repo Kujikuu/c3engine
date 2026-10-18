@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 c3-core = { version = "0.1.0", path = "../core" }
 c3-data = { version = "0.1.0", path = "../data" }
+c3-project = { version = "0.1.0", path = "../project" }
 c3-scene = { version = "0.1.0", path = "../scene" }
 schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }

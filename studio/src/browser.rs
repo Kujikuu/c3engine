@@ -141,6 +141,10 @@ impl AssetRoot {
             };
             for entry in read.flatten() {
                 let name = entry.file_name().to_string_lossy().into_owned();
+                // Sidecars and the engine's hidden folders aren't assets.
+                if name.starts_with('.') || name.ends_with(c3_core::asset::META_SUFFIX) {
+                    continue;
+                }
                 let rel = if folder.is_empty() {
                     name.clone()
                 } else {
@@ -599,6 +603,11 @@ impl Studio {
                 )
                 .clicked()
                 {
+                    if let Some(doc) = &mut self.assets
+                        && let Some(problem) = doc.db_mut().rescan().into_iter().next()
+                    {
+                        self.error = Some(problem);
+                    }
                     self.refresh_assets();
                 }
                 let search = ui.add(
@@ -854,10 +863,14 @@ impl Studio {
     /// Shows content folder `rel` in the Project panel, or (`select`) the folder of file
     /// `rel` with that file selected.
     pub(crate) fn browse_to(&mut self, rel: &str, select: bool) {
-        let Some(root) = self.browser.roots.iter().position(|r| r.is_content) else {
+        let rel = rel.replace('\\', "/");
+        // The root holding `rel`, else the TQ content's.
+        let holds = |r: &AssetRoot| r.file(&rel).is_some() || r.children.contains_key(&rel);
+        let Some(root) = (self.browser.roots.iter().position(holds))
+            .or_else(|| self.browser.roots.iter().position(|r| r.is_content))
+        else {
             return;
         };
-        let rel = rel.replace('\\', "/");
         let folder = if select {
             parent(&rel).to_owned()
         } else {
@@ -963,6 +976,17 @@ impl Studio {
                 );
             }
         });
+        let image_size = self
+            .browser
+            .preview
+            .as_ref()
+            .filter(|p| p.key == key && p.texture.is_some())
+            .map(|p| p.size);
+        self.import_section(ui, key.root, &key.rel, image_size);
+        let import = match self.asset_meta(key.root, &key.rel).map(|m| &m.import) {
+            Some(c3_core::asset::Importer::Image(i)) => Some(i.clone()),
+            _ => None,
+        };
         let mut open = false;
         if let Some(preview) = self.browser.preview.as_ref().filter(|p| p.key == key) {
             if let Some(detail) = &preview.detail {
@@ -979,8 +1003,17 @@ impl Studio {
                     );
                     let max = ui.available_width();
                     let size = texture.size_vec2();
-                    let fit = (max / size.x).min(1.0).min(256.0 / size.y.max(1.0) * 2.0);
-                    ui.add(egui::Image::new((texture.id(), size * fit)));
+                    // Small images (pixel art, sheets) show larger, up to 4x.
+                    let fit = (max / size.x).min(4.0).min(256.0 / size.y.max(1.0));
+                    let shown = ui.add(egui::Image::new((texture.id(), size * fit)));
+                    if let Some(import) = &import {
+                        crate::asset_import::draw_grid(
+                            ui.painter(),
+                            shown.rect,
+                            import,
+                            preview.size,
+                        );
+                    }
                 });
             }
         }

@@ -11,3 +11,4 @@ c3-scene = { version = "0.1.0", path = "../scene" }
 dirs = "7.0.0"
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.8"
+uuid = { version = "1.28.0", features = ["v4"] }

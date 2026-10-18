@@ -27,6 +27,8 @@ pub enum EditError {
     NoSetting(String),
     /// A settings value of the wrong type, or settings that break a rule.
     InvalidSetting(String),
+    /// An asset operation that can't be done, or import settings that don't fit.
+    InvalidAsset(String),
 }
 
 impl fmt::Display for EditError {
@@ -53,7 +55,7 @@ impl fmt::Display for EditError {
             ),
             Self::InvalidArea(why) => write!(f, "invalid area: {why}"),
             Self::NoSetting(path) => write!(f, "there is no setting {path}"),
-            Self::InvalidSetting(why) => write!(f, "{why}"),
+            Self::InvalidSetting(why) | Self::InvalidAsset(why) => write!(f, "{why}"),
         }
     }
 }

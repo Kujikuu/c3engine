@@ -39,6 +39,8 @@ pub(crate) enum Focus {
     Dialogue,
     /// The Project Settings window.
     Settings,
+    /// The project's assets (the Project panel and the Inspector's Import section).
+    Assets,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -90,6 +92,10 @@ pub struct Studio {
     pub(crate) settings: Option<crate::project_settings::SettingsEditor>,
     /// The settings last applied (to tell what changed).
     pub(crate) applied_settings: Option<c3_core::ProjectSettings>,
+    /// The project's assets: their sidecars and the file operations on them.
+    pub(crate) assets: Option<c3_edit::AssetDoc>,
+    /// Text typed in the Import section, not yet committed.
+    pub(crate) import_buffers: std::collections::HashMap<String, String>,
     /// The game's fonts need installing (Localization changed).
     pub(crate) fonts_dirty: bool,
     /// The Data panel: tables and the one open.
@@ -164,6 +170,8 @@ impl Studio {
             new_map: None,
             settings: None,
             applied_settings: None,
+            assets: None,
+            import_buffers: std::collections::HashMap::new(),
             fonts_dirty: false,
             client: None,
             workspace: Workspace::Maps,
@@ -368,6 +376,7 @@ impl Studio {
         self.game = None;
         self.settings = None;
         self.applied_settings = None;
+        self.assets = None;
         self.stage = None;
         self.maps.clear();
         self.models.clear();
@@ -399,6 +408,13 @@ impl Studio {
             ));
             self.applied_settings = Some(settings);
             self.fonts_dirty = true;
+        }
+        if let Some(project) = &self.project {
+            let (db, problems) = c3_project::AssetDb::of(project);
+            if let Some(problem) = problems.into_iter().next() {
+                self.error = Some(problem);
+            }
+            self.assets = Some(c3_edit::AssetDoc::new(project.clone(), db));
         }
         self.refresh_maps();
         self.refresh_assets();
@@ -713,6 +729,11 @@ impl Studio {
     }
 
     pub(crate) fn undo(&mut self) {
+        if self.focus == Focus::Assets {
+            let done = self.assets.as_mut().map(c3_edit::AssetDoc::undo);
+            self.assets_changed(done, "Undid");
+            return;
+        }
         if self.focus == Focus::Settings {
             let label = self.settings.as_mut().and_then(|s| s.doc.undo());
             if let Some(label) = label {
@@ -728,7 +749,7 @@ impl Studio {
             // A focused text field undoes its own typing.
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.undo(),
-            Focus::Settings => None,
+            Focus::Settings | Focus::Assets => None,
         };
         if let Some(label) = label {
             self.notify(format!("Undid: {label}"));
@@ -736,6 +757,11 @@ impl Studio {
     }
 
     pub(crate) fn redo(&mut self) {
+        if self.focus == Focus::Assets {
+            let done = self.assets.as_mut().map(c3_edit::AssetDoc::redo);
+            self.assets_changed(done, "Redid");
+            return;
+        }
         if self.focus == Focus::Settings {
             let label = self.settings.as_mut().and_then(|s| s.doc.redo());
             if let Some(label) = label {
@@ -750,7 +776,7 @@ impl Studio {
             Focus::Script => None,
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.redo(),
-            Focus::Settings => None,
+            Focus::Settings | Focus::Assets => None,
         };
         if let Some(label) = label {
             self.notify(format!("Redid: {label}"));
@@ -786,6 +812,30 @@ impl Studio {
                     doc.and_then(|d| d.redo_label()).map(str::to_owned),
                 )
             }
+            Focus::Assets => {
+                let doc = self.assets.as_ref();
+                (
+                    doc.and_then(|d| d.undo_label()).map(str::to_owned),
+                    doc.and_then(|d| d.redo_label()).map(str::to_owned),
+                )
+            }
+        }
+    }
+
+    /// After an asset step was undone or redone (`verb`): the files changed on disk.
+    fn assets_changed(
+        &mut self,
+        done: Option<Result<Option<String>, c3_edit::EditError>>,
+        verb: &str,
+    ) {
+        match done {
+            Some(Ok(Some(label))) => {
+                self.import_buffers.clear();
+                self.refresh_assets();
+                self.notify(format!("{verb}: {label}"));
+            }
+            Some(Err(e)) => self.error = Some(e.to_string()),
+            _ => {}
         }
     }
 
@@ -859,8 +909,8 @@ impl Studio {
                 Focus::Dialogue => {
                     self.save_dialogue();
                 }
-                // Settings are saved as they change.
-                Focus::Settings => {}
+                // Settings and assets are saved as they change.
+                Focus::Settings | Focus::Assets => {}
             }
         }
         if ctx.egui_wants_keyboard_input() {

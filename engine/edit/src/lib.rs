@@ -12,6 +12,7 @@
 //! MCP agent ───┘        SceneQuery ─► SceneDoc::query ─► QueryResult
 //! ```
 
+mod assets;
 mod error;
 mod history;
 mod query;
@@ -19,6 +20,7 @@ mod scene;
 mod settings;
 mod table;
 
+pub use assets::{AssetCommand, AssetDoc};
 pub use error::EditError;
 pub use history::HistoryEntry;
 pub use query::{

@@ -8,15 +8,17 @@
 //! MyGame/
 //!   c3project.toml   name, engine version, content sources
 //!   settings.toml    Project Settings (player, cursors, camera, gameplay...)
-//!   assets/          models, effects, sprites, textures, sounds
+//!   assets/          models, effects, sprites, textures, sounds; each with a `.meta` sidecar
 //!   maps/            scenes
 //!   tables/          items, skills, monsters, …
 //!   scripts/         game logic
 //! ```
 
+pub mod assets;
 mod copy;
 mod recent;
 
+pub use assets::AssetDb;
 pub use copy::{CopyProgress, copy_entries};
 pub use recent::{RecentProject, RecentProjects};
 
@@ -49,6 +51,8 @@ pub enum Error {
     Settings(PathBuf, String),
     /// Creating a project where one, or other files, already exist.
     NotEmpty(PathBuf),
+    /// An asset operation that can't be done (a missing asset, a name taken).
+    Asset(String),
 }
 
 impl fmt::Display for Error {
@@ -58,6 +62,7 @@ impl fmt::Display for Error {
             Self::Manifest(path, e) | Self::Settings(path, e) => {
                 write!(f, "{}: {e}", path.display())
             }
+            Self::Asset(e) => f.write_str(e),
             Self::NotEmpty(path) => write!(
                 f,
                 "{} is not empty; choose an empty or new folder",
