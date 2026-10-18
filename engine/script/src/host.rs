@@ -230,7 +230,12 @@ fn eval_diagnostic(e: &EvalAltResult) -> Diagnostic {
 
 /// Script names under `dir` (`npc/guard` for `dir/npc/guard.rhai`), sorted.
 pub fn script_names(dir: &Path) -> Vec<String> {
-    fn walk(dir: &Path, prefix: &str, out: &mut Vec<String>) {
+    names_with_suffix(dir, SCRIPT_SUFFIX)
+}
+
+/// Names of the files ending in `suffix` under `dir`, with their folders (`npc/guard`), sorted.
+pub(crate) fn names_with_suffix(dir: &Path, suffix: &str) -> Vec<String> {
+    fn walk(dir: &Path, prefix: &str, suffix: &str, out: &mut Vec<String>) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -238,14 +243,14 @@ pub fn script_names(dir: &Path) -> Vec<String> {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             if path.is_dir() {
-                walk(&path, &format!("{prefix}{name}/"), out);
-            } else if let Some(stem) = name.strip_suffix(SCRIPT_SUFFIX) {
+                walk(&path, &format!("{prefix}{name}/"), suffix, out);
+            } else if let Some(stem) = name.strip_suffix(suffix) {
                 out.push(format!("{prefix}{stem}"));
             }
         }
     }
     let mut out = Vec::new();
-    walk(dir, "", &mut out);
+    walk(dir, "", suffix, &mut out);
     out.sort();
     out
 }

@@ -632,6 +632,7 @@ version = "0.1.0"
 dependencies = [
  "c3-data",
  "c3-scene",
+ "c3-script",
  "dirs",
  "serde",
  "toml",
@@ -665,6 +666,7 @@ version = "0.1.0"
 dependencies = [
  "c3-data",
  "rhai",
+ "ron",
  "schemars",
  "serde",
 ]

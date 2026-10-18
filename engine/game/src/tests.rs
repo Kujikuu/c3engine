@@ -429,3 +429,52 @@ fn chat_commands() {
     assert!(sim.command(hero, "/money lots").is_err());
     assert!(sim.command(hero, "/fly").is_err());
 }
+
+#[test]
+fn kills_count_towards_taken_kill_quests() {
+    let mut sim = Sim::new(
+        Grid::new(60, 60),
+        vec![],
+        vec![spawn(1, SLIME, (14, 10), (14, 10), 1)],
+        rules(),
+        4,
+    );
+    let quest = |id, monster| c3_script::Quest {
+        id,
+        name: format!("quest {id}"),
+        description: String::new(),
+        giver: 0,
+        min_level: 0,
+        goal: c3_script::Goal::Kill { monster, count: 1 },
+        reward_money: 0,
+        reward_exp: 0,
+        reward_item: 0,
+    };
+    sim.set_quests(vec![
+        quest(1, SLIME.into()),
+        quest(2, WOLF.into()),
+        quest(3, SLIME.into()),
+    ]);
+    let hero = sim.add_player("Hero", (10, 10), 1);
+    for id in [1, 2] {
+        let p = sim.players.get_mut(&hero).unwrap();
+        p.flags
+            .insert(c3_script::quest::state_flag(id), c3_script::quest::TAKEN);
+    }
+    let slime = sim.monsters().next().unwrap().id;
+    sim.attack(hero, slime);
+    assert!(run_until(&mut sim, 30_000, |s| !s
+        .monster(slime)
+        .unwrap()
+        .is_alive()));
+    let p = sim.player(hero).unwrap();
+    let progress = |id| p.quest_progress(&sim.quests()[id]);
+    assert_eq!(progress(0), (1, 1), "taken, right monster");
+    assert_eq!(progress(1), (0, 1), "another monster");
+    assert_eq!(progress(2), (0, 1), "not taken");
+    assert!(
+        sim.take_events()
+            .iter()
+            .any(|e| matches!(e, Event::Notice { text, .. } if text.starts_with("quest 1: done")))
+    );
+}

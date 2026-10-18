@@ -3,9 +3,11 @@
 
 use crate::sim::Sim;
 use crate::{EntityId, Task};
+use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /level N · /heal · /goto X Y";
+pub const HELP: &str =
+    "/money N · /item TYPE [COUNT] · /level N · /heal · /goto X Y · /quest ID STATE [KILLS]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -66,6 +68,31 @@ impl Sim {
                 self.place(id, cell);
                 self.players.get_mut(&id).expect("checked above").task = Task::Idle;
                 Ok(format!("Moved to ({}, {}).", cell.0, cell.1))
+            }
+            "quest" => {
+                let quest = arg(0)?;
+                let state = arg(1)?.clamp(quest::NOT_TAKEN, quest::DONE);
+                let name = self
+                    .quests
+                    .iter()
+                    .find(|q| q.id == quest)
+                    .map(|q| q.name.clone())
+                    .ok_or_else(|| format!("There is no quest {quest}."))?;
+                let p = self.players.get_mut(&id).expect("checked above");
+                let mut set = |flag: String, value: i64| {
+                    if value == 0 {
+                        p.flags.remove(&flag);
+                    } else {
+                        p.flags.insert(flag, value);
+                    }
+                };
+                set(quest::state_flag(quest), state);
+                set(
+                    quest::kills_flag(quest),
+                    args.get(2).copied().unwrap_or(0).max(0),
+                );
+                let says = ["not taken", "taken", "done"][state as usize];
+                Ok(format!("{name} is now {says}."))
             }
             _ => Err(format!("Unknown command /{name}. {HELP}")),
         }

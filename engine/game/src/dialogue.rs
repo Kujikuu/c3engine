@@ -170,6 +170,9 @@ impl Sim {
                     self.events.push(Event::ShopOpened { player: id, npc });
                 }
             }
+            Effect::Exp(n) => self.gain_exp(id, n.max(0) as u64),
+            Effect::QuestTaken { name, .. } => notice(self, format!("Quest taken: {name}")),
+            Effect::QuestDone { name, .. } => notice(self, format!("Quest complete: {name}")),
             Effect::Log(text) => self.events.push(Event::ScriptLog(text)),
         }
     }

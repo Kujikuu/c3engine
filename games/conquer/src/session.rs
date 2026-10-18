@@ -12,7 +12,7 @@ use crate::world::World;
 use c3_game::{EntityId, Event, Rules, Sim};
 use c3_render::camera::Camera2d;
 use c3_scene::{CellPos, Scene, path};
-use c3_script::ScriptHost;
+use c3_script::{Quest, ScriptHost, quest};
 use c3_ui::{GameUi, GameView, Icons, LogLine, UiAction, style};
 use egui::{Pos2, Rect, TextureHandle, TextureId};
 use glam::Vec2;
@@ -106,6 +106,14 @@ impl Session {
             rules,
             setup.seed,
         );
+        if let Some(dir) = &setup.tables {
+            let file = dir.join(format!("{}{}", quest::QUEST_TABLE, c3_data::TABLE_SUFFIX));
+            match c3_data::load_table(&file) {
+                Ok(table) => sim.set_quests(Quest::all(&table)),
+                Err(e) if file.exists() => log.push(LogLine::Error(format!("Quests: {e}"))),
+                Err(_) => {}
+            }
+        }
         if let Some(dir) = setup.scripts {
             sim.set_scripts(ScriptHost::new(dir, setup.tables), setup.map_ids.clone());
         }
@@ -169,6 +177,16 @@ impl Session {
 
     pub fn toggle_bag(&mut self) {
         self.ui.toggle_bag();
+    }
+
+    /// Opens or closes the quest log, as L does.
+    pub fn toggle_quests(&mut self) {
+        self.ui.toggle_quests();
+    }
+
+    /// Says `line` in chat, as typed (`/` commands run).
+    pub fn say(&mut self, line: &str) {
+        self.act(UiAction::Say(line.to_owned()));
     }
 
     /// Where the hero's feet are now.
@@ -255,12 +273,16 @@ impl Session {
             Some(screen.to_screen(feet - Vec2::Y * HEAD_HEIGHT))
         };
         let cell = |c: CellPos| screen.to_screen(Vec2::from(self.world.scene.cell_to_world(c)));
+        let npc_head = |c: CellPos| {
+            screen.to_screen(Vec2::from(self.world.scene.cell_to_world(c)) - Vec2::Y * HEAD_HEIGHT)
+        };
         let view = GameView {
             sim: &self.sim,
             hero: self.hero,
             rect: screen.rect,
             head: &head,
             cell: &cell,
+            npc_head: &npc_head,
             hovered,
             slots: SLOT_NAMES,
             sound: self.audio.muted().map(|m| !m),

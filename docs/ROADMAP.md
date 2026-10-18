@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M5 step 6: quest and dialogue editor (see M5 below)
+- [ ] M6 step 1: `engine/net` transport, packet framework, cipher trait (see M6 below)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -130,7 +130,7 @@ Toward the Unity/UE5-style editor, in order:
 
 M3 complete (2026-10-18).
 
-## M5: Gameplay framework (shared by client and server)
+## M5: Gameplay framework (shared by client and server) [x] (complete 2026-10-18)
 In order; each step is playable in the Studio's Play mode:
 - [x] (1) Game data: `engine/data` typed tables (schema + rows, `tables/*.table.ron`), table
       commands with undo in c3-edit, SQL dump import; Studio Data panel (spreadsheet: search,
@@ -145,7 +145,10 @@ In order; each step is playable in the Studio's Play mode:
 - [x] (4) Game UI: `engine/ui` HUD (HP/MP/exp), inventory, NPC dialogue, shop, chat windows in
       the client and the Game view
 - [x] (5) Audio: `engine/audio` music regions, action and effect sounds
-- [ ] (6) Quest and dialogue editor: visual dialogue graphs, quest table, scripts generated
+- [x] (6) Quest and dialogue editor: Studio Dialogue panel (node graph: Say/Branch nodes,
+      conditions, actions, drag-to-link, undo, problems), dialogue graphs compiled to
+      `scripts/dialogue/*.rhai`; quest table (kill/collect/talk goals, rewards) with script API,
+      kill counting in the simulation, `/quest` command; quest log, tracker and NPC quest marks
 
 ## M6: Networking + engine server
 - [ ] `engine/net`: transport, packet framework, cipher trait

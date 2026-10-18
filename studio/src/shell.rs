@@ -28,14 +28,17 @@ pub(crate) enum Panel {
     Data,
     /// The script editor.
     Script,
+    /// Dialogue graphs and quests.
+    Dialogue,
 }
 
 impl Panel {
-    pub const ALL: [Panel; 10] = [
+    pub const ALL: [Panel; 11] = [
         Panel::Scene,
         Panel::Game,
         Panel::Preview,
         Panel::Script,
+        Panel::Dialogue,
         Panel::Hierarchy,
         Panel::Inspector,
         Panel::Project,
@@ -56,6 +59,7 @@ impl Panel {
             Panel::Console => icons::TERMINAL,
             Panel::Data => icons::DATABASE,
             Panel::Script => icons::FILE_CODE,
+            Panel::Dialogue => icons::CHATS,
         }
     }
 
@@ -71,15 +75,20 @@ impl Panel {
             Panel::Console => "Console",
             Panel::Data => "Data",
             Panel::Script => "Script",
+            Panel::Dialogue => "Dialogue",
         }
     }
 
     /// Panels a reopened panel joins (its usual neighbours).
     fn neighbours(self) -> &'static [Panel] {
         match self {
-            Panel::Scene | Panel::Game | Panel::Preview | Panel::Script => {
-                &[Panel::Scene, Panel::Game, Panel::Preview, Panel::Script]
-            }
+            Panel::Scene | Panel::Game | Panel::Preview | Panel::Script | Panel::Dialogue => &[
+                Panel::Scene,
+                Panel::Game,
+                Panel::Preview,
+                Panel::Script,
+                Panel::Dialogue,
+            ],
             Panel::Inspector | Panel::History => &[Panel::Inspector, Panel::History],
             Panel::Project | Panel::Console | Panel::Data => {
                 &[Panel::Project, Panel::Data, Panel::Console]
@@ -99,6 +108,7 @@ pub(crate) fn default_layout() -> Dock<Panel> {
             Panel::Game,
             Panel::Preview,
             Panel::Script,
+            Panel::Dialogue,
         ]);
         let bottom = group(vec![Panel::Project, Panel::Data, Panel::Console]);
         let right = group(vec![Panel::Inspector, Panel::History]);
@@ -447,6 +457,7 @@ impl TabViewer<Panel> for Studio {
             Panel::Scene if self.map_dirty() => "Scene*",
             Panel::Data if self.data.is_dirty() => "Data*",
             Panel::Script if self.scripts.is_dirty() => "Script*",
+            Panel::Dialogue if self.dialogues.is_dirty() => "Dialogue*",
             _ => panel.name(),
         };
         theme::icon_text(panel.icon(), name)
@@ -464,6 +475,7 @@ impl TabViewer<Panel> for Studio {
             Panel::Console => self.console_panel(ui),
             Panel::Data => self.data_panel(ui),
             Panel::Script => self.script_panel(ui),
+            Panel::Dialogue => self.dialogue_panel(ui),
         }
     }
 }

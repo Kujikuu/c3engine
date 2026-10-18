@@ -63,8 +63,8 @@ impl ScriptPanel {
     }
 }
 
-/// Whether `name` can name a script file (`npc/guard`).
-fn valid_name(name: &str) -> bool {
+/// Whether `name` can name a script or dialogue file (`npc/guard`).
+pub(crate) fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.split('/').all(|part| {
             !part.is_empty()

@@ -246,6 +246,9 @@ impl Sim {
         m.target = None;
         let (cell, kind) = (m.cell, m.kind);
         self.events.push(Event::Died { id, killer });
+        if let Some(player) = killer {
+            self.count_kill(player, kind);
+        }
         let drops = self.rules.drops(kind, &mut self.rng);
         for drop in drops {
             self.drop_at(cell, drop);

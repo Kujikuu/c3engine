@@ -10,9 +10,12 @@ c3engine/
     anim/      skeletal + sprite animation, blend/state machines
     net/       transport (tokio), packet codec framework, cipher trait, prediction
     ui/        c3-ui: in-game UI on egui (HUD, chat, bag + equipment, shop, NPC dialogue,
-               world overlays); returns UiActions; owns the shared icon font
+               quest log + tracker, world overlays and quest marks); returns UiActions; owns
+               the shared icon font
     audio/     c3-audio (rodio): one-shot sounds with distance falloff, music, music regions
-    script/    Rhai script host: sandboxed, hot reload, NPC dialogue API, editor diagnostics
+    script/    Rhai script host: sandboxed, hot reload, NPC dialogue + quest API, editor
+               diagnostics; dialogue graphs (`dialogues/*.dialogue.ron`) compiled to scripts;
+               the quest model (`tables/quests.table.ron`, state in player variables)
     project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
                sources, recent projects)
     game/      c3-game: the simulation shared by Play mode, client and server: one map's
@@ -27,7 +30,8 @@ c3engine/
     c3/        c3-formats-tq: TQ format plugins (read + write)
   games/
     conquer/   game-conquer: 5065 protocol + crypto, rules, UI, content (Redux compatible)
-  studio/      c3-studio: egui editor (map, model, anim, effect, UI, tables, scripts, assistant)
+  studio/      c3-studio: egui editor (map, model, anim, effect, UI, tables, scripts, dialogue
+               graphs + quests, assistant)
   apps/
     client/    c3-client: plays a game project (`game.rs`: GameScreen + egui-winit/egui-wgpu
                UI layer) or views a Conquer client's maps (`main.rs` viewer)

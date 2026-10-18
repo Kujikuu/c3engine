@@ -40,6 +40,7 @@ pub struct Sim {
     pub(crate) scripts: Option<c3_script::ScriptHost>,
     /// Game map ids of this map (script teleports within it work).
     pub(crate) map_ids: Vec<u32>,
+    pub(crate) quests: Vec<c3_script::Quest>,
 }
 
 impl Sim {
@@ -75,6 +76,7 @@ impl Sim {
             events: Vec::new(),
             scripts: None,
             map_ids: Vec::new(),
+            quests: Vec::new(),
         };
         sim.fill_spawns();
         sim

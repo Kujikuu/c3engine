@@ -89,6 +89,18 @@ pub enum Effect {
     },
     /// Open the NPC's shop to the player.
     OpenShop,
+    /// Experience gained.
+    Exp(i64),
+    /// The player took quest `id`.
+    QuestTaken {
+        id: i64,
+        name: String,
+    },
+    /// The player completed quest `id`.
+    QuestDone {
+        id: i64,
+        name: String,
+    },
     /// `print` output, for the console.
     Log(String),
 }

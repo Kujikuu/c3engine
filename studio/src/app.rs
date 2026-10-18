@@ -36,6 +36,7 @@ pub(crate) enum Focus {
     Data,
     /// The script editor (its text field keeps its own undo).
     Script,
+    Dialogue,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -44,6 +45,7 @@ pub(crate) enum Pending {
     OpenMap(MapRef),
     OpenTable(String),
     OpenScript(String),
+    OpenDialogue(String),
     OpenProject(PathBuf),
     CloseProject,
     Quit,
@@ -81,6 +83,8 @@ pub struct Studio {
     pub(crate) data: crate::data_panel::DataPanel,
     /// The Script panel: scripts and the one being edited.
     pub(crate) scripts: crate::script_panel::ScriptPanel,
+    /// The Dialogue panel: dialogue graphs, the one being edited, and the quests.
+    pub(crate) dialogues: crate::dialogue_panel::DialoguePanel,
     pub(crate) focus: Focus,
     /// The open map drawn as the game draws it; needs the project's content.
     pub(crate) live_scene: Option<LiveScene>,
@@ -170,6 +174,7 @@ impl Studio {
             stage: None,
             data: Default::default(),
             scripts: Default::default(),
+            dialogues: Default::default(),
             focus: Focus::Scene,
             live_scene: None,
             layers: Layers::default(),
@@ -250,6 +255,12 @@ impl Studio {
         if let Some(name) = flag("--script") {
             s.load_script(&name);
         }
+        if let Some(name) = flag("--dialogue") {
+            s.load_dialogue(&name);
+            if let Some(node) = flag("--node").and_then(|n| n.parse().ok()) {
+                s.dialogues.select(node);
+            }
+        }
         if let Some(name) = flag("--show")
             && let Some(panel) = Panel::ALL
                 .into_iter()
@@ -275,6 +286,14 @@ impl Studio {
             && let Some(session) = &mut s.playing
         {
             session.toggle_bag();
+        }
+        if args.iter().any(|a| a == "--quests")
+            && let Some(session) = &mut s.playing
+        {
+            session.toggle_quests();
+        }
+        if let (Some(line), Some(session)) = (flag("--say"), &mut s.playing) {
+            session.say(&line);
         }
         let pick = flag("--pick").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (pick, &s.doc) {
@@ -312,6 +331,7 @@ impl Studio {
         self.refresh_assets();
         self.refresh_tables();
         self.refresh_scripts();
+        self.refresh_dialogues();
     }
 
     /// Re-lists the maps.
@@ -388,7 +408,10 @@ impl Studio {
 
     /// Anything open has unsaved changes (map, table or script).
     pub(crate) fn is_dirty(&self) -> bool {
-        self.map_dirty() || self.data.is_dirty() || self.scripts.is_dirty()
+        self.map_dirty()
+            || self.data.is_dirty()
+            || self.scripts.is_dirty()
+            || self.dialogues.is_dirty()
     }
 
     /// Saves every open document with changes; false if one failed.
@@ -396,6 +419,7 @@ impl Studio {
         (!self.map_dirty() || self.save())
             && (!self.data.is_dirty() || self.save_table())
             && (!self.scripts.is_dirty() || self.save_script())
+            && (!self.dialogues.is_dirty() || self.save_dialogue())
     }
 
     /// What has unsaved changes, for prompts.
@@ -409,6 +433,9 @@ impl Studio {
         }
         if let Some(s) = self.scripts.open.as_ref().filter(|s| s.is_dirty()) {
             names.push(format!("script {}", s.name));
+        }
+        if let Some(d) = self.dialogues.open.as_ref().filter(|d| d.is_dirty()) {
+            names.push(format!("dialogue {}", d.name));
         }
         names.join(" and ")
     }
@@ -564,6 +591,10 @@ impl Studio {
                 self.scripts.open = None;
                 self.load_script(&name);
             }
+            Pending::OpenDialogue(name) => {
+                self.dialogues.open = None;
+                self.load_dialogue(&name);
+            }
             Pending::OpenProject(path) => self.open_project(&path),
             Pending::CloseProject => self.close_project(),
             Pending::Quit => {
@@ -578,6 +609,9 @@ impl Studio {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::undo),
             Focus::Data => self.data.undo(),
             Focus::Script => None,
+            // A focused text field undoes its own typing.
+            Focus::Dialogue if self.dialogues.typing => None,
+            Focus::Dialogue => self.dialogues.undo(),
         };
         if let Some(label) = label {
             self.notify(format!("Undid: {label}"));
@@ -589,6 +623,8 @@ impl Studio {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::redo),
             Focus::Data => self.data.redo(),
             Focus::Script => None,
+            Focus::Dialogue if self.dialogues.typing => None,
+            Focus::Dialogue => self.dialogues.redo(),
         };
         if let Some(label) = label {
             self.notify(format!("Redid: {label}"));
@@ -616,6 +652,7 @@ impl Studio {
                 )
             }
             Focus::Script => (None, None),
+            Focus::Dialogue => self.dialogues.undo_redo_labels(),
         }
     }
 
@@ -685,6 +722,9 @@ impl Studio {
                 }
                 Focus::Script => {
                     self.save_script();
+                }
+                Focus::Dialogue => {
+                    self.save_dialogue();
                 }
             }
         }

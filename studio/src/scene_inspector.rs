@@ -310,29 +310,42 @@ impl Studio {
                 number(ui, it, &mut npc.kind);
             });
         });
-        let (edit, create) = self.npc_script_field(ui, it, &mut npc.script);
+        let request = self.npc_script_field(ui, it, &mut npc.script);
         extra_section(ui, &npc.extra);
-        if create {
-            let name = npc_script_name(&npc);
-            if self.create_script(&name, &crate::script_panel::npc_template(&npc.name)) {
-                npc.script = name;
-                it.changed = true;
+        match request {
+            ScriptRequest::None => {}
+            ScriptRequest::NewScript => {
+                let name = format!("npc/{}", npc_file_name(&npc));
+                if self.create_script(&name, &crate::script_panel::npc_template(&npc.name)) {
+                    npc.script = name;
+                    it.changed = true;
+                }
             }
-        } else if edit {
-            self.open_script(&npc.script);
+            ScriptRequest::NewDialogue => {
+                let name = npc_file_name(&npc);
+                if self.create_dialogue(&name, c3_script::DialogueGraph::default()) {
+                    npc.script = c3_script::generated_script(&name);
+                    it.changed = true;
+                }
+            }
+            ScriptRequest::Edit => match dialogue_of(&npc.script) {
+                Some(dialogue) => self.open_dialogue(dialogue),
+                None => self.open_script(&npc.script),
+            },
         }
         Some(SceneCommand::SetNpc { npc })
     }
 
-    /// The NPC's script: pick one, open it, or make one. Returns (edit, create) requests.
+    /// The NPC's script: pick one (a dialogue's or a hand-written one), open it, or make one.
     fn npc_script_field(
         &self,
         ui: &mut egui::Ui,
         it: &mut Interaction,
         script: &mut String,
-    ) -> (bool, bool) {
-        let (mut edit, mut create) = (false, false);
+    ) -> ScriptRequest {
+        let mut request = ScriptRequest::None;
         let names = &self.scripts.names;
+        let runnable = |n: &&String| n.starts_with("npc/") || dialogue_of(n).is_some();
         ui.add_space(4.0);
         grid(ui, "npc script", |ui| {
             row(ui, "Script", |ui| {
@@ -346,24 +359,39 @@ impl Studio {
                     .width(150.0)
                     .show_ui(ui, |ui| {
                         it.changed |= ui.selectable_value(script, String::new(), "None").changed();
-                        for name in names.iter().filter(|n| n.starts_with("npc/")) {
+                        for name in names.iter().filter(runnable) {
                             it.changed |= ui.selectable_value(script, name.clone(), name).changed();
                         }
                     })
                     .response
-                    .on_hover_text("Runs when a player clicks the NPC (scripts/npc/…)");
+                    .on_hover_text("Runs when a player clicks the NPC: a dialogue's script (dialogue/…) or a hand-written one (npc/…)");
             });
             row(ui, "", |ui| {
                 ui.horizontal(|ui| {
                     if script.is_empty() {
-                        create = ui
+                        if ui
+                            .button(theme::icon_text(icons::CHATS, "New dialogue"))
+                            .on_hover_text("Draw this NPC's dialogue as a graph")
+                            .clicked()
+                        {
+                            request = ScriptRequest::NewDialogue;
+                        }
+                        if ui
                             .button(theme::icon_text(icons::PLUS, "New script"))
-                            .on_hover_text("Make a dialogue script for this NPC")
-                            .clicked();
+                            .on_hover_text("Write this NPC's dialogue as a script")
+                            .clicked()
+                        {
+                            request = ScriptRequest::NewScript;
+                        }
                     } else if names.contains(script) {
-                        edit = ui
-                            .button(theme::icon_text(icons::FILE_CODE, "Edit script"))
-                            .clicked();
+                        let (icon, label) = if dialogue_of(script).is_some() {
+                            (icons::CHATS, "Edit dialogue")
+                        } else {
+                            (icons::FILE_CODE, "Edit script")
+                        };
+                        if ui.button(theme::icon_text(icon, label)).clicked() {
+                            request = ScriptRequest::Edit;
+                        }
                     } else {
                         ui.label(
                             RichText::new(theme::icon_text(icons::WARNING, "Script file missing"))
@@ -373,7 +401,7 @@ impl Studio {
                 });
             });
         });
-        (edit, create)
+        request
     }
 
     fn spawn_fields(
@@ -525,7 +553,23 @@ impl Studio {
 }
 
 /// Name of a new script for `npc`: `npc/<name>_<id>` (name in lower case, letters and digits).
-fn npc_script_name(npc: &Npc) -> String {
+/// What the NPC script field asked for.
+enum ScriptRequest {
+    None,
+    Edit,
+    NewScript,
+    NewDialogue,
+}
+
+/// The dialogue a script was made from (`dialogue/guard` → `guard`).
+fn dialogue_of(script: &str) -> Option<&str> {
+    script
+        .strip_prefix(c3_script::GENERATED_DIR)
+        .and_then(|s| s.strip_prefix('/'))
+}
+
+/// A file name for the NPC's script or dialogue (`shopkeeper_3`).
+fn npc_file_name(npc: &Npc) -> String {
     let mut name: String = npc
         .name
         .to_lowercase()
@@ -534,8 +578,8 @@ fn npc_script_name(npc: &Npc) -> String {
         .collect();
     name = name.trim_matches('_').to_owned();
     if name.is_empty() {
-        format!("npc/{}", npc.id)
+        format!("npc_{}", npc.id)
     } else {
-        format!("npc/{name}_{}", npc.id)
+        format!("{name}_{}", npc.id)
     }
 }

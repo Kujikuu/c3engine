@@ -25,12 +25,19 @@
 mod api;
 mod conversation;
 mod dialog;
+mod graph;
 mod host;
+pub mod quest;
 mod tables;
 
 pub use conversation::{Conversation, Step};
 pub use dialog::{DialogOption, DialogPage, Effect, NpcInfo, PlayerState, Reply};
+pub use graph::{
+    Action, Case, Choice, Condition, DIALOGUE_SUFFIX, DialogueGraph, GENERATED_DIR, GraphProblem,
+    Node, NodeKind, PLACEHOLDERS, dialogue_names, generated_script, load_dialogue, save_dialogue,
+};
 pub use host::{ScriptError, ScriptHost, TALK, script_names};
+pub use quest::{Goal, Quest};
 pub use rhai;
 
 /// File extension of script files.
@@ -110,6 +117,24 @@ pub const API: &[(&str, &str)] = &[
         "A value from a game table, or () if no such row",
     ),
     ("has_row(table, key)", "Whether a game table has the row"),
+    (
+        "quest_state(id)",
+        "A quest's state: 0 not taken, 1 taken, 2 done",
+    ),
+    ("quest_name(id)", "A quest's name, from the quests table"),
+    (
+        "quest_progress(id)",
+        "Monsters killed or items carried towards a quest's goal",
+    ),
+    ("quest_ready(id)", "Whether a taken quest's goal is met"),
+    (
+        "start_quest(id)",
+        "Gives the player a quest (if not taken and the level is met); true if given",
+    ),
+    (
+        "complete_quest(id)",
+        "Completes a ready quest: takes the items, gives the rewards; true if done",
+    ),
     ("print(value)", "Writes to the console"),
     (
         "global::NAME",

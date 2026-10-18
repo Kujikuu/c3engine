@@ -588,6 +588,7 @@ impl Studio {
             Pending::OpenMap(_) => "opening another map",
             Pending::OpenTable(_) => "opening another table",
             Pending::OpenScript(_) => "opening another script",
+            Pending::OpenDialogue(_) => "opening another dialogue",
             Pending::OpenProject(_) => "opening another project",
             Pending::CloseProject => "closing the project",
             Pending::Quit => "quitting",

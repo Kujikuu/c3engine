@@ -1,6 +1,6 @@
 //! c3-ui: the in-game UI, drawn with egui over the game view: life, mana and experience,
-//! the chat log, the bag with equipment, shops and NPC dialogue, plus names, damage numbers
-//! and drop labels over the world. The client and the Studio's Play mode show the same UI.
+//! the chat log, the bag with equipment, shops, NPC dialogue and the quest log, plus names,
+//! damage numbers, drop labels and quest marks over the world. The client and the Studio's Play mode show the same UI.
 //!
 //! It reads the simulation ([`c3_game::Sim`]) and returns what the player asked for as
 //! [`UiAction`]s; the host carries them out (on the local simulation now, as requests to the
@@ -12,6 +12,7 @@ mod chat;
 mod dialogue;
 mod hud;
 pub mod icons;
+mod quests;
 mod shop;
 pub mod style;
 
@@ -67,6 +68,8 @@ pub struct GameView<'a> {
     pub head: &'a dyn Fn(EntityId) -> Option<Pos2>,
     /// Screen point of a cell's centre.
     pub cell: &'a dyn Fn(CellPos) -> Pos2,
+    /// Screen point above the head of an NPC standing on a cell.
+    pub npc_head: &'a dyn Fn(CellPos) -> Pos2,
     /// The monster under the pointer.
     pub hovered: Option<EntityId>,
     /// The game's equipment slots and their names, in display order.
@@ -98,6 +101,7 @@ pub struct GameUi {
     chat: chat::Chat,
     overlay: hud::Overlay,
     bag_open: bool,
+    quests_open: bool,
     log: Vec<LogLine>,
 }
 
@@ -109,6 +113,10 @@ impl GameUi {
 
     pub fn toggle_bag(&mut self) {
         self.bag_open ^= true;
+    }
+
+    pub fn toggle_quests(&mut self) {
+        self.quests_open ^= true;
     }
 
     /// A line from the game in the chat log ("Level up!").
@@ -148,20 +156,33 @@ impl GameUi {
         };
         let typing = self.chat.typing;
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();
-        let (bag_key, escape) = ui.input(|i| {
+        let (bag_key, quest_key, escape) = ui.input(|i| {
             (
                 i.key_pressed(egui::Key::B),
+                i.key_pressed(egui::Key::L),
                 i.key_pressed(egui::Key::Escape),
             )
         });
         if bag_key && free_keys {
             self.bag_open ^= true;
         }
-        hud::bar(ui, view, player, &mut self.bag_open, &mut actions);
+        if quest_key && free_keys {
+            self.quests_open ^= true;
+        }
+        quests::npc_marks(&ui.painter_at(view.rect), view);
+        let mut open = hud::Open {
+            bag: &mut self.bag_open,
+            quests: &mut self.quests_open,
+        };
+        hud::bar(ui, view, player, &mut open, &mut actions);
         self.chat.show(ui, view.rect, &mut actions);
         let shop = player.shop;
         if let Some(npc) = shop {
             shop::window(ui, view, npc, icons, &mut actions);
+        } else if self.quests_open {
+            quests::window(ui, view, &mut self.quests_open);
+        } else {
+            quests::tracker(ui, view);
         }
         if self.bag_open {
             bag::window(ui, view, shop, icons, &mut self.bag_open, &mut actions);
@@ -169,14 +190,16 @@ impl GameUi {
         if let Some(conversation) = &player.dialogue {
             dialogue::window(ui, view.rect, conversation, free_keys, &mut actions);
         }
-        // Esc closes the topmost window: dialogue, then shop, then bag.
+        // Esc closes the topmost window: dialogue, then shop, then bag, then quests.
         if escape && !typing {
             if player.dialogue.is_some() {
                 actions.push(UiAction::CloseDialogue);
             } else if shop.is_some() {
                 actions.push(UiAction::CloseShop);
-            } else {
+            } else if self.bag_open {
                 self.bag_open = false;
+            } else {
+                self.quests_open = false;
             }
         }
         actions

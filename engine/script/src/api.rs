@@ -2,6 +2,7 @@
 //! They act on the [`Call`] being run; outside a call they fail with a clear error.
 
 use crate::dialog::{DialogOption, DialogPage, Effect, NpcInfo, PlayerState};
+use crate::quest::{self, DONE, NOT_TAKEN, Quest, TAKEN};
 use crate::tables::Tables;
 use rhai::{Dynamic, Engine, EvalAltResult};
 use std::cell::RefCell;
@@ -42,6 +43,7 @@ pub(crate) fn register(engine: &mut Engine, shared: &Shared, tables: &Rc<RefCell
     items(engine, shared);
     world(engine, shared);
     data(engine, tables);
+    quests(engine, shared, tables);
     let s = shared.clone();
     engine.on_print(move |text| {
         let _ = with(&s, |c| c.effects.push(Effect::Log(text.to_owned())));
@@ -109,18 +111,10 @@ fn player(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
-    engine.register_fn("flag", move |name: &str| {
-        with(&s, |c| c.player.flags.get(name).copied().unwrap_or(0))
-    });
+    engine.register_fn("flag", move |name: &str| with(&s, |c| c.player.flag(name)));
     let s = shared.clone();
     engine.register_fn("set_flag", move |name: &str, value: i64| {
-        with(&s, |c| {
-            if value == 0 {
-                c.player.flags.remove(name);
-            } else {
-                c.player.flags.insert(name.to_owned(), value);
-            }
-        })
+        with(&s, |c| c.player.set_flag(name.to_owned(), value))
     });
 }
 
@@ -187,6 +181,105 @@ fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {
     let t = tables.clone();
     engine.register_fn("has_row", move |table: &str, key: i64| -> Fallible<bool> {
         Ok(t.borrow_mut().table(table)?.find(key).is_some())
+    });
+}
+
+/// Quest `id` of the project's quest table.
+fn find_quest(tables: &Rc<RefCell<Tables>>, id: i64) -> Fallible<Quest> {
+    let mut tables = tables.borrow_mut();
+    let table = tables.table(quest::QUEST_TABLE)?;
+    table
+        .find(id)
+        .and_then(|row| Quest::from_row(table, row))
+        .ok_or_else(|| format!("there is no quest {id} in the quests table").into())
+}
+
+impl PlayerState {
+    fn flag(&self, name: &str) -> i64 {
+        self.flags.get(name).copied().unwrap_or(0)
+    }
+
+    fn set_flag(&mut self, name: String, value: i64) {
+        if value == 0 {
+            self.flags.remove(&name);
+        } else {
+            self.flags.insert(name, value);
+        }
+    }
+
+    fn quest_progress(&self, q: &Quest) -> (i64, i64) {
+        q.progress(|f| self.flag(f), |i| self.item_count(i))
+    }
+
+    fn quest_ready(&self, q: &Quest) -> bool {
+        let (done, needed) = self.quest_progress(q);
+        self.flag(&quest::state_flag(q.id)) == TAKEN && done >= needed
+    }
+}
+
+fn quests(engine: &mut Engine, shared: &Shared, tables: &Rc<RefCell<Tables>>) {
+    let s = shared.clone();
+    engine.register_fn("quest_state", move |id: i64| {
+        with(&s, |c| c.player.flag(&quest::state_flag(id)))
+    });
+    let t = tables.clone();
+    engine.register_fn("quest_name", move |id: i64| -> Fallible<String> {
+        Ok(find_quest(&t, id)?.name)
+    });
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("quest_progress", move |id: i64| -> Fallible<i64> {
+        let q = find_quest(&t, id)?;
+        with(&s, |c| c.player.quest_progress(&q).0)
+    });
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("quest_ready", move |id: i64| -> Fallible<bool> {
+        let q = find_quest(&t, id)?;
+        with(&s, |c| c.player.quest_ready(&q))
+    });
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("start_quest", move |id: i64| -> Fallible<bool> {
+        let q = find_quest(&t, id)?;
+        with(&s, |c| {
+            let p = &mut c.player;
+            if p.flag(&quest::state_flag(id)) != NOT_TAKEN || p.level < q.min_level {
+                return false;
+            }
+            p.set_flag(quest::state_flag(id), TAKEN);
+            p.set_flag(quest::kills_flag(id), 0);
+            c.effects.push(Effect::QuestTaken { id, name: q.name });
+            true
+        })
+    });
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("complete_quest", move |id: i64| -> Fallible<bool> {
+        let q = find_quest(&t, id)?;
+        with(&s, |c| {
+            if !c.player.quest_ready(&q) {
+                return false;
+            }
+            if let quest::Goal::Collect { item, count } = q.goal {
+                c.player.take_item(item, count);
+                c.effects.push(Effect::TookItem { item, count });
+            }
+            c.player.set_flag(quest::state_flag(id), DONE);
+            c.player.set_flag(quest::kills_flag(id), 0);
+            if q.reward_money > 0 {
+                c.player.money += q.reward_money;
+                c.effects.push(Effect::Money(q.reward_money));
+            }
+            if q.reward_item > 0 {
+                c.player.give_item(q.reward_item, 1);
+                c.effects.push(Effect::GaveItem {
+                    item: q.reward_item,
+                    count: 1,
+                });
+            }
+            if q.reward_exp > 0 {
+                c.effects.push(Effect::Exp(q.reward_exp));
+            }
+            c.effects.push(Effect::QuestDone { id, name: q.name });
+            true
+        })
     });
 }
 

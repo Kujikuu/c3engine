@@ -20,7 +20,8 @@ append decisions, document formats as you implement them.
   Population import/export), `live_scene.rs` (Scene view drawing: SceneView + NPC actors),
   `play.rs` (Play mode: hosts `game_conquer::screen::GameScreen` in the Game view), `stage.rs` (Preview stage), `data_panel.rs` (Data
   panel: game tables, SQL import, row Inspector), `script_panel.rs` + `code_view.rs` (Script
-  panel: Rhai editor with live problems and function reference), `icons.rs` (bundled
+  panel: Rhai editor with live problems and function reference), `dialogue_panel.rs` +
+  `graph_canvas.rs` + `node_editor.rs` (Dialogue panel: dialogue graphs and quests), `icons.rs` (bundled
   Phosphor font; **never emoji as icons**), `theme.rs` (Unity-like dark theme + shared widgets).
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
   `home.rs` (start page, project dialogs, File menu, Project inspector section), `maps.rs` (project
@@ -30,7 +31,10 @@ append decisions, document formats as you implement them.
 - Rendering goes through `c3-render` only (never egui painter for world content). The Studio shows the
   target's `display_view` (gamma-space view) so colours match. Maps draw through
   `c3_render::scene_view::SceneView` in both the client and the Studio; never fork that path.
-- Screenshots for verification: `& .\scripts\shot.ps1 -App client|studio -Out x.png -AppArgs @(<app args>)` (`PrintWindow`, works when the window is behind others). `doc` = model + undo + save
+- Screenshots for verification: `& .\scripts\shot.ps1 -App client|studio -Out x.png -AppArgs @(<app args>)` (`PrintWindow`, works when the window is behind others).
+  Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --play --talk <npc>
+  --attack --bag --quests --say "/cmd" --script <name> --table <name> --dialogue <name> --node <id>
+  --show <panel>`. `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.
 - Nothing in `engine/` or `studio/` references Conquer (except `studio/src/tq_plugin.rs`, the
   Studio's game plugin); game code goes in `games/`.

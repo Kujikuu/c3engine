@@ -85,6 +85,16 @@ impl PlaySession {
         self.screen.session.toggle_bag();
     }
 
+    /// Opens or closes the quest log, as L does.
+    pub fn toggle_quests(&mut self) {
+        self.screen.session.toggle_quests();
+    }
+
+    /// Says `line` in the game's chat, as typed.
+    pub fn say(&mut self, line: &str) {
+        self.screen.session.say(line);
+    }
+
     /// Lines for the Studio's console since the last call.
     pub fn take_log(&mut self) -> Vec<LogLine> {
         self.screen.session.take_log()
@@ -147,7 +157,7 @@ impl PlaySession {
         };
         let hint = format!(
             "Click: {run} · Click a monster: attack · Click an NPC: talk · Click a drop: pick up · \
-             Tab: attack nearest · R: walk/run · B: bag · Enter: chat · Wheel: zoom{follow}"
+             Tab: attack nearest · R: walk/run · B: bag · L: quests · Enter: chat · Wheel: zoom{follow}"
         );
         let font = egui::FontId::proportional(12.0);
         let galley = painter.layout_no_wrap(hint, font, theme::TEXT);

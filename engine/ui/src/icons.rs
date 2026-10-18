@@ -33,9 +33,12 @@ pub fn install(ctx: &egui::Context) {
 pub const BACKPACK: &str = "\u{E922}";
 pub const CHAT_CIRCLE_DOTS: &str = "\u{E16C}";
 pub const CHAT_TEXT: &str = "\u{E17A}";
+pub const CHECK_CIRCLE: &str = "\u{E184}";
 pub const COINS: &str = "\u{E78E}";
 pub const DROP: &str = "\u{E210}";
+pub const GIFT: &str = "\u{E276}";
 pub const HEART: &str = "\u{E2A8}";
+pub const SCROLL: &str = "\u{EB7A}";
 pub const SHIELD: &str = "\u{E40A}";
 pub const SPEAKER_HIGH: &str = "\u{E44A}";
 pub const SPEAKER_X: &str = "\u{E45C}";

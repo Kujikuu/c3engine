@@ -1,5 +1,5 @@
-//! The bar at the bottom (level, life, mana, experience, money, bag button) and what is
-//! drawn over the world: drop labels, names and life of the monster fought or pointed at,
+//! The bar at the bottom (level, life, mana, experience, money, bag and quest buttons) and
+//! what is drawn over the world: drop labels, names and life of the monster fought or pointed at,
 //! and damage numbers.
 
 use crate::icons;
@@ -10,7 +10,15 @@ use egui::{Color32, FontId, Pos2, Rect};
 
 /// Seconds a damage number rises before it is gone.
 const FLOAT_SECONDS: f64 = 1.0;
-const BAR_WIDTH: f32 = 460.0;
+const BAR_WIDTH: f32 = 500.0;
+/// Width of the bar's right column (money, sound, buttons).
+const RIGHT_COLUMN: f32 = 140.0;
+
+/// The windows the bar's buttons open.
+pub(crate) struct Open<'a> {
+    pub bag: &'a mut bool,
+    pub quests: &'a mut bool,
+}
 
 /// A number rising from an entity (damage, a miss).
 struct Float {
@@ -153,12 +161,12 @@ fn labelled_meter(
     );
 }
 
-/// The bottom bar: level, life, mana, experience, money and the bag button.
+/// The bottom bar: level, life, mana, experience, money and the window buttons.
 pub(crate) fn bar(
     ui: &mut egui::Ui,
     view: &GameView,
     p: &Player,
-    bag_open: &mut bool,
+    open: &mut Open,
     actions: &mut Vec<UiAction>,
 ) {
     let rect = view.rect;
@@ -193,7 +201,8 @@ pub(crate) fn bar(
         style::DIM,
     );
     let left = badge.right() + 10.0;
-    let right = area.right() - 112.0;
+    let column = area.right() - RIGHT_COLUMN;
+    let right = column - 8.0;
     let row = |y: f32, h: f32| Rect::from_min_max(egui::pos2(left, y), egui::pos2(right, y + h));
     // Without mana (warriors) life takes both rows.
     let has_mana = p.stats.max_mana > 0;
@@ -233,16 +242,16 @@ pub(crate) fn bar(
         }
         None => meter(&painter, exp, 1, 1, style::GOLD),
     }
-    // Money and the bag button on the right.
+    // Money and the window buttons on the right.
     painter.text(
-        egui::pos2(area.right() - 104.0, area.top() + 14.0),
+        egui::pos2(column, area.top() + 14.0),
         egui::Align2::LEFT_CENTER,
         format!("{}  {}", icons::COINS, p.money),
         FontId::proportional(13.0),
         style::MONEY,
     );
     let bag = Rect::from_min_size(
-        egui::pos2(area.right() - 104.0, area.top() + 26.0),
+        egui::pos2(column, area.top() + 26.0),
         egui::vec2(96.0, 20.0),
     );
     let label = format!(
@@ -251,13 +260,22 @@ pub(crate) fn bar(
         p.bag.len(),
         c3_game::BAG_SIZE
     );
-    let button = egui::Button::new(egui::RichText::new(label).size(12.0)).selected(*bag_open);
+    let button = egui::Button::new(egui::RichText::new(label).size(12.0)).selected(*open.bag);
     if ui
         .put(bag, button)
         .on_hover_text("Bag and equipment (B)")
         .clicked()
     {
-        *bag_open ^= true;
+        *open.bag ^= true;
+    }
+    let quests = Rect::from_min_size(
+        bag.right_top() + egui::vec2(6.0, 0.0),
+        egui::vec2(30.0, 20.0),
+    );
+    let button =
+        egui::Button::new(egui::RichText::new(icons::SCROLL).size(13.0)).selected(*open.quests);
+    if ui.put(quests, button).on_hover_text("Quests (L)").clicked() {
+        *open.quests ^= true;
     }
     // The sound toggle, when there is sound.
     if let Some(on) = view.sound {

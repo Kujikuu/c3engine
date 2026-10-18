@@ -187,6 +187,17 @@ impl Project {
         self.root.join("scripts")
     }
 
+    /// Folder holding the project's dialogue graphs (`dialogues/**/*.dialogue.ron`).
+    pub fn dialogues_dir(&self) -> PathBuf {
+        self.root.join("dialogues")
+    }
+
+    /// File of dialogue `name`.
+    pub fn dialogue_file(&self, name: &str) -> PathBuf {
+        self.dialogues_dir()
+            .join(format!("{name}{}", c3_script::DIALOGUE_SUFFIX))
+    }
+
     /// Population file (NPCs, spawns) of content map `name`, for map formats that can't hold
     /// one (`maps/<name>.population.ron`).
     pub fn population_file(&self, name: &str) -> PathBuf {

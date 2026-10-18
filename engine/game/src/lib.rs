@@ -11,6 +11,7 @@ mod event;
 mod index;
 mod monsters;
 mod players;
+mod quests;
 mod rng;
 mod rules;
 mod sim;
