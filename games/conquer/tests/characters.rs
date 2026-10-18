@@ -112,3 +112,23 @@ fn walk_and_run_have_motions_and_timing() {
         );
     }
 }
+
+#[test]
+fn blade_attack_plays_its_weapon_trail() {
+    let Some(c) = content() else { return };
+    let look = Look {
+        look: 3,
+        hair: 310,
+        armor: 130003,
+        r_weapon: 410006,
+        ..Default::default()
+    };
+    let ch = c.assemble_character(&look, action::STANDBY).unwrap();
+    let blade = ch.attachments.iter().find(|a| a.weapon.is_some()).unwrap();
+    assert_eq!(blade.part.type_id, Some(410006));
+    assert_eq!(
+        c.part_action_effects(410006, action::ATTACK_0),
+        vec!["Flash4101".to_owned()]
+    );
+    assert!(c.part_action_effects(410006, action::STANDBY).is_empty());
+}

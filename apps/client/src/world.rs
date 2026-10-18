@@ -6,8 +6,9 @@
 use crate::actors::{Actor, PartRef};
 use crate::camera::Camera2d;
 use crate::effects::{EffectLibrary, MapEffect, Spot};
+use c3_assets::effect::Effect;
 use c3_render::actor::actor_view;
-use c3_render::effect::camera_eye;
+use c3_render::effect::{EffectMesh, camera_eye};
 use c3_render::ground::{self, GroundCache};
 use c3_render::objects::{self, ObjectCache, ObjectDraw};
 use c3_render::parallax::{self, ParallaxCache};
@@ -117,9 +118,37 @@ impl World {
                 now_ms,
             )
             .ok_or_else(|| format!("effect {name} could not be loaded"))?;
-        self.effects
-            .push(if forever { effect.endless() } else { effect });
+        let mut effect = effect;
+        if forever {
+            effect.running = effect.running.endless();
+        }
+        self.effects.push(effect);
         Ok(())
+    }
+
+    /// Plays effect `name` at the hero's feet, once or `forever`.
+    pub fn hero_effect(&mut self, name: &str, forever: bool) -> Result<(), String> {
+        let now_ms = self.now_ms();
+        let effect = self
+            .effect_library
+            .start(name, &self.content, now_ms)
+            .ok_or_else(|| format!("effect {name} could not be loaded"))?;
+        let hero = self.actors.first_mut().ok_or("there is no hero")?;
+        hero.add_effect(if forever { effect.endless() } else { effect });
+        Ok(())
+    }
+
+    /// The hero starts action `act`: looping, or `once` then standing.
+    pub fn hero_action(&mut self, act: u32, once: bool) {
+        let now_ms = self.now_ms();
+        let Some(hero) = self.actors.first_mut() else {
+            return;
+        };
+        if once {
+            hero.perform(act, now_ms, &self.content, &mut self.effect_library);
+        } else {
+            hero.play(act, now_ms, &self.content, &mut self.effect_library);
+        }
     }
 
     /// World rect of the map's ground (`[x, y, w, h]`), for framing.
@@ -146,9 +175,9 @@ impl World {
     pub fn tick(&mut self) {
         let now = self.now_ms();
         for actor in &mut self.actors {
-            actor.update(now, &self.scene, &self.content);
+            actor.update(now, &self.scene, &self.content, &mut self.effect_library);
         }
-        self.effects.retain(|e| !e.is_finished(now));
+        self.effects.retain(|e| !e.running.is_finished(now));
     }
 
     /// The player's character: the first actor.
@@ -247,7 +276,7 @@ impl World {
                     _ => self.order.push(DrawCmd::Sprites(base + i..base + i + 1)),
                 },
                 ObjectDraw::Actor(item) if (item as usize) < self.actors.len() => {
-                    self.pose_actor(item as usize, item, now, renderer);
+                    self.pose_actor(item as usize, item, now, eye, renderer);
                 }
                 ObjectDraw::Actor(item) => {
                     let e = effects[item as usize - self.actors.len()];
@@ -263,7 +292,14 @@ impl World {
         self.posed.push(mesh);
     }
 
-    fn pose_actor(&mut self, a: usize, group: u32, now_ms: u64, renderer: &mut Renderer) {
+    fn pose_actor(
+        &mut self,
+        a: usize,
+        group: u32,
+        now_ms: u64,
+        eye: glam::Vec3,
+        renderer: &mut Renderer,
+    ) {
         let role = self.actors[a]
             .pose(&self.scene, self.tilt_deg, now_ms)
             .transform();
@@ -280,6 +316,32 @@ impl World {
             };
             self.push_mesh(mesh);
         }
+        // Its effects share the actor's depth slice, so the body hides what is behind it.
+        let effects = self.actors[a].effect_meshes(&self.scene, self.tilt_deg, now_ms, eye);
+        for m in effects {
+            self.push_effect_mesh(&m.effect, m.mesh, group, renderer);
+        }
+    }
+
+    fn push_effect_mesh(
+        &mut self,
+        effect: &Effect,
+        m: EffectMesh,
+        group: u32,
+        renderer: &mut Renderer,
+    ) {
+        let texture = self
+            .effect_library
+            .texture(effect, m.layer, renderer, &self.content);
+        self.push_mesh(PosedMesh {
+            vertices: m.vertices,
+            indices: Indices::Owned(m.indices),
+            texture,
+            transform: m.transform,
+            tint: [1.0, 1.0, 1.0, m.opacity],
+            group,
+            style: MeshStyle::effect(effect.layers[m.layer].blend),
+        });
     }
 
     fn pose_effect(
@@ -290,21 +352,9 @@ impl World {
         eye: glam::Vec3,
         renderer: &mut Renderer,
     ) {
+        let effect = self.effects[e].running.shared();
         for m in self.effects[e].meshes(now_ms, eye) {
-            let effect = self.effects[e].effect();
-            let texture = self
-                .effect_library
-                .texture(effect, m.layer, renderer, &self.content);
-            let style = MeshStyle::effect(effect.layers[m.layer].blend);
-            self.push_mesh(PosedMesh {
-                vertices: m.vertices,
-                indices: Indices::Owned(m.indices),
-                texture,
-                transform: m.transform,
-                tint: [1.0, 1.0, 1.0, m.opacity],
-                group,
-                style,
-            });
+            self.push_effect_mesh(&effect, m, group, renderer);
         }
     }
 

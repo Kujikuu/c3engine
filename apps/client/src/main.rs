@@ -4,8 +4,9 @@
 //!                   [--action 100] [--dir 0-7] [--effect <3DEffect.ini name>] [--walk-to x,y] [--run]
 //!
 //! A hero (the `--player`/`--actor`, else a default player) stands on the start cell.
-//! Controls: click to walk there · R toggles run · Space follows the hero · drag or WASD/arrows
-//! to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E turn the hero · Esc to quit.
+//! Controls: click to walk there · R toggles run · Enter attacks · Space follows the hero · drag
+//! or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E turn the hero ·
+//! Esc to quit. `--effect` plays on the hero.
 
 mod actors;
 mod camera;
@@ -174,6 +175,7 @@ impl App {
                 KeyCode::KeyF => self.fit_pending = true,
                 KeyCode::Digit1 => self.camera.zoom = 1.0,
                 KeyCode::Space => self.follow = self.world.hero().is_some(),
+                KeyCode::Enter => self.world.hero_action(action::ATTACK_0, true),
                 KeyCode::KeyR => {
                     if let Some(hero) = self.world.hero_mut() {
                         hero.running = !hero.running;
@@ -414,8 +416,10 @@ fn main() {
         }
         Err(e) => eprintln!("warning: hero: {e}"),
     }
+    // Starts the hero's action properly, with its part effects.
+    world.hero_action(args.action, false);
     if let Some(name) = &args.effect
-        && let Err(e) = world.place_effect(name, cell, true)
+        && let Err(e) = world.hero_effect(name, true)
     {
         eprintln!("warning: {e}");
     }

@@ -58,6 +58,9 @@ struct Tables {
     sockets: Vec<String>,
     /// `Action.dat`: action key (look·10⁶ + weapon family·10³ + action) → ms per frame.
     frame_intervals: HashMap<u32, u32>,
+    /// `Action3DEffect.ini`, `Action3DEffect1.ini`, `Action3DEffect2.ini` (effect slots 0–2):
+    /// look·10⁹ + action·10⁶ + part·10³ + variant → effect name.
+    action_effects: [HashMap<u64, String>; 3],
 }
 
 impl Tables {
@@ -91,6 +94,12 @@ impl Tables {
             frame_intervals: ActionTable::parse(&bytes("Action.dat"))
                 .map(|t| t.entries.iter().map(|e| (e.action, e.interval)).collect())
                 .unwrap_or_default(),
+            action_effects: [
+                "Action3DEffect.ini",
+                "Action3DEffect1.ini",
+                "Action3DEffect2.ini",
+            ]
+            .map(|name| character::parse_action_effects(&bytes(name))),
         }
     }
 }

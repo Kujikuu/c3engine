@@ -1,5 +1,5 @@
-//! 3D effects placed on the map: the map's own (fires, fountains, glows), which play
-//! forever like the client's `C3DMapEffect`s, and one-shots such as the click marker.
+//! 3D effects: the map's own (fires, fountains, glows), which play forever like the client's
+//! `C3DMapEffect`s, one-shots such as the click marker, and effects carried by actors.
 
 use c3_assets::effect::{Effect, Playback};
 use c3_render::effect::{self, EffectMesh, EffectPlayer};
@@ -10,17 +10,25 @@ use glam::{Mat4, Vec3};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-/// One effect standing on the map.
-pub struct MapEffect {
-    pub cell: CellPos,
+/// An effect playing somewhere: its asset and clock.
+pub struct RunningEffect {
+    name: String,
     effect: Rc<Effect>,
     player: EffectPlayer,
-    placement: Mat4,
 }
 
-impl MapEffect {
+impl RunningEffect {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn effect(&self) -> &Effect {
         &self.effect
+    }
+
+    /// The effect asset, shared.
+    pub fn shared(&self) -> Rc<Effect> {
+        Rc::clone(&self.effect)
     }
 
     /// Plays forever (`CGame3DEffectEx::EverPlay`).
@@ -33,6 +41,20 @@ impl MapEffect {
         self.player.playback(&self.effect, now_ms) == Playback::Finished
     }
 
+    /// This frame's geometry, with effect space placed by `placement`.
+    pub fn meshes(&mut self, now_ms: u64, placement: Mat4, eye: Vec3) -> Vec<EffectMesh> {
+        self.player.meshes(&self.effect, now_ms, placement, eye)
+    }
+}
+
+/// One effect standing on the map.
+pub struct MapEffect {
+    pub cell: CellPos,
+    pub running: RunningEffect,
+    placement: Mat4,
+}
+
+impl MapEffect {
     /// World position of the effect's origin.
     pub fn position(&self) -> Vec3 {
         self.placement.w_axis.truncate()
@@ -40,8 +62,7 @@ impl MapEffect {
 
     /// This frame's geometry.
     pub fn meshes(&mut self, now_ms: u64, eye: Vec3) -> Vec<EffectMesh> {
-        self.player
-            .meshes(&self.effect, now_ms, self.placement, eye)
+        self.running.meshes(now_ms, self.placement, eye)
     }
 }
 
@@ -86,6 +107,16 @@ impl EffectLibrary {
             .clone()
     }
 
+    /// Starts effect `name` at `now_ms`, playing its own loops.
+    pub fn start(&mut self, name: &str, content: &Content, now_ms: u64) -> Option<RunningEffect> {
+        let effect = self.effect(name, content)?;
+        Some(RunningEffect {
+            name: name.to_owned(),
+            player: EffectPlayer::new(&effect, now_ms),
+            effect,
+        })
+    }
+
     /// Texture of `effect`'s layer `layer`, uploaded on first use.
     pub fn texture(
         &mut self,
@@ -112,7 +143,7 @@ impl EffectLibrary {
         tilt_deg: f32,
         now_ms: u64,
     ) -> Option<MapEffect> {
-        let effect = self.effect(name, content)?;
+        let running = self.start(name, content, now_ms)?;
         let Spot {
             position,
             rotation,
@@ -120,14 +151,20 @@ impl EffectLibrary {
         } = spot;
         Some(MapEffect {
             cell: scene.world_to_cell(position),
-            player: EffectPlayer::new(&effect, now_ms),
-            placement: effect::ground_placement(&effect, position, 0.0, tilt_deg, rotation, scale),
-            effect,
+            placement: effect::ground_placement(
+                running.effect(),
+                position,
+                0.0,
+                tilt_deg,
+                rotation,
+                scale,
+            ),
+            running,
         })
     }
 
-    /// Instances of the scene's effect entities, playing from `now_ms`. Simple-object
-    /// entities (`$id`) are not effects and are skipped.
+    /// Instances of the scene's effect entities, playing forever from `now_ms`.
+    /// Simple-object entities (`$id`) are not effects and are skipped.
     pub fn map_effects(
         &mut self,
         scene: &Scene,
@@ -149,8 +186,10 @@ impl EffectLibrary {
                 spot.rotation = Vec3::new(t.angles[1], 0.0, t.angles[2]);
                 spot.scale = Vec3::from(t.scale);
             }
-            let placed = self.place(name, content, scene, spot, tilt_deg, now_ms);
-            out.extend(placed.map(MapEffect::endless));
+            if let Some(mut e) = self.place(name, content, scene, spot, tilt_deg, now_ms) {
+                e.running = e.running.endless();
+                out.push(e);
+            }
         }
         out
     }

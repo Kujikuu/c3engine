@@ -1,8 +1,15 @@
 //! 3D characters on the map: a body model plus parts attached to its sockets, playing an
 //! action and walking cell to cell (`CRole::Walk`/`Step`: one cell per walk or run action,
 //! position eased linearly over the action's length).
+//!
+//! Effects ride along: each part starts its action effects when an action begins (weapon
+//! trails on attacks, `C3DRolePart::Set3DEffect`) and draws them in its own space; role
+//! effects (level-up, hits) stand at the actor's feet (`CRole::Show`, `m_objEffect`).
 
+use crate::effects::{EffectLibrary, RunningEffect};
+use c3_assets::effect::Effect;
 use c3_render::actor::{self, ActorPose};
+use c3_render::effect::{self as effects_render, EffectMesh};
 use c3_render::{MeshVertex, Renderer, TextureId};
 use c3_scene::path::{self, PathRules};
 use c3_scene::{CellPos, Scene};
@@ -10,6 +17,7 @@ use game_conquer::Content;
 use game_conquer::character::{Character, CharacterMotions, Look, PartModel, action};
 use glam::{Mat4, Vec2};
 use std::collections::{HashMap, VecDeque};
+use std::rc::Rc;
 
 /// Classic `CRole::s_fBaseScale`.
 const BASE_SCALE: f32 = 0.75;
@@ -29,6 +37,17 @@ struct Playing {
     action: u32,
     started_ms: u64,
     frame_ms: u32,
+    /// Returns to standing after one run through (attacks, emotes).
+    once: bool,
+}
+
+/// Part action effect that stops all of the part's effects.
+const STOP_EFFECTS: &str = "none";
+
+/// Effect geometry carried by an actor, with the effect it belongs to.
+pub struct ActorEffectMesh {
+    pub mesh: EffectMesh,
+    pub effect: Rc<Effect>,
 }
 
 /// One cell-to-cell step in progress.
@@ -57,6 +76,10 @@ pub struct Actor {
     playing: Playing,
     step: Option<Step>,
     path: VecDeque<CellPos>,
+    /// Per model (body, then attachments): effects started by actions.
+    part_effects: Vec<Vec<RunningEffect>>,
+    /// Effects standing at the actor's feet.
+    role_effects: Vec<RunningEffect>,
 }
 
 impl Actor {
@@ -69,7 +92,11 @@ impl Actor {
     ) -> Result<Self, String> {
         let (model, texture) = content.load_model(model_id)?;
         let character = Character {
-            body: PartModel { model, texture },
+            body: PartModel {
+                model,
+                texture,
+                type_id: None,
+            },
             attachments: Vec::new(),
             motion_id: None,
         };
@@ -103,6 +130,10 @@ impl Actor {
             zoom_percent: 100.0,
             running: false,
             textures: vec![None; 1 + character.attachments.len()],
+            part_effects: (0..=character.attachments.len())
+                .map(|_| Vec::new())
+                .collect(),
+            role_effects: Vec::new(),
             character,
             look,
             motions: HashMap::new(),
@@ -110,6 +141,7 @@ impl Actor {
                 action: act,
                 started_ms: 0,
                 frame_ms: DEFAULT_FRAME_MS,
+                once: false,
             },
             step: None,
             path: VecDeque::new(),
@@ -126,34 +158,56 @@ impl Actor {
         self.path = path::find_path(&scene.grid, from, goal, &PathRules::default()).into();
     }
 
-    /// Advances movement and actions to `now_ms`.
-    pub fn update(&mut self, now_ms: u64, scene: &Scene, content: &Content) {
+    /// Plays `effect` at the actor's feet.
+    pub fn add_effect(&mut self, effect: RunningEffect) {
+        self.role_effects.push(effect);
+    }
+
+    /// Advances movement, actions and effects to `now_ms`.
+    pub fn update(
+        &mut self,
+        now_ms: u64,
+        scene: &Scene,
+        content: &Content,
+        library: &mut EffectLibrary,
+    ) {
+        for effects in self.part_effects.iter_mut().chain([&mut self.role_effects]) {
+            effects.retain(|e| !e.is_finished(now_ms));
+        }
+        let mut stepped = false;
         if let Some(step) = &self.step {
             if now_ms < step.started_ms + step.duration_ms {
                 return;
             }
             self.cell = step.to;
             self.step = None;
+            stepped = true;
         }
         match self.path.pop_front() {
             // The map may have changed under a planned path: stop at a blocked step.
             Some(next) if path::can_step(&scene.grid, self.cell, next, &PathRules::default()) => {
                 self.direction = path::direction(self.cell, next).unwrap_or(self.direction);
                 let act = self.next_move_action();
-                self.play(act, now_ms, content);
-                let frames = self.character.body.model.frame_count().max(1);
+                self.play(act, now_ms, content, library);
                 self.step = Some(Step {
                     from: self.cell,
                     to: next,
                     started_ms: now_ms,
-                    duration_ms: u64::from(frames * self.playing.frame_ms),
+                    duration_ms: self.action_ms(),
                 });
             }
             Some(_) => self.path.clear(),
             None => {}
         }
-        if self.step.is_none() && self.playing.action != action::STANDBY {
-            self.play(action::STANDBY, now_ms, content);
+        let run_through = now_ms >= self.playing.started_ms + self.action_ms();
+        if self.step.is_none() {
+            if stepped || (self.playing.once && run_through) {
+                self.play(action::STANDBY, now_ms, content, library);
+            } else if run_through {
+                // Each run through restarts the action, as repeated actions do in the client
+                // (an attack's weapon trail swings again).
+                self.play(self.playing.action, now_ms, content, library);
+            }
         }
     }
 
@@ -167,8 +221,27 @@ impl Actor {
         }
     }
 
-    /// Starts action `act` from its first frame.
-    fn play(&mut self, act: u32, now_ms: u64, content: &Content) {
+    /// Length of one run through the current action.
+    fn action_ms(&self) -> u64 {
+        u64::from(self.character.body.model.frame_count().max(1) * self.playing.frame_ms)
+    }
+
+    /// Plays action `act` once, then stands (when not walking).
+    pub fn perform(
+        &mut self,
+        act: u32,
+        now_ms: u64,
+        content: &Content,
+        library: &mut EffectLibrary,
+    ) {
+        if self.step.is_none() {
+            self.play(act, now_ms, content, library);
+            self.playing.once = true;
+        }
+    }
+
+    /// Starts action `act` from its first frame (looping), with its part effects.
+    pub fn play(&mut self, act: u32, now_ms: u64, content: &Content, library: &mut EffectLibrary) {
         if let Some(look) = &self.look {
             let motions = self
                 .motions
@@ -179,6 +252,69 @@ impl Actor {
         }
         self.playing.action = act;
         self.playing.started_ms = now_ms;
+        self.playing.once = false;
+        for group in 0..self.part_effects.len() {
+            let Some(type_id) = self.model(group).type_id else {
+                continue;
+            };
+            // Like 5065: an effect keeps playing until it ends, "none" stops them all.
+            for name in content.part_action_effects(type_id, act) {
+                let effects = &mut self.part_effects[group];
+                if name.eq_ignore_ascii_case(STOP_EFFECTS) {
+                    effects.clear();
+                } else if !effects.iter().any(|e| e.name() == name) {
+                    effects.extend(library.start(&name, content, now_ms));
+                }
+            }
+        }
+    }
+
+    /// This frame's effect geometry: part effects in their part's space (`role` · socket),
+    /// role effects at the feet (`CGame3DEffectEx::Show(posWorld)`).
+    pub fn effect_meshes(
+        &mut self,
+        scene: &Scene,
+        tilt_deg: f32,
+        now_ms: u64,
+        eye: glam::Vec3,
+    ) -> Vec<ActorEffectMesh> {
+        let role = self.pose(scene, tilt_deg, now_ms).transform();
+        let feet = self.position(scene, now_ms);
+        let placements: Vec<Mat4> = (0..self.part_effects.len())
+            .map(|group| self.transform(PartRef { group, part: 0 }, role, now_ms))
+            .collect();
+        let mut out = Vec::new();
+        for (effects, placement) in self.part_effects.iter_mut().zip(placements) {
+            for e in effects {
+                let effect = e.shared();
+                out.extend(e.meshes(now_ms, placement, eye).into_iter().map(|mesh| {
+                    ActorEffectMesh {
+                        mesh,
+                        effect: Rc::clone(&effect),
+                    }
+                }));
+            }
+        }
+        for e in &mut self.role_effects {
+            let effect = e.shared();
+            let placement = effects_render::ground_placement(
+                &effect,
+                (feet.x, feet.y),
+                0.0,
+                tilt_deg,
+                glam::Vec3::ZERO,
+                glam::Vec3::ONE,
+            );
+            out.extend(
+                e.meshes(now_ms, placement, eye)
+                    .into_iter()
+                    .map(|mesh| ActorEffectMesh {
+                        mesh,
+                        effect: Rc::clone(&effect),
+                    }),
+            );
+        }
+        out
     }
 
     /// World position of the feet at `now_ms`.

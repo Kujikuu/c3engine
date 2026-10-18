@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 - [ ] M3 step 1: project system, then step 2: the c3-edit command layer (foundation for AI)
 
-## M2: Renderer [~] (one item left)
+## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
       content via `games/conquer::Content`; shared `c3_render::ground` streaming (180 fps on Twin City)
 - [x] Puzzle ground + map layers (classic iso): cover sprites + terrain prefabs from ANI with the
@@ -52,8 +52,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       walks where you click: `c3_scene::path` A* (8 directions, blocked cells, climb ≤ 25,
       nearest-cell fallback), one cell per walk/run action eased over frames × `Action.dat`
       interval (walk 500 ms, run 200 ms per cell), R toggles run, camera follows (Space)
-- [ ] Effects bound to actors (level-up on the body, weapon trails on sockets), sharing the actor's
-      depth so they wrap around it
+- [x] Effects carried by actors, sharing the actor's depth so they wrap around it: part action
+      effects from `Action3DEffect*.ini` (`Content::part_action_effects`, e.g. blade attack →
+      `Flash4101` trail in the weapon's space) and role effects at the feet (`--effect LevelUp`);
+      Enter attacks once, looping actions restart with their effects
 
 ## M3: Studio core, Unity/UE5-style editor (see VISION.md)
 Done so far:

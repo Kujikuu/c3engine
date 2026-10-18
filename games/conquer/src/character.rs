@@ -8,6 +8,7 @@
 use crate::Content;
 use c3_anim::Clip;
 use c3_assets::model::Model;
+use std::collections::HashMap;
 
 /// Action ids (3DBaseCode/BaseFunc.h).
 pub mod action {
@@ -40,6 +41,9 @@ pub struct Look {
 pub struct PartModel {
     pub model: Model,
     pub texture: Option<String>,
+    /// Part type id (`C3DRolePart::m_idType`, look·10⁶ + part·10³ + variant), which selects
+    /// the part's action effects; `None` for plain models.
+    pub type_id: Option<u64>,
 }
 
 /// A part attached to a body socket.
@@ -70,6 +74,26 @@ pub struct Character {
     pub attachments: Vec<Attachment>,
     /// Body motion id used (3dmotion.ini), for display.
     pub motion_id: Option<u64>,
+}
+
+/// `Action3DEffect.ini` wildcards for look, action, part and variant.
+const ANY_LOOK: u64 = 999;
+const ANY_ACTION: u64 = 999;
+const ANY_PART: u64 = 999;
+const ANY_VARIANT: u64 = 999;
+
+/// Parses an `Action3DEffect*.ini`: lines `look.action.part.variant=effect`.
+pub(crate) fn parse_action_effects(data: &[u8]) -> HashMap<u64, String> {
+    let text = String::from_utf8_lossy(data);
+    text.lines()
+        .filter_map(|line| {
+            let (key, effect) = line.trim().split_once('=')?;
+            let mut n = key.split('.').map(|v| v.trim().parse::<u64>().ok());
+            let (look, act, part, variant) = (n.next()??, n.next()??, n.next()??, n.next()??);
+            let id = look * 1_000_000_000 + act * 1_000_000 + part * 1000 + variant;
+            Some((id, effect.trim().to_owned()))
+        })
+        .collect()
 }
 
 /// Milliseconds per frame when `Action.dat` has no entry (`GetActionTimeInterval`).
@@ -235,6 +259,32 @@ impl Content {
         }
     }
 
+    /// Effects a part plays when its role starts action `act` (`C3DRolePart::Set3DEffect`):
+    /// up to one per effect slot, stopping at the first empty slot. `"none"` means stop the
+    /// part's effects. Lookup order per slot as `C3DRoleData::GetRolePart3DEffect`.
+    pub fn part_action_effects(&self, type_id: u64, act: u32) -> Vec<String> {
+        let look = (type_id / 1_000_000) % 1000;
+        let part = (type_id / 1000) % 1000;
+        let variant = type_id % 1000;
+        let act = u64::from(act);
+        let keys = [
+            (look, act, part, variant),
+            (ANY_LOOK, act, part, variant),
+            (ANY_LOOK, ANY_ACTION, part, variant),
+            (ANY_LOOK, act, ANY_PART, variant),
+            (ANY_LOOK, act, part, ANY_VARIANT),
+            (look, ANY_ACTION, part, variant),
+            (look, act, ANY_PART, variant),
+            (look, act, part, ANY_VARIANT),
+        ]
+        .map(|(l, a, p, v)| l * 1_000_000_000 + a * 1_000_000 + p * 1000 + v);
+        self.tables
+            .action_effects
+            .iter()
+            .map_while(|slot| keys.iter().find_map(|k| slot.get(k)).cloned())
+            .collect()
+    }
+
     /// Milliseconds per animation frame of action `act` (`C3DRoleData::GetActionTimeInterval`:
     /// exact key, then any look, then any weapon, then both; else 33).
     pub fn frame_interval(&self, look: &Look, act: u32) -> u32 {
@@ -269,6 +319,7 @@ impl Content {
         Ok(PartModel {
             model: self.load_model_path(path)?,
             texture: self.tables.textures.get(part.texture).map(str::to_owned),
+            type_id: Some(key),
         })
     }
 }
