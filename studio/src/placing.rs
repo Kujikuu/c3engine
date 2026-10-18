@@ -74,7 +74,7 @@ impl Studio {
 
     /// Places table row `row` on cell `at`: a monster type makes a spawn area of it.
     pub(crate) fn place_row(&mut self, row: &DraggedRow, at: CellPos) {
-        let monsters = self.game.as_ref().map(|g| g.monster_table().to_owned());
+        let monsters = self.game.as_ref().map(|g| g.data_tables().monsters.table);
         if monsters.as_deref() != Some(row.table.as_str()) {
             self.error = Some(format!(
                 "Rows of {} can't be placed on a map: drag a monster type (a row of {})",

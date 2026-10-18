@@ -46,6 +46,14 @@ impl ReferredTables {
         }
     }
 
+    /// Table `table`'s rows, key and label (empty until read).
+    pub fn rows(&self, table: &str) -> &[(i64, String)] {
+        self.tables
+            .get(table)
+            .and_then(Option::as_deref)
+            .unwrap_or_default()
+    }
+
     /// What a cell naming row `key` of `table` shows.
     pub fn label(&self, table: &str, key: i64) -> String {
         match self.tables.get(table) {

@@ -332,6 +332,10 @@ impl Studio {
         if let Some(name) = self.preview_effect.take() {
             pick_effect = Some(name);
         }
+        if let Some(look) = self.preview_look.take() {
+            stage.look = look;
+            stage.rebuild();
+        }
         if let Some(name) = pick_effect {
             stage.effect = name;
             play_effect = true;

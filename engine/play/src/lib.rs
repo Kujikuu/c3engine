@@ -37,5 +37,5 @@ pub mod weather;
 pub mod world;
 
 pub use character::{Attachment, Character, CharacterMotions, Look, LookKind, PartModel};
-pub use module::{Act, GameModule, GameRules, Looks, load_project_scene};
+pub use module::{Act, DataTables, GameModule, GameRules, Looks, TableRef, load_project_scene};
 pub use project_game::ProjectGame;

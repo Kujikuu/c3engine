@@ -59,6 +59,42 @@ pub trait GameRules: Send + Sync {
     fn rules(&self, tables: Option<&Path>) -> (Box<dyn Rules>, Vec<String>);
 }
 
+/// A table of the project holding one kind of the game's things.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableRef {
+    pub table: String,
+    /// The column holding the rules' id of each row; `None`: the row's key.
+    pub id_column: Option<String>,
+}
+
+impl TableRef {
+    /// Table `table`, its rows' keys being the rules' ids.
+    pub fn keyed(table: &str) -> Self {
+        Self {
+            table: table.to_owned(),
+            id_column: None,
+        }
+    }
+
+    /// The rules' id of row `key` of `table` (this table, open).
+    pub fn id_of(&self, table: &c3_data::Table, key: i64) -> Option<u32> {
+        let value = match &self.id_column {
+            Some(column) => table.get(key, column)?.as_int()?,
+            None => key,
+        };
+        u32::try_from(value).ok()
+    }
+}
+
+/// The tables the Studio's forms know (see [`GameModule::data_tables`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataTables {
+    pub monsters: TableRef,
+    pub items: TableRef,
+    pub skills: TableRef,
+    pub levels: TableRef,
+}
+
 /// A game the engine plays.
 pub trait GameModule {
     /// The game's name, for titles and the Studio.
@@ -108,10 +144,16 @@ pub trait GameModule {
     fn npc_looks(&self) -> Vec<(u32, String)> {
         Vec::new()
     }
-    /// The table whose rows are the game's monster types (a row dragged onto a map in the
-    /// Studio makes a spawn area of it).
-    fn monster_table(&self) -> &str {
-        crate::data_rules::MONSTERS
+    /// Which of the project's tables hold the game's monsters, items, skills and levels, for
+    /// the Studio's forms (a monster row dragged onto a map makes a spawn area of it).
+    fn data_tables(&self) -> DataTables {
+        use crate::data_rules::{ITEMS, LEVELS, MONSTERS, SKILLS};
+        DataTables {
+            monsters: TableRef::keyed(MONSTERS),
+            items: TableRef::keyed(ITEMS),
+            skills: TableRef::keyed(SKILLS),
+            levels: TableRef::keyed(LEVELS),
+        }
     }
     /// The map drawn small for the radar, covering the map's ground (or its cells when it
     /// has none): map `key`, answering to `map_ids`.

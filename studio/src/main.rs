@@ -18,6 +18,7 @@ mod dialogue_panel;
 mod doc;
 mod dock;
 mod editor;
+mod forms;
 mod gpu;
 mod graph_canvas;
 mod ground_panel;

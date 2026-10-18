@@ -8,7 +8,7 @@ use crate::icons;
 use crate::maps::MapRef;
 use crate::shell::Panel;
 use crate::theme;
-use eframe::egui::{self, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2, pos2, vec2};
+use eframe::egui::{self, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2, pos2, vec2};
 use std::collections::BTreeMap;
 
 /// Card size and spacing, in world-view units.
@@ -46,9 +46,19 @@ pub(crate) struct WorldView {
     seen: Option<(String, usize)>,
     /// Frame the linked maps (else all) on the next frame.
     fit: bool,
+    /// Every map's NPCs and spawn areas, with the card of their map.
+    pub(crate) npcs: Vec<(usize, c3_scene::Npc)>,
+    npc_search: String,
+    pub(crate) spawns: Vec<(usize, c3_scene::Spawn)>,
 }
 
 impl WorldView {
+    /// Card `i`'s map: its key and name.
+    pub(crate) fn card(&self, i: usize) -> (&str, &str) {
+        let card = &self.cards[i];
+        (&card.key, &card.name)
+    }
+
     /// Reads the maps again (their portals changed).
     pub(crate) fn refresh(&mut self) {
         self.stale = true;
@@ -83,6 +93,13 @@ impl WorldView {
 }
 
 impl Studio {
+    /// Reads every map's links, NPCs and spawns if they aren't read (or changed).
+    pub(crate) fn ensure_world_index(&mut self) {
+        if !self.world.loaded || self.world.stale {
+            self.load_world();
+        }
+    }
+
     pub(crate) fn world_panel(&mut self, ui: &mut egui::Ui) {
         let seen = (self.doc.as_ref()).map(|d| (d.map.key(), d.history().len()));
         if !self.world.loaded || self.world.stale || seen != self.world.seen {
@@ -126,11 +143,60 @@ impl Studio {
         if refresh {
             self.load_world();
         }
+        let mut npc = None;
+        egui::Panel::left("world npcs")
+            .resizable(true)
+            .default_size(220.0)
+            .show(ui, |ui| npc = self.npc_list(ui));
         let open = self.world_canvas(ui);
         if let Some(key) = open {
             self.open_map(&MapRef::parse(&key));
             self.show_panel(Panel::Scene);
         }
+        if let Some((key, id, cell)) = npc {
+            self.show_on_map(&key, crate::selection::Selection::Npc(id), cell);
+        }
+    }
+
+    /// Every map's NPCs in one searchable list; returns the one clicked (its map, id, cell).
+    fn npc_list(&mut self, ui: &mut egui::Ui) -> Option<(String, u32, (i32, i32))> {
+        ui.label(
+            RichText::new(theme::icon_text(
+                icons::USER,
+                &format!("NPCs ({})", self.world.npcs.len()),
+            ))
+            .strong(),
+        );
+        ui.add(
+            egui::TextEdit::singleline(&mut self.world.npc_search)
+                .hint_text(theme::icon_text(icons::MAGNIFYING_GLASS, "Search NPCs"))
+                .desired_width(f32::INFINITY),
+        );
+        let needle = self.world.npc_search.to_lowercase();
+        let mut picked = None;
+        egui::ScrollArea::vertical()
+            .auto_shrink(false)
+            .show(ui, |ui| {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                    for (card, npc) in &self.world.npcs {
+                        let (key, map) = self.world.card(*card);
+                        let label = format!("{}  #{}  · {map}", npc.name, npc.id);
+                        if !needle.is_empty() && !label.to_lowercase().contains(&needle) {
+                            continue;
+                        }
+                        let row = ui
+                            .add(
+                                egui::Button::selectable(false, label)
+                                    .wrap_mode(egui::TextWrapMode::Truncate),
+                            )
+                            .on_hover_text(format!("Open {map} at {}, {}", npc.cell.0, npc.cell.1));
+                        if row.clicked() {
+                            picked = Some((key.to_owned(), npc.id, npc.cell));
+                        }
+                    }
+                });
+            });
+        picked
     }
 
     /// Reads every listed map's portal links: a project map's from its scene, a client map's
@@ -142,6 +208,8 @@ impl Studio {
         w.stale = false;
         w.cards.clear();
         w.links.clear();
+        w.npcs.clear();
+        w.spawns.clear();
         if w.zoom == 0.0 {
             w.zoom = 1.0;
         }
@@ -155,29 +223,27 @@ impl Studio {
             .flat_map(|(i, m)| m.ids.iter().map(move |id| (*id, i)))
             .collect();
         // The open map as edited, others as saved.
-        let open = (self.doc.as_ref()).map(|d| (d.map.key().to_lowercase(), d.scene()));
+        let open =
+            (self.doc.as_ref()).map(|d| (d.map.key().to_lowercase(), d.scene().population()));
         for (from, m) in maps.iter().enumerate() {
             let edited = open.as_ref().filter(|(k, _)| *k == m.key.to_lowercase());
-            let targets = match MapRef::parse(&m.key) {
-                _ if edited.is_some() => (edited.expect("checked").1.portals.iter())
-                    .filter_map(|p| p.to.map(|t| t.map))
-                    .collect(),
+            let population = match MapRef::parse(&m.key) {
+                _ if edited.is_some() => edited.expect("checked").1.clone(),
                 MapRef::Project(name) => c3_scene::native::load_scene(&project.map_file(&name))
-                    .map(|s| {
-                        s.portals
-                            .iter()
-                            .filter_map(|p| p.to.map(|t| t.map))
-                            .collect()
-                    })
+                    .map(|s| s.population())
                     .unwrap_or_default(),
                 MapRef::Client(path) => {
                     let name = crate::maps::client_map_name(&path).to_owned();
                     c3_scene::native::load_population(&project.population_file(&name))
-                        .map(|p| p.links.iter().map(|l| l.to.map).collect())
                         .unwrap_or_default()
                 }
             };
-            let targets: Vec<u32> = targets;
+            let targets: Vec<u32> = population.links.iter().map(|l| l.to.map).collect();
+            let w = &mut self.world;
+            w.npcs
+                .extend(population.npcs.into_iter().map(|n| (from, n)));
+            w.spawns
+                .extend(population.spawns.into_iter().map(|s| (from, s)));
             for to in &targets {
                 if let Some(&to) = index.get(to) {
                     *self.world.links.entry((from, to)).or_default() += 1;

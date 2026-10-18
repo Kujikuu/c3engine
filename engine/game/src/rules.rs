@@ -84,6 +84,16 @@ pub struct MonsterType {
     pub skill_percent: u32,
 }
 
+/// What a monster type may drop: money up to `money`, and items with their chance.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Loot {
+    pub money: u64,
+    /// Chance in percent of dropping money at all (100: always).
+    pub money_percent: u32,
+    /// Item types and their chance in percent.
+    pub items: Vec<(u32, u32)>,
+}
+
 /// A kind of item.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ItemType {
@@ -207,6 +217,11 @@ pub trait Rules: std::any::Any {
 
     /// What a monster of `kind` drops.
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop>;
+
+    /// What a monster of `kind` may drop and how likely, for editors (`drops` rolls it).
+    fn loot(&self, _kind: u32) -> Loot {
+        Loot::default()
+    }
 
     /// Item types NPC `npc` sells (empty if it has no shop).
     fn shop(&self, npc: u32) -> &[u32];

@@ -548,6 +548,21 @@ impl Rules for ConquerRules {
         out
     }
 
+    fn loot(&self, kind: u32) -> c3_game::Loot {
+        let Some(d) = self.drops.get(&kind) else {
+            return Default::default();
+        };
+        let potions = [
+            (d.life_potion, LIFE_POTION_CHANCE),
+            (d.mana_potion, MANA_POTION_CHANCE),
+        ];
+        c3_game::Loot {
+            money: d.money,
+            money_percent: MONEY_CHANCE,
+            items: potions.into_iter().filter(|(item, _)| *item != 0).collect(),
+        }
+    }
+
     fn shop(&self, npc: u32) -> &[u32] {
         self.shops.get(&npc).map_or(&[], Vec::as_slice)
     }

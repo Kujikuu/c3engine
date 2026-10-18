@@ -25,6 +25,7 @@ pub const CHAT_TEARDROP_TEXT: &str = "\u{E178}";
 pub const CHECK_CIRCLE: &str = "\u{E184}";
 pub const CIRCLE: &str = "\u{E18A}";
 pub const CLOCK_COUNTER_CLOCKWISE: &str = "\u{E1A0}";
+pub const COINS: &str = "\u{E78E}";
 pub const COPY: &str = "\u{E1CA}";
 pub const COPY_SIMPLE: &str = "\u{E1CC}";
 pub const CORNERS_OUT: &str = "\u{E1D0}";

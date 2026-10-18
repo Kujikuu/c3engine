@@ -174,8 +174,18 @@ impl GameModule for ConquerModule {
         Some(PORTAL_EFFECT.to_owned())
     }
 
-    fn monster_table(&self) -> &str {
-        crate::rules::MONSTER_TABLE
+    /// TQ's tables; magic rows are keyed by row, their skill by `type`.
+    fn data_tables(&self) -> c3_play::DataTables {
+        use c3_play::TableRef;
+        c3_play::DataTables {
+            monsters: TableRef::keyed(crate::rules::MONSTER_TABLE),
+            items: TableRef::keyed(crate::server_data::ITEM_TABLE),
+            skills: TableRef {
+                table: "cq_magictype".into(),
+                id_column: Some("type".into()),
+            },
+            levels: TableRef::keyed("cq_levexp"),
+        }
     }
 
     /// The client's NPC types (`Npc.ini`).

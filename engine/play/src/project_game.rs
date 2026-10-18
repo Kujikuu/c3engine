@@ -150,8 +150,8 @@ impl GameModule for ProjectGame {
         self.game.click_effect()
     }
 
-    fn monster_table(&self) -> &str {
-        self.game.monster_table()
+    fn data_tables(&self) -> crate::module::DataTables {
+        self.game.data_tables()
     }
 
     fn npc_looks(&self) -> Vec<(u32, String)> {

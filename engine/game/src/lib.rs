@@ -35,7 +35,7 @@ pub use input::{Input, MAX_CHAT};
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{
-    Drop, Fighter, ItemType, MonsterType, Rules, SkillKind, SkillTarget, SkillType, Stats,
+    Drop, Fighter, ItemType, Loot, MonsterType, Rules, SkillKind, SkillTarget, SkillType, Stats,
     StatusType,
 };
 pub use save::{PlayerSave, SavedItem};

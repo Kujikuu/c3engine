@@ -102,6 +102,10 @@ pub struct Studio {
     pub(crate) preview_audio: Option<c3_audio::Audio>,
     /// An effect the Preview panel is to play next.
     pub(crate) preview_effect: Option<String>,
+    /// A look the Preview panel is to show next (a monster's, from its form).
+    pub(crate) preview_look: Option<c3_play::Look>,
+    /// What the Data panel's forms read.
+    pub(crate) forms: crate::forms::FormCache,
     /// The Project panel's rename dialog, while open.
     pub(crate) rename: Option<crate::asset_ops::RenameForm>,
     /// Watches the project's assets for changes made outside (or by) the Studio.
@@ -140,6 +144,9 @@ pub struct Studio {
     /// The Ground tool's palette thumbnails.
     pub(crate) ground_thumbs: crate::ground_panel::Thumbnails,
     pub(crate) world: crate::world_view::WorldView,
+    /// Panels asked to the front while the dock was drawing.
+    pub(crate) panel_requests: Vec<crate::shell::Panel>,
+    pub(crate) drawing_dock: bool,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -192,6 +199,8 @@ impl Studio {
             import_buffers: std::collections::HashMap::new(),
             preview_audio: None,
             preview_effect: None,
+            preview_look: None,
+            forms: Default::default(),
             rename: None,
             watcher: None,
             fonts_dirty: false,
@@ -244,6 +253,8 @@ impl Studio {
             clipboard: None,
             ground_thumbs: Default::default(),
             world: Default::default(),
+            panel_requests: Vec::new(),
+            drawing_dock: false,
             hover: None,
             streaming: false,
             error: None,

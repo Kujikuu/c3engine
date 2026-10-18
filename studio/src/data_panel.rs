@@ -53,6 +53,8 @@ pub struct DataPanel {
     pub search: String,
     /// Key of the selected row.
     pub selected: Option<i64>,
+    /// The selected row the grid last scrolled to (a new selection scrolls into view).
+    shown: Option<i64>,
     editing: Option<CellEdit>,
     import: Option<ImportDialog>,
     /// Rows matching the search, by index (`None` = recompute).
@@ -66,6 +68,11 @@ pub struct DataPanel {
 }
 
 impl DataPanel {
+    /// The rows of table `name` as read for references (empty until read).
+    pub(crate) fn referred_rows(&self, name: &str) -> Vec<(i64, String)> {
+        self.referred.rows(name).to_vec()
+    }
+
     pub fn is_dirty(&self) -> bool {
         self.open.as_ref().is_some_and(|t| t.doc.is_dirty())
     }
@@ -110,6 +117,7 @@ impl Studio {
     /// Re-reads the project's table names.
     pub(crate) fn refresh_tables(&mut self) {
         self.data.referred.forget(None);
+        self.forms.forget();
         self.data.names = self
             .project
             .as_ref()
@@ -319,6 +327,7 @@ impl Studio {
                 open.doc.mark_saved();
                 let name = open.name.clone();
                 self.data.referred.forget(Some(&name));
+                self.forms.forget();
                 self.notify(format!("Saved table {name}"));
                 true
             }
@@ -432,6 +441,15 @@ impl Studio {
             self.referred(&name);
         }
         let rows: Vec<usize> = self.data.rows().to_vec();
+        // A row selected elsewhere (a form's link) scrolls into view once.
+        let scroll_to = (self.data.selected)
+            .filter(|key| self.data.shown != Some(*key))
+            .and_then(|key| {
+                let table = self.data.open.as_ref()?.doc.table();
+                let index = table.find(key)?;
+                rows.iter().position(|&r| r == index)
+            });
+        self.data.shown = self.data.selected;
         let Some(open) = &self.data.open else { return };
         let table: &Table = open.doc.table();
         let selected = self.data.selected;
@@ -447,7 +465,11 @@ impl Studio {
         egui::ScrollArea::horizontal()
             .auto_shrink(false)
             .show(ui, |ui| {
-                let mut builder = TableBuilder::new(ui)
+                let mut builder = TableBuilder::new(ui);
+                if let Some(at) = scroll_to {
+                    builder = builder.scroll_to_row(at, Some(egui::Align::Center));
+                }
+                builder = builder
                     .striped(true)
                     .resizable(true)
                     .sense(egui::Sense::click())
@@ -613,9 +635,30 @@ impl Studio {
         let (Some(open), Some(key)) = (&self.data.open, self.data.selected) else {
             return false;
         };
+        if open.doc.table().find(key).is_none() {
+            return false;
+        }
+        let name = open.name.clone();
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(icons::DATABASE)
+                    .size(22.0)
+                    .color(theme::ACCENT),
+            );
+            ui.vertical(|ui| {
+                ui.label(RichText::new(format!("Row {key}")).size(15.0).strong());
+                ui.label(RichText::new(&name).color(theme::TEXT_DIM).small());
+            });
+        });
+        ui.separator();
+        // What the game makes of the row first, then its fields.
+        self.row_form(ui, &name, key);
+        let Some(open) = &self.data.open else {
+            return true;
+        };
         let table = open.doc.table();
         let Some(r) = table.find(key) else {
-            return false;
+            return true;
         };
         // Pickers for columns naming other tables' rows (they need the Studio, so the
         // row is read first).
@@ -629,18 +672,8 @@ impl Studio {
                 ))
             })
             .collect();
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(icons::DATABASE)
-                    .size(22.0)
-                    .color(theme::ACCENT),
-            );
-            ui.vertical(|ui| {
-                ui.label(RichText::new(format!("Row {key}")).size(15.0).strong());
-                ui.label(RichText::new(&open.name).color(theme::TEXT_DIM).small());
-            });
-        });
-        ui.separator();
+        ui.add_space(6.0);
+        ui.label(RichText::new("Fields").strong());
         let mut commit = None;
         let mut reference_rows = Vec::new();
         egui::Grid::new("row inspector")

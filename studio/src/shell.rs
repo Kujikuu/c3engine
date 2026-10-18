@@ -250,8 +250,20 @@ impl Studio {
         });
     }
 
+    /// Brings `panel` to the front. (Panels asking while the dock draws are shown once it
+    /// is back in place.)
     pub(crate) fn show_panel(&mut self, panel: Panel) {
-        self.dock.show_tab(panel, panel.neighbours());
+        self.panel_requests.push(panel);
+        self.apply_panel_requests();
+    }
+
+    fn apply_panel_requests(&mut self) {
+        if self.drawing_dock {
+            return;
+        }
+        for panel in std::mem::take(&mut self.panel_requests) {
+            self.dock.show_tab(panel, panel.neighbours());
+        }
     }
 
     // ---- toolbar ----
@@ -435,8 +447,12 @@ impl Studio {
 
     pub(crate) fn dock_ui(&mut self, ui: &mut egui::Ui) {
         let mut dock = std::mem::replace(&mut self.dock, Dock::new(|group| group(Vec::new())));
+        // While the dock draws, `self.dock` is a stand-in: requests wait for it to return.
+        self.drawing_dock = true;
         dock.show(ui, &theme::dock_style(), self);
+        self.drawing_dock = false;
         self.dock = dock;
+        self.apply_panel_requests();
         if self.dock.changed {
             self.dock.changed = false;
             self.save_layout();

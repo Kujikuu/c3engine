@@ -793,6 +793,16 @@ impl Rules for DataRules {
         out
     }
 
+    fn loot(&self, kind: u32) -> c3_game::Loot {
+        self.loot
+            .get(&kind)
+            .map_or_else(Default::default, |l| c3_game::Loot {
+                money: l.money,
+                money_percent: 100,
+                items: l.items.clone(),
+            })
+    }
+
     fn shop(&self, npc: u32) -> &[u32] {
         self.shops.get(&npc).map_or(&[], Vec::as_slice)
     }

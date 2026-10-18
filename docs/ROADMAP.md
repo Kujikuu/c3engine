@@ -431,9 +431,17 @@ PUL for the classic client).
     undoable table commands. A column referring to a table shows each row's name
     ("1000010 · Resolutive") and the row Inspector picks from that table (searchable) and
     jumps to the row. New tables came earlier
-- [ ] Forms with previews over the tables: characters and classes, monsters (look, stats, drops,
+- [x] Forms with previews over the tables: characters and classes, monsters (look, stats, drops,
       where they spawn), items (icon and model, stats, which shops sell them), skills, shops,
       drops, levels, NPCs (one list across all maps, jump to the map)
+  - Done 2026-10-18: a row of the game's monsters, items, skills or levels table shows, above
+    its fields, what the game reads from it: a monster's stats, look (previewed in 3D),
+    drops and its spawn areas on every map; an item's icon, stats, "Try it on" on the hero,
+    the NPCs selling it and the monsters dropping it; a skill's numbers and its effect
+    (previewed); a level's stats. Links jump to the row or open the map with the thing
+    selected. The World tab lists every map's NPCs (search, click to open). Each game names
+    its tables (Conquer: cq_monstertype, cq_itemtype, cq_magictype by type, cq_levexp).
+    Classes have no data in the engine yet: their form comes with professions (M12)
 - [ ] Effect editor (layers, particles, trails, timing, preview) and animation set editor
       (actions, frames, sockets, sounds per action)
 - [ ] Data-driven game UI: windows, HUD and dialogs as layout files (images, text, bars, grids,
