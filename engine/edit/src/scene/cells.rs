@@ -70,16 +70,52 @@ pub(super) struct CellChange {
 impl SceneDoc {
     pub(super) fn set_blocked(&mut self, area: &Area, blocked: bool) -> Edit {
         let flags = u16::from(blocked);
+        let what = if blocked { "blocked" } else { "walkable" };
+        self.change_cells(
+            area,
+            |c| Cell { flags, ..c },
+            |n| match n {
+                0 => format!("No cells changed (already {what})"),
+                1 => format!("Marked 1 cell {what}"),
+                n => format!("Marked {n} cells {what}"),
+            },
+        )
+    }
+
+    pub(super) fn set_surface(&mut self, area: &Area, surface: u16) -> Edit {
+        self.change_cells(
+            area,
+            |c| Cell { surface, ..c },
+            |n| format!("Set the surface of {n} cells to {surface}"),
+        )
+    }
+
+    pub(super) fn set_height(&mut self, area: &Area, height: i16) -> Edit {
+        self.change_cells(
+            area,
+            |c| Cell { height, ..c },
+            |n| format!("Set the height of {n} cells to {height}"),
+        )
+    }
+
+    /// Applies `change` to every cell of `area`, recording the cells it changed;
+    /// `summary(n)` names the step.
+    fn change_cells(
+        &mut self,
+        area: &Area,
+        change: impl Fn(Cell) -> Cell,
+        summary: impl Fn(usize) -> String,
+    ) -> Edit {
         let mut changes = Vec::new();
         for cell in area.cells(&self.scene)? {
             let Some(index) = self.scene.grid.index(cell) else {
                 continue;
             };
             let before = self.scene.grid.cells[index];
-            if before.flags == flags {
+            let after = change(before);
+            if after == before {
                 continue;
             }
-            let after = Cell { flags, ..before };
             self.scene.grid.cells[index] = after;
             changes.push(CellChange {
                 index,
@@ -87,14 +123,8 @@ impl SceneDoc {
                 after,
             });
         }
-        let what = if blocked { "blocked" } else { "walkable" };
-        let summary = match changes.len() {
-            0 => format!("No cells changed (already {what})"),
-            1 => format!("Marked 1 cell {what}"),
-            n => format!("Marked {n} cells {what}"),
-        };
         Ok((
-            summary,
+            summary(changes.len()),
             (!changes.is_empty()).then_some(Change::Cells(changes)),
         ))
     }

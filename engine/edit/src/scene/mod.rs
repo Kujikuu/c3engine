@@ -26,6 +26,10 @@ use serde::{Deserialize, Serialize};
 pub enum SceneCommand {
     /// Marks every cell of `area` blocked (impassable) or walkable.
     SetBlocked { area: Area, blocked: bool },
+    /// Sets the surface type (footsteps, effects) of every cell of `area`.
+    SetSurface { area: Area, surface: u16 },
+    /// Sets the height of every cell of `area`.
+    SetHeight { area: Area, height: i16 },
     /// Adds a portal (map exit) on `cell`, with `id` or else the lowest free id.
     AddPortal {
         cell: CellPos,
@@ -142,6 +146,8 @@ impl SceneDoc {
     pub fn execute(&mut self, command: &SceneCommand) -> Result<Outcome, EditError> {
         let (summary, change) = match command {
             SceneCommand::SetBlocked { area, blocked } => self.set_blocked(area, *blocked)?,
+            SceneCommand::SetSurface { area, surface } => self.set_surface(area, *surface)?,
+            SceneCommand::SetHeight { area, height } => self.set_height(area, *height)?,
             SceneCommand::AddPortal { cell, id } => self.add_portal(*cell, *id)?,
             SceneCommand::MovePortal { id, to } => self.move_portal(*id, *to)?,
             SceneCommand::RemovePortal { id } => self.remove_portal(*id)?,

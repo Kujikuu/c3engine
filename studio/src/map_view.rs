@@ -39,6 +39,22 @@ pub mod colors {
     pub const NPC: Color32 = Color32::from_rgb(120, 220, 255);
     pub const SPAWN: Color32 = Color32::from_rgb(255, 110, 80);
     pub const SELECTED: Color32 = Color32::from_rgb(255, 255, 255);
+
+    /// A colour per surface type, the same every time.
+    pub fn surface(kind: u16) -> Color32 {
+        const HUES: [(u8, u8, u8); 8] = [
+            (90, 170, 255),
+            (240, 170, 60),
+            (120, 220, 120),
+            (230, 90, 200),
+            (250, 230, 90),
+            (90, 230, 220),
+            (200, 120, 80),
+            (170, 140, 255),
+        ];
+        let (r, g, b) = HUES[usize::from(kind) % HUES.len()];
+        Color32::from_rgba_unmultiplied(r, g, b, 110)
+    }
 }
 
 pub struct Camera {
@@ -78,6 +94,10 @@ pub struct Overlays {
     pub npcs: bool,
     /// Monster spawn areas.
     pub spawns: bool,
+    /// Cells' surface types, coloured by type.
+    pub surface: bool,
+    /// Cells' heights, light above zero and dark below.
+    pub height: bool,
 }
 
 /// How the active tool wants the viewport to behave this frame.
@@ -119,6 +139,8 @@ pub struct Pointer {
     pub secondary_clicked: bool,
     /// Shift is held (adds to the selection).
     pub shift: bool,
+    /// Alt is held (takes a value from the map).
+    pub alt: bool,
 }
 
 /// What can be dragged onto the map.
@@ -311,6 +333,7 @@ pub fn show(
         primary_released: released && !dragging,
         secondary_clicked: resp.secondary_clicked(),
         shift: ui.input(|i| i.modifiers.shift),
+        alt: ui.input(|i| i.modifiers.alt),
     };
 
     if ov.portals || mode.dragging_portal.is_some() {
@@ -428,7 +451,11 @@ fn draw_cells(
     let grid_alpha = ((cell_px - 24.0) / 24.0).clamp(0.0, 1.0);
     let show_blocked = ov.blocked && cell_px >= 3.0;
     let show_grid = ov.grid && grid_alpha > 0.0;
-    if !show_blocked && !show_grid {
+    let show_surface = ov.surface && cell_px >= 3.0;
+    let show_height = ov.height && cell_px >= 3.0;
+    // Values are written in their cells when they fit.
+    let label_font = (cell_px >= 40.0).then(|| egui::FontId::monospace(10.0));
+    if !show_blocked && !show_grid && !show_surface && !show_height {
         return;
     }
     // Visible cell range: invert the four view corners.
@@ -456,7 +483,37 @@ fn draw_cells(
                 continue;
             }
             let pts = diamond(c, 1.0);
-            if show_blocked && doc.cell((x, y)).is_some_and(|c| c.is_blocked()) {
+            let cell = doc.cell((x, y)).unwrap_or_default();
+            if show_surface && cell.surface != 0 {
+                let fill = colors::surface(cell.surface);
+                painter.add(Shape::convex_polygon(pts.clone(), fill, Stroke::NONE));
+            }
+            if show_height && cell.height != 0 {
+                let strength = (f32::from(cell.height.unsigned_abs()) / 64.0).clamp(0.15, 0.7);
+                let fill = if cell.height > 0 {
+                    Color32::from_white_alpha((255.0 * strength) as u8)
+                } else {
+                    Color32::from_black_alpha((255.0 * strength) as u8)
+                };
+                painter.add(Shape::convex_polygon(pts.clone(), fill, Stroke::NONE));
+            }
+            if let Some(font) = &label_font {
+                let value = match (show_surface, show_height) {
+                    (true, _) if cell.surface != 0 => Some(cell.surface.to_string()),
+                    (_, true) if cell.height != 0 => Some(cell.height.to_string()),
+                    _ => None,
+                };
+                if let Some(value) = value {
+                    painter.text(
+                        c,
+                        egui::Align2::CENTER_CENTER,
+                        value,
+                        font.clone(),
+                        Color32::WHITE,
+                    );
+                }
+            }
+            if show_blocked && cell.is_blocked() {
                 painter.add(Shape::convex_polygon(
                     pts.clone(),
                     colors::BLOCKED,

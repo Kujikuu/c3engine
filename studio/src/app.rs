@@ -216,6 +216,8 @@ impl Studio {
                 markers: false,
                 npcs: true,
                 spawns: true,
+                surface: false,
+                height: false,
             },
             editor: Editor::default(),
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
@@ -1206,6 +1208,8 @@ impl Studio {
                 (Key::Num4, Tool::Clear),
                 (Key::Num5, Tool::Portal),
                 (Key::Num6, Tool::Ground),
+                (Key::Num7, Tool::Surface),
+                (Key::Num8, Tool::Height),
             ] {
                 if i.key_pressed(key) {
                     self.editor.tool = tool;

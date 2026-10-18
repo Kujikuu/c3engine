@@ -4,7 +4,7 @@
 use crate::app::{Pending, Studio, Workspace};
 use crate::editor::{MAX_BRUSH, Tool};
 use crate::icons;
-use crate::map_view::{self, ViewMode, colors};
+use crate::map_view::{self, Overlays, ViewMode, colors};
 use crate::selection::Pickable;
 use crate::shell::Level;
 use crate::theme;
@@ -63,6 +63,19 @@ impl Studio {
                 {
                     self.editor.brush = (size - 1) / 2;
                 }
+            }
+            match self.editor.tool {
+                Tool::Surface => {
+                    ui.label(RichText::new("Surface").color(theme::TEXT_DIM));
+                    ui.add(egui::DragValue::new(&mut self.editor.surface))
+                        .on_hover_text("The surface type painted (footsteps, effects); Alt+click a cell takes its type");
+                }
+                Tool::Height => {
+                    ui.label(RichText::new("Height").color(theme::TEXT_DIM));
+                    ui.add(egui::DragValue::new(&mut self.editor.height))
+                        .on_hover_text("The height painted; Alt+click a cell takes its height");
+                }
+                _ => {}
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if theme::icon_toggle(ui, false, icons::CORNERS_OUT, "Fit map to view (F)")
@@ -127,6 +140,8 @@ impl Studio {
             for (on, label, key) in [
                 (&mut o.npcs, "NPCs", "N"),
                 (&mut o.spawns, "Spawn areas", ""),
+                (&mut o.surface, "Surface types", ""),
+                (&mut o.height, "Heights", ""),
             ] {
                 if ui
                     .add(egui::Button::selectable(*on, label).shortcut_text(key))
@@ -204,7 +219,12 @@ impl Studio {
             live,
             doc,
             &mut self.cam,
-            self.overlays,
+            // The Surface and Height tools show what they paint.
+            Overlays {
+                surface: self.overlays.surface || tool == Tool::Surface,
+                height: self.overlays.height || tool == Tool::Height,
+                ..self.overlays
+            },
             mode,
         );
         self.hover = r.pointer.cell;

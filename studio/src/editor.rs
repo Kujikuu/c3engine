@@ -22,6 +22,10 @@ pub enum Tool {
     Portal,
     /// Paint, fill, erase or pick ground tiles.
     Ground,
+    /// Paint cells' surface type (footsteps, effects).
+    Surface,
+    /// Paint cells' height.
+    Height,
 }
 
 /// What the Ground tool does with a click.
@@ -43,13 +47,15 @@ pub struct GroundBrush {
 }
 
 impl Tool {
-    pub const ALL: [Tool; 6] = [
+    pub const ALL: [Tool; 8] = [
         Tool::Inspect,
         Tool::Select,
         Tool::Block,
         Tool::Clear,
         Tool::Portal,
         Tool::Ground,
+        Tool::Surface,
+        Tool::Height,
     ];
 
     pub fn label(self) -> &'static str {
@@ -60,6 +66,8 @@ impl Tool {
             Tool::Clear => "Walkable",
             Tool::Portal => "Portal",
             Tool::Ground => "Ground",
+            Tool::Surface => "Surface",
+            Tool::Height => "Height",
         }
     }
 
@@ -71,6 +79,8 @@ impl Tool {
             Tool::Clear => icons::ERASER,
             Tool::Portal => icons::DOOR_OPEN,
             Tool::Ground => icons::PAINT_BRUSH,
+            Tool::Surface => icons::FOOTPRINTS,
+            Tool::Height => icons::STAIRS,
         }
     }
 
@@ -83,6 +93,8 @@ impl Tool {
             Tool::Clear => 4,
             Tool::Portal => 5,
             Tool::Ground => 6,
+            Tool::Surface => 7,
+            Tool::Height => 8,
         }
     }
 
@@ -96,11 +108,18 @@ impl Tool {
             Tool::Ground => {
                 "Drag to paint ground tiles · [ ] brush size · pick the image in the Inspector"
             }
+            Tool::Surface => {
+                "Drag to paint the surface type · Alt+click takes a cell's · [ ] brush size"
+            }
+            Tool::Height => "Drag to paint the height · Alt+click takes a cell's · [ ] brush size",
         }
     }
 
     pub fn uses_brush(self) -> bool {
-        matches!(self, Tool::Block | Tool::Clear | Tool::Ground)
+        matches!(
+            self,
+            Tool::Block | Tool::Clear | Tool::Ground | Tool::Surface | Tool::Height
+        )
     }
 }
 
@@ -120,6 +139,9 @@ pub struct Editor {
     /// A selection box being dragged out: the world point it started at, and where it reaches.
     boxing: Option<((f32, f32), (f32, f32))>,
     pub ground: GroundBrush,
+    /// What the Surface and Height tools paint.
+    pub surface: u16,
+    pub height: i16,
     /// Hidden from the Scene view (not drawn, not picked); the map keeps them.
     hidden: HashSet<Selection>,
     /// Drawn but not picked, so work around them can't move them by accident.
@@ -139,6 +161,8 @@ impl Default for Editor {
                 mode: GroundMode::Paint,
                 image: None,
             },
+            surface: 1,
+            height: 0,
             hidden: HashSet::new(),
             locked: HashSet::new(),
         }
@@ -283,6 +307,7 @@ impl Editor {
             }
             Tool::Portal => self.handle_portal(doc, p),
             Tool::Ground => self.handle_ground(doc, p),
+            Tool::Surface | Tool::Height => self.handle_cell_value(doc, p),
         }
     }
 
@@ -378,6 +403,54 @@ impl Editor {
             Some(e) => format!("Can't move: {e}"),
             None => label,
         })
+    }
+
+    /// The Surface and Height brushes: a stroke paints the value; Alt+click takes a cell's.
+    fn handle_cell_value(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {
+        let surface = self.tool == Tool::Surface;
+        if p.primary_pressed && p.alt {
+            let cell = doc.cell(p.cell?)?;
+            return Some(if surface {
+                self.surface = cell.surface;
+                format!("Painting surface {}", cell.surface)
+            } else {
+                self.height = cell.height;
+                format!("Painting height {}", cell.height)
+            });
+        }
+        if p.primary_pressed {
+            doc.begin_group(if surface {
+                "Paint surface"
+            } else {
+                "Paint height"
+            });
+        }
+        if p.primary_down
+            && !p.alt
+            && let Some(center) = p.cell
+        {
+            let area = Area::Square {
+                center,
+                radius: self.brush,
+            };
+            let command = if surface {
+                SceneCommand::SetSurface {
+                    area,
+                    surface: self.surface,
+                }
+            } else {
+                SceneCommand::SetHeight {
+                    area,
+                    height: self.height,
+                }
+            };
+            // A brush inside the map always succeeds.
+            let _ = doc.execute(&command);
+        }
+        if p.primary_released {
+            doc.end_group();
+        }
+        None
     }
 
     fn handle_ground(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {

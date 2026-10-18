@@ -393,7 +393,11 @@ PUL for the classic client).
     look-alike tiles, erases and picks; its palette is the map's tileset (plus the project's
     images on engine maps, added to the tileset as needed). A client map paints with its own
     puzzle tiles and saving writes its PUL back (the original kept as .bak)
-- [ ] Cells: height and surface brushes beside the walkability brush; overlays
+- [x] Cells: height and surface brushes beside the walkability brush; overlays
+  - Done 2026-10-18: Surface (7) and Height (8) brushes paint the value set on the toolbar
+    (Alt+click takes a cell's), one undo step per stroke; overlays colour surface types and
+    shade heights (values written in the cells when zoomed in), shown while the tool is on or
+    from Layers
 - [ ] Layers: parallax backgrounds (sky, water) and their items; layer order
 - [ ] Regions: music, sound, safe zone, PK-free, booth, weather, light, script triggers
 - [ ] Portals: destination picker, two-way links, jump to the destination
