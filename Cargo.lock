@@ -1329,6 +1329,7 @@ version = "0.1.0"
 dependencies = [
  "c3-assets",
  "c3-formats-tq",
+ "c3-render",
  "c3-scene",
 ]
 

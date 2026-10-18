@@ -50,6 +50,15 @@ pub fn import_map(source: &dyn AssetSource, dmap_path: &str) -> Result<Imported>
 }
 
 fn load_ground(source: &dyn AssetSource, dmap: &DMap, pul_path: &str) -> Result<TileLayer> {
+    let mut layer = load_tile_layer(source, pul_path)?;
+    let puzzle_size = (layer.width, layer.height);
+    layer.origin = ground_origin(dmap, puzzle_size);
+    Ok(layer)
+}
+
+/// Loads a PUL and its ANI tileset as a tile layer with origin (0, 0). Used for the
+/// ground and for parallax background layers.
+pub fn load_tile_layer(source: &dyn AssetSource, pul_path: &str) -> Result<TileLayer> {
     let read = |p: &str| {
         source
             .read(p)
@@ -58,7 +67,7 @@ fn load_ground(source: &dyn AssetSource, dmap: &DMap, pul_path: &str) -> Result<
     let puzzle = Puzzle::parse(&read(pul_path)?)?;
     let ani_path = puzzle.ani_file.to_gbk_string();
     let ani = Ani::parse(&read(&ani_path)?)?;
-    Ok(ground_layer(dmap, pul_path, &puzzle, &ani_path, &ani))
+    Ok(tile_layer(pul_path, &puzzle, &ani_path, &ani))
 }
 
 /// Builds a scene from a parsed DMap and its ground layer.
@@ -138,11 +147,8 @@ pub fn export_dmap(scene: &Scene) -> DMap {
 }
 
 /// World position of the puzzle's top-left. Port of `CGameMap::GetBgWorldPos`.
-fn ground_origin(dmap: &DMap, puzzle: &Puzzle) -> (i32, i32) {
-    let (bw, bh) = (
-        (puzzle.width * GRID_SIZE) as i32,
-        (puzzle.height * GRID_SIZE) as i32,
-    );
+fn ground_origin(dmap: &DMap, (pw, ph): (u32, u32)) -> (i32, i32) {
+    let (bw, bh) = ((pw * GRID_SIZE) as i32, (ph * GRID_SIZE) as i32);
     let (w, h) = (dmap.width as i32, dmap.height as i32);
     let (cw, ch) = (CELL_W as i32, CELL_H as i32);
     (
@@ -151,13 +157,7 @@ fn ground_origin(dmap: &DMap, puzzle: &Puzzle) -> (i32, i32) {
     )
 }
 
-fn ground_layer(
-    dmap: &DMap,
-    pul_path: &str,
-    puzzle: &Puzzle,
-    ani_path: &str,
-    ani: &Ani,
-) -> TileLayer {
+fn tile_layer(pul_path: &str, puzzle: &Puzzle, ani_path: &str, ani: &Ani) -> TileLayer {
     let frames = ani
         .sections
         .iter()
@@ -180,7 +180,7 @@ fn ground_layer(
             source: ani_path.to_owned(),
             frames,
         },
-        origin: ground_origin(dmap, puzzle),
+        origin: (0, 0),
         scroll: puzzle.roll_speed.unwrap_or((0, 0)),
     }
 }
@@ -207,7 +207,8 @@ fn entity_from_tq(o: &InteractiveObj) -> Entity {
                 asset: ani_file.to_gbk_string(),
                 animation: ani_title.to_gbk_string(),
                 footprint: *base,
-                offset: *offset,
+                // TQ covers draw at cell - offset; engine offsets are top-left from the cell centre.
+                offset: (-offset.0, -offset.1),
                 frame_ms: *frame_interval,
             },
         ),
@@ -272,7 +273,7 @@ fn entity_to_tq(e: &Entity) -> InteractiveObj {
             ani_title: FixedStr::from_gbk(animation),
             cell: pos,
             base: *footprint,
-            offset: *offset,
+            offset: (-offset.0, -offset.1),
             frame_interval: *frame_ms,
         },
         EntityKind::Prefab { asset } => InteractiveObj::Terrain {
@@ -324,7 +325,7 @@ fn layer_from_tq(l: &SceneLayer) -> ParallaxLayer {
                 asset: ani_file.to_gbk_string(),
                 animation: ani_title.to_gbk_string(),
                 cell: *cell,
-                offset: *offset,
+                offset: (-offset.0, -offset.1),
                 frame_ms: *frame_interval,
                 blend: *show_way,
             },
@@ -356,7 +357,7 @@ fn layer_to_tq(l: &ParallaxLayer) -> SceneLayer {
                 ani_file: FixedStr::from_gbk(asset),
                 ani_title: FixedStr::from_gbk(animation),
                 cell: *cell,
-                offset: *offset,
+                offset: (-offset.0, -offset.1),
                 frame_interval: *frame_ms,
                 show_way: *blend,
             },

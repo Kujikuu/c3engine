@@ -5,12 +5,16 @@
 //! (the Studio shows it as an egui image) or a window surface (the game client).
 //! Engine types only: images come in as [`c3_assets::Image`].
 
+mod assets;
 pub mod ground;
 mod mesh;
+pub mod objects;
+pub mod parallax;
 mod sprite;
 mod target;
 mod texture;
 
+pub use assets::SceneAssets;
 pub use mesh::{MeshDraw, MeshVertex};
 pub use sprite::Sprite;
 pub use target::{DepthBuffer, RenderTarget};
@@ -21,6 +25,26 @@ use glam::Mat4;
 /// Default color format; offscreen [`RenderTarget`]s always use it.
 pub const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+/// The camera's viewpoint for building a frame's draw lists.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct View {
+    /// Visible world rect `[min_x, min_y, max_x, max_y]`.
+    pub rect: [f32; 4],
+    /// World point at the screen centre.
+    pub center: (f32, f32),
+    /// Screen pixels per world pixel.
+    pub zoom: f32,
+    /// Animation clock.
+    pub time_ms: u64,
+}
+
+impl View {
+    /// Extra world size per tile that hides seams (half a screen pixel).
+    pub fn seam(&self) -> f32 {
+        0.5 / self.zoom
+    }
+}
 
 /// Everything to draw in one frame.
 #[derive(Default)]

@@ -1,7 +1,7 @@
 //! C3 Client: the game runtime window.
-//! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002]
+//! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002] [--cell x,y] [--zoom 1.0]
 //!
-//! Controls: drag or WASD/arrows to pan Â· wheel to zoom Â· F to fit Â· 1 for 100% Â· Esc to quit.
+//! Controls: drag or WASD/arrows to pan · wheel to zoom · F to fit · 1 for 100% · Esc to quit.
 
 mod camera;
 mod gfx;
@@ -102,7 +102,7 @@ impl App {
                 .next()
                 .unwrap_or(&self.world.map_path);
             gfx.window.set_title(&format!(
-                "C3 Client â€” {name} â€” {:.0}% â€” {fps:.0} fps",
+                "C3 Client — {name} — {:.0}% — {fps:.0} fps",
                 self.camera.zoom * 100.0
             ));
         }
@@ -201,6 +201,9 @@ struct Args {
     client: String,
     map: Option<String>,
     map_id: Option<u32>,
+    /// Start centred on this cell instead of fitting the whole map.
+    cell: Option<(i32, i32)>,
+    zoom: Option<f32>,
 }
 
 fn parse_args() -> Args {
@@ -219,6 +222,11 @@ fn parse_args() -> Args {
             .unwrap_or_else(|| DEFAULT_CLIENT.to_owned()),
         map: flag("--map"),
         map_id: flag("--map-id").and_then(|v| v.parse().ok()),
+        cell: flag("--cell").and_then(|v| {
+            let (x, y) = v.split_once(',')?;
+            Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
+        }),
+        zoom: flag("--zoom").and_then(|v| v.parse().ok()),
     }
 }
 
@@ -246,15 +254,16 @@ fn main() {
         eprintln!("error: {e}");
         std::process::exit(1);
     });
+    let start = args.cell.map(|c| Vec2::from(world.scene.cell_to_world(c)));
     let event_loop = EventLoop::new().expect("event loop");
     let mut app = App {
         world,
         gfx: None,
         camera: Camera2d {
-            center: Vec2::ZERO,
-            zoom: 1.0,
+            center: start.unwrap_or(Vec2::ZERO),
+            zoom: args.zoom.unwrap_or(1.0),
         },
-        fit_pending: true,
+        fit_pending: start.is_none() && args.zoom.is_none(),
         drag_from: None,
         cursor: Vec2::ZERO,
         keys_down: Vec::new(),

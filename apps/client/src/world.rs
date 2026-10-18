@@ -2,10 +2,16 @@
 
 use crate::camera::Camera2d;
 use c3_render::ground::{self, GroundCache};
-use c3_render::{Frame, Renderer, Sprite};
+use c3_render::objects::{self, ObjectCache};
+use c3_render::parallax::{self, ParallaxCache};
+use c3_render::{Frame, Renderer, Sprite, View};
 use c3_scene::Scene;
 use game_conquer::Content;
 use glam::Vec2;
+use std::time::Instant;
+
+/// Object frame images decoded per frame while streaming.
+const OBJECT_DECODE_BUDGET: usize = 12;
 
 /// Clear colour (linear) behind the map.
 const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
@@ -15,6 +21,10 @@ pub struct World {
     pub map_path: String,
     pub scene: Scene,
     ground: GroundCache,
+    objects: ObjectCache,
+    parallax: ParallaxCache,
+    /// Clock for sprite animation.
+    started: Instant,
     sprites: Vec<Sprite>,
     /// Tiles still streaming in (keep redrawing).
     pub streaming: bool,
@@ -27,6 +37,9 @@ impl World {
             map_path,
             scene,
             ground: GroundCache::default(),
+            objects: ObjectCache::default(),
+            parallax: ParallaxCache::default(),
+            started: Instant::now(),
             sprites: Vec::new(),
             streaming: false,
         }
@@ -54,14 +67,19 @@ impl World {
         camera: &Camera2d,
         viewport: Vec2,
     ) -> Frame<'_> {
-        let view = camera.view_rect(viewport);
+        let view = View {
+            rect: camera.view_rect(viewport),
+            center: (camera.center.x, camera.center.y),
+            zoom: camera.zoom,
+            time_ms: self.started.elapsed().as_millis() as u64,
+        };
         let result = match self.scene.ground.as_ref() {
             Some(layer) => {
                 let content = &self.content;
                 ground::sprites(
                     layer,
-                    view,
-                    0.5 / camera.zoom,
+                    view.rect,
+                    view.seam(),
                     &mut self.ground,
                     renderer,
                     ground::DEFAULT_DECODE_BUDGET,
@@ -73,8 +91,27 @@ impl World {
                 streaming: false,
             },
         };
-        self.sprites = result.sprites;
-        self.streaming = result.streaming;
+        let background = parallax::sprites(
+            &self.scene,
+            &view,
+            &mut self.parallax,
+            renderer,
+            &self.content,
+            ground::DEFAULT_DECODE_BUDGET,
+        );
+        let objects = objects::sprites(
+            &self.scene,
+            &view,
+            &mut self.objects,
+            renderer,
+            &self.content,
+            OBJECT_DECODE_BUDGET,
+        );
+        // Back to front: parallax background, ground, objects.
+        self.sprites = background.sprites;
+        self.sprites.extend(result.sprites);
+        self.sprites.extend(objects.sprites);
+        self.streaming = background.streaming || result.streaming || objects.streaming;
         Frame {
             clear: BACKGROUND,
             sprite_view: camera.view_proj(viewport),

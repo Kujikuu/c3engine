@@ -4,6 +4,7 @@
 //! portals, placed entities and parallax layers. Format plugins import and export it.
 //! Editors and the runtime only ever touch these types.
 
+pub mod draw_order;
 mod grid;
 mod projection;
 mod scene;

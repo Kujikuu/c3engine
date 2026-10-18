@@ -4,7 +4,11 @@
 //! [`Content`] opens a 5065 client folder and hands out engine types (scenes, images).
 
 use c3_assets::Image;
-use c3_formats_tq::{gamemap::GameMapCatalog, scene_io, texture, vfs::ClientFs};
+use c3_assets::sprite::{Prefab, SpriteSet};
+use c3_formats_tq::{
+    ani::Ani, gamemap::GameMapCatalog, scene::TerrainObject, scene_io, sprite_io, texture,
+    vfs::ClientFs,
+};
 use c3_scene::Scene;
 use std::path::{Path, PathBuf};
 
@@ -54,8 +58,40 @@ impl Content {
         Ok((path, imported.scene, imported.warnings))
     }
 
+    /// Loads an ANI file as a sprite set.
+    pub fn load_sprite_set(&self, path: &str) -> Option<SpriteSet> {
+        Some(sprite_io::sprite_set_from_ani(
+            &Ani::parse(&self.fs.read(path)?).ok()?,
+        ))
+    }
+
+    /// Loads a `.scene` terrain object as a prefab.
+    pub fn load_prefab(&self, path: &str) -> Option<Prefab> {
+        Some(sprite_io::prefab_from_scene(
+            &TerrainObject::parse(&self.fs.read(path)?).ok()?,
+        ))
+    }
+
     /// Decodes an image asset (DDS/TGA).
     pub fn load_image(&self, path: &str) -> Option<Image> {
         texture::decode_image(&self.fs.read(path)?).ok()
+    }
+}
+
+impl c3_render::SceneAssets for Content {
+    fn sprite_set(&self, path: &str) -> Option<SpriteSet> {
+        self.load_sprite_set(path)
+    }
+
+    fn prefab(&self, path: &str) -> Option<Prefab> {
+        self.load_prefab(path)
+    }
+
+    fn tile_layer(&self, path: &str) -> Option<c3_scene::TileLayer> {
+        scene_io::load_tile_layer(&self.fs, path).ok()
+    }
+
+    fn image(&self, path: &str) -> Option<Image> {
+        self.load_image(path)
     }
 }

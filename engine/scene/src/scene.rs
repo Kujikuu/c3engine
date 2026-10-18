@@ -93,7 +93,7 @@ pub enum EntityKind {
         animation: String,
         /// Footprint in cells.
         footprint: (u32, u32),
-        /// Sprite offset in pixels from the cell centre.
+        /// Sprite top-left in pixels relative to the cell centre.
         offset: (i32, i32),
         frame_ms: u32,
     },
@@ -123,6 +123,7 @@ pub enum LayerItem {
         asset: String,
         animation: String,
         cell: CellPos,
+        /// Sprite top-left in pixels relative to the cell centre.
         offset: (i32, i32),
         frame_ms: u32,
         blend: u32,

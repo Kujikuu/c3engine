@@ -39,7 +39,9 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## M2: Renderer
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
       content via `games/conquer::Content`; shared `c3_render::ground` streaming (180 fps on Twin City)
-- [ ] Puzzle ground + map layers (classic iso)
+- [x] Puzzle ground + map layers (classic iso): cover sprites + terrain prefabs from ANI with the
+      classic footprint draw order (`c3_scene::draw_order`), frame animation, parallax sky/water layers
+      with scroll; engine `SpriteSet`/`Prefab` assets, `c3_render::{objects, parallax}` behind `SceneAssets`
 - [ ] Skinned C3 meshes with armor/weapon/mount layering
 - [ ] Effects / particles
 - [ ] Map + character viewer app

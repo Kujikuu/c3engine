@@ -4,6 +4,7 @@
 //! Engine code reads assets only through it, by forward-slash relative path.
 
 pub mod model;
+pub mod sprite;
 
 use std::borrow::Cow;
 

@@ -15,6 +15,7 @@ pub mod pul;
 pub mod rgn;
 pub mod scene;
 pub mod scene_io;
+pub mod sprite_io;
 pub mod textdat;
 pub mod texture;
 pub mod tme;
