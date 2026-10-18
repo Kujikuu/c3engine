@@ -3,6 +3,7 @@
 //! active tool (see `editor`).
 
 use crate::browser::AssetKey;
+use crate::data_panel::DraggedRow;
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
 use crate::icons;
@@ -111,10 +112,52 @@ pub struct Pointer {
     pub secondary_clicked: bool,
 }
 
+/// What can be dragged onto the map.
+pub enum Dropped {
+    Asset(AssetKey),
+    Row(DraggedRow),
+}
+
+impl Dropped {
+    /// What the ghost says.
+    fn label(&self) -> String {
+        match self {
+            Self::Asset(key) => key.rel.rsplit('/').next().unwrap_or(&key.rel).to_owned(),
+            Self::Row(row) => format!("{} #{}", row.table, row.key),
+        }
+    }
+
+    /// What is being dragged now, if anything placeable.
+    fn carried(ctx: &egui::Context) -> Option<Self> {
+        egui::DragAndDrop::payload::<AssetKey>(ctx)
+            .map(|k| Self::Asset((*k).clone()))
+            .or_else(|| {
+                egui::DragAndDrop::payload::<DraggedRow>(ctx).map(|r| Self::Row((*r).clone()))
+            })
+    }
+
+    /// What was let go over `rect` this frame. (The pointer is read directly: a drag's
+    /// preview can cover the view, so it isn't "hovered" when the button goes up.)
+    pub(crate) fn released(ui: &egui::Ui, rect: Rect) -> Option<Self> {
+        let over = ui.input(|i| {
+            i.pointer.primary_released() && i.pointer.hover_pos().is_some_and(|p| rect.contains(p))
+        });
+        if !over {
+            return None;
+        }
+        // `take_payload` takes whatever is carried, so the type is checked first.
+        let carried = Self::carried(ui.ctx());
+        if carried.is_some() {
+            egui::DragAndDrop::clear_payload(ui.ctx());
+        }
+        carried
+    }
+}
+
 pub struct ViewResult {
     pub pointer: Pointer,
-    /// An asset dropped from the Project panel, and the cell it landed on.
-    pub dropped: Option<(AssetKey, CellPos)>,
+    /// What was dropped from the Project or Data panel, and the cell it landed on.
+    pub dropped: Option<(Dropped, CellPos)>,
     /// Tiles still waiting to stream in.
     pub streaming: bool,
 }
@@ -214,7 +257,8 @@ pub fn show(
     // Pointer.
     // While an asset is dragged in from the Project panel the view isn't "hovered" (the
     // drag owns the pointer), so the pointer is read directly.
-    let carrying = egui::DragAndDrop::has_payload_of_type::<AssetKey>(ui.ctx());
+    let carried = Dropped::carried(ui.ctx());
+    let carrying = carried.is_some();
     let hover_pos = resp
         .hover_pos()
         .or(if resp.is_pointer_button_down_on() || carrying {
@@ -234,18 +278,15 @@ pub fn show(
         )
     });
     // An asset dragged from the Project panel: a ghost on the cell it would land on.
-    let dragging = egui::DragAndDrop::payload::<AssetKey>(ui.ctx());
-    let dropped = resp
-        .dnd_release_payload::<AssetKey>()
-        .and_then(|key| cell.map(|c| ((*key).clone(), c)));
-    if let (Some(key), Some(c)) = (&dragging, cell) {
+    let dropped = Dropped::released(ui, rect).zip(cell);
+    if let (Some(what), Some(c)) = (&carried, cell) {
         let center = to_screen(doc.cell_to_world(c));
         painter.add(Shape::convex_polygon(
             diamond(center, 1.0),
             colors::DROP.gamma_multiply(0.35),
             Stroke::new(2.0, colors::DROP),
         ));
-        let name = key.rel.rsplit('/').next().unwrap_or(&key.rel);
+        let name = what.label();
         painter.text(
             center - Vec2::new(0.0, half_h + 6.0),
             egui::Align2::CENTER_BOTTOM,
@@ -254,7 +295,7 @@ pub fn show(
             Color32::WHITE,
         );
     }
-    let dragging = dragging.is_some() || dropped.is_some();
+    let dragging = carrying || dropped.is_some();
     let pointer = Pointer {
         cell,
         world: hover_pos.map(|s| {

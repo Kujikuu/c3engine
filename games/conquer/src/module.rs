@@ -174,6 +174,10 @@ impl GameModule for ConquerModule {
         Some(PORTAL_EFFECT.to_owned())
     }
 
+    fn monster_table(&self) -> &str {
+        crate::rules::MONSTER_TABLE
+    }
+
     /// The client's own minimap (`ani/MiniMap.Ani`, by map id): one image, or four
     /// quarters laid out left to right, top to bottom.
     fn minimap(&self, _key: &str, map_ids: &[u32]) -> Option<Image> {

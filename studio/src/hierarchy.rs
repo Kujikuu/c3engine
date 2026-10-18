@@ -3,8 +3,8 @@
 //! the "+" menu creates new things where the Scene view looks, like Unity's Create menu.
 
 use crate::app::{Studio, Workspace};
-use crate::browser::AssetKey;
 use crate::icons;
+use crate::map_view::Dropped;
 use crate::selection::Selection;
 use crate::theme;
 use c3_edit::SceneCommand;
@@ -34,12 +34,12 @@ impl Studio {
             );
             return;
         };
-        // Assets dropped on the Hierarchy land in the middle of the Scene view.
-        let zone = ui.interact(ui.max_rect(), ui.next_auto_id(), egui::Sense::hover());
-        if let Some(key) = zone.dnd_release_payload::<AssetKey>() {
-            let at = doc.world_to_cell(self.cam.center);
-            self.place_asset(&key, at);
-            return;
+        // What is dropped on the Hierarchy lands in the middle of the Scene view.
+        let at = doc.world_to_cell(self.cam.center);
+        match Dropped::released(ui, ui.max_rect()) {
+            Some(Dropped::Asset(key)) => return self.place_asset(&key, at),
+            Some(Dropped::Row(row)) => return self.place_row(&row, at),
+            None => {}
         }
         let name = if doc.is_dirty() {
             format!("{}*", doc.name())
@@ -284,7 +284,7 @@ fn new_npc(cell: CellPos) -> Npc {
     }
 }
 
-fn new_spawn(at: CellPos) -> Spawn {
+pub(crate) fn new_spawn(at: CellPos) -> Spawn {
     let r = NEW_SPAWN_RADIUS;
     Spawn {
         id: 0,

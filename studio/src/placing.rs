@@ -3,6 +3,7 @@
 
 use crate::app::Studio;
 use crate::browser::{AssetKey, AssetKind};
+use crate::data_panel::DraggedRow;
 use crate::maps::MapRef;
 use c3_edit::SceneCommand;
 use c3_scene::{CellPos, Entity, EntityKind, Placement};
@@ -54,6 +55,25 @@ impl Studio {
             placement: Placement::Cell(at),
             kind,
         })
+    }
+
+    /// Places table row `row` on cell `at`: a monster type makes a spawn area of it.
+    pub(crate) fn place_row(&mut self, row: &DraggedRow, at: CellPos) {
+        let monsters = self.game.as_ref().map(|g| g.monster_table().to_owned());
+        if monsters.as_deref() != Some(row.table.as_str()) {
+            self.error = Some(format!(
+                "Rows of {} can't be placed on a map: drag a monster type (a row of {})",
+                row.table,
+                monsters.unwrap_or_default()
+            ));
+            return;
+        }
+        let Ok(monster) = u32::try_from(row.key) else {
+            return;
+        };
+        let mut spawn = crate::hierarchy::new_spawn(at);
+        spawn.monster = monster;
+        self.create(SceneCommand::AddSpawn { spawn });
     }
 
     /// Places asset `key` on cell `at` of the open map (one undo step) and selects it.

@@ -15,6 +15,9 @@ use c3_game::{
 use std::collections::HashMap;
 use std::path::Path;
 
+/// TQ's monster types table (`cq_monstertype`).
+pub const MONSTER_TABLE: &str = "cq_monstertype";
+
 /// `attack_user` bit: attacks players on sight (`ATKUSER_ACTIVE`).
 const ACTIVE: i64 = 0x02;
 /// Out of 100: chance a dead monster drops money, its life potion, its mana potion.
@@ -125,7 +128,7 @@ impl ConquerRules {
         {
             load("cq_magictype", &mut |t| rules.read_magic(t));
         }
-        load("cq_monstertype", &mut |t| rules.read_monsters(t));
+        load(MONSTER_TABLE, &mut |t| rules.read_monsters(t));
         load(crate::server_data::ITEM_TABLE, &mut |t| rules.read_items(t));
         load("cq_levexp", &mut |t| rules.read_levels(t));
         load("cq_point_allot", &mut |t| rules.read_points(t));

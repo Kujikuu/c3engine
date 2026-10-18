@@ -104,6 +104,11 @@ pub trait GameModule {
     fn formulas_template(&self) -> Option<&'static str> {
         None
     }
+    /// The table whose rows are the game's monster types (a row dragged onto a map in the
+    /// Studio makes a spawn area of it).
+    fn monster_table(&self) -> &str {
+        crate::data_rules::MONSTERS
+    }
     /// The map drawn small for the radar, covering the map's ground (or its cells when it
     /// has none): map `key`, answering to `map_ids`.
     fn minimap(&self, key: &str, map_ids: &[u32]) -> Option<Image> {

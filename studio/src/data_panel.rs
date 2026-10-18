@@ -22,6 +22,13 @@ pub struct OpenTable {
     pub doc: TableDoc,
 }
 
+/// A table row dragged out of the Data panel (a monster type onto the map).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DraggedRow {
+    pub table: String,
+    pub key: i64,
+}
+
 /// A cell being typed into.
 struct CellEdit {
     key: i64,
@@ -485,7 +492,23 @@ impl Studio {
                                                     Value::Text(_) => theme::TEXT,
                                                     _ => egui::Color32::from_rgb(170, 200, 235),
                                                 };
-                                                ui.label(RichText::new(text).color(color));
+                                                let label = egui::Label::new(
+                                                    RichText::new(text).color(color),
+                                                )
+                                                .selectable(false);
+                                                if c == 0 {
+                                                    // The key cell is the row's handle: drag a
+                                                    // monster type onto the map.
+                                                    let id =
+                                                        ui.make_persistent_id(("table row", key));
+                                                    let row = DraggedRow {
+                                                        table: open.name.clone(),
+                                                        key,
+                                                    };
+                                                    ui.dnd_drag_source(id, row, |ui| ui.add(label));
+                                                } else {
+                                                    ui.add(label);
+                                                }
                                             }
                                         },
                                     }

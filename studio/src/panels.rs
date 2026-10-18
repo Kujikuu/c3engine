@@ -202,9 +202,10 @@ impl Studio {
         );
         self.hover = r.pointer.cell;
         self.streaming = r.streaming;
-        if let Some((key, at)) = &r.dropped {
-            self.place_asset(key, *at);
-            return;
+        match &r.dropped {
+            Some((map_view::Dropped::Asset(key), at)) => return self.place_asset(key, *at),
+            Some((map_view::Dropped::Row(row), at)) => return self.place_row(row, *at),
+            None => {}
         }
         if self.animate {
             // Capped so a long pause doesn't jump animations ahead.

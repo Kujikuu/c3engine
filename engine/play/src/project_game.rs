@@ -150,6 +150,10 @@ impl GameModule for ProjectGame {
         self.game.click_effect()
     }
 
+    fn monster_table(&self) -> &str {
+        self.game.monster_table()
+    }
+
     /// The project's generated minimap, else the game's own.
     fn minimap(&self, key: &str, map_ids: &[u32]) -> Option<Image> {
         let file = c3_project::minimap_file_in(&self.maps_dir, key);
