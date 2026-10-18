@@ -95,6 +95,15 @@ pub trait GameModule {
     }
     /// The equipment slots and their names, in display order.
     fn slot_names(&self) -> Vec<(u8, String)>;
+    /// The tables the game's rules read, each with an example row, for a project to start
+    /// from (none: the game brings its own data).
+    fn table_templates(&self) -> Vec<c3_data::Table> {
+        Vec::new()
+    }
+    /// A project's first `scripts/rules.rhai`, when the game's formulas are a script.
+    fn formulas_template(&self) -> Option<&'static str> {
+        None
+    }
     /// The effect marking where the player clicked to walk.
     fn click_effect(&self) -> Option<String> {
         None

@@ -1,20 +1,20 @@
 //! The engine's own game: plays a project made from scratch, with no game content of another
 //! engine. Its maps are the project's scenes; its art is the engine's built-in placeholders
 //! (the project's own images come through [`crate::project_game::ProjectGame`]); roles are
-//! drawn as plain figures until the project gives them models; the rules are simple defaults.
-//! Later steps of the roadmap replace these defaults with the project's data.
+//! drawn as plain figures until the project gives them models; the rules are the project's
+//! tables and formulas ([`crate::data_rules`]).
 
 use crate::character::{Character, CharacterMotions, Look, LookKind, PartModel};
+use crate::data_rules::DataGameRules;
 use crate::module::{Act, GameModule, GameRules, Looks, load_project_scene};
 use c3_assets::Image;
 use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
-use c3_game::{Drop, Fighter, ItemType, MonsterType, Player, Rng, Rules, Stats};
+use c3_game::{Player, Rules};
 use c3_project::Project;
 use c3_render::SceneAssets;
 use c3_scene::{Grid, IsoProjection, Npc, Scene, TileLayer, Tileset};
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::sync::Arc;
 
 use crate::builtin::{self, GROUND_IMAGE, GROUND_TILE};
@@ -31,14 +31,14 @@ const JUMP: u32 = 130;
 /// The engine's own game.
 pub struct BasicGame {
     assets: BasicAssets,
-    rules: Arc<BasicRules>,
+    rules: Arc<DataGameRules>,
 }
 
 impl Default for BasicGame {
     fn default() -> Self {
         Self {
             assets: BasicAssets,
-            rules: Arc::new(BasicRules),
+            rules: Arc::new(DataGameRules),
         }
     }
 }
@@ -86,6 +86,14 @@ impl GameModule for BasicGame {
         ]
         .map(|(s, n)| (s, n.to_owned()))
         .to_vec()
+    }
+
+    fn table_templates(&self) -> Vec<c3_data::Table> {
+        crate::data_rules::table_templates()
+    }
+
+    fn formulas_template(&self) -> Option<&'static str> {
+        Some(crate::data_rules::FORMULAS_TEMPLATE)
     }
 }
 
@@ -181,68 +189,6 @@ impl SceneAssets for BasicAssets {
 
     fn effect(&self, name: &str) -> Result<Effect, String> {
         Err(format!("the project has no effect \"{name}\""))
-    }
-}
-
-/// Simple rules until the project defines its own: players grow with their level, hits deal
-/// attack minus defence, and there are no monster or item types.
-#[derive(Debug, Default)]
-struct BasicRules;
-
-impl Rules for BasicRules {
-    fn monster(&self, _kind: u32) -> Option<&MonsterType> {
-        None
-    }
-
-    fn item(&self, _kind: u32) -> Option<&ItemType> {
-        None
-    }
-
-    fn player_stats(&self, level: u32) -> Stats {
-        Stats {
-            max_life: 100 + level * 20,
-            max_mana: 50 + level * 10,
-            attack_min: 8 + level * 2,
-            attack_max: 12 + level * 3,
-            defence: level,
-            dodge: 5,
-            dexterity: 5,
-            attack_range: 1,
-            attack_ms: 1000,
-            step_ms: 500,
-        }
-    }
-
-    fn level_exp(&self, level: u32) -> Option<u64> {
-        (level < 100).then(|| u64::from(level) * 100)
-    }
-
-    fn hit(&self, attacker: &Fighter, target: &Fighter, rng: &mut Rng) -> u32 {
-        let a = &attacker.stats;
-        let attack = rng.range(a.attack_min.into(), a.attack_max.into()) as u32;
-        attack.saturating_sub(target.stats.defence).max(1)
-    }
-
-    fn hit_exp(&self, _level: u32, _target: &Fighter, damage: u32) -> u64 {
-        damage.into()
-    }
-
-    fn kill_exp(&self, _level: u32, target: &Fighter) -> u64 {
-        u64::from(target.level) * 10
-    }
-
-    fn drops(&self, _kind: u32, _rng: &mut Rng) -> Vec<Drop> {
-        Vec::new()
-    }
-
-    fn shop(&self, _npc: u32) -> &[u32] {
-        &[]
-    }
-}
-
-impl GameRules for BasicRules {
-    fn rules(&self, _tables: Option<&Path>) -> (Box<dyn Rules>, Vec<String>) {
-        (Box::new(BasicRules), Vec::new())
     }
 }
 

@@ -25,6 +25,7 @@
 mod api;
 mod conversation;
 mod dialog;
+pub mod formulas;
 mod graph;
 mod host;
 pub mod quest;
@@ -32,6 +33,7 @@ mod tables;
 
 pub use conversation::{Conversation, Step};
 pub use dialog::{DialogOption, DialogPage, Effect, NpcInfo, PlayerState, Reply};
+pub use formulas::{Formulas, RULES_SCRIPT};
 pub use graph::{
     Action, Case, Choice, Condition, DIALOGUE_SUFFIX, DialogueGraph, GENERATED_DIR, GraphProblem,
     Node, NodeKind, PLACEHOLDERS, dialogue_names, generated_script, load_dialogue, save_dialogue,

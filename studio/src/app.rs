@@ -315,6 +315,14 @@ impl Studio {
             s.open_dump(PathBuf::from(file));
             s.import_picked();
         }
+        if let Some(name) = flag("--new-table") {
+            let template = (s.game.as_ref())
+                .and_then(|g| g.table_templates().into_iter().find(|t| t.name == name));
+            match template {
+                Some(table) => s.create_table(table),
+                None => s.error = Some(format!("The game has no table {name} to start")),
+            }
+        }
         if let Some(name) = flag("--table") {
             s.load_table(&name);
         }

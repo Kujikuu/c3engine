@@ -140,6 +140,9 @@ impl Sim {
         }
         self.tick_spawns();
         self.expire_items();
+        for problem in self.rules.take_problems() {
+            self.events.push(Event::Warning(problem));
+        }
     }
 
     /// What happened since the last call.

@@ -119,7 +119,7 @@ impl Studio {
         let mut open = None;
         egui::Panel::left("data tables")
             .resizable(true)
-            .default_size(190.0)
+            .default_size(230.0)
             .size_range(140.0..=360.0)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -132,13 +132,21 @@ impl Studio {
                         {
                             self.pick_dump();
                         }
+                        ui.menu_button(theme::icon_text(icons::PLUS, "New"), |ui| {
+                            self.new_table_menu(ui);
+                        })
+                        .response
+                        .on_hover_text("Start one of the tables the game's rules read");
                     });
                 });
                 ui.separator();
                 if self.data.names.is_empty() {
                     ui.label(
-                        RichText::new("No tables yet. Import them from an SQL dump.")
-                            .color(theme::TEXT_DIM),
+                        RichText::new(
+                            "No tables yet: start the game's own with New, or import them \
+                             from an SQL dump.",
+                        )
+                        .color(theme::TEXT_DIM),
                     );
                 }
                 egui::ScrollArea::vertical()
@@ -178,6 +186,76 @@ impl Studio {
             self.open_table(&name);
         }
         self.import_dialog(ui.ctx());
+    }
+
+    /// The game's tables (and its formulas script) the project doesn't have yet.
+    fn new_table_menu(&mut self, ui: &mut egui::Ui) {
+        let Some(game) = self.game.clone() else {
+            return;
+        };
+        let templates = game.table_templates();
+        if templates.is_empty() {
+            ui.label(
+                RichText::new("This game's tables come with its content: import them.")
+                    .color(theme::TEXT_DIM),
+            );
+            return;
+        }
+        let missing: Vec<c3_data::Table> = templates
+            .into_iter()
+            .filter(|t| !self.data.names.contains(&t.name))
+            .collect();
+        let formulas = game.formulas_template().filter(|_| {
+            self.project
+                .as_ref()
+                .is_some_and(|p| !p.scripts_dir().join(c3_script::RULES_SCRIPT).exists())
+        });
+        if missing.is_empty() && formulas.is_none() {
+            ui.label(RichText::new("The game's tables are all here.").color(theme::TEXT_DIM));
+        }
+        for table in missing {
+            let resp = ui
+                .button(theme::icon_text(icons::DATABASE, &table.name))
+                .on_hover_text(&table.doc);
+            if resp.clicked() {
+                self.create_table(table);
+                ui.close();
+            }
+        }
+        if let Some(text) = formulas {
+            ui.separator();
+            let resp = ui
+                .button(theme::icon_text(
+                    icons::FILE_CODE,
+                    "Formulas (scripts/rules.rhai)",
+                ))
+                .on_hover_text("The game's damage and experience formulas, as a script");
+            if resp.clicked() {
+                let name = c3_script::RULES_SCRIPT.trim_end_matches(c3_script::SCRIPT_SUFFIX);
+                self.create_script(name, text);
+                ui.close();
+            }
+        }
+    }
+
+    /// Writes `table` into the project (unless one of its name is there) and opens it.
+    pub(crate) fn create_table(&mut self, table: c3_data::Table) {
+        let Some(project) = &self.project else { return };
+        let file = project.table_file(&table.name);
+        if !file.exists() {
+            let written = file
+                .parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| c3_data::save_table(&table, &file));
+            if let Err(e) = written {
+                self.error = Some(format!("Can't make table {}: {e}", table.name));
+                return;
+            }
+            self.notify(format!("Made table {}", table.name));
+            self.refresh_tables();
+        }
+        self.open_table(&table.name);
+        self.show_panel(crate::shell::Panel::Data);
     }
 
     /// Opens table `name`, asking first if the open one has unsaved changes.

@@ -59,13 +59,7 @@ pub struct ScriptHost {
 impl ScriptHost {
     /// A host for the scripts in `dir`, reading tables from `tables` (if the game has any).
     pub fn new(dir: impl Into<PathBuf>, tables: Option<PathBuf>) -> Self {
-        let mut engine = Engine::new();
-        engine.set_max_operations(MAX_OPERATIONS);
-        engine.set_max_call_levels(MAX_CALL_DEPTH);
-        engine.set_max_string_size(MAX_STRING);
-        engine.set_max_array_size(MAX_COLLECTION);
-        engine.set_max_map_size(MAX_COLLECTION);
-        engine.disable_symbol("eval");
+        let mut engine = sandboxed_engine();
         let call = Shared::default();
         let tables = Rc::new(RefCell::new(Tables::new(tables)));
         api::register(&mut engine, &call, &tables);
@@ -190,6 +184,18 @@ impl ScriptHost {
 }
 
 /// Whether `ast` defines `name()` taking no arguments.
+/// A script engine that can do no harm: bounded work, sizes and depth, no `eval`.
+pub(crate) fn sandboxed_engine() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_max_operations(MAX_OPERATIONS);
+    engine.set_max_call_levels(MAX_CALL_DEPTH);
+    engine.set_max_string_size(MAX_STRING);
+    engine.set_max_array_size(MAX_COLLECTION);
+    engine.set_max_map_size(MAX_COLLECTION);
+    engine.disable_symbol("eval");
+    engine
+}
+
 fn defines(ast: &AST, name: &str) -> bool {
     ast.iter_functions()
         .any(|f| f.name == name && f.params.is_empty())

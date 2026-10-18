@@ -115,4 +115,10 @@ pub trait Rules: std::any::Any {
     fn sell_price(&self, kind: u32) -> u64 {
         self.item(kind).map_or(0, |i| i.price / 3)
     }
+
+    /// What went wrong answering since the last call (a game's formula failing), for the
+    /// simulation's warnings.
+    fn take_problems(&self) -> Vec<String> {
+        Vec::new()
+    }
 }

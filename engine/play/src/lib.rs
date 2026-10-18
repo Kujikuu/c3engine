@@ -19,6 +19,7 @@ pub mod builtin;
 pub mod character;
 pub mod controls;
 pub mod cursor;
+pub mod data_rules;
 pub mod game;
 pub mod input;
 pub mod map_list;

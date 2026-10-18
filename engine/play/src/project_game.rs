@@ -128,6 +128,14 @@ impl GameModule for ProjectGame {
         self.game.slot_names()
     }
 
+    fn table_templates(&self) -> Vec<c3_data::Table> {
+        self.game.table_templates()
+    }
+
+    fn formulas_template(&self) -> Option<&'static str> {
+        self.game.formulas_template()
+    }
+
     fn click_effect(&self) -> Option<String> {
         self.game.click_effect()
     }
