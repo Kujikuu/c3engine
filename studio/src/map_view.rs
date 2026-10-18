@@ -1,12 +1,9 @@
 //! Map viewport: draws ground tiles and overlays, handles camera input, and reports
 //! pointer interaction for the active tool (see `editor`).
 
-use crate::doc::{CELL_H, CELL_W, CellPos, MapDoc, TileLookup};
-use c3_formats_tq::{
-    dmap::InteractiveObj,
-    pul::{EMPTY, GRID_SIZE},
-    vfs::ClientFs,
-};
+use crate::doc::{MapDoc, TileLookup};
+use crate::tq_plugin::Client;
+use c3_scene::{CellPos, EntityKind};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 
 pub const MIN_ZOOM: f32 = 0.03;
@@ -93,7 +90,7 @@ pub struct ViewResult {
 
 pub fn show(
     ui: &mut egui::Ui,
-    fs: &ClientFs,
+    client: &Client,
     doc: &mut MapDoc,
     cam: &mut Camera,
     ov: Overlays,
@@ -130,11 +127,12 @@ pub fn show(
     let to_screen = |w: Pos2| rect.center() + (w - cam.center) * cam.zoom;
     let to_world = |s: Pos2| cam.center + (s - rect.center()) / cam.zoom;
     let view = Rect::from_two_pos(to_world(rect.min), to_world(rect.max));
-    let diamond = |c: Pos2, scale: f32| {
-        let (hw, hh) = (
-            CELL_W / 2.0 * cam.zoom * scale,
-            CELL_H / 2.0 * cam.zoom * scale,
-        );
+    let (half_w, half_h) = (
+        doc.scene.projection.cell_w / 2.0 * cam.zoom,
+        doc.scene.projection.cell_h / 2.0 * cam.zoom,
+    );
+    let diamond = move |c: Pos2, scale: f32| {
+        let (hw, hh) = (half_w * scale, half_h * scale);
         vec![
             c + Vec2::new(0.0, -hh),
             c + Vec2::new(hw, 0.0),
@@ -143,7 +141,7 @@ pub fn show(
         ]
     };
 
-    let streaming = draw_ground(ui, &painter, fs, doc, view, to_screen, cam.zoom);
+    let streaming = draw_ground(ui, &painter, client, doc, view, to_screen, cam.zoom);
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
     if ov.objects {
         draw_objects(&painter, doc, rect, to_screen);
@@ -213,36 +211,39 @@ pub fn show(
 fn draw_ground(
     ui: &egui::Ui,
     painter: &egui::Painter,
-    fs: &ClientFs,
+    client: &Client,
     doc: &mut MapDoc,
     view: Rect,
     to_screen: impl Fn(Pos2) -> Pos2,
     zoom: f32,
 ) -> bool {
-    let g = GRID_SIZE as f32;
-    let bg = doc.bg_origin().to_vec2();
+    let Some(ground) = doc.scene.ground.as_ref().filter(|g| g.width > 0) else {
+        return false;
+    };
+    let g = ground.tile_size as f32;
+    let bg = Vec2::new(ground.origin.0 as f32, ground.origin.1 as f32);
+    let (gw, gh) = (ground.width, ground.height);
     let (lmin, lmax) = (view.min - bg, view.max - bg);
     let (x0, y0) = (
         (lmin.x / g).floor().max(0.0) as u32,
         (lmin.y / g).floor().max(0.0) as u32,
     );
-    let x1 = ((lmax.x / g).ceil().max(0.0) as u32).min(doc.puzzle.width);
-    let y1 = ((lmax.y / g).ceil().max(0.0) as u32).min(doc.puzzle.height);
+    let x1 = ((lmax.x / g).ceil().max(0.0) as u32).min(gw);
+    let y1 = ((lmax.y / g).ceil().max(0.0) as u32).min(gh);
     let mut budget = DECODE_BUDGET;
     let mut streaming = false;
     let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
     for gy in y0..y1 {
         for gx in x0..x1 {
-            let idx = doc.puzzle.tile(gx, gy);
-            if idx == EMPTY {
+            let Some(idx) = doc.scene.ground.as_ref().and_then(|g| g.tile(gx, gy)) else {
                 continue;
-            }
+            };
             // +0.5px overlap hides seams between tiles when zoomed.
             let r = Rect::from_min_size(
                 to_screen(Pos2::new(gx as f32 * g, gy as f32 * g) + bg),
                 Vec2::splat(g * zoom + 0.5),
             );
-            match doc.tile(ui.ctx(), fs, idx, &mut budget) {
+            match doc.tile(ui.ctx(), idx, &mut budget, |p| client.load_image(p)) {
                 TileLookup::Ready(t) => {
                     painter.image(t.id(), r, uv, Color32::WHITE);
                 }
@@ -274,7 +275,7 @@ fn draw_cells(
     to_screen: impl Fn(Pos2) -> Pos2,
     diamond: impl Fn(Pos2, f32) -> Vec<Pos2>,
 ) {
-    let cell_px = CELL_W * zoom;
+    let cell_px = doc.scene.projection.cell_w * zoom;
     // Grid fades in between 24 and 48 px per cell so it never turns into noise.
     let grid_alpha = ((cell_px - 24.0) / 24.0).clamp(0.0, 1.0);
     let show_blocked = ov.blocked && cell_px >= 3.0;
@@ -290,7 +291,7 @@ fn draw_cells(
         Pos2::new(view.min.x, view.max.y),
     ];
     let cells: Vec<_> = corners.iter().map(|&p| doc.world_to_cell(p)).collect();
-    let (w, h) = (doc.dmap.width as i32, doc.dmap.height as i32);
+    let (w, h) = (doc.scene.grid.width as i32, doc.scene.grid.height as i32);
     let cx0 = (cells.iter().map(|c| c.0).min().unwrap() - 1).max(0);
     let cx1 = (cells.iter().map(|c| c.0).max().unwrap() + 1).min(w - 1);
     let cy0 = (cells.iter().map(|c| c.1).min().unwrap() - 1).max(0);
@@ -304,7 +305,7 @@ fn draw_cells(
                 continue;
             }
             let pts = diamond(c, 1.0);
-            if show_blocked && doc.cell((x, y)).is_some_and(|c| c.mask != 0) {
+            if show_blocked && doc.cell((x, y)).is_some_and(|c| c.is_blocked()) {
                 painter.add(Shape::convex_polygon(
                     pts.clone(),
                     colors::BLOCKED,
@@ -324,18 +325,15 @@ fn draw_objects(
     rect: Rect,
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
-    for o in &doc.dmap.interactive {
-        let (pos, color) = match o {
-            InteractiveObj::Cover { cell, .. } => (doc.cell_to_world(*cell), colors::COVER),
-            InteractiveObj::Terrain { cell, .. } => (doc.cell_to_world(*cell), colors::TERRAIN),
-            InteractiveObj::Sound { world, .. } => {
-                (Pos2::new(world.0 as f32, world.1 as f32), colors::SOUND)
-            }
-            InteractiveObj::Effect { world, .. } | InteractiveObj::EffectNew { world, .. } => {
-                (Pos2::new(world.0 as f32, world.1 as f32), colors::EFFECT)
-            }
+    for e in &doc.scene.entities {
+        let color = match e.kind {
+            EntityKind::Sprite { .. } => colors::COVER,
+            EntityKind::Prefab { .. } => colors::TERRAIN,
+            EntityKind::Sound { .. } => colors::SOUND,
+            EntityKind::Effect { .. } => colors::EFFECT,
         };
-        let p = to_screen(pos);
+        let (x, y) = doc.scene.entity_world(e);
+        let p = to_screen(Pos2::new(x, y));
         if rect.contains(p) {
             painter.circle(p, 4.0, color, Stroke::new(1.0, Color32::BLACK));
         }
@@ -352,7 +350,7 @@ fn draw_portals(
     hover: Option<CellPos>,
 ) {
     // Keep portals readable when zoomed far out.
-    let r = (CELL_W / 2.0 * zoom).max(9.0);
+    let r = (doc.scene.projection.cell_w / 2.0 * zoom).max(9.0);
     let marker = |c: Pos2, fill: Color32, label: String| {
         let pts = vec![
             c + Vec2::new(0.0, -r / 2.0),
@@ -373,8 +371,8 @@ fn draw_portals(
             Color32::WHITE,
         );
     };
-    for (i, p) in doc.dmap.passages.iter().enumerate() {
-        let c = to_screen(doc.cell_to_world((p.x, p.y)));
+    for (i, p) in doc.scene.portals.iter().enumerate() {
+        let c = to_screen(doc.cell_to_world(p.cell));
         if !rect.expand(40.0).contains(c) {
             continue;
         }
@@ -382,13 +380,13 @@ fn draw_portals(
         marker(
             c,
             colors::PORTAL.gamma_multiply(if dragged { 0.3 } else { 0.8 }),
-            format!("Portal {}", p.index),
+            format!("Portal {}", p.id),
         );
         if dragged && let Some(h) = hover {
             marker(
                 to_screen(doc.cell_to_world(h)),
                 colors::PORTAL,
-                format!("Portal {}", p.index),
+                format!("Portal {}", p.id),
             );
         }
     }

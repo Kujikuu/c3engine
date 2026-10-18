@@ -9,7 +9,9 @@ append decisions, document formats as you implement them.
 ## Rules
 - UI/UX matters: clear hierarchy, hints, shortcuts, legends, empty/loading states. Verify UI changes with screenshots.
 - Clean code: focused modules, doc comments on public items, `cargo fmt` + `cargo clippy --workspace --all-targets` with zero warnings.
-- Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme}.rs`. `doc` = model + undo + save
+- Editors touch engine types only (`c3_scene`, `c3_assets`). In the Studio, **only `tq_plugin.rs` may use
+  `c3_formats_tq`**. TQ ⇄ Scene conversion lives in `formats/c3/src/scene_io.rs`.
+- Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`. `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.
 - Nothing in `engine/` or `studio/` references Conquer; game code goes in `games/`.
 - Every format parser needs a round-trip test on real files from

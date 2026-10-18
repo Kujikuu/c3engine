@@ -6,6 +6,8 @@ use eframe::egui::{self, Color32, CornerRadius, RichText, Stroke, Vec2};
 pub const ACCENT: Color32 = Color32::from_rgb(222, 178, 92);
 /// Errors and destructive states.
 pub const DANGER: Color32 = Color32::from_rgb(235, 90, 90);
+/// Non-fatal problems.
+pub const WARNING: Color32 = Color32::from_rgb(240, 190, 80);
 
 pub fn apply(ctx: &egui::Context) {
     let mut style = (*ctx.global_style()).clone();

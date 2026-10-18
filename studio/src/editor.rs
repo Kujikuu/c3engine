@@ -1,7 +1,8 @@
 //! Map editing tools and how pointer input maps onto document edits.
 
-use crate::doc::{CellPos, MapDoc};
+use crate::doc::MapDoc;
 use crate::map_view::Pointer;
+use c3_scene::CellPos;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tool {
@@ -117,14 +118,14 @@ impl Editor {
         let cell = p.cell?;
         if p.secondary_clicked {
             let i = doc.portal_at(cell)?;
-            let index = doc.dmap.passages[i].index;
+            let index = doc.scene.portals[i].id;
             doc.remove_portal(i);
             return Some(format!("Deleted portal {index}"));
         }
         if p.primary_pressed {
             self.dragging_portal = doc.portal_at(cell).map(|i| (i, cell));
             if self.dragging_portal.is_none() && doc.add_portal(cell) {
-                let index = doc.dmap.passages.last().map_or(0, |p| p.index);
+                let index = doc.scene.portals.last().map_or(0, |p| p.id);
                 return Some(format!("Added portal {index} at {}, {}", cell.0, cell.1));
             }
         }

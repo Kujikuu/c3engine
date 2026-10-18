@@ -1,23 +1,10 @@
-//! An open map document: DMap + ground data, tile texture cache, edits with undo/redo, saving.
-//! World space matches the client: cell (x, y) centre =
-//! (CELL_W*(x-y)/2 + origin_x, CELL_H*(x+y)/2 + origin_y), origin = (CELL_W*width/2, CELL_H/2).
-//! The puzzle is placed at `bg_origin()` (client `GetBgWorldPos`).
+//! An open map document: an engine [`Scene`] plus its tile texture cache and undo history.
+//! Format-agnostic: loading and saving go through `tq_plugin`.
 
-use c3_formats_tq::{
-    ani::Ani,
-    dmap::{Cell, DMap, Passage},
-    pul::{EMPTY, GRID_SIZE, Puzzle},
-    texture::decode_image,
-    vfs::ClientFs,
-};
+use c3_assets::Image;
+use c3_scene::{Cell, CellPos, Portal, Scene};
 use eframe::egui::{self, Pos2, Rect, TextureHandle, Vec2};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-
-pub const CELL_W: f32 = 64.0;
-pub const CELL_H: f32 = 32.0;
-
-pub type CellPos = (i32, i32);
 
 /// Result of asking the cache for a ground tile.
 pub enum TileLookup {
@@ -32,8 +19,8 @@ pub enum TileLookup {
 enum Change {
     Cells(Vec<CellChange>),
     Portals {
-        before: Vec<Passage>,
-        after: Vec<Passage>,
+        before: Vec<Portal>,
+        after: Vec<Portal>,
     },
 }
 
@@ -55,41 +42,21 @@ struct History {
 }
 
 pub struct MapDoc {
+    /// Asset path the scene was opened from (and is saved to).
     pub path: String,
-    pub dmap: DMap,
-    pub puzzle: Puzzle,
-    pub ani: Ani,
-    pub used_tiles: usize,
+    pub scene: Scene,
+    /// Non-fatal load problems, shown in the inspector.
+    pub warnings: Vec<String>,
     tiles: HashMap<u16, Option<TextureHandle>>,
     history: History,
 }
 
 impl MapDoc {
-    pub fn load(fs: &ClientFs, path: &str) -> Result<Self, String> {
-        let read = |p: &str| fs.read(p).ok_or_else(|| format!("File not found: {p}"));
-        let dmap = DMap::parse(&read(path)?).map_err(|e| format!("{path}: {e}"))?;
-        let pul_path = dmap.puzzle_file.as_str();
-        let puzzle = Puzzle::parse(&read(&pul_path)?).map_err(|e| format!("{pul_path}: {e}"))?;
-        let ani_path = puzzle.ani_file.as_str();
-        let ani = Ani::parse(&read(&ani_path)?).map_err(|e| format!("{ani_path}: {e}"))?;
-        Ok(Self::from_parts(path, dmap, puzzle, ani))
-    }
-
-    pub fn from_parts(path: &str, dmap: DMap, puzzle: Puzzle, ani: Ani) -> Self {
-        let mut used: Vec<u16> = puzzle
-            .tiles
-            .iter()
-            .copied()
-            .filter(|&t| t != EMPTY)
-            .collect();
-        used.sort_unstable();
-        used.dedup();
+    pub fn new(path: &str, scene: Scene, warnings: Vec<String>) -> Self {
         Self {
             path: path.to_owned(),
-            dmap,
-            puzzle,
-            ani,
-            used_tiles: used.len(),
+            scene,
+            warnings,
             tiles: HashMap::new(),
             history: History {
                 saved_at: Some(0),
@@ -102,60 +69,38 @@ impl MapDoc {
         self.path.rsplit('/').next().unwrap_or(&self.path)
     }
 
-    // ---- geometry ----
+    // ---- geometry (egui types) ----
 
-    pub fn origin(&self) -> Vec2 {
-        Vec2::new(CELL_W * self.dmap.width as f32 / 2.0, CELL_H / 2.0)
-    }
-
-    pub fn cell_to_world(&self, (x, y): CellPos) -> Pos2 {
-        let o = self.origin();
-        Pos2::new(
-            CELL_W * (x - y) as f32 / 2.0 + o.x,
-            CELL_H * (x + y) as f32 / 2.0 + o.y,
-        )
+    pub fn cell_to_world(&self, cell: CellPos) -> Pos2 {
+        let (x, y) = self.scene.cell_to_world(cell);
+        Pos2::new(x, y)
     }
 
     pub fn world_to_cell(&self, p: Pos2) -> CellPos {
-        let o = self.origin();
-        let a = (p.x - o.x) / (CELL_W / 2.0);
-        let b = (p.y - o.y) / (CELL_H / 2.0);
-        (
-            ((a + b) / 2.0).round() as i32,
-            ((b - a) / 2.0).round() as i32,
-        )
-    }
-
-    fn cell_index(&self, (x, y): CellPos) -> Option<usize> {
-        let (w, h) = (self.dmap.width as i32, self.dmap.height as i32);
-        (x >= 0 && y >= 0 && x < w && y < h).then(|| (y * w + x) as usize)
+        self.scene.world_to_cell((p.x, p.y))
     }
 
     pub fn cell(&self, pos: CellPos) -> Option<Cell> {
-        self.cell_index(pos).map(|i| self.dmap.cells[i])
+        self.scene.grid.get(pos).copied()
     }
 
-    /// Puzzle size in world pixels.
-    pub fn bg_size(&self) -> Vec2 {
-        Vec2::new(self.puzzle.width as f32, self.puzzle.height as f32) * GRID_SIZE as f32
-    }
-
-    /// World position of the puzzle's top-left. Port of `CGameMap::GetBgWorldPos`
-    /// (integer math as in the client).
-    pub fn bg_origin(&self) -> Pos2 {
-        let (bw, bh) = (
-            self.puzzle.width as i32 * GRID_SIZE as i32,
-            self.puzzle.height as i32 * GRID_SIZE as i32,
-        );
-        let (w, h) = (self.dmap.width as i32, self.dmap.height as i32);
-        let (cw, ch) = (CELL_W as i32, CELL_H as i32);
-        let x = cw * w / 2 - bw / 2;
-        let y = ch / 2 + ch * h / 2 - bh / 2 - ((h + 1) % 2) * ch / 2;
-        Pos2::new(x as f32, y as f32)
-    }
-
-    pub fn bg_rect(&self) -> Rect {
-        Rect::from_min_size(self.bg_origin(), self.bg_size())
+    /// Ground layer bounds in world space, or the grid's bounds if there is no ground.
+    pub fn bounds(&self) -> Rect {
+        match self.scene.ground.as_ref().filter(|g| g.width > 0) {
+            Some(g) => {
+                let (w, h) = g.world_size();
+                Rect::from_min_size(
+                    Pos2::new(g.origin.0 as f32, g.origin.1 as f32),
+                    Vec2::new(w as f32, h as f32),
+                )
+            }
+            None => {
+                let (gw, gh) = (self.scene.grid.width as i32, self.scene.grid.height as i32);
+                let corners = [(0, 0), (gw - 1, 0), (0, gh - 1), (gw - 1, gh - 1)]
+                    .map(|c| self.cell_to_world(c));
+                Rect::from_points(&corners)
+            }
+        }
     }
 
     // ---- ground tile cache ----
@@ -164,49 +109,58 @@ impl MapDoc {
         self.tiles.len()
     }
 
-    /// Returns the texture for a puzzle tile, decoding it if `budget` allows.
+    pub fn used_tiles(&self) -> usize {
+        self.scene.ground.as_ref().map_or(0, |g| g.unique_tiles())
+    }
+
+    /// Returns the texture for a ground tile, decoding it with `load` if `budget` allows.
     pub fn tile(
         &mut self,
         ctx: &egui::Context,
-        fs: &ClientFs,
-        idx: u16,
+        id: u16,
         budget: &mut usize,
+        load: impl Fn(&str) -> Option<Image>,
     ) -> TileLookup {
-        if let Some(t) = self.tiles.get(&idx) {
+        if let Some(t) = self.tiles.get(&id) {
             return t.clone().map_or(TileLookup::Failed, TileLookup::Ready);
         }
         if *budget == 0 {
             return TileLookup::Pending;
         }
         *budget -= 1;
-        let tex = (|| {
-            let frame = self.ani.get(&Puzzle::tile_title(idx))?.frame_str(0)?;
-            let img = decode_image(&fs.read(&frame)?).ok()?;
-            let size = [img.width as usize, img.height as usize];
-            let color = egui::ColorImage::from_rgba_unmultiplied(size, &img.rgba);
-            Some(ctx.load_texture(format!("puzzle{idx}"), color, egui::TextureOptions::LINEAR))
-        })();
-        self.tiles.insert(idx, tex.clone());
+        let frame = self
+            .scene
+            .ground
+            .as_ref()
+            .and_then(|g| g.tileset.frames.get(&id));
+        let tex = frame.and_then(|f| load(f)).map(|img| {
+            let color = egui::ColorImage::from_rgba_unmultiplied(
+                [img.width as usize, img.height as usize],
+                &img.rgba,
+            );
+            ctx.load_texture(format!("tile{id}"), color, egui::TextureOptions::LINEAR)
+        });
+        self.tiles.insert(id, tex.clone());
         tex.map_or(TileLookup::Failed, TileLookup::Ready)
     }
 
     // ---- editing ----
 
-    /// Sets the walkability of every cell in a square brush (a diamond on screen).
+    /// Sets walkability of every cell in a square brush (a diamond on screen).
     /// Changes accumulate into the current stroke until `end_stroke`.
     pub fn paint(&mut self, center: CellPos, radius: i32, blocked: bool) {
-        let mask = u16::from(blocked);
+        let flags = u16::from(blocked);
         for dy in -radius..=radius {
             for dx in -radius..=radius {
-                let Some(index) = self.cell_index((center.0 + dx, center.1 + dy)) else {
+                let Some(index) = self.scene.grid.index((center.0 + dx, center.1 + dy)) else {
                     continue;
                 };
-                let before = self.dmap.cells[index];
-                if before.mask == mask {
+                let before = self.scene.grid.cells[index];
+                if before.flags == flags {
                     continue;
                 }
-                let after = Cell { mask, ..before };
-                self.dmap.cells[index] = after;
+                let after = Cell { flags, ..before };
+                self.scene.grid.cells[index] = after;
                 self.history.stroke.push(CellChange {
                     index,
                     before,
@@ -225,24 +179,18 @@ impl MapDoc {
     }
 
     pub fn portal_at(&self, pos: CellPos) -> Option<usize> {
-        self.dmap.passages.iter().position(|p| (p.x, p.y) == pos)
+        self.scene.portal_at(pos)
     }
 
-    /// Adds a portal with the next free index. Returns false if the cell is invalid or taken.
-    pub fn add_portal(&mut self, pos: CellPos) -> bool {
-        if self.cell_index(pos).is_none() || self.portal_at(pos).is_some() {
+    /// Adds a portal with the next free id. Returns false if the cell is invalid or taken.
+    pub fn add_portal(&mut self, cell: CellPos) -> bool {
+        if self.scene.grid.index(cell).is_none() || self.portal_at(cell).is_some() {
             return false;
         }
-        let index = (0..)
-            .find(|i| self.dmap.passages.iter().all(|p| p.index != *i))
+        let id = (0..)
+            .find(|i| self.scene.portals.iter().all(|p| p.id != *i))
             .unwrap();
-        self.edit_portals(|ps| {
-            ps.push(Passage {
-                x: pos.0,
-                y: pos.1,
-                index,
-            })
-        });
+        self.edit_portals(|ps| ps.push(Portal { cell, id }));
         true
     }
 
@@ -253,20 +201,17 @@ impl MapDoc {
     }
 
     pub fn move_portal(&mut self, i: usize, to: CellPos) -> bool {
-        if self.cell_index(to).is_none() || self.portal_at(to).is_some() {
+        if self.scene.grid.index(to).is_none() || self.portal_at(to).is_some() {
             return false;
         }
-        self.edit_portals(|ps| {
-            ps[i].x = to.0;
-            ps[i].y = to.1;
-        });
+        self.edit_portals(|ps| ps[i].cell = to);
         true
     }
 
-    fn edit_portals(&mut self, f: impl FnOnce(&mut Vec<Passage>)) {
-        let before = self.dmap.passages.clone();
-        f(&mut self.dmap.passages);
-        let after = self.dmap.passages.clone();
+    fn edit_portals(&mut self, f: impl FnOnce(&mut Vec<Portal>)) {
+        let before = self.scene.portals.clone();
+        f(&mut self.scene.portals);
+        let after = self.scene.portals.clone();
         self.push(Change::Portals { before, after });
     }
 
@@ -306,11 +251,11 @@ impl MapDoc {
         match change {
             Change::Cells(cells) => {
                 for c in cells {
-                    self.dmap.cells[c.index] = if forward { c.after } else { c.before };
+                    self.scene.grid.cells[c.index] = if forward { c.after } else { c.before };
                 }
             }
             Change::Portals { before, after } => {
-                self.dmap.passages = if forward { after } else { before }.clone();
+                self.scene.portals = if forward { after } else { before }.clone();
             }
         }
     }
@@ -319,46 +264,33 @@ impl MapDoc {
         self.history.saved_at != Some(self.history.undo.len()) || !self.history.stroke.is_empty()
     }
 
-    // ---- saving ----
-
-    /// File the map is saved to: the loose client file (the client prefers loose files over archives).
-    pub fn save_path(&self, client_root: &Path) -> PathBuf {
-        client_root.join(Path::new(&self.path))
-    }
-
-    /// Writes the DMap. Before the first overwrite, keeps the original as `<file>.bak`.
-    pub fn save(&mut self, client_root: &Path) -> Result<PathBuf, String> {
+    /// Call after the scene was written successfully.
+    pub fn mark_saved(&mut self) {
         self.end_stroke();
-        let path = self.save_path(client_root);
-        let backup = path.with_extension("DMap.bak");
-        if path.exists() && !backup.exists() {
-            std::fs::copy(&path, &backup).map_err(|e| format!("Backup failed: {e}"))?;
-        }
-        let bytes = self.dmap.to_bytes();
-        // Write to a temp file first so a failed write never corrupts the map.
-        let tmp = path.with_extension("DMap.tmp");
-        std::fs::write(&tmp, &bytes).map_err(|e| format!("Save failed: {e}"))?;
-        std::fs::rename(&tmp, &path).map_err(|e| format!("Save failed: {e}"))?;
         self.history.saved_at = Some(self.history.undo.len());
-        Ok(path)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use c3_scene::{Grid, IsoProjection};
 
     fn doc() -> MapDoc {
-        MapDoc::from_parts(
-            "map/map/test.DMap",
-            DMap::new(8, 8, "map/puzzle/test.pul"),
-            Puzzle::new(1, 1, "ani/test.ani"),
-            Ani::default(),
-        )
+        let scene = Scene {
+            grid: Grid::new(8, 8),
+            projection: IsoProjection::for_grid(64.0, 32.0, 8),
+            ground: None,
+            portals: Vec::new(),
+            entities: Vec::new(),
+            layers: Vec::new(),
+            meta: Default::default(),
+        };
+        MapDoc::new("map/map/test.DMap", scene, Vec::new())
     }
 
     fn blocked(d: &MapDoc) -> usize {
-        d.dmap.cells.iter().filter(|c| c.mask != 0).count()
+        d.scene.grid.cells.iter().filter(|c| c.is_blocked()).count()
     }
 
     #[test]
@@ -388,8 +320,7 @@ mod tests {
     fn new_edit_after_undo_drops_redo_and_saved_state() {
         let mut d = doc();
         d.paint((1, 1), 0, true);
-        d.end_stroke();
-        d.history.saved_at = Some(1); // pretend saved here
+        d.mark_saved();
         d.undo();
         d.paint((5, 5), 0, true);
         d.end_stroke();
@@ -404,36 +335,26 @@ mod tests {
         assert!(!d.add_portal((1, 1)), "cell already has a portal");
         assert!(!d.add_portal((99, 1)), "outside the map");
         assert!(d.add_portal((2, 2)));
-        assert_eq!(d.dmap.passages[1].index, 1);
+        assert_eq!(d.scene.portals[1].id, 1);
         assert!(d.move_portal(0, (4, 4)));
         d.remove_portal(1);
-        assert_eq!(d.dmap.passages.len(), 1);
+        assert_eq!(d.scene.portals.len(), 1);
         d.undo();
         d.undo();
         assert_eq!(d.portal_at((1, 1)), Some(0));
     }
 
     #[test]
-    fn save_writes_loadable_map_and_keeps_backup() {
-        let root = std::env::temp_dir().join(format!("c3studio-test-{}", std::process::id()));
-        let file = root.join("map/map/test.DMap");
-        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
-        let original = DMap::new(8, 8, "map/puzzle/test.pul").to_bytes();
-        std::fs::write(&file, &original).unwrap();
-
-        let mut d = doc();
-        d.paint((3, 3), 0, true);
-        d.add_portal((6, 6));
-        assert_eq!(d.save(&root).unwrap(), file);
-        assert!(!d.is_dirty());
-
-        let saved = DMap::parse(&std::fs::read(&file).unwrap()).unwrap();
-        assert_eq!(saved.cell(3, 3).unwrap().mask, 1);
-        assert_eq!(saved.passages.len(), 1);
-        assert_eq!(
-            std::fs::read(file.with_extension("DMap.bak")).unwrap(),
-            original
-        );
-        std::fs::remove_dir_all(&root).unwrap();
+    fn backup_written_once_and_save_is_atomic() {
+        let dir = std::env::temp_dir().join(format!("c3studio-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("x.DMap");
+        std::fs::write(&file, b"original").unwrap();
+        crate::tq_plugin::write_with_backup(&file, b"v1").unwrap();
+        crate::tq_plugin::write_with_backup(&file, b"v2").unwrap();
+        assert_eq!(std::fs::read(&file).unwrap(), b"v2");
+        assert_eq!(std::fs::read(dir.join("x.DMap.bak")).unwrap(), b"original");
+        assert!(!dir.join("x.DMap.tmp").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

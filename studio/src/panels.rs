@@ -158,7 +158,7 @@ impl Studio {
             self.open_map(first);
         }
         ui.add_space(4.0);
-        if self.fs.is_none() {
+        if self.client.is_none() {
             ui.label(RichText::new("Set a valid client folder in the inspector.").weak());
             return;
         }
@@ -218,26 +218,35 @@ impl Studio {
                         theme::kv(
                             ui,
                             "Cells",
-                            &format!("{} × {}", doc.dmap.width, doc.dmap.height),
+                            &format!("{} × {}", doc.scene.grid.width, doc.scene.grid.height),
                         );
-                        theme::kv(
-                            ui,
-                            "Ground",
-                            &format!("{} × {} tiles", doc.puzzle.width, doc.puzzle.height),
-                        );
-                        theme::kv(ui, "Puzzle", &doc.dmap.puzzle_file.as_str());
-                        theme::kv(ui, "Tile set", &doc.puzzle.ani_file.as_str());
-                        let walkable = doc.dmap.cells.iter().filter(|c| c.mask == 0).count();
-                        let pct = walkable as f32 * 100.0 / doc.dmap.cells.len().max(1) as f32;
+                        if let Some(g) = &doc.scene.ground {
+                            theme::kv(ui, "Ground", &format!("{} × {} tiles", g.width, g.height));
+                            theme::kv(ui, "Ground file", &g.source);
+                            theme::kv(ui, "Tile set", &g.tileset.source);
+                        }
+                        let pct = doc.scene.grid.walkable_ratio() * 100.0;
                         theme::kv(ui, "Walkable", &format!("{pct:.1}%"));
-                        theme::kv(ui, "Objects", &doc.dmap.interactive.len().to_string());
+                        theme::kv(ui, "Objects", &doc.scene.entities.len().to_string());
                     });
+
+                    if !doc.warnings.is_empty() {
+                        theme::section(
+                            ui,
+                            &format!("⚠ Warnings ({})", doc.warnings.len()),
+                            |ui| {
+                                for w in &doc.warnings {
+                                    ui.colored_label(theme::WARNING, w);
+                                }
+                            },
+                        );
+                    }
 
                     theme::section(ui, "Hovered cell", |ui| {
                         match self.hover.and_then(|c| doc.cell(c).map(|i| (c, i))) {
                             Some(((x, y), c)) => {
                                 theme::kv(ui, "Position", &format!("{x}, {y}"));
-                                let (text, color) = if c.mask == 0 {
+                                let (text, color) = if !c.is_blocked() {
                                     ("Walkable", colors::COVER)
                                 } else {
                                     ("Blocked", theme::DANGER)
@@ -249,8 +258,8 @@ impl Studio {
                                         |ui| ui.colored_label(color, text),
                                     );
                                 });
-                                theme::kv(ui, "Terrain", &c.terrain.to_string());
-                                theme::kv(ui, "Altitude", &c.altitude.to_string());
+                                theme::kv(ui, "Surface", &c.surface.to_string());
+                                theme::kv(ui, "Height", &c.height.to_string());
                             }
                             None => {
                                 ui.label(RichText::new("Hover the map to inspect a cell.").weak());
@@ -261,9 +270,9 @@ impl Studio {
                     let mut jump = None;
                     theme::section(
                         ui,
-                        &format!("Portals ({})", doc.dmap.passages.len()),
+                        &format!("Portals ({})", doc.scene.portals.len()),
                         |ui| {
-                            if doc.dmap.passages.is_empty() {
+                            if doc.scene.portals.is_empty() {
                                 ui.label(
                                     RichText::new(
                                         "No portals. Use the Portal tool (4) to add one.",
@@ -274,15 +283,17 @@ impl Studio {
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
                                 |ui| {
-                                    for p in &doc.dmap.passages {
-                                        let label =
-                                            format!("Portal {}  ·  cell {}, {}", p.index, p.x, p.y);
+                                    for p in &doc.scene.portals {
+                                        let label = format!(
+                                            "Portal {}  ·  cell {}, {}",
+                                            p.id, p.cell.0, p.cell.1
+                                        );
                                         if ui
                                             .add(egui::Button::new(label).frame(false))
                                             .on_hover_text("Click to jump here")
                                             .clicked()
                                         {
-                                            jump = Some(doc.cell_to_world((p.x, p.y)));
+                                            jump = Some(doc.cell_to_world(p.cell));
                                         }
                                     }
                                 },
@@ -313,7 +324,7 @@ impl Studio {
                     if r.lost_focus() {
                         self.open_client();
                     }
-                    if self.fs.is_none() {
+                    if self.client.is_none() {
                         ui.colored_label(theme::DANGER, "Not loaded");
                     } else {
                         ui.label(RichText::new(format!("{} maps found", self.maps.len())).weak());
@@ -336,7 +347,7 @@ impl Studio {
                     ui.label(format!(
                         "Loading tiles {}/{}",
                         doc.loaded_tiles(),
-                        doc.used_tiles
+                        doc.used_tiles()
                     ));
                 } else {
                     ui.label(RichText::new(format!("{} tiles loaded", doc.loaded_tiles())).weak());

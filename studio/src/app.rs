@@ -1,10 +1,11 @@
 //! Studio application state: client/map loading, editing commands, shortcuts, and panel layout.
 
-use crate::doc::{CellPos, MapDoc};
+use crate::doc::MapDoc;
 use crate::editor::{Editor, Tool};
 use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
 use crate::theme;
-use c3_formats_tq::vfs::ClientFs;
+use crate::tq_plugin::Client;
+use c3_scene::CellPos;
 use eframe::egui::{self, Key};
 use std::time::{Duration, Instant};
 
@@ -20,7 +21,7 @@ pub(crate) enum Pending {
 
 pub struct Studio {
     pub(crate) client_dir: String,
-    pub(crate) fs: Option<ClientFs>,
+    pub(crate) client: Option<Client>,
     pub(crate) maps: Vec<String>,
     pub(crate) filter: String,
     pub(crate) doc: Option<MapDoc>,
@@ -54,7 +55,7 @@ impl Studio {
             .unwrap_or_else(|| DEFAULT_CLIENT.to_owned());
         let mut s = Self {
             client_dir,
-            fs: None,
+            client: None,
             maps: Vec::new(),
             filter: String::new(),
             doc: None,
@@ -93,26 +94,14 @@ impl Studio {
     // ---- documents ----
 
     pub(crate) fn open_client(&mut self) {
-        match ClientFs::open(&self.client_dir) {
-            Ok(fs) => {
-                let dir = std::path::Path::new(&self.client_dir)
-                    .join("map")
-                    .join("map");
-                self.maps = std::fs::read_dir(dir)
-                    .map(|rd| {
-                        rd.flatten()
-                            .filter_map(|e| e.file_name().into_string().ok())
-                            .filter(|n| n.to_ascii_lowercase().ends_with(".dmap"))
-                            .map(|n| format!("map/map/{n}"))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                self.maps.sort_by_key(|m| m.to_ascii_lowercase());
-                self.fs = Some(fs);
+        match Client::open(&self.client_dir) {
+            Ok(client) => {
+                self.maps = client.list_maps();
+                self.client = Some(client);
                 self.error = None;
             }
             Err(e) => {
-                self.fs = None;
+                self.client = None;
                 self.maps.clear();
                 self.error = Some(format!("Can't open client folder: {e}"));
             }
@@ -136,10 +125,11 @@ impl Studio {
     }
 
     fn load_map(&mut self, path: &str) {
-        let Some(fs) = &self.fs else { return };
-        match MapDoc::load(fs, path) {
-            Ok(doc) => {
-                self.cam.center = doc.bg_rect().center();
+        let Some(client) = &self.client else { return };
+        match client.import_map(path) {
+            Ok(imported) => {
+                let doc = MapDoc::new(path, imported.scene, imported.warnings);
+                self.cam.center = doc.bounds().center();
                 self.doc = Some(doc);
                 self.fit_pending = true;
                 self.error = None;
@@ -149,11 +139,13 @@ impl Studio {
     }
 
     pub(crate) fn save(&mut self) -> bool {
-        let Some(doc) = &mut self.doc else {
+        let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
             return false;
         };
-        match doc.save(std::path::Path::new(&self.client_dir)) {
+        doc.end_stroke();
+        match client.save_map(&doc.scene, &doc.path) {
             Ok(path) => {
+                doc.mark_saved();
                 self.notify(format!("Saved {}", path.display()));
                 true
             }
@@ -336,12 +328,12 @@ impl Studio {
     }
 
     fn viewport(&mut self, ui: &mut egui::Ui) {
-        let (Some(fs), Some(doc)) = (&self.fs, &mut self.doc) else {
-            theme::empty_state(ui, self.fs.is_some());
+        let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
+            theme::empty_state(ui, self.client.is_some());
             return;
         };
         if self.fit_pending && self.cam.viewport.x > 1.0 {
-            self.cam.fit(doc.bg_rect());
+            self.cam.fit(doc.bounds());
             self.fit_pending = false;
         }
         let tool = self.editor.tool;
@@ -358,7 +350,7 @@ impl Studio {
             dragging_portal: self.editor.dragging_portal(),
         };
         let viewport_rect = ui.max_rect();
-        let r = map_view::show(ui, fs, doc, &mut self.cam, self.overlays, mode);
+        let r = map_view::show(ui, client, doc, &mut self.cam, self.overlays, mode);
         self.hover = r.pointer.cell;
         self.streaming = r.streaming;
         if let Some(msg) = self.editor.handle(doc, &r.pointer) {

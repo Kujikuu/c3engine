@@ -7,6 +7,7 @@ mod editor;
 mod map_view;
 mod panels;
 mod theme;
+mod tq_plugin;
 
 use eframe::egui;
 

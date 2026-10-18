@@ -21,6 +21,12 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [ ] C3 chunks: PHY (mesh), MOTI (skeletal motion), PTCL (particles), camera
 - [ ] Round-trip tests on real client files for every format
 
+## Course correction (2026-10-18), see DECISIONS.md
+- [x] (1) `engine/scene` + `engine/assets` + TQ importer/exporter: 144/144 maps round-trip
+- [x] (2) Studio edits engine `Scene`s; TQ access isolated in `studio/src/tq_plugin.rs`
+- [ ] (3) Finish M1: C3 models (PHY/MOTI/PTCL)
+- [ ] (4) M2 renderer (wgpu)
+
 ## M2: Renderer
 - [ ] wgpu window + camera
 - [ ] Puzzle ground + map layers (classic iso)

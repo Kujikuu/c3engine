@@ -22,6 +22,14 @@ c3engine/
   docs/        this documentation (source of truth for context)
 ```
 
+## Data flow (maps)
+```
+client files ──ClientFs (AssetSource)──► scene_io::import_map ──► c3_scene::Scene ◄── Studio edits
+                                         scene_io::export_dmap ◄──────────┘ (save)
+```
+`Scene` = Grid (flags/surface/height) + IsoProjection + ground TileLayer/Tileset + Portals +
+Entities (Sprite/Prefab/Sound/Effect) + ParallaxLayers + `meta` (format values the exporter needs).
+
 ## Dependency rules
 - `engine/*` may depend only on other `engine/*` crates and third-party crates.
 - `formats/*` depends on `engine/assets` (and `engine/scene` / `engine/anim` for conversion).
