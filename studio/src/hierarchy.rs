@@ -295,6 +295,7 @@ fn new_npc(cell: CellPos) -> Npc {
         direction: 0,
         look: 1,
         kind: 0,
+        script: String::new(),
         extra: Default::default(),
     }
 }

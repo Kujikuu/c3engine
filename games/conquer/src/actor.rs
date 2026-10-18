@@ -174,6 +174,25 @@ impl Actor {
         self.path = path::find_path(&scene.grid, from, goal, &PathRules::default()).into();
     }
 
+    /// Puts the actor on `cell` at once (a teleport), dropping its steps.
+    pub fn place(&mut self, cell: CellPos) {
+        self.cell = cell;
+        self.step = None;
+        self.path.clear();
+    }
+
+    /// Whether the actor is stepping or has steps planned.
+    pub fn is_moving(&self) -> bool {
+        self.step.is_some() || !self.path.is_empty()
+    }
+
+    /// Turns to face `cell` (when standing elsewhere).
+    pub fn face(&mut self, cell: CellPos) {
+        if let Some(d) = path::direction(self.cell, cell) {
+            self.direction = d;
+        }
+    }
+
     /// Stops the effects the actor carries.
     pub fn clear_effects(&mut self) {
         for effects in self.part_effects.iter_mut() {

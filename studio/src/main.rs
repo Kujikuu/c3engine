@@ -9,6 +9,7 @@
 
 mod app;
 mod browser;
+mod code_view;
 mod data_panel;
 mod doc;
 mod dock;
@@ -24,7 +25,9 @@ mod model_view;
 mod models_ws;
 mod panels;
 mod play;
+mod play_talk;
 mod scene_inspector;
+mod script_panel;
 mod selection;
 mod shell;
 mod stage;

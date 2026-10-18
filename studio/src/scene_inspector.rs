@@ -310,8 +310,70 @@ impl Studio {
                 number(ui, it, &mut npc.kind);
             });
         });
+        let (edit, create) = self.npc_script_field(ui, it, &mut npc.script);
         extra_section(ui, &npc.extra);
+        if create {
+            let name = npc_script_name(&npc);
+            if self.create_script(&name, &crate::script_panel::npc_template(&npc.name)) {
+                npc.script = name;
+                it.changed = true;
+            }
+        } else if edit {
+            self.open_script(&npc.script);
+        }
         Some(SceneCommand::SetNpc { npc })
+    }
+
+    /// The NPC's script: pick one, open it, or make one. Returns (edit, create) requests.
+    fn npc_script_field(
+        &self,
+        ui: &mut egui::Ui,
+        it: &mut Interaction,
+        script: &mut String,
+    ) -> (bool, bool) {
+        let (mut edit, mut create) = (false, false);
+        let names = &self.scripts.names;
+        ui.add_space(4.0);
+        grid(ui, "npc script", |ui| {
+            row(ui, "Script", |ui| {
+                let shown = if script.is_empty() {
+                    "None"
+                } else {
+                    script.as_str()
+                };
+                egui::ComboBox::from_id_salt("npc script")
+                    .selected_text(shown)
+                    .width(150.0)
+                    .show_ui(ui, |ui| {
+                        it.changed |= ui.selectable_value(script, String::new(), "None").changed();
+                        for name in names.iter().filter(|n| n.starts_with("npc/")) {
+                            it.changed |= ui.selectable_value(script, name.clone(), name).changed();
+                        }
+                    })
+                    .response
+                    .on_hover_text("Runs when a player clicks the NPC (scripts/npc/…)");
+            });
+            row(ui, "", |ui| {
+                ui.horizontal(|ui| {
+                    if script.is_empty() {
+                        create = ui
+                            .button(theme::icon_text(icons::PLUS, "New script"))
+                            .on_hover_text("Make a dialogue script for this NPC")
+                            .clicked();
+                    } else if names.contains(script) {
+                        edit = ui
+                            .button(theme::icon_text(icons::FILE_CODE, "Edit script"))
+                            .clicked();
+                    } else {
+                        ui.label(
+                            RichText::new(theme::icon_text(icons::WARNING, "Script file missing"))
+                                .color(theme::WARNING),
+                        );
+                    }
+                });
+            });
+        });
+        (edit, create)
     }
 
     fn spawn_fields(
@@ -459,5 +521,21 @@ impl Studio {
             Ok(()) => self.notify(format!("Exported to {}", file.display())),
             Err(e) => self.error = Some(format!("Can't write {}: {e}", file.display())),
         }
+    }
+}
+
+/// Name of a new script for `npc`: `npc/<name>_<id>` (name in lower case, letters and digits).
+fn npc_script_name(npc: &Npc) -> String {
+    let mut name: String = npc
+        .name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    name = name.trim_matches('_').to_owned();
+    if name.is_empty() {
+        format!("npc/{}", npc.id)
+    } else {
+        format!("npc/{name}_{}", npc.id)
     }
 }

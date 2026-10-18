@@ -332,6 +332,7 @@ mod tests {
                 direction: 2,
                 look: 900,
                 kind: 1,
+                script: "npc/guard".into(),
                 extra: [("task0".to_owned(), "100".to_owned())].into(),
             }],
             spawns: vec![Spawn {

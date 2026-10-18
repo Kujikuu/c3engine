@@ -1,6 +1,6 @@
 //! The editor shell, laid out like Unity's: a menu bar, a toolbar (tools · Play/Pause/Step ·
 //! layout), and dockable panels (Hierarchy, Scene, Game, Preview, Inspector, Undo History,
-//! Project, Console). The layout is saved between sessions.
+//! Project, Console, Data, Script). The layout is saved between sessions.
 
 use crate::app::{Studio, Workspace};
 use crate::dock::{Dock, Node, TabViewer};
@@ -26,13 +26,16 @@ pub(crate) enum Panel {
     Console,
     /// Game data tables.
     Data,
+    /// The script editor.
+    Script,
 }
 
 impl Panel {
-    pub const ALL: [Panel; 9] = [
+    pub const ALL: [Panel; 10] = [
         Panel::Scene,
         Panel::Game,
         Panel::Preview,
+        Panel::Script,
         Panel::Hierarchy,
         Panel::Inspector,
         Panel::Project,
@@ -52,6 +55,7 @@ impl Panel {
             Panel::Project => icons::FOLDER_OPEN,
             Panel::Console => icons::TERMINAL,
             Panel::Data => icons::DATABASE,
+            Panel::Script => icons::FILE_CODE,
         }
     }
 
@@ -66,14 +70,15 @@ impl Panel {
             Panel::Project => "Project",
             Panel::Console => "Console",
             Panel::Data => "Data",
+            Panel::Script => "Script",
         }
     }
 
     /// Panels a reopened panel joins (its usual neighbours).
     fn neighbours(self) -> &'static [Panel] {
         match self {
-            Panel::Scene | Panel::Game | Panel::Preview => {
-                &[Panel::Scene, Panel::Game, Panel::Preview]
+            Panel::Scene | Panel::Game | Panel::Preview | Panel::Script => {
+                &[Panel::Scene, Panel::Game, Panel::Preview, Panel::Script]
             }
             Panel::Inspector | Panel::History => &[Panel::Inspector, Panel::History],
             Panel::Project | Panel::Console | Panel::Data => {
@@ -89,7 +94,12 @@ impl Panel {
 pub(crate) fn default_layout() -> Dock<Panel> {
     Dock::new(|group| {
         let left = group(vec![Panel::Hierarchy]);
-        let centre = group(vec![Panel::Scene, Panel::Game, Panel::Preview]);
+        let centre = group(vec![
+            Panel::Scene,
+            Panel::Game,
+            Panel::Preview,
+            Panel::Script,
+        ]);
         let bottom = group(vec![Panel::Project, Panel::Data, Panel::Console]);
         let right = group(vec![Panel::Inspector, Panel::History]);
         let top = Node::split(false, 0.2, left, centre);
@@ -291,9 +301,23 @@ impl Studio {
             return;
         };
         let start = doc.world_to_cell(self.cam.center);
-        match crate::play::PlaySession::start(client, doc, start, state) {
+        let talk = crate::play_talk::TalkSetup {
+            scripts: self.project.as_ref().map(|p| p.scripts_dir()),
+            tables: self.project.as_ref().map(|p| p.tables_dir()),
+            item_table: Some(game_conquer::server_data::ITEM_TABLE),
+            map_ids: match &doc.map {
+                MapRef::Client(path) => client.map_ids(path),
+                MapRef::Project(_) => Vec::new(),
+            },
+        };
+        match crate::play::PlaySession::start(client, doc, start, state, talk) {
             Ok(session) => {
                 self.playing = Some(session);
+                if self.scripts.is_dirty() {
+                    self.log_info(
+                        "Playing with the saved script: save it (Ctrl+S) to try your edits".into(),
+                    );
+                }
                 self.show_panel(Panel::Game);
                 self.notify("Playing: Stop (Ctrl+P) returns to editing".into());
             }
@@ -397,6 +421,12 @@ impl Studio {
         }
     }
 
+    /// Logs a line straight to the console (without the status bar).
+    pub(crate) fn log_info(&mut self, text: String) {
+        let at = self.started.elapsed().as_secs_f32();
+        self.push_log(Level::Info, text, at);
+    }
+
     /// Logs a problem straight to the console (without the status bar).
     pub(crate) fn log_error(&mut self, text: String) {
         let at = self.started.elapsed().as_secs_f32();
@@ -417,6 +447,7 @@ impl TabViewer<Panel> for Studio {
             // Unity marks a scene with unsaved changes with an asterisk.
             Panel::Scene if self.map_dirty() => "Scene*",
             Panel::Data if self.data.is_dirty() => "Data*",
+            Panel::Script if self.scripts.is_dirty() => "Script*",
             _ => panel.name(),
         };
         theme::icon_text(panel.icon(), name)
@@ -433,6 +464,7 @@ impl TabViewer<Panel> for Studio {
             Panel::Project => self.project_panel(ui),
             Panel::Console => self.console_panel(ui),
             Panel::Data => self.data_panel(ui),
+            Panel::Script => self.script_panel(ui),
         }
     }
 }

@@ -23,6 +23,10 @@ pub struct Npc {
     /// Game-defined kind (shop, storage, task giver…).
     #[serde(default)]
     pub kind: u32,
+    /// Script run when a player talks to the NPC (`npc/guard` for `scripts/npc/guard.rhai`);
+    /// empty for none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub script: String,
     /// Game values the engine doesn't interpret (task ids, owner…), kept for export.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: BTreeMap<String, String>,

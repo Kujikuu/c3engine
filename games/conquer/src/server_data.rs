@@ -8,6 +8,9 @@
 use c3_scene::{Npc, Population, Spawn};
 use std::collections::{BTreeMap, HashMap};
 
+/// The table of item types (names, prices, stats).
+pub const ITEM_TABLE: &str = "cq_itemtype";
+
 /// The tables of TQ's server database that hold game data (not map population or accounts).
 pub const DATA_TABLES: &[&str] = &[
     "cq_itemtype",
@@ -180,6 +183,7 @@ fn npc_from_row(values: &[Value]) -> Option<Npc> {
         direction: (lookface % 10) as u8,
         look: lookface / 10,
         kind: row.number("type"),
+        script: String::new(),
         extra: row.extra(&NPC_OWN),
     })
 }

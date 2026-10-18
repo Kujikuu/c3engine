@@ -182,6 +182,11 @@ impl Project {
         names
     }
 
+    /// Folder holding the project's scripts (`scripts/**/*.rhai`).
+    pub fn scripts_dir(&self) -> PathBuf {
+        self.root.join("scripts")
+    }
+
     /// Population file (NPCs, spawns) of content map `name`, for map formats that can't hold
     /// one (`maps/<name>.population.ron`).
     pub fn population_file(&self, name: &str) -> PathBuf {

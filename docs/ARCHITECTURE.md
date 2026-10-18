@@ -11,7 +11,7 @@ c3engine/
     net/       transport (tokio), packet codec framework, cipher trait, prediction
     ui/        data-driven in-game UI (layouts, widgets, fonts)
     audio/     sound/music playback
-    script/    scripting host (Rhai or Lua; see DECISIONS.md)
+    script/    Rhai script host: sandboxed, hot reload, NPC dialogue API, editor diagnostics
     project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
                sources, recent projects)
     game/      (planned) gameplay framework shared by client and server: entities, stats,

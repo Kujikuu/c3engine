@@ -156,6 +156,7 @@ mod tests {
             direction: 0,
             look: 900,
             kind: 0,
+            script: String::new(),
             extra: Default::default(),
         }
     }

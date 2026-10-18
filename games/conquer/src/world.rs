@@ -20,6 +20,10 @@ use std::rc::Rc;
 /// Clear colour (linear) behind the map.
 const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 
+/// Clickable box of an NPC around its feet, in world pixels.
+const NPC_PICK_HALF_WIDTH: f32 = 32.0;
+const NPC_PICK_HEIGHT: f32 = 110.0;
+
 /// Effect marking where the player clicked to walk.
 const CLICK_EFFECT: &str = "mouse";
 
@@ -144,6 +148,28 @@ impl World {
         for actor in &mut self.actors {
             actor.clear_effects();
         }
+    }
+
+    /// The scene NPC drawn under world point `point` (the nearest when several are), from
+    /// its feet up to about its head.
+    pub fn npc_at(&self, point: Vec2) -> Option<&c3_scene::Npc> {
+        self.scene
+            .npcs
+            .iter()
+            .filter_map(|npc| {
+                let feet = Vec2::from(self.scene.cell_to_world(npc.cell));
+                let d = point - feet;
+                let hit =
+                    d.x.abs() <= NPC_PICK_HALF_WIDTH && (-NPC_PICK_HEIGHT..=16.0).contains(&d.y);
+                hit.then(|| {
+                    (
+                        npc,
+                        (point - (feet - Vec2::Y * NPC_PICK_HEIGHT / 2.0)).length(),
+                    )
+                })
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(npc, _)| npc)
     }
 
     /// The player's character: the first actor.

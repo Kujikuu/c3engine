@@ -34,6 +34,8 @@ pub(crate) enum Workspace {
 pub(crate) enum Focus {
     Scene,
     Data,
+    /// The script editor (its text field keeps its own undo).
+    Script,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -41,6 +43,7 @@ pub(crate) enum Focus {
 pub(crate) enum Pending {
     OpenMap(MapRef),
     OpenTable(String),
+    OpenScript(String),
     OpenProject(PathBuf),
     CloseProject,
     Quit,
@@ -76,6 +79,8 @@ pub struct Studio {
     pub(crate) stage: Option<crate::stage::Stage>,
     /// The Data panel: tables and the one open.
     pub(crate) data: crate::data_panel::DataPanel,
+    /// The Script panel: scripts and the one being edited.
+    pub(crate) scripts: crate::script_panel::ScriptPanel,
     pub(crate) focus: Focus,
     /// The open map drawn as the game draws it; needs the project's content.
     pub(crate) live_scene: Option<LiveScene>,
@@ -164,6 +169,7 @@ impl Studio {
             playing: None,
             stage: None,
             data: Default::default(),
+            scripts: Default::default(),
             focus: Focus::Scene,
             live_scene: None,
             layers: Layers::default(),
@@ -241,6 +247,9 @@ impl Studio {
         if let Some(name) = flag("--table") {
             s.load_table(&name);
         }
+        if let Some(name) = flag("--script") {
+            s.load_script(&name);
+        }
         if let Some(name) = flag("--show")
             && let Some(panel) = Panel::ALL
                 .into_iter()
@@ -250,6 +259,12 @@ impl Studio {
         }
         if args.iter().any(|a| a == "--play") {
             s.toggle_play();
+        }
+        if let (Some(id), Some(session)) = (
+            flag("--talk").and_then(|id| id.parse().ok()),
+            &mut s.playing,
+        ) {
+            session.talk_to(id);
         }
         let pick = flag("--pick").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (pick, &s.doc) {
@@ -286,6 +301,7 @@ impl Studio {
         self.refresh_maps();
         self.refresh_assets();
         self.refresh_tables();
+        self.refresh_scripts();
     }
 
     /// Re-lists the maps.
@@ -389,14 +405,16 @@ impl Studio {
         self.doc.as_ref().is_some_and(MapDoc::is_dirty)
     }
 
-    /// Anything open has unsaved changes (map or table).
+    /// Anything open has unsaved changes (map, table or script).
     pub(crate) fn is_dirty(&self) -> bool {
-        self.map_dirty() || self.data.is_dirty()
+        self.map_dirty() || self.data.is_dirty() || self.scripts.is_dirty()
     }
 
     /// Saves every open document with changes; false if one failed.
     pub(crate) fn save_all(&mut self) -> bool {
-        (!self.map_dirty() || self.save()) && (!self.data.is_dirty() || self.save_table())
+        (!self.map_dirty() || self.save())
+            && (!self.data.is_dirty() || self.save_table())
+            && (!self.scripts.is_dirty() || self.save_script())
     }
 
     /// What has unsaved changes, for prompts.
@@ -407,6 +425,9 @@ impl Studio {
         }
         if let Some(t) = self.data.open.as_ref().filter(|t| t.doc.is_dirty()) {
             names.push(format!("table {}", t.name));
+        }
+        if let Some(s) = self.scripts.open.as_ref().filter(|s| s.is_dirty()) {
+            names.push(format!("script {}", s.name));
         }
         names.join(" and ")
     }
@@ -558,6 +579,10 @@ impl Studio {
                 self.data.open = None;
                 self.load_table(&name);
             }
+            Pending::OpenScript(name) => {
+                self.scripts.open = None;
+                self.load_script(&name);
+            }
             Pending::OpenProject(path) => self.open_project(&path),
             Pending::CloseProject => self.close_project(),
             Pending::Quit => {
@@ -571,6 +596,7 @@ impl Studio {
         let label = match self.focus {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::undo),
             Focus::Data => self.data.undo(),
+            Focus::Script => None,
         };
         if let Some(label) = label {
             self.notify(format!("Undid: {label}"));
@@ -581,6 +607,7 @@ impl Studio {
         let label = match self.focus {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::redo),
             Focus::Data => self.data.redo(),
+            Focus::Script => None,
         };
         if let Some(label) = label {
             self.notify(format!("Redid: {label}"));
@@ -607,6 +634,7 @@ impl Studio {
                     doc.and_then(|d| d.redo_label()).map(str::to_owned),
                 )
             }
+            Focus::Script => (None, None),
         }
     }
 
@@ -673,6 +701,9 @@ impl Studio {
                 }
                 Focus::Data => {
                     self.save_table();
+                }
+                Focus::Script => {
+                    self.save_script();
                 }
             }
         }

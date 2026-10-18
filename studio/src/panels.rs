@@ -230,6 +230,12 @@ impl Studio {
     pub(crate) fn game_panel(&mut self, ui: &mut egui::Ui) {
         if let Some(session) = &mut self.playing {
             session.ui(ui);
+            for line in session.take_log() {
+                match line {
+                    crate::play_talk::LogLine::Info(text) => self.log_info(text),
+                    crate::play_talk::LogLine::Error(text) => self.log_error(text),
+                }
+            }
             return;
         }
         let window_open = self.game_window.is_some();
@@ -581,6 +587,7 @@ impl Studio {
         let action = match pending {
             Pending::OpenMap(_) => "opening another map",
             Pending::OpenTable(_) => "opening another table",
+            Pending::OpenScript(_) => "opening another script",
             Pending::OpenProject(_) => "opening another project",
             Pending::CloseProject => "closing the project",
             Pending::Quit => "quitting",

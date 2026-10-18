@@ -1,9 +1,11 @@
 //! Play mode: the open map played inside the Game view, like Unity's Play button. The world
 //! is built from the map as it is now (unsaved edits included) and Stop drops it, so playing
-//! never changes the map. Pause freezes game time; Step runs one frame.
+//! never changes the map. Pause freezes game time; Step runs one frame. Clicking an NPC talks
+//! to it (see `play_talk`).
 
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
+use crate::play_talk::{LogLine, Talk, TalkSetup};
 use crate::theme;
 use crate::tq_plugin::Client;
 use c3_render::camera::Camera2d;
@@ -37,6 +39,8 @@ pub struct PlaySession {
     gpu: GpuView,
     /// Size of the Game view last frame.
     viewport: Vec2,
+    /// NPC dialogues and the player they change.
+    talk: Talk,
 }
 
 /// The game keys of one frame (read by the Studio's shortcut handling).
@@ -59,6 +63,7 @@ impl PlaySession {
         doc: &MapDoc,
         start: CellPos,
         render_state: &egui_wgpu::RenderState,
+        talk: TalkSetup,
     ) -> Result<Self, String> {
         let scene = doc.scene().clone();
         let cell = path::nearest_walkable(&scene.grid, start, START_SEARCH)
@@ -78,7 +83,20 @@ impl PlaySession {
             step: false,
             gpu: GpuView::new(render_state),
             viewport: Vec2::new(1280.0, 800.0),
+            talk: Talk::new(talk),
         })
+    }
+
+    /// Walks the hero up to NPC `id` and talks to it, as if it was clicked.
+    pub fn talk_to(&mut self, id: u32) {
+        if let Some(npc) = self.world.scene.npcs.iter().find(|n| n.id == id).cloned() {
+            self.talk.approach(&npc, &mut self.world, 0.0);
+        }
+    }
+
+    /// Lines for the Studio's console since the last call.
+    pub fn take_log(&mut self) -> Vec<LogLine> {
+        self.talk.take_log()
     }
 
     /// Runs one frame of game time (while paused).
@@ -103,7 +121,8 @@ impl PlaySession {
         {
             hero.turn(keys.turn);
         }
-        if keys.attack {
+        // Enter belongs to the dialogue while one is open.
+        if keys.attack && !self.talk.is_talking() {
             self.world.hero_action(action::ATTACK_0, true);
         }
         if keys.follow {
@@ -140,7 +159,14 @@ impl PlaySession {
             && let Some(p) = resp.interact_pointer_pos()
         {
             let target = self.camera.screen_to_world(to_view(p), viewport);
-            self.world.walk_hero_to(target);
+            let now = ui.input(|i| i.time);
+            match self.world.npc_at(target).cloned() {
+                Some(npc) => self.talk.approach(&npc, &mut self.world, now),
+                None => {
+                    self.talk.cancel();
+                    self.world.walk_hero_to(target);
+                }
+            }
         }
         if resp.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
@@ -160,6 +186,7 @@ impl PlaySession {
             self.world.advance(STEP_SECONDS);
         }
         self.world.tick();
+        self.talk.update(&mut self.world, ui.input(|i| i.time));
         if self.follow
             && let Some(hero) = self.world.hero()
         {
@@ -184,6 +211,7 @@ impl PlaySession {
             Color32::WHITE,
         );
         self.hud(&painter, rect);
+        self.talk.ui(ui, rect, &mut self.world);
         ui.ctx().request_repaint();
     }
 
@@ -196,7 +224,8 @@ impl PlaySession {
             " · Space: follow hero"
         };
         let hint = format!(
-            "Click: {run} there · R: walk/run · Enter: attack · Q/E: turn · Wheel: zoom{follow}"
+            "Click: {run} there · Click an NPC: talk · R: walk/run · Enter: attack · Q/E: turn · \
+             Wheel: zoom{follow}"
         );
         let font = egui::FontId::proportional(12.0);
         let galley = painter.layout_no_wrap(hint, font, theme::TEXT);
