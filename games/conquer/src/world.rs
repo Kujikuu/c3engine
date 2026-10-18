@@ -138,6 +138,14 @@ impl World {
         }
     }
 
+    /// Stops every effect: the map's and those the actors carry.
+    pub fn clear_effects(&mut self) {
+        self.view.clear_effects();
+        for actor in &mut self.actors {
+            actor.clear_effects();
+        }
+    }
+
     /// The player's character: the first actor.
     pub fn hero(&self) -> Option<&Actor> {
         self.actors.first()

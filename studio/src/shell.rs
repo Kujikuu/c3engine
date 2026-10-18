@@ -1,6 +1,6 @@
 //! The editor shell, laid out like Unity's: a menu bar, a toolbar (tools · Play/Pause/Step ·
-//! layout), and dockable panels (Hierarchy, Scene, Game, Inspector, Undo History, Project,
-//! Console). The layout is saved between sessions.
+//! layout), and dockable panels (Hierarchy, Scene, Game, Preview, Inspector, Undo History,
+//! Project, Console). The layout is saved between sessions.
 
 use crate::app::{Studio, Workspace};
 use crate::dock::{Dock, Node, TabViewer};
@@ -18,6 +18,8 @@ pub(crate) enum Panel {
     Hierarchy,
     Scene,
     Game,
+    /// Characters, actions and effects on a stage.
+    Preview,
     Inspector,
     History,
     Project,
@@ -25,9 +27,10 @@ pub(crate) enum Panel {
 }
 
 impl Panel {
-    pub const ALL: [Panel; 7] = [
+    pub const ALL: [Panel; 8] = [
         Panel::Scene,
         Panel::Game,
+        Panel::Preview,
         Panel::Hierarchy,
         Panel::Inspector,
         Panel::Project,
@@ -40,6 +43,7 @@ impl Panel {
             Panel::Hierarchy => icons::TREE_STRUCTURE,
             Panel::Scene => icons::MAP_TRIFOLD,
             Panel::Game => icons::GAME_CONTROLLER,
+            Panel::Preview => icons::PERSON_SIMPLE,
             Panel::Inspector => icons::SLIDERS,
             Panel::History => icons::CLOCK_COUNTER_CLOCKWISE,
             Panel::Project => icons::FOLDER_OPEN,
@@ -52,6 +56,7 @@ impl Panel {
             Panel::Hierarchy => "Hierarchy",
             Panel::Scene => "Scene",
             Panel::Game => "Game",
+            Panel::Preview => "Preview",
             Panel::Inspector => "Inspector",
             Panel::History => "Undo History",
             Panel::Project => "Project",
@@ -62,7 +67,9 @@ impl Panel {
     /// Panels a reopened panel joins (its usual neighbours).
     fn neighbours(self) -> &'static [Panel] {
         match self {
-            Panel::Scene | Panel::Game => &[Panel::Scene, Panel::Game],
+            Panel::Scene | Panel::Game | Panel::Preview => {
+                &[Panel::Scene, Panel::Game, Panel::Preview]
+            }
             Panel::Inspector | Panel::History => &[Panel::Inspector, Panel::History],
             Panel::Project | Panel::Console => &[Panel::Project, Panel::Console],
             Panel::Hierarchy => &[Panel::Hierarchy],
@@ -75,7 +82,7 @@ impl Panel {
 pub(crate) fn default_layout() -> Dock<Panel> {
     Dock::new(|group| {
         let left = group(vec![Panel::Hierarchy]);
-        let centre = group(vec![Panel::Scene, Panel::Game]);
+        let centre = group(vec![Panel::Scene, Panel::Game, Panel::Preview]);
         let bottom = group(vec![Panel::Project, Panel::Console]);
         let right = group(vec![Panel::Inspector, Panel::History]);
         let top = Node::split(false, 0.2, left, centre);
@@ -421,6 +428,7 @@ impl TabViewer<Panel> for Studio {
             Panel::Hierarchy => self.hierarchy_panel(ui),
             Panel::Scene => self.scene_panel(ui),
             Panel::Game => self.game_panel(ui),
+            Panel::Preview => self.preview_panel(ui),
             Panel::Inspector => self.inspector_panel(ui),
             Panel::History => self.history_panel(ui),
             Panel::Project => self.project_panel(ui),

@@ -174,6 +174,14 @@ impl Actor {
         self.path = path::find_path(&scene.grid, from, goal, &PathRules::default()).into();
     }
 
+    /// Stops the effects the actor carries.
+    pub fn clear_effects(&mut self) {
+        for effects in self.part_effects.iter_mut() {
+            effects.clear();
+        }
+        self.role_effects.clear();
+    }
+
     /// Plays `effect` at the actor's feet.
     pub fn add_effect(&mut self, effect: RunningEffect) {
         self.role_effects.push(effect);

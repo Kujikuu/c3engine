@@ -28,6 +28,8 @@ pub fn install(ctx: &egui::Context) {
 // Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses; find
 // more with `python scripts/phosphor_icon.py studio/assets/fonts/Phosphor.ttf <icon-name>...`.
 pub const ARROW_CLOCKWISE: &str = "\u{E036}";
+pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{E038}";
+pub const BROOM: &str = "\u{EC54}";
 pub const CARET_RIGHT: &str = "\u{E13A}";
 pub const CHECK_CIRCLE: &str = "\u{E184}";
 pub const COPY: &str = "\u{E1CA}";

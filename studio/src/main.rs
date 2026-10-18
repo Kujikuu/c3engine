@@ -26,6 +26,7 @@ mod play;
 mod scene_inspector;
 mod selection;
 mod shell;
+mod stage;
 mod theme;
 mod tq_plugin;
 

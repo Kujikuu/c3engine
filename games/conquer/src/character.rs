@@ -21,6 +21,48 @@ pub mod action {
     pub const SIT_DOWN: u32 = 250;
     pub const ALERT: u32 = 300;
     pub const ATTACK_0: u32 = 401;
+
+    /// Common actions with readable names (3DBaseCode/BaseFunc.h), for pickers.
+    pub const NAMED: &[(u32, &str)] = &[
+        (100, "Stand"),
+        (101, "Rest"),
+        (110, "Walk"),
+        (120, "Run"),
+        (130, "Jump"),
+        (150, "Sad"),
+        (160, "Fury"),
+        (170, "Genuflect"),
+        (180, "Excitement"),
+        (190, "Say hello"),
+        (200, "Salute"),
+        (210, "Laugh"),
+        (220, "Kneel"),
+        (230, "Cool"),
+        (250, "Sit"),
+        (260, "Meditate"),
+        (270, "Faint"),
+        (271, "Lie"),
+        (280, "Pick up"),
+        (290, "Mine"),
+        (300, "Alert"),
+        (310, "Dodge"),
+        (320, "Hurt"),
+        (330, "Die"),
+        (390, "Cast"),
+        (400, "Revive"),
+        (401, "Attack 1"),
+        (402, "Attack 2"),
+        (403, "Attack 3"),
+        (404, "Attack 4"),
+        (451, "Puncture"),
+        (452, "Air strike"),
+        (453, "Tornado"),
+    ];
+
+    /// The readable name of action `id`, if it has one.
+    pub fn name(id: u32) -> Option<&'static str> {
+        NAMED.iter().find(|(a, _)| *a == id).map(|(_, n)| *n)
+    }
 }
 
 /// What a role looks like: model look plus equipped item type ids (0 = none).

@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M3 step 8: Model / animation / effect viewers (actions, sockets, equipment, timeline)
+- [ ] M5 step 1: game data foundation (see M5 below)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -122,7 +122,13 @@ Toward the Unity/UE5-style editor, in order:
       drive the world's own clock (`World::advance`); Stop drops it so playing never changes the
       map. "Play in the game window" still runs the saved project in `c3-client`. `World` and the
       engine `c3_render::camera::Camera2d` are shared by the client and the Studio
-- [ ] (8) Model / animation / effect viewers: actions, sockets, equipment, timeline
+- [x] (8) Preview panel (`studio/src/stage.rs`): a stage drawn exactly like the game (shared
+      `World`) for characters from look + equipment ids, any action (named list from BaseFunc.h,
+      once or looping, restart), the 8 facings, and effects on the character or the ground
+      (searchable list, loop, clear); pause, step, speed. The Models workspace keeps the
+      single-model viewer with parts, sockets and frame scrubbing. `--show <panel>` option
+
+M3 complete (2026-10-18).
 
 ## M5: Gameplay framework (shared by client and server)
 - [ ] `engine/game`: entities, stats and levels, combat and skills, items and inventory, drops,

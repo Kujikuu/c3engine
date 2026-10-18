@@ -205,6 +205,11 @@ impl<K> SceneView<K> {
         Ok(())
     }
 
+    /// Stops every effect standing on the map.
+    pub fn clear_effects(&mut self) {
+        self.effects.clear();
+    }
+
     /// Drops effects that finished by `now_ms`.
     pub fn tick(&mut self, now_ms: u64) {
         self.effects.retain(|e| !e.running.is_finished(now_ms));

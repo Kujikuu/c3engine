@@ -64,6 +64,8 @@ pub struct Studio {
     pub(crate) render_state: Option<eframe::egui_wgpu::RenderState>,
     /// The map being played in the Game view.
     pub(crate) playing: Option<crate::play::PlaySession>,
+    /// The Preview panel's stage, made when first shown.
+    pub(crate) stage: Option<crate::stage::Stage>,
     /// The open map drawn as the game draws it; needs the project's content.
     pub(crate) live_scene: Option<LiveScene>,
     /// Which parts of the scene the Scene view draws.
@@ -149,6 +151,7 @@ impl Studio {
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
             render_state: cc.wgpu_render_state.clone(),
             playing: None,
+            stage: None,
             live_scene: None,
             layers: Layers::default(),
             animate: true,
@@ -216,6 +219,13 @@ impl Studio {
         if let (Some(cell), Some(doc)) = (cell, &s.doc) {
             s.fit_pending = false;
             s.cam.center = doc.cell_to_world(cell);
+        }
+        if let Some(name) = flag("--show")
+            && let Some(panel) = Panel::ALL
+                .into_iter()
+                .find(|p| p.name().eq_ignore_ascii_case(&name))
+        {
+            s.show_panel(panel);
         }
         if args.iter().any(|a| a == "--play") {
             s.toggle_play();

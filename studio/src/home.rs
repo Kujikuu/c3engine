@@ -124,6 +124,8 @@ impl Studio {
 
     pub(crate) fn close_project(&mut self) {
         self.close_documents();
+        self.playing = None;
+        self.stage = None;
         self.project = None;
         self.client = None;
         self.maps.clear();
