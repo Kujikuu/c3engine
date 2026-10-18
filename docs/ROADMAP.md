@@ -381,8 +381,13 @@ PUL for the classic client).
     classic client can't show); a monster type dragged from the Data panel makes a spawn area;
     Create > NPC picks from the game's NPC looks (the client's Npc.ini). Tiles come with
     ground painting below; 3D models as NPC looks come with M9's character forms
-- [ ] Placement tools: box and multi-select, move with snapping, pixel nudge, footprints, draw
+- [x] Placement tools: box and multi-select, move with snapping, pixel nudge, footprints, draw
       order, hide and lock, copy / paste / duplicate (also between maps), align
+  - Done 2026-10-18: box select (Shift adds), Shift-click toggles; dragging moves the group
+    cell by cell, arrows step it on screen, Alt+arrows nudge cover objects a pixel; selected
+    cover objects show their footprint; bring to front / send to back, line up in a row or
+    column; H hides and L locks (Shift: all back), marked in the Hierarchy; Ctrl+C / Ctrl+V
+    paste under the pointer on any map, Ctrl+D duplicates; each change one undo step
 - [ ] Ground: paint tiles from tilesets (brush, fill, erase, pick)
 - [ ] Cells: height and surface brushes beside the walkability brush; overlays
 - [ ] Layers: parallax backgrounds (sky, water) and their items; layer order

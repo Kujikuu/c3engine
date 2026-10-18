@@ -573,6 +573,7 @@ impl Studio {
             Some(e) => self.error = Some(format!("Can't delete: {e}")),
             None => {
                 self.editor.select(None);
+                self.editor.forget_object_marks();
                 self.notify(label);
             }
         }
@@ -1136,10 +1137,28 @@ impl Studio {
             return;
         }
         let (mut delete, mut frame) = (false, false);
+        let (mut step, mut pixel) = (None, None);
+        let (mut hide, mut show_all, mut lock, mut unlock_all) = (false, false, false, false);
+        let selecting = !self.editor.selection().is_empty();
         ctx.input(|i| {
             if i.modifiers.command {
                 return;
             }
+            // With a selection the arrows move it (Alt: by a pixel); else they pan.
+            for (key, cells, pixels) in crate::arrange::SCREEN_STEPS {
+                if selecting && i.key_pressed(key) {
+                    if i.modifiers.alt {
+                        pixel = Some(pixels);
+                    } else {
+                        step = Some(cells);
+                    }
+                }
+            }
+            let shift = i.modifiers.shift;
+            hide = i.key_pressed(Key::H) && !shift;
+            show_all = i.key_pressed(Key::H) && shift;
+            lock = i.key_pressed(Key::L) && !shift;
+            unlock_all = i.key_pressed(Key::L) && shift;
             let (o, l) = (&mut self.overlays, &mut self.layers);
             for (key, flag) in [
                 (Key::G, &mut o.grid),
@@ -1187,19 +1206,38 @@ impl Studio {
                 self.cam.zoom_by(0.8);
             }
             let pan = 600.0 * i.stable_dt / self.cam.zoom;
-            if i.key_down(Key::ArrowLeft) || i.key_down(Key::A) {
+            let arrows = !selecting;
+            if (arrows && i.key_down(Key::ArrowLeft)) || i.key_down(Key::A) {
                 self.cam.center.x -= pan;
             }
-            if i.key_down(Key::ArrowRight) || i.key_down(Key::D) {
+            if (arrows && i.key_down(Key::ArrowRight)) || i.key_down(Key::D) {
                 self.cam.center.x += pan;
             }
-            if i.key_down(Key::ArrowUp) || i.key_down(Key::W) {
+            if (arrows && i.key_down(Key::ArrowUp)) || i.key_down(Key::W) {
                 self.cam.center.y -= pan;
             }
-            if i.key_down(Key::ArrowDown) || i.key_down(Key::S) {
+            if (arrows && i.key_down(Key::ArrowDown)) || i.key_down(Key::S) {
                 self.cam.center.y += pan;
             }
         });
+        if let Some(delta) = step {
+            self.nudge_selection(delta);
+        }
+        if let Some(delta) = pixel {
+            self.nudge_pixels(delta);
+        }
+        if hide {
+            self.toggle_hidden();
+        }
+        if show_all {
+            self.show_all();
+        }
+        if lock {
+            self.toggle_locked();
+        }
+        if unlock_all {
+            self.unlock_all();
+        }
         if delete {
             self.delete_selection();
         }

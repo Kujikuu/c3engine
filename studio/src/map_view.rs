@@ -11,7 +11,7 @@ use crate::live_scene::LiveScene;
 use crate::selection::Selection;
 use c3_play::GameModule;
 use c3_render::View;
-use c3_scene::{CellPos, EntityKind};
+use c3_scene::{CellPos, EntityKind, Scene};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 use std::collections::HashSet;
 
@@ -68,7 +68,7 @@ impl Camera {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Overlays {
     pub grid: bool,
     pub blocked: bool,
@@ -81,7 +81,7 @@ pub struct Overlays {
 }
 
 /// How the active tool wants the viewport to behave this frame.
-#[derive(Default, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct ViewMode<'a> {
     /// Left-drag pans (Inspect tool). Right/middle-drag always pans.
     pub pan_with_primary: bool,
@@ -98,6 +98,8 @@ pub struct ViewMode<'a> {
     pub drag_target: Option<CellPos>,
     /// A selection box being dragged out (world corners).
     pub boxing: Option<((f32, f32), (f32, f32))>,
+    /// Things hidden from the view (the map keeps them).
+    pub hidden: &'a HashSet<Selection>,
 }
 
 /// Pointer state over the map this frame.
@@ -237,25 +239,18 @@ pub fn show(
             zoom: cam.zoom,
             time_ms: mode.time_ms,
         },
+        mode.hidden,
     );
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
     if ov.spawns {
-        draw_spawns(&painter, doc, rect, mode.selection, to_screen);
+        draw_spawns(&painter, doc, mode.hidden, rect, mode.selection, to_screen);
     }
     if ov.markers {
-        draw_objects(&painter, doc, rect, to_screen);
+        draw_objects(&painter, doc, mode.hidden, rect, to_screen);
     }
     if ov.npcs {
         let modelled = live.modelled_npcs();
-        draw_npcs(
-            &painter,
-            doc,
-            rect,
-            cam.zoom,
-            mode.selection,
-            &modelled,
-            to_screen,
-        );
+        draw_npcs(&painter, doc, &mode, rect, cam.zoom, &modelled, to_screen);
     }
     draw_selection(&painter, doc, &mode, to_screen, diamond);
 
@@ -317,15 +312,7 @@ pub fn show(
     };
 
     if ov.portals || mode.dragging_portal.is_some() {
-        draw_portals(
-            &painter,
-            doc,
-            rect,
-            cam.zoom,
-            to_screen,
-            mode.dragging_portal,
-            cell,
-        );
+        draw_portals(&painter, doc, &mode, rect, cam.zoom, to_screen, cell);
     }
 
     // Brush / hover outline.
@@ -369,8 +356,15 @@ fn draw_scene(
     live: &mut LiveScene,
     doc: &MapDoc,
     view: View,
+    hidden: &HashSet<Selection>,
 ) -> bool {
-    live.prepare(doc.scene(), game, &mut gpu.renderer, &view);
+    let shown = without_hidden(doc.scene(), hidden);
+    live.prepare(
+        shown.as_ref().unwrap_or(doc.scene()),
+        game,
+        &mut gpu.renderer,
+        &view,
+    );
     let meshes = live.mesh_draws();
     let frame = live.frame(&meshes, view.rect);
     let ppp = ui.ctx().pixels_per_point();
@@ -453,10 +447,14 @@ fn draw_cells(
 fn draw_objects(
     painter: &egui::Painter,
     doc: &MapDoc,
+    hidden: &HashSet<Selection>,
     rect: Rect,
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
-    for e in &doc.scene().entities {
+    for (i, e) in doc.scene().entities.iter().enumerate() {
+        if hidden.contains(&Selection::Entity(i)) {
+            continue;
+        }
         let color = match e.kind {
             EntityKind::Sprite { .. } => colors::COVER,
             EntityKind::Prefab { .. } => colors::TERRAIN,
@@ -475,11 +473,15 @@ fn draw_objects(
 fn draw_spawns(
     painter: &egui::Painter,
     doc: &MapDoc,
+    hidden: &HashSet<Selection>,
     rect: Rect,
     selection: &[Selection],
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
     for s in &doc.scene().spawns {
+        if hidden.contains(&Selection::Spawn(s.id)) {
+            continue;
+        }
         let corners = cell_rect_corners(doc, s.min, s.max).map(&to_screen);
         if !Rect::from_points(&corners).intersects(rect) {
             continue;
@@ -520,14 +522,18 @@ fn cell_rect_corners(doc: &MapDoc, min: CellPos, max: CellPos) -> [Pos2; 4] {
 fn draw_npcs(
     painter: &egui::Painter,
     doc: &MapDoc,
+    mode: &ViewMode,
     rect: Rect,
     zoom: f32,
-    selection: &[Selection],
     modelled: &HashSet<u32>,
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
+    let (hidden, selection) = (mode.hidden, mode.selection);
     let size = (14.0 * zoom.sqrt()).clamp(9.0, 18.0);
     for n in &doc.scene().npcs {
+        if hidden.contains(&Selection::Npc(n.id)) {
+            continue;
+        }
         let p = to_screen(doc.cell_to_world(n.cell));
         if !rect.expand(60.0).contains(p) {
             continue;
@@ -608,6 +614,16 @@ fn draw_selection(
                         }
                         _ => doc.cell_to_world(cell),
                     };
+                    // The cells a cover object stands on (it sorts by them).
+                    if let Some(EntityKind::Sprite { footprint, .. }) =
+                        scene.entities.get(i).map(|e| &e.kind)
+                    {
+                        let (w, h) = (footprint.0.max(1) as i32, footprint.1.max(1) as i32);
+                        let min = (cell.0 - w + 1, cell.1 - h + 1);
+                        let corners = cell_rect_corners(doc, min, cell).map(&to_screen);
+                        let fill = colors::SELECTED.gamma_multiply(0.12 * alpha);
+                        painter.add(Shape::convex_polygon(corners.to_vec(), fill, Stroke::NONE));
+                    }
                     let p = to_screen(world);
                     painter.circle_stroke(p, 9.0, stroke);
                     painter.circle_filled(p, 3.0, colors::SELECTED.gamma_multiply(alpha));
@@ -637,12 +653,13 @@ fn draw_selection(
 fn draw_portals(
     painter: &egui::Painter,
     doc: &MapDoc,
+    mode: &ViewMode,
     rect: Rect,
     zoom: f32,
     to_screen: impl Fn(Pos2) -> Pos2,
-    dragging: Option<i32>,
     hover: Option<CellPos>,
 ) {
+    let (hidden, dragging) = (mode.hidden, mode.dragging_portal);
     // Keep portals readable when zoomed far out.
     let r = (doc.scene().projection.cell_w / 2.0 * zoom).max(9.0);
     let marker = |c: Pos2, fill: Color32, label: String| {
@@ -666,6 +683,9 @@ fn draw_portals(
         );
     };
     for p in &doc.scene().portals {
+        if hidden.contains(&Selection::Portal(p.id)) {
+            continue;
+        }
         let c = to_screen(doc.cell_to_world(p.cell));
         if !rect.expand(40.0).contains(c) {
             continue;
@@ -684,4 +704,22 @@ fn draw_portals(
             );
         }
     }
+}
+
+/// `scene` without what is hidden, when anything drawn by the renderer is (objects, NPCs).
+fn without_hidden(scene: &Scene, hidden: &HashSet<Selection>) -> Option<Scene> {
+    let drawn = |s: &&Selection| matches!(s, Selection::Entity(_) | Selection::Npc(_));
+    if !hidden.iter().any(|s| drawn(&s)) {
+        return None;
+    }
+    let mut shown = scene.clone();
+    let mut index = 0;
+    shown.entities.retain(|_| {
+        index += 1;
+        !hidden.contains(&Selection::Entity(index - 1))
+    });
+    shown
+        .npcs
+        .retain(|n| !hidden.contains(&Selection::Npc(n.id)));
+    Some(shown)
 }

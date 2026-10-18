@@ -6,6 +6,7 @@ use crate::map_view::Pointer;
 use crate::selection::{self, Pickable, Selection};
 use c3_edit::{Area, SceneCommand};
 use c3_scene::CellPos;
+use std::collections::HashSet;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tool {
@@ -91,6 +92,10 @@ pub struct Editor {
     drag_from: Option<CellPos>,
     /// A selection box being dragged out: the world point it started at, and where it reaches.
     boxing: Option<((f32, f32), (f32, f32))>,
+    /// Hidden from the Scene view (not drawn, not picked); the map keeps them.
+    hidden: HashSet<Selection>,
+    /// Drawn but not picked, so work around them can't move them by accident.
+    locked: HashSet<Selection>,
 }
 
 impl Default for Editor {
@@ -102,6 +107,8 @@ impl Default for Editor {
             selection: Vec::new(),
             drag_from: None,
             boxing: None,
+            hidden: HashSet::new(),
+            locked: HashSet::new(),
         }
     }
 }
@@ -134,6 +141,62 @@ impl Editor {
     /// Drops what is no longer on the map (after an undo).
     pub fn forget_missing(&mut self, scene: &c3_scene::Scene) {
         self.selection.retain(|s| s.exists(scene));
+        self.hidden.retain(|s| s.exists(scene));
+        self.locked.retain(|s| s.exists(scene));
+    }
+
+    /// Objects moved in the list (deleted, reordered): their hide and lock marks no longer
+    /// name them, so they go.
+    pub fn forget_object_marks(&mut self) {
+        let object = |s: &Selection| matches!(s, Selection::Entity(_));
+        self.hidden.retain(|s| !object(s));
+        self.locked.retain(|s| !object(s));
+    }
+
+    pub fn hidden(&self) -> &HashSet<Selection> {
+        &self.hidden
+    }
+
+    pub fn locked(&self) -> &HashSet<Selection> {
+        &self.locked
+    }
+
+    /// Hides the selection (and lets go of it), or shows it again when all of it is hidden.
+    /// Returns what happened.
+    pub fn toggle_hidden(&mut self) -> String {
+        let n = self.selection.len();
+        if toggle(&mut self.hidden, &self.selection) {
+            self.selection.clear();
+            format!("Hid {n} · Shift+H shows everything")
+        } else {
+            format!("Showed {n}")
+        }
+    }
+
+    /// Locks the selection (and lets go of it), or unlocks it when all of it is locked.
+    pub fn toggle_locked(&mut self) -> String {
+        let n = self.selection.len();
+        if toggle(&mut self.locked, &self.selection) {
+            self.selection.clear();
+            format!("Locked {n} · Shift+L unlocks everything")
+        } else {
+            format!("Unlocked {n}")
+        }
+    }
+
+    /// Shows everything hidden; returns how many.
+    pub fn show_all(&mut self) -> usize {
+        std::mem::take(&mut self.hidden).len()
+    }
+
+    /// Unlocks everything locked; returns how many.
+    pub fn unlock_all(&mut self) -> usize {
+        std::mem::take(&mut self.locked).len()
+    }
+
+    /// Whether pointer picking passes over `s`.
+    fn unpickable(&self, s: &Selection) -> bool {
+        self.hidden.contains(s) || self.locked.contains(s)
     }
 
     /// The selection box being dragged out, as world corners.
@@ -205,9 +268,11 @@ impl Editor {
             boxing.1 = world;
         }
         if p.primary_pressed {
-            let picked = p.cell.zip(p.world).and_then(|(cell, world)| {
-                selection::pick(doc.scene(), cell, world, p.pick_radius, what)
-            });
+            let picked = (p.cell.zip(p.world))
+                .and_then(|(cell, world)| {
+                    selection::pick(doc.scene(), cell, world, p.pick_radius, what)
+                })
+                .filter(|s| !self.unpickable(s));
             match picked {
                 // Shift adds or takes away; it doesn't drag.
                 Some(s) if p.shift => match self.selection.iter().position(|x| *x == s) {
@@ -250,6 +315,7 @@ impl Editor {
         if !add {
             self.selection.clear();
         }
+        let found: Vec<Selection> = found.into_iter().filter(|s| !self.unpickable(s)).collect();
         for s in found {
             if !self.selection.contains(&s) {
                 self.selection.push(s);
@@ -308,5 +374,18 @@ impl Editor {
             return Some(run(doc, SceneCommand::MovePortal { id, to: cell }));
         }
         None
+    }
+}
+
+/// Marks `items` in `set`, or unmarks them when all are marked; true when it marked.
+fn toggle(set: &mut HashSet<Selection>, items: &[Selection]) -> bool {
+    if !items.is_empty() && items.iter().all(|s| set.contains(s)) {
+        for s in items {
+            set.remove(s);
+        }
+        false
+    } else {
+        set.extend(items.iter().copied());
+        true
     }
 }

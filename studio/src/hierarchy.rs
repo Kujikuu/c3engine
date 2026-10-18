@@ -66,6 +66,8 @@ impl Studio {
         self.revealed = selected;
         let tree = Tree {
             selected: self.editor.selection(),
+            hidden: self.editor.hidden(),
+            locked: self.editor.locked(),
             reveal,
         };
         egui::ScrollArea::vertical()
@@ -282,6 +284,8 @@ pub(crate) fn new_spawn(at: CellPos) -> Spawn {
 /// How the tree marks the selection this frame.
 struct Tree<'a> {
     selected: &'a [Selection],
+    hidden: &'a std::collections::HashSet<Selection>,
+    locked: &'a std::collections::HashSet<Selection>,
     /// Selection to open the group of and scroll to (it just changed).
     reveal: Option<Selection>,
 }
@@ -306,9 +310,24 @@ impl Tree<'_> {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                     for (label, selection) in rows {
                         let on = self.selected.contains(selection);
+                        let hidden = self.hidden.contains(selection);
+                        let mut text = String::new();
+                        if hidden {
+                            text.push_str(icons::EYE_SLASH);
+                            text.push(' ');
+                        }
+                        if self.locked.contains(selection) {
+                            text.push_str(icons::LOCK);
+                            text.push(' ');
+                        }
+                        text.push_str(label);
+                        let mut text = RichText::new(text);
+                        if hidden {
+                            text = text.color(theme::TEXT_DIM);
+                        }
                         let row = ui
                             .add(
-                                egui::Button::selectable(on, label)
+                                egui::Button::selectable(on, text)
                                     .wrap_mode(egui::TextWrapMode::Truncate),
                             )
                             .on_hover_text("Click to select it and show it in the Scene");

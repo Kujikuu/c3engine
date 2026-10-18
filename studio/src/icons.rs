@@ -4,10 +4,14 @@
 
 // Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses; find
 // more with `python scripts/phosphor_icon.py engine/ui/assets/fonts/Phosphor.ttf <icon-name>...`.
+pub const ALIGN_CENTER_HORIZONTAL: &str = "\u{E50A}";
+pub const ALIGN_CENTER_VERTICAL: &str = "\u{E50C}";
 pub const APP_WINDOW: &str = "\u{E5DA}";
 pub const ARROW_CLOCKWISE: &str = "\u{E036}";
 pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{E038}";
 pub const ARROW_DOWN: &str = "\u{E03E}";
+pub const ARROW_LINE_DOWN: &str = "\u{E05C}";
+pub const ARROW_LINE_UP: &str = "\u{E066}";
 pub const ARROW_RIGHT: &str = "\u{E06C}";
 pub const ARROW_SQUARE_OUT: &str = "\u{E5DE}";
 pub const ARROW_UP: &str = "\u{E08E}";
@@ -28,6 +32,7 @@ pub const DATABASE: &str = "\u{E1DE}";
 pub const DOOR_OPEN: &str = "\u{E7E6}";
 pub const DOWNLOAD_SIMPLE: &str = "\u{E20C}";
 pub const ERASER: &str = "\u{E21E}";
+pub const EYE_SLASH: &str = "\u{E224}";
 pub const FILE: &str = "\u{E230}";
 pub const FILE_AUDIO: &str = "\u{EA20}";
 pub const FILE_CODE: &str = "\u{E914}";
@@ -51,6 +56,7 @@ pub const KEY: &str = "\u{E2D6}";
 pub const LAYOUT: &str = "\u{E6D6}";
 pub const LINK_BREAK: &str = "\u{E2E4}";
 pub const LIST_BULLETS: &str = "\u{E2F2}";
+pub const LOCK: &str = "\u{E2FA}";
 pub const MAGNIFYING_GLASS: &str = "\u{E30C}";
 pub const MAGNIFYING_GLASS_MINUS: &str = "\u{E30E}";
 pub const MAGNIFYING_GLASS_PLUS: &str = "\u{E310}";

@@ -3,11 +3,11 @@
 //! the clipboard (pasted on this map or another).
 
 use c3_edit::{SceneCommand, entity_label};
-use c3_scene::{CellPos, Entity, Npc, Placement, PortalTarget, Scene, Spawn};
+use c3_scene::{CellPos, Entity, EntityKind, Npc, Placement, PortalTarget, Scene, Spawn};
 use std::collections::HashSet;
 
 /// One selected thing on the map, by the id (or index) commands use.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Selection {
     Portal(i32),
     /// Index in the scene's entity list.
@@ -100,6 +100,104 @@ pub fn move_all(scene: &Scene, selection: &[Selection], delta: CellPos) -> Vec<S
         .filter_map(|s| {
             let at = s.cell(scene)?;
             s.move_to(scene, (at.0 + delta.0, at.1 + delta.1))
+        })
+        .collect()
+}
+
+/// The commands that shift the selected sprites' images by `delta` pixels (others stay).
+pub fn nudge_pixels(
+    scene: &Scene,
+    selection: &[Selection],
+    delta: (i32, i32),
+) -> Vec<SceneCommand> {
+    (selection.iter())
+        .filter_map(|s| {
+            let Selection::Entity(index) = *s else {
+                return None;
+            };
+            let mut entity = scene.entities.get(index)?.clone();
+            let EntityKind::Sprite { offset, .. } = &mut entity.kind else {
+                return None;
+            };
+            *offset = (offset.0 + delta.0, offset.1 + delta.1);
+            Some(SceneCommand::SetEntity { index, entity })
+        })
+        .collect()
+}
+
+/// The commands that draw the selected objects over (`front`) or under every other object
+/// on the same spot, and the selection afterwards.
+pub fn reorder(
+    scene: &Scene,
+    selection: &[Selection],
+    front: bool,
+) -> (Vec<SceneCommand>, Vec<Selection>) {
+    let mut indices: Vec<usize> = (selection.iter())
+        .filter_map(|s| match *s {
+            Selection::Entity(i) if i < scene.entities.len() => Some(i),
+            _ => None,
+        })
+        .collect();
+    indices.sort_unstable();
+    let count = indices.len();
+    let mut commands: Vec<SceneCommand> = (indices.iter().rev())
+        .map(|&index| SceneCommand::RemoveEntity { index })
+        .collect();
+    let first = if front {
+        scene.entities.len() - count
+    } else {
+        0
+    };
+    commands.extend(
+        indices
+            .iter()
+            .enumerate()
+            .map(|(k, &i)| SceneCommand::AddEntity {
+                entity: scene.entities[i].clone(),
+                index: Some(first + k),
+            }),
+    );
+    let others = selection
+        .iter()
+        .filter(|s| !matches!(s, Selection::Entity(_)));
+    let selected = (first..first + count)
+        .map(Selection::Entity)
+        .chain(others.copied());
+    (commands, selected.collect())
+}
+
+/// A line the selection can be lined up on, through its first one.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Line {
+    /// Level on screen: the same height.
+    Row,
+    /// Upright on screen: straight above and below each other.
+    Column,
+}
+
+/// The commands that move the rest of the selection onto `line` through the first one,
+/// each the shortest way (cells on a diamond grid meet a line every other step, so some
+/// land one cell beside it).
+pub fn align(scene: &Scene, selection: &[Selection], line: Line) -> Vec<SceneCommand> {
+    let Some(anchor) = selection.first().and_then(|s| s.cell(scene)) else {
+        return Vec::new();
+    };
+    (selection.iter().skip(1))
+        .filter_map(|s| {
+            let (x, y) = s.cell(scene)?;
+            let to = match line {
+                // Screen height follows x + y; moving by (t, t) keeps x - y.
+                Line::Row => {
+                    let t = ((anchor.0 + anchor.1) - (x + y)).div_euclid(2);
+                    (x + t, y + t)
+                }
+                // Screen x follows x - y; moving by (t, -t) keeps x + y.
+                Line::Column => {
+                    let t = ((anchor.0 - anchor.1) - (x - y)).div_euclid(2);
+                    (x + t, y - t)
+                }
+            };
+            ((x, y) != to).then(|| s.move_to(scene, to)).flatten()
         })
         .collect()
 }
@@ -305,4 +403,97 @@ pub fn pick(
             .map(|s| Selection::Spawn(s.id));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use c3_scene::{Grid, IsoProjection};
+
+    fn sprite(cell: CellPos) -> Entity {
+        Entity {
+            placement: Placement::Cell(cell),
+            kind: EntityKind::Sprite {
+                asset: "tree.png".into(),
+                animation: "all".into(),
+                footprint: (1, 1),
+                offset: (0, 0),
+                frame_ms: 100,
+            },
+        }
+    }
+
+    fn scene(cells: &[CellPos]) -> Scene {
+        Scene {
+            grid: Grid::new(32, 32),
+            projection: IsoProjection::for_grid(64.0, 32.0, 32),
+            ground: None,
+            portals: Vec::new(),
+            entities: cells.iter().map(|&c| sprite(c)).collect(),
+            layers: Vec::new(),
+            npcs: Vec::new(),
+            spawns: Vec::new(),
+            meta: Default::default(),
+        }
+    }
+
+    fn cell_after(command: &SceneCommand) -> CellPos {
+        match command {
+            SceneCommand::MoveEntity { to, .. } => *to,
+            other => panic!("not a move: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn lining_up_keeps_the_screen_line() {
+        let s = scene(&[(10, 10), (14, 9), (7, 13)]);
+        let all = [
+            Selection::Entity(0),
+            Selection::Entity(1),
+            Selection::Entity(2),
+        ];
+        // A row: the same x + y (screen height) as the first.
+        for c in align(&s, &all, Line::Row) {
+            let (x, y) = cell_after(&c);
+            assert!((x + y - 20).abs() <= 1, "{x},{y}");
+        }
+        // A column: the same x - y (screen x) as the first.
+        for c in align(&s, &all, Line::Column) {
+            let (x, y) = cell_after(&c);
+            assert!((x - y).abs() <= 1, "{x},{y}");
+        }
+    }
+
+    #[test]
+    fn reordering_moves_objects_to_the_ends_of_the_list() {
+        let s = scene(&[(1, 1), (2, 2), (3, 3), (4, 4)]);
+        let (commands, after) = reorder(&s, &[Selection::Entity(1)], true);
+        assert_eq!(after, [Selection::Entity(3)]);
+        assert!(matches!(
+            commands[0],
+            SceneCommand::RemoveEntity { index: 1 }
+        ));
+        assert!(matches!(
+            commands[1],
+            SceneCommand::AddEntity { index: Some(3), .. }
+        ));
+        let (_, after) = reorder(&s, &[Selection::Entity(2), Selection::Entity(3)], false);
+        assert_eq!(after, [Selection::Entity(0), Selection::Entity(1)]);
+    }
+
+    #[test]
+    fn pixel_nudges_shift_sprite_images() {
+        let s = scene(&[(1, 1)]);
+        let commands = nudge_pixels(&s, &[Selection::Entity(0)], (0, -1));
+        let SceneCommand::SetEntity { entity, .. } = &commands[0] else {
+            panic!("not a set");
+        };
+        assert!(matches!(
+            entity.kind,
+            EntityKind::Sprite {
+                offset: (0, -1),
+                ..
+            }
+        ));
+    }
 }

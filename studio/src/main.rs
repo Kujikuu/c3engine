@@ -8,6 +8,7 @@
 //! `--map` as one undo step.
 
 mod app;
+mod arrange;
 mod asset_import;
 mod asset_ops;
 mod browser;

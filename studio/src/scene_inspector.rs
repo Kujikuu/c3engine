@@ -156,6 +156,7 @@ impl Studio {
                     .clicked();
             });
         });
+        self.arrange_bar(ui);
         ui.separator();
         let mut it = Interaction::default();
         let command = match selected {

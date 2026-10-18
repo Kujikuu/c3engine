@@ -188,6 +188,7 @@ impl Studio {
             time_ms: self.scene_ms as u64,
             selection: self.editor.selection(),
             boxing: self.editor.boxing(),
+            hidden: self.editor.hidden(),
             drag_target: self.editor.drag_target(doc, self.hover),
         };
         live.view.layers = self.layers;
