@@ -7,7 +7,7 @@ use c3_formats_tq::{
     ani::Ani,
     dmap::{Cell, DMap, Passage},
     pul::{EMPTY, GRID_SIZE, Puzzle},
-    texture::Image,
+    texture::decode_image,
     vfs::ClientFs,
 };
 use eframe::egui::{self, Pos2, Rect, TextureHandle, Vec2};
@@ -181,7 +181,7 @@ impl MapDoc {
         *budget -= 1;
         let tex = (|| {
             let frame = self.ani.get(&Puzzle::tile_title(idx))?.frame_str(0)?;
-            let img = Image::decode(&fs.read(&frame)?).ok()?;
+            let img = decode_image(&fs.read(&frame)?).ok()?;
             let size = [img.width as usize, img.height as usize];
             let color = egui::ColorImage::from_rgba_unmultiplied(size, &img.rgba);
             Some(ctx.load_texture(format!("puzzle{idx}"), color, egui::TextureOptions::LINEAR))

@@ -108,8 +108,38 @@ impl<const N: usize> FixedStr<N> {
 
     /// Text up to the first NUL. TQ strings are GBK; non-UTF-8 bytes are replaced.
     pub fn as_str(&self) -> String {
+        String::from_utf8_lossy(self.text_bytes()).into_owned()
+    }
+
+    /// Bytes up to the first NUL.
+    pub fn text_bytes(&self) -> &[u8] {
         let end = self.0.iter().position(|&c| c == 0).unwrap_or(N);
-        String::from_utf8_lossy(&self.0[..end]).into_owned()
+        &self.0[..end]
+    }
+
+    /// GBK-decoded text up to the first NUL (TQ client strings are GBK).
+    pub fn to_gbk_string(&self) -> String {
+        encoding_rs::GBK
+            .decode_without_bom_handling(self.text_bytes())
+            .0
+            .into_owned()
+    }
+
+    /// GBK-encodes `s` into a zero-filled buffer, truncating to fit the terminator.
+    pub fn from_gbk(s: &str) -> Self {
+        let (bytes, _, _) = encoding_rs::GBK.encode(s);
+        let mut b = [0u8; N];
+        let n = bytes.len().min(N - 1);
+        b[..n].copy_from_slice(&bytes[..n]);
+        Self(b)
+    }
+
+    /// Same text with every byte after the terminator zeroed.
+    pub fn canonical(&self) -> Self {
+        let mut b = [0u8; N];
+        let t = self.text_bytes();
+        b[..t.len()].copy_from_slice(t);
+        Self(b)
     }
 }
 

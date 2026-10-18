@@ -5,7 +5,7 @@ use c3_formats_tq::{
     ani::Ani,
     dmap::DMap,
     pul::{EMPTY, GRID_SIZE, Puzzle},
-    texture::Image,
+    texture::{Image, decode_image},
     vfs::ClientFs,
 };
 use std::collections::HashMap;
@@ -58,7 +58,7 @@ fn main() {
                     eprintln!("tile {idx}: file not found {frame}");
                     return None;
                 };
-                Image::decode(&bytes)
+                decode_image(&bytes)
                     .map_err(|e| eprintln!("tile {idx}: {frame}: {e}"))
                     .ok()
             });

@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+c3-assets = { version = "0.1.0", path = "../../engine/assets" }
+c3-scene = { version = "0.1.0", path = "../../engine/scene" }
+encoding_rs = "0.8.42"
 thiserror = "2"
 
 [dev-dependencies]

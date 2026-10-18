@@ -52,3 +52,9 @@ impl ClientFs {
         None
     }
 }
+
+impl c3_assets::AssetSource for ClientFs {
+    fn read(&self, path: &str) -> Option<Cow<'_, [u8]>> {
+        ClientFs::read(self, path)
+    }
+}

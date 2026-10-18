@@ -201,7 +201,7 @@ fn anis_parse_and_reparse_identically() {
 
 #[test]
 fn every_packed_texture_decodes() {
-    use c3_formats_tq::texture::Image;
+    use c3_formats_tq::texture::decode_image;
     let Some(dir) = client_dir() else { return };
     let (mut ok, mut failed) = (0, Vec::new());
     for name in ["c3.wdf", "data.wdf"] {
@@ -211,7 +211,7 @@ fn every_packed_texture_decodes() {
             if !b.starts_with(b"DDS ") {
                 continue;
             }
-            match Image::decode(b) {
+            match decode_image(b) {
                 Ok(img) if img.rgba.len() == (img.width * img.height * 4) as usize => ok += 1,
                 Ok(_) => failed.push(format!("{name}:{:#x} bad size", e.uid)),
                 Err(err) => failed.push(format!("{name}:{:#x} {err}", e.uid)),
@@ -248,4 +248,83 @@ fn ani_frame_paths_exist_in_packages() {
     }
     eprintln!("Common.Ani frames found: {found}/{total}");
     assert!(found * 10 >= total * 9, "too many missing frames");
+}
+
+/// DMap with every fixed string canonicalized (bytes after the NUL zeroed).
+fn canonical(mut d: DMap) -> DMap {
+    use c3_formats_tq::dmap::{InteractiveObj as I, SceneObj as S};
+    d.puzzle_file = d.puzzle_file.canonical();
+    for o in &mut d.interactive {
+        match o {
+            I::Cover {
+                ani_file,
+                ani_title,
+                ..
+            } => {
+                *ani_file = ani_file.canonical();
+                *ani_title = ani_title.canonical();
+            }
+            I::Terrain { file, .. } | I::Sound { file, .. } => *file = file.canonical(),
+            I::Effect { index, .. } | I::EffectNew { index, .. } => *index = index.canonical(),
+        }
+    }
+    for l in &mut d.scene_layers {
+        for o in &mut l.objects {
+            match o {
+                S::Scene {
+                    ani_file,
+                    ani_title,
+                    ..
+                } => {
+                    *ani_file = ani_file.canonical();
+                    *ani_title = ani_title.canonical();
+                }
+                S::Puzzle { file } => *file = file.canonical(),
+            }
+        }
+    }
+    d
+}
+
+#[test]
+fn every_map_imports_to_scene_and_exports_back() {
+    use c3_formats_tq::{scene_io, vfs::ClientFs};
+    let Some(dir) = client_dir() else { return };
+    let fs = ClientFs::open(&dir).unwrap();
+    let (mut ok, mut failed) = (0, Vec::new());
+    for entry in std::fs::read_dir(dir.join("map").join("map"))
+        .unwrap()
+        .flatten()
+    {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.to_ascii_lowercase().ends_with(".dmap") {
+            continue;
+        }
+        let path = format!("map/map/{name}");
+        let scene = match scene_io::import_map(&fs, &path) {
+            Ok(imported) => {
+                for w in &imported.warnings {
+                    eprintln!("{name}: {w}");
+                }
+                imported.scene
+            }
+            Err(e) => {
+                failed.push(format!("{name}: import: {e}"));
+                continue;
+            }
+        };
+        let original = canonical(DMap::parse(&std::fs::read(entry.path()).unwrap()).unwrap());
+        if scene_io::export_dmap(&scene).to_bytes() == original.to_bytes() {
+            ok += 1;
+        } else {
+            failed.push(format!("{name}: export differs"));
+        }
+    }
+    eprintln!("scene round-trips: {ok}");
+    assert!(
+        failed.is_empty(),
+        "{} failed:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
 }

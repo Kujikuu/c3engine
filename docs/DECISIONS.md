@@ -11,6 +11,9 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · Studio UI on **eframe/egui 0.37**; the v1 map viewport draws with egui's painter · fastest path to a usable editor. The game client's renderer (`engine/render`, wgpu) comes later, and the Studio viewport can switch to it then.
 - 2026-10-18 · **UI/UX and clean code are standing requirements** · user priority. Studio work is checked with screenshots; the workspace must stay `cargo clippy` clean and `cargo fmt` formatted.
 
+- 2026-10-18 · **Course correction (drift).** Studio work jumped ahead of M1/M2 and edited raw TQ `DMap`s, so the Studio was a Conquer editor rather than an engine editor. Fix, in this order: (1) game-agnostic `engine/scene` + `engine/assets`, plus a TQ importer/exporter; (2) move the Studio onto engine types; (3) finish M1 with the C3 models; (4) M2 wgpu renderer. **Rule: no new Studio features until (1)–(2) are done; editors only ever touch engine types.**
+- 2026-10-18 · Engine text is UTF-8. TQ strings are GBK, converted at the importer/exporter boundary (`encoding_rs`). Export→import round-trips are *semantic*: bytes after a fixed-string NUL are not preserved. The raw format parsers stay byte-exact.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

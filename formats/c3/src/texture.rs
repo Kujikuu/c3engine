@@ -2,22 +2,14 @@
 //! to straight RGBA8. The 5065 archives contain only DXT1/DXT3 DDS plus a few TGAs.
 
 use crate::io::{Error, Reader, Result};
+pub use c3_assets::Image;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Image {
-    pub width: u32,
-    pub height: u32,
-    /// RGBA8, row-major, top row first.
-    pub rgba: Vec<u8>,
-}
-
-impl Image {
-    pub fn decode(data: &[u8]) -> Result<Self> {
-        if data.starts_with(b"DDS ") {
-            decode_dds(data)
-        } else {
-            decode_tga(data)
-        }
+/// Decodes a DDS or TGA file to an engine [`Image`].
+pub fn decode_image(data: &[u8]) -> Result<Image> {
+    if data.starts_with(b"DDS ") {
+        decode_dds(data)
+    } else {
+        decode_tga(data)
     }
 }
 
