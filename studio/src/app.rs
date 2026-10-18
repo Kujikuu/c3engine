@@ -4,14 +4,22 @@ use crate::doc::MapDoc;
 use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
 use crate::map_view::{self, Camera, GroundCache, Overlays, ViewMode, colors};
+use crate::model_view::{ModelDoc, OrbitCamera};
 use crate::theme;
-use crate::tq_plugin::Client;
+use crate::tq_plugin::{Client, ModelEntry};
 use c3_scene::CellPos;
 use eframe::egui::{self, Key};
 use std::time::{Duration, Instant};
 
 const DEFAULT_CLIENT: &str = r"D:\Conquer2\Tools\eosource\client5065";
 const NOTICE_DURATION: Duration = Duration::from_secs(4);
+
+/// Top-level editor area.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Workspace {
+    Maps,
+    Models,
+}
 
 /// Something waiting on the "unsaved changes" prompt.
 #[derive(Clone)]
@@ -23,14 +31,18 @@ pub(crate) enum Pending {
 pub struct Studio {
     pub(crate) client_dir: String,
     pub(crate) client: Option<Client>,
+    pub(crate) workspace: Workspace,
     pub(crate) maps: Vec<String>,
+    pub(crate) models: Vec<ModelEntry>,
+    pub(crate) model: Option<ModelDoc>,
+    pub(crate) orbit: OrbitCamera,
     pub(crate) filter: String,
     pub(crate) doc: Option<MapDoc>,
     pub(crate) cam: Camera,
     pub(crate) overlays: Overlays,
     pub(crate) editor: Editor,
     /// Engine renderer; `None` if eframe isn't running on wgpu.
-    gpu: Option<GpuView>,
+    pub(crate) gpu: Option<GpuView>,
     pub(crate) ground: GroundCache,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
@@ -60,7 +72,11 @@ impl Studio {
         let mut s = Self {
             client_dir,
             client: None,
+            workspace: Workspace::Maps,
             maps: Vec::new(),
+            models: Vec::new(),
+            model: None,
+            orbit: OrbitCamera::default(),
             filter: String::new(),
             doc: None,
             cam: Camera {
@@ -90,6 +106,13 @@ impl Studio {
         if let Some(m) = flag("--map") {
             s.load_map(&m);
         }
+        if let Some(id) = flag("--model").and_then(|m| m.parse::<u64>().ok()) {
+            s.workspace = Workspace::Models;
+            match s.models.iter().find(|e| e.id == id).cloned() {
+                Some(entry) => s.open_model(&entry),
+                None => s.error = Some(format!("Model {id} is not in 3dobj.ini")),
+            }
+        }
         if let Some(z) = flag("--zoom").and_then(|z| z.parse().ok()) {
             s.fit_pending = false;
             s.cam.zoom = z;
@@ -103,12 +126,14 @@ impl Studio {
         match Client::open(&self.client_dir) {
             Ok(client) => {
                 self.maps = client.list_maps();
+                self.models = client.list_models();
                 self.client = Some(client);
                 self.error = None;
             }
             Err(e) => {
                 self.client = None;
                 self.maps.clear();
+                self.models.clear();
                 self.error = Some(format!("Can't open client folder: {e}"));
             }
         }
@@ -238,6 +263,10 @@ impl Studio {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
+        if self.workspace == Workspace::Models {
+            self.model_shortcuts(ctx);
+            return;
+        }
         ctx.input(|i| {
             if i.modifiers.command {
                 return;
@@ -319,13 +348,14 @@ impl Studio {
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
-        let title = match &self.doc {
-            Some(d) => format!(
+        let title = match (self.workspace, &self.doc, &self.model) {
+            (Workspace::Models, _, Some(m)) => format!("Model {} — C3 Studio", m.entry.id),
+            (Workspace::Maps, Some(d), _) => format!(
                 "{}{} — C3 Studio",
                 if d.is_dirty() { "● " } else { "" },
                 d.name()
             ),
-            None => "C3 Studio".to_owned(),
+            _ => "C3 Studio".to_owned(),
         };
         if title != self.title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -400,15 +430,34 @@ impl eframe::App for Studio {
         egui::Panel::bottom("status")
             .exact_size(26.0)
             .show(ui, |ui| self.status_bar(ui));
-        egui::Panel::left("maps")
+        let models = self.workspace == Workspace::Models;
+        egui::Panel::left("browser")
             .default_size(220.0)
             .size_range(160.0..=400.0)
-            .show(ui, |ui| self.map_list(ui));
+            .show(ui, |ui| {
+                if models {
+                    self.model_list(ui)
+                } else {
+                    self.map_list(ui)
+                }
+            });
         egui::Panel::right("inspector")
             .default_size(270.0)
             .size_range(220.0..=440.0)
-            .show(ui, |ui| self.inspector(ui));
-        egui::CentralPanel::no_frame().show(ui, |ui| self.viewport(ui));
+            .show(ui, |ui| {
+                if models {
+                    self.model_inspector(ui)
+                } else {
+                    self.inspector(ui)
+                }
+            });
+        egui::CentralPanel::no_frame().show(ui, |ui| {
+            if models {
+                self.model_viewport(ui)
+            } else {
+                self.viewport(ui)
+            }
+        });
 
         self.unsaved_prompt(&ctx);
         if self.notice.is_some() {

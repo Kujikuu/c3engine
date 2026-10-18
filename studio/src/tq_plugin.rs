@@ -1,11 +1,11 @@
 //! The only module that knows about TQ/Conquer formats. It opens a client folder as an
-//! asset source and converts maps to and from engine scenes. Everything else in the
+//! asset source and converts maps and models to engine types. Everything else in the
 //! Studio works on `c3_scene` / `c3_assets` types.
 //!
 //! When more games are supported this becomes one implementation of a format-plugin trait.
 
-use c3_assets::Image;
-use c3_formats_tq::{scene_io, texture, vfs::ClientFs};
+use c3_assets::{Image, model::Model};
+use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs::ClientFs};
 use c3_scene::Scene;
 use std::path::{Path, PathBuf};
 
@@ -15,13 +15,31 @@ pub use scene_io::Imported;
 pub struct Client {
     pub root: PathBuf,
     fs: ClientFs,
+    /// `ini/3dobj.ini`: model id → C3 path.
+    objects: PathTable,
+    /// `ini/3dtexture.ini`: texture id → image path.
+    textures: PathTable,
+}
+
+/// A model listed in the client's object table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelEntry {
+    pub id: u64,
+    pub path: String,
 }
 
 impl Client {
     pub fn open(root: &str) -> Result<Self, String> {
         let fs = ClientFs::open(root).map_err(|e| e.to_string())?;
+        let table = |name: &str| {
+            fs.read(&format!("ini/{name}"))
+                .map(|b| PathTable::parse(&b))
+                .unwrap_or_default()
+        };
         Ok(Self {
             root: PathBuf::from(root),
+            objects: table("3dobj.ini"),
+            textures: table("3dtexture.ini"),
             fs,
         })
     }
@@ -39,6 +57,33 @@ impl Client {
             .unwrap_or_default();
         maps.sort_by_key(|m| m.to_ascii_lowercase());
         maps
+    }
+
+    /// Models from `3dobj.ini`, by id.
+    pub fn list_models(&self) -> Vec<ModelEntry> {
+        self.objects
+            .paths
+            .iter()
+            .map(|(&id, path)| ModelEntry {
+                id,
+                path: path.clone(),
+            })
+            .collect()
+    }
+
+    pub fn import_model(&self, path: &str) -> Result<Model, String> {
+        let bytes = self
+            .fs
+            .read(path)
+            .ok_or_else(|| format!("File not found: {path}"))?;
+        let file = C3File::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
+        model_io::import_model(&file).map_err(|e| format!("{path}: {e}"))
+    }
+
+    /// Image path registered under the same id in `3dtexture.ini` (NPCs, monsters and
+    /// effects share ids between their mesh and texture; equipment uses the part tables).
+    pub fn texture_for(&self, id: u64) -> Option<&str> {
+        self.textures.get(id)
     }
 
     pub fn import_map(&self, path: &str) -> Result<Imported, String> {

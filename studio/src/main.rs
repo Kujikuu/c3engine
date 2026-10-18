@@ -1,11 +1,13 @@
 //! C3 Studio: the engine's editor. v0: client map browser/viewer.
-//! Usage: c3-studio [client_dir] [--map map/map/xxx.DMap] [--zoom 0.5]
+//! Usage: c3-studio [client_dir] [--map map/map/xxx.DMap] [--zoom 0.5] [--model <3dobj id>]
 
 mod app;
 mod doc;
 mod editor;
 mod gpu;
 mod map_view;
+mod model_view;
+mod models_ws;
 mod panels;
 mod theme;
 mod tq_plugin;

@@ -1,6 +1,6 @@
 //! Studio panels: toolbar, tool palette, map list, inspector, status bar, and prompts.
 
-use crate::app::{Pending, Studio};
+use crate::app::{Pending, Studio, Workspace};
 use crate::editor::{MAX_BRUSH, Tool};
 use crate::map_view::colors;
 use crate::theme;
@@ -16,6 +16,30 @@ impl Studio {
                     .color(theme::ACCENT),
             );
             ui.separator();
+            for (ws, label, hint) in [
+                (
+                    Workspace::Maps,
+                    "🗺 Maps",
+                    "Edit map walkability and portals",
+                ),
+                (
+                    Workspace::Models,
+                    "🧍 Models",
+                    "Browse and preview 3D models",
+                ),
+            ] {
+                let r = ui
+                    .add(egui::Button::selectable(self.workspace == ws, label))
+                    .on_hover_text(hint);
+                if r.clicked() && self.workspace != ws {
+                    self.workspace = ws;
+                    self.filter.clear();
+                }
+            }
+            ui.separator();
+            if self.workspace == Workspace::Models {
+                return;
+            }
 
             let has_doc = self.doc.is_some();
             let (can_undo, can_redo) = self
@@ -339,6 +363,37 @@ impl Studio {
                 ui.colored_label(theme::DANGER, format!("⚠ {e}"));
             } else if let Some(n) = self.active_notice() {
                 ui.colored_label(colors::COVER, format!("✔ {n}"));
+            } else if self.workspace == Workspace::Models {
+                match &self.model {
+                    Some(m) => {
+                        ui.label(&m.entry.path);
+                        let frames = m.frame_count();
+                        if frames > 0 {
+                            ui.separator();
+                            let state = if m.playing { "▶" } else { "⏸" };
+                            ui.label(
+                                RichText::new(format!(
+                                    "{state} frame {:.0} / {frames}",
+                                    m.frame.floor()
+                                ))
+                                .monospace(),
+                            );
+                        }
+                    }
+                    None => {
+                        ui.label(RichText::new("No model open").weak());
+                    }
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        RichText::new(
+                            "Drag to orbit · Scroll zooms · Space play/pause · ← → step · F reset",
+                        )
+                        .weak()
+                        .small(),
+                    );
+                });
+                return;
             } else if let Some(doc) = &self.doc {
                 ui.label(&doc.path);
                 ui.separator();

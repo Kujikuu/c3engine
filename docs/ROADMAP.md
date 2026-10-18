@@ -28,7 +28,13 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       `c3_assets::model`, TQ importer `model_io`; all 4,516 files verified; `modelshot` renders posed models
 - [ ] (3b) Typed decode of SHAP/SMOT (trails), PTCL/PTCX/PTC3 (particles), CAME (camera). Currently raw
 - [ ] (3c) Remaining M1 tables: ini/dat wiring (3DObj, 3DMotion, 3DTexture, armor, weapon), DNP, MSK
-- [ ] (4) M2 renderer (wgpu)
+- [x] (4) M2 renderer: `engine/render` (wgpu 30) with sprite + lit mesh passes into offscreen targets
+      (headless GPU test). Studio ground and the new Models workspace render through it
+
+## Next
+- [ ] Draw map scene objects (cover/scene sprites from ANI) so maps look complete
+- [ ] Character assembly in `games/conquer` (look + armor/armet/weapon parts + 3dmotion), previewed in Studio
+- [ ] Game client app (`apps/client`): winit window presenting `c3-render`, map + walking hero
 
 ## M2: Renderer
 - [ ] wgpu window + camera
