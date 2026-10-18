@@ -173,11 +173,13 @@ In order; each step is playable in the Studio's Play mode:
       to check there: jump, teleport, items and equipment, shop buy/sell, other players.
       Skills over this protocol come with M7 step 5
 
-## M7: Complete Conquer in the Studio
+## M7: Complete engine: Conquer first, Eudemons second
 Review (2026-10-18): M3, M5 and M6 were proven on a scratch project with four hand-made NPCs. A
 real imported Conquer project had empty maps, tables and scripts: the import brings only the
 client's files, and the world (NPCs, spawns, tables, NPC logic) lives in TQ's server data. This
-milestone makes Conquer itself a complete, editable project. In order:
+milestone makes Conquer itself a complete, editable project, then proves the engine on Eudemons
+Online (user, 2026-10-18: "a complete game engine that can truly create Conquer Online or
+Eudemons, with everything, like Unity, easier for indies"). In order:
 - [ ] (1) Full import in one step: "Import Conquer 5065" takes the client folder and TQ's server
       data (an SQL dump such as `tq_re/db/cq_finalized_mariadb.sql`) and fills the project:
       every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn areas (`cq_generator`), portals and their
@@ -223,6 +225,27 @@ milestone makes Conquer itself a complete, editable project. In order:
 - [ ] (6) Conquer's look and a UI editor: the engine's client draws Conquer's GUI (the 5065 GUI
       ini and images) as a c3-ui skin; a Studio UI editor for windows, HUD and dialogs (layout,
       images, data bindings)
+- [ ] (7) Project Settings, Unity-style (Edit > Project Settings; saved in the project, applied
+      live in Play mode, read by the built client and server):
+  - [ ] Player: game name, icon, window and full screen, resolutions, login and loading screens
+  - [ ] Cursors: normal, attack, talk, pick up, portal, busy and more, from the project's
+        assets (ANI / cursor files), with hotspots; per-state preview
+  - [ ] Camera: projection (cell size), zoom levels and limits, follow smoothing and dead
+        zone, map edge clamping, shake; a camera preview in the Game view
+  - [ ] Input: key and mouse bindings (walk, run, attack, skills F1..F10, UI windows), players
+        rebind them in game
+  - [ ] Graphics and audio: frame cap, vsync, effect quality; mixer volumes (master, music,
+        effects, UI)
+  - [ ] Gameplay and network: start map and cell, new character templates (classes, looks,
+        starting items), tick rate, view range, ports and protocol fronts
+  - [ ] Localization: string tables (the client's StrRes.ini and the game's own), fonts
+        (GBK and Unicode)
+- [ ] (8) Eudemons Online as the second game, from `D:\Conquer\Eudemons Online`: DNP packages
+      and the newer C3 / map / ini formats it uses (round-trip tests like M1), an importer into
+      a project, and the gameplay it adds as data-driven systems usable by any game (eudemons:
+      pets that are summoned, fight, level, evolve and are equipped; its classes and items)
+- [ ] (9) Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), a sample
+      game, in-Studio getting-started guide and tooltips, clear errors that say how to fix them
 
 ## M8: Prove + ship (was M7)
 - [ ] Prove generality: a small second sample game made only in the Studio
