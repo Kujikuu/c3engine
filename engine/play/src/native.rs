@@ -4,6 +4,7 @@
 //! images of their own (`path#index`), its animations a sprite set, its frames a tileset. A
 //! model's textures are images named `model#texture<i>`.
 
+use crate::native_effect;
 use c3_assets::Image;
 use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
@@ -94,6 +95,16 @@ impl NativeAssets {
         read
     }
 
+    /// The project's effects, by path.
+    pub fn effect_names(&self) -> Vec<String> {
+        self.db
+            .borrow()
+            .iter()
+            .filter(|(_, m)| m.import == Importer::Effect)
+            .map(|(p, _)| p.to_owned())
+            .collect()
+    }
+
     /// The bytes of file `path` of the assets.
     pub fn read(&self, path: &str) -> Option<Vec<u8>> {
         let db = self.db.borrow();
@@ -180,6 +191,9 @@ impl SceneAssets for NativeAssets {
         if let Some((model, index)) = c3_formats_gltf::split_texture_path(path) {
             return self.model(model).ok()?.images.get(index).cloned();
         }
+        if let Some((effect, layer)) = native_effect::split_atlas_path(path) {
+            return native_effect::atlas(effect, layer, self);
+        }
         let (file, frame) = split_frame(path);
         let image = self.decode(file)?;
         let import = self.image_import(file)?;
@@ -195,7 +209,15 @@ impl SceneAssets for NativeAssets {
     }
 
     fn effect(&self, name: &str) -> Result<Effect, String> {
-        Err(format!("the project has no effect \"{name}\""))
+        if self.importer(name) != Some(Importer::Effect) {
+            return Err(format!("the project has no effect \"{name}\""));
+        }
+        let bytes = self
+            .read(name)
+            .ok_or_else(|| format!("{name} can't be read"))?;
+        let text = String::from_utf8(bytes).map_err(|_| format!("{name} isn't text"))?;
+        let file = native_effect::parse(&text).map_err(|e| format!("{name}: {e}"))?;
+        native_effect::build(&file, name, self)
     }
 }
 

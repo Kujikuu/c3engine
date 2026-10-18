@@ -23,6 +23,7 @@ pub mod game;
 pub mod input;
 pub mod module;
 pub mod native;
+pub mod native_effect;
 pub mod project_game;
 pub mod screen;
 pub mod serve;

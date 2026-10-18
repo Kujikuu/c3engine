@@ -317,6 +317,9 @@ impl Studio {
                     });
             });
         egui::CentralPanel::default().show(ui, |ui| stage.viewport(ui));
+        if let Some(name) = self.preview_effect.take() {
+            pick_effect = Some(name);
+        }
         if let Some(name) = pick_effect {
             stage.effect = name;
             play_effect = true;

@@ -458,7 +458,7 @@ impl Studio {
                 Importer::Image(i) => form.image(ui, i, size),
                 Importer::Sound(s) => form.sound(ui, s),
                 Importer::Model(m) => form.model(ui, m),
-                Importer::Font | Importer::Data | Importer::Other => {}
+                Importer::Effect | Importer::Font | Importer::Data | Importer::Other => {}
             }
         });
         let edits = form.edits;

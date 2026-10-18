@@ -39,6 +39,8 @@ pub enum Importer {
     Image(ImageImport),
     Sound(SoundImport),
     Model(ModelImport),
+    /// The engine's own effect file (`.c3fx`).
+    Effect,
     Font,
     Data,
     #[default]
@@ -52,6 +54,7 @@ impl Importer {
             "png" | "jpg" | "jpeg" | "bmp" | "tga" => Self::Image(ImageImport::default()),
             "wav" | "ogg" | "mp3" => Self::Sound(SoundImport::for_file(name)),
             "gltf" | "glb" => Self::Model(ModelImport::default()),
+            "c3fx" => Self::Effect,
             "ttf" | "otf" => Self::Font,
             "toml" | "ron" | "json" | "csv" | "txt" | "lua" => Self::Data,
             _ => Self::Other,
@@ -63,6 +66,7 @@ impl Importer {
             Self::Image(_) => "Image",
             Self::Sound(_) => "Sound",
             Self::Model(_) => "Model",
+            Self::Effect => "Effect",
             Self::Font => "Font",
             Self::Data => "Data",
             Self::Other => "File",
@@ -75,7 +79,7 @@ impl Importer {
             Self::Image(i) => i.problems(),
             Self::Sound(s) => s.problems(),
             Self::Model(m) => m.problems(),
-            Self::Font | Self::Data | Self::Other => Vec::new(),
+            Self::Effect | Self::Font | Self::Data | Self::Other => Vec::new(),
         }
     }
 }

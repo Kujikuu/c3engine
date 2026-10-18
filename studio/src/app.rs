@@ -98,6 +98,8 @@ pub struct Studio {
     pub(crate) import_buffers: std::collections::HashMap<String, String>,
     /// Plays sounds the Inspector previews (opened on first use).
     pub(crate) preview_audio: Option<c3_audio::Audio>,
+    /// An effect the Preview panel is to play next.
+    pub(crate) preview_effect: Option<String>,
     /// The game's fonts need installing (Localization changed).
     pub(crate) fonts_dirty: bool,
     /// The Data panel: tables and the one open.
@@ -175,6 +177,7 @@ impl Studio {
             assets: None,
             import_buffers: std::collections::HashMap::new(),
             preview_audio: None,
+            preview_effect: None,
             fonts_dirty: false,
             client: None,
             workspace: Workspace::Maps,
@@ -282,6 +285,10 @@ impl Studio {
                 Err(_) => s.open_model(&crate::tq_plugin::ModelEntry { id: 0, path: model }),
             }
         }
+        if let Some(effect) = flag("--effect") {
+            s.preview_effect = Some(effect);
+            s.show_panel(crate::shell::Panel::Preview);
+        }
         if let Some(z) = flag("--zoom").and_then(|z| z.parse().ok()) {
             s.fit_pending = false;
             s.cam.zoom = z;
@@ -388,6 +395,7 @@ impl Studio {
         self.stage = None;
         self.maps.clear();
         self.models.clear();
+        self.effect_names.clear();
         if let Some((_, dir)) = self.project.as_ref().and_then(Project::tq_client) {
             match Client::open(&dir.display().to_string()) {
                 Ok(client) => {
@@ -412,6 +420,12 @@ impl Studio {
             }
             _ => None,
         };
+        // The project's own effects come first in the effect lists.
+        if let Some(native) = self.game.as_ref().and_then(|g| g.native()) {
+            let mut names = native.effect_names();
+            names.append(&mut self.effect_names);
+            self.effect_names = names;
+        }
         if let (Some(game), Some(project)) = (&self.game, &self.project) {
             let (settings, problem) = c3_play::settings::load(project, &**game);
             if let Some(problem) = problem {

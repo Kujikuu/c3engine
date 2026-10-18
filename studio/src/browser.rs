@@ -32,6 +32,8 @@ pub(crate) enum AssetKind {
     Model,
     /// A glTF model of the project's own.
     Gltf,
+    /// An effect in the engine's own format.
+    Effect,
     Texture,
     Font,
     Sprites,
@@ -53,6 +55,7 @@ impl AssetKind {
         tq_plugin::tq_kind(ext).unwrap_or(match ext {
             "dds" | "tga" | "png" | "jpg" | "jpeg" | "bmp" => Self::Texture,
             "gltf" | "glb" => Self::Gltf,
+            "c3fx" => Self::Effect,
             "ttf" | "otf" => Self::Font,
             "wav" | "mp3" | "ogg" => Self::Sound,
             "txt" | "ron" | "toml" | "json" | "csv" | "lua" => Self::Data,
@@ -66,6 +69,7 @@ impl AssetKind {
             Self::Map | Self::Scene => icons::MAP_TRIFOLD,
             Self::Model | Self::Gltf => icons::CUBE,
             Self::Font => icons::TEXT_AA,
+            Self::Effect => icons::SPARKLE,
             Self::Texture => icons::IMAGE,
             Self::Sprites => icons::FILM_STRIP,
             Self::Puzzle => icons::PUZZLE_PIECE,
@@ -84,6 +88,7 @@ impl AssetKind {
             Self::Model | Self::Gltf => Color32::from_rgb(110, 165, 230),
             Self::Texture => Color32::from_rgb(196, 140, 220),
             Self::Sprites | Self::Puzzle | Self::Terrain => Color32::from_rgb(230, 160, 100),
+            Self::Effect => Color32::from_rgb(240, 200, 90),
             Self::Package => Color32::from_rgb(180, 150, 110),
             Self::Data | Self::Sound | Self::Font | Self::Other => Color32::from_gray(170),
         }
@@ -97,6 +102,7 @@ impl AssetKind {
             Self::Model => "Model / effect (C3)",
             Self::Gltf => "Model (glTF)",
             Self::Font => "Font",
+            Self::Effect => "Effect (C3FX)",
             Self::Texture => "Texture",
             Self::Sprites => "Sprite set (ANI)",
             Self::Puzzle => "Ground tiles (PUL)",
@@ -110,7 +116,10 @@ impl AssetKind {
 
     /// Whether double-click opens it in the Scene view.
     fn opens(self) -> bool {
-        matches!(self, Self::Map | Self::Scene | Self::Model | Self::Gltf)
+        matches!(
+            self,
+            Self::Map | Self::Scene | Self::Model | Self::Gltf | Self::Effect
+        )
     }
 }
 
@@ -907,6 +916,12 @@ impl Studio {
                 self.workspace = Workspace::Maps;
                 self.inspect_asset = false;
                 self.open_map(&MapRef::Project(name));
+            }
+            AssetKind::Effect => {
+                self.inspect_asset = false;
+                self.preview_effect = Some(key.rel.clone());
+                self.show_panel(crate::shell::Panel::Preview);
+                return;
             }
             AssetKind::Gltf => {
                 self.workspace = Workspace::Models;
