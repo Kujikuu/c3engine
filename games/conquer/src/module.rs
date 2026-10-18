@@ -174,6 +174,12 @@ impl GameModule for ConquerModule {
         Some(PORTAL_EFFECT.to_owned())
     }
 
+    /// The client's own minimap (`ani/MiniMap.Ani`, by map id): one image, or four
+    /// quarters laid out left to right, top to bottom.
+    fn minimap(&self, _key: &str, map_ids: &[u32]) -> Option<Image> {
+        self.content.minimap(map_ids)
+    }
+
     fn click_effect(&self) -> Option<String> {
         Some(CLICK_EFFECT.to_owned())
     }

@@ -64,3 +64,5 @@ Inspector, Project and Console panels, a menu bar and a Play/Pause/Step toolbar.
 - Full 3D games.
 - Mobile / web targets.
 - Building our own physics engine. Use one if a game needs it.
+
+**Final success criterion (2026-10-18):** a complete Conquer Online game exactly as client 5065, losing nothing, made with the engine and its Studio.

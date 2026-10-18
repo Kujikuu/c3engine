@@ -1,8 +1,8 @@
 //! The radar in the top-right corner: the ground around the hero, turned like the map on
 //! screen, with monsters, NPCs, other players and portals as dots.
 
-use crate::GameView;
 use crate::style;
+use crate::{GameView, RadarMap};
 use c3_scene::CellPos;
 use egui::{Color32, Pos2, Stroke};
 
@@ -29,7 +29,10 @@ pub(crate) fn show(ui: &egui::Ui, view: &GameView) {
     );
     let painter = ui.painter_at(view.rect);
     painter.circle_filled(center, RADIUS, style::backing(0.85));
-    ground(&painter, view, center, hero.cell);
+    match &view.minimap {
+        Some(map) => minimap(&painter, map, center, hero.cell),
+        None => ground(&painter, view, center, hero.cell),
+    }
     let dot = |cell: CellPos, color: Color32, size: f32| {
         if let Some(at) = place(center, hero.cell, cell) {
             painter.circle_filled(at, size, color);
@@ -57,6 +60,39 @@ pub(crate) fn show(ui: &egui::Ui, view: &GameView) {
         crate::fonts::font(10.0),
         style::DIM,
     );
+}
+
+/// The minimap around the hero, cut to the radar's circle.
+fn minimap(painter: &egui::Painter, map: &RadarMap, center: Pos2, hero: CellPos) {
+    const RIM: usize = 48;
+    let [l, t, r, b] = map.bounds;
+    let (hx, hy) = map.projection.cell_to_world(hero);
+    // Screen points per world pixel, matching the dots (cells `RANGE` away reach the edge).
+    let scale = RADIUS / (RANGE * map.projection.cell_w / 2.0);
+    let uv = |offset: egui::Vec2| {
+        let (wx, wy) = (hx + offset.x / scale, hy + offset.y / scale);
+        Pos2::new((wx - l) / (r - l), (wy - t) / (b - t))
+    };
+    let mut mesh = egui::Mesh::with_texture(map.texture);
+    let tint = Color32::from_white_alpha(220);
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: center,
+        uv: uv(egui::Vec2::ZERO),
+        color: tint,
+    });
+    for i in 0..=RIM {
+        let angle = i as f32 / RIM as f32 * std::f32::consts::TAU;
+        let offset = egui::vec2(angle.cos(), angle.sin()) * (RADIUS - 1.0);
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: center + offset,
+            uv: uv(offset),
+            color: tint,
+        });
+        if i > 0 {
+            mesh.add_triangle(0, i as u32, i as u32 + 1);
+        }
+    }
+    painter.add(mesh);
 }
 
 /// Walkable ground near the hero, sampled every other cell.

@@ -287,6 +287,9 @@ impl Studio {
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
         }
+        if args.iter().any(|a| a == "--minimap") {
+            s.generate_minimap();
+        }
         // A TQ model by id, or a glTF model of the project's assets by path.
         if let Some(model) = flag("--model") {
             s.workspace = Workspace::Models;

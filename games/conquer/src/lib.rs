@@ -329,8 +329,23 @@ impl Content {
     }
 
     /// Decodes an image asset (DDS/TGA).
+    /// Loads a DDS or TGA texture, or a picture (JPG, BMP, PNG: minimaps, GUI art).
     pub fn load_image(&self, path: &str) -> Option<Image> {
-        texture::decode_image(&self.fs.read(path)?).ok()
+        let bytes = self.fs.read(path)?;
+        (texture::decode_image(&bytes).ok()).or_else(|| c3_play::native::decode_image(&bytes))
+    }
+
+    /// The minimap of the first of `map_ids` the client has (see `ConquerModule::minimap`).
+    pub fn minimap(&self, map_ids: &[u32]) -> Option<Image> {
+        let ani = Ani::parse(&self.fs.read(MINIMAP_ANI)?).ok()?;
+        let section = map_ids.iter().find_map(|id| ani.get(&id.to_string()))?;
+        let parts: Vec<Image> = (0..section.frames.len())
+            .filter_map(|i| self.load_image(&section.frame_str(i)?))
+            .collect();
+        match parts.len() {
+            4 => Some(quarters(&parts)),
+            _ => parts.into_iter().next(),
+        }
     }
 }
 
@@ -354,4 +369,23 @@ impl c3_render::SceneAssets for Content {
     fn effect(&self, name: &str) -> Result<Effect, String> {
         self.load_effect(name)
     }
+}
+
+/// The client's minimaps, by map id.
+const MINIMAP_ANI: &str = "ani/MiniMap.Ani";
+
+/// Four images as the quarters of one (top-left, top-right, bottom-left, bottom-right).
+fn quarters(parts: &[Image]) -> Image {
+    let (w, h) = (parts[0].width, parts[0].height);
+    let mut out = Image::new(w * 2, h * 2, vec![0; (w * h * 16) as usize]);
+    for (i, part) in parts.iter().enumerate() {
+        let (ox, oy) = ((i as u32 % 2) * w, (i as u32 / 2) * h);
+        for y in 0..part.height.min(h) {
+            let from = (y * part.width * 4) as usize;
+            let to = (((oy + y) * out.width + ox) * 4) as usize;
+            let row = (part.width.min(w) * 4) as usize;
+            out.rgba[to..to + row].copy_from_slice(&part.rgba[from..from + row]);
+        }
+    }
+    out
 }

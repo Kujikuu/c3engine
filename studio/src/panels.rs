@@ -329,6 +329,7 @@ impl Studio {
         let Some(doc) = &self.doc else { return };
         let scene = doc.scene();
         let mut resize = None;
+        let mut minimap = false;
         theme::section(ui, "Map", |ui| {
             theme::kv(ui, "Name", doc.name());
             resize = map_size_row(ui, (scene.grid.width, scene.grid.height));
@@ -341,7 +342,14 @@ impl Studio {
             theme::kv(ui, "Walkable", &format!("{pct:.1}%"));
             theme::kv(ui, "Objects", &scene.entities.len().to_string());
             theme::kv(ui, "Portals", &scene.portals.len().to_string());
+            minimap = ui
+                .button(theme::icon_text(icons::MAP_TRIFOLD, "Generate Minimap"))
+                .on_hover_text("Draws the map small for the game's radar (maps/<name>.minimap.png)")
+                .clicked();
         });
+        if minimap {
+            self.generate_minimap();
+        }
         if let Some((width, height)) = resize
             && let Some(doc) = &mut self.doc
             && let Err(e) = doc.execute(&SceneCommand::Resize { width, height })

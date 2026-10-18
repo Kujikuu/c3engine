@@ -199,6 +199,12 @@ impl Project {
         self.maps_dir().join(format!("{name}{MAP_SUFFIX}"))
     }
 
+    /// The minimap image of map `key` (a project map's name, or a client map's path):
+    /// `maps/<name>.minimap.png`.
+    pub fn minimap_file(&self, key: &str) -> PathBuf {
+        minimap_file_in(&self.maps_dir(), key)
+    }
+
     /// Folder holding the project's data tables.
     pub fn tables_dir(&self) -> PathBuf {
         self.root.join("tables")
@@ -310,6 +316,19 @@ pub fn folder_name(name: &str) -> String {
         cleaned.to_owned()
     }
 }
+
+/// The minimap of map `key` in folder `maps` (see [`Project::minimap_file`]).
+pub fn minimap_file_in(maps: &Path, key: &str) -> PathBuf {
+    let file = key.rsplit(['/', '\\']).next().unwrap_or(key);
+    let name = match file.rfind('.') {
+        Some(dot) if file[dot..].eq_ignore_ascii_case(".dmap") => &file[..dot],
+        _ => file,
+    };
+    maps.join(format!("{name}{MINIMAP_SUFFIX}"))
+}
+
+/// What a map's minimap file ends with.
+pub const MINIMAP_SUFFIX: &str = ".minimap.png";
 
 #[cfg(test)]
 mod tests {

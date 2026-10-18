@@ -26,6 +26,7 @@ mod icons;
 mod live_scene;
 mod map_view;
 mod maps;
+mod minimap;
 mod model_view;
 mod models_ws;
 mod new_map;

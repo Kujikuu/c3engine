@@ -104,6 +104,12 @@ pub trait GameModule {
     fn formulas_template(&self) -> Option<&'static str> {
         None
     }
+    /// The map drawn small for the radar, covering the map's ground (or its cells when it
+    /// has none): map `key`, answering to `map_ids`.
+    fn minimap(&self, key: &str, map_ids: &[u32]) -> Option<Image> {
+        let _ = (key, map_ids);
+        None
+    }
     /// The effect every portal shows, looping (TQ's client draws `Exit` on each).
     fn portal_effect(&self) -> Option<String> {
         None

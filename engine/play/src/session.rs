@@ -115,6 +115,34 @@ pub struct Session {
     setup: GameSetup,
     /// A map change waiting for the host to load the map.
     map_change: Option<MapChange>,
+    /// The map drawn small, under the radar.
+    minimap: Minimap,
+}
+
+/// A map's minimap: the image until the UI uploads it, then its texture.
+#[derive(Default)]
+struct Minimap {
+    image: Option<c3_assets::Image>,
+    texture: Option<egui::TextureHandle>,
+}
+
+impl Minimap {
+    fn of(game: &dyn GameModule, key: &str, map_ids: &[u32]) -> Self {
+        Self {
+            image: game.minimap(key, map_ids),
+            texture: None,
+        }
+    }
+
+    /// The texture, uploaded on first use.
+    fn texture(&mut self, ctx: &egui::Context) -> Option<egui::TextureId> {
+        if let Some(image) = self.image.take() {
+            let size = [image.width as usize, image.height as usize];
+            let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
+            self.texture = Some(ctx.load_texture("minimap", pixels, Default::default()));
+        }
+        self.texture.as_ref().map(egui::TextureHandle::id)
+    }
 }
 
 impl Session {
@@ -254,6 +282,7 @@ impl Session {
             }
         }
         let light = settings::map_light(&settings, &map_ids);
+        let minimap = Minimap::of(&*game, &map_path, &map_ids);
         let mut audio = GameAudio::new(Rc::clone(&game), map_ids);
         audio.apply(&settings.audio);
         let slots = settings::equipment_slots(&settings, &*game);
@@ -288,6 +317,7 @@ impl Session {
             target: None,
             setup,
             map_change: None,
+            minimap,
         })
     }
 
@@ -416,6 +446,7 @@ impl Session {
         let mut world = World::new(Rc::clone(&self.world.game), map_path, scene, tilt);
         world.background = self.world.background;
         world.light = settings::map_light(&self.settings, map_ids);
+        self.minimap = Minimap::of(&*self.world.game, &world.map_path, map_ids);
         let view = SimView::attach(&sim, hero, &mut world)?;
         self.world.release(renderer);
         self.world = world;
@@ -803,6 +834,14 @@ impl Session {
             screen.to_screen(Vec2::from(self.world.scene.cell_to_world(c)) - Vec2::Y * HEAD_HEIGHT)
         };
         let slots: Vec<(u8, &str)> = self.slots.iter().map(|(s, n)| (*s, n.as_str())).collect();
+        let minimap = self
+            .minimap
+            .texture(ui.ctx())
+            .map(|texture| c3_ui::RadarMap {
+                texture,
+                bounds: c3_render::minimap::scene_bounds(&self.world.scene),
+                projection: self.world.scene.projection,
+            });
         let view = GameView {
             sim: &self.sim,
             hero: self.hero,
@@ -815,6 +854,7 @@ impl Session {
             sound: self.audio.muted().map(|m| !m),
             hint,
             controls,
+            minimap,
         };
         let actions = self.ui.show(ui, &view, &mut self.icons);
         let mut host = Vec::new();

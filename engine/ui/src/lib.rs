@@ -109,6 +109,17 @@ pub struct GameView<'a> {
     /// What the controls do, on the device in use (the top hint line).
     pub hint: &'a str,
     pub controls: &'a ControlsView<'a>,
+    /// The map drawn small, under the radar's dots.
+    pub minimap: Option<RadarMap>,
+}
+
+/// A minimap for the radar: its texture covers world `bounds` (`[left, top, right,
+/// bottom]`) of the map laid out by `projection`.
+#[derive(Debug, Clone, Copy)]
+pub struct RadarMap {
+    pub texture: egui::TextureId,
+    pub bounds: [f32; 4],
+    pub projection: c3_scene::IsoProjection,
 }
 
 impl GameView<'_> {

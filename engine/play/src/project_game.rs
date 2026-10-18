@@ -20,6 +20,8 @@ use std::sync::Arc;
 pub struct ProjectGame {
     game: Rc<dyn GameModule>,
     assets: Layered,
+    /// The project's `maps/` folder, where generated minimaps are.
+    maps_dir: std::path::PathBuf,
 }
 
 /// The project's assets, then the game's.
@@ -36,7 +38,15 @@ impl ProjectGame {
             native,
             game: Rc::clone(&game),
         };
-        (Self { game, assets }, problems)
+        let maps_dir = project.maps_dir();
+        (
+            Self {
+                game,
+                assets,
+                maps_dir,
+            },
+            problems,
+        )
     }
 }
 
@@ -138,6 +148,16 @@ impl GameModule for ProjectGame {
 
     fn click_effect(&self) -> Option<String> {
         self.game.click_effect()
+    }
+
+    /// The project's generated minimap, else the game's own.
+    fn minimap(&self, key: &str, map_ids: &[u32]) -> Option<Image> {
+        let file = c3_project::minimap_file_in(&self.maps_dir, key);
+        let own = image::open(file).ok().map(|img| {
+            let rgba = img.into_rgba8();
+            Image::new(rgba.width(), rgba.height(), rgba.into_raw())
+        });
+        own.or_else(|| self.game.minimap(key, map_ids))
     }
 
     fn portal_effect(&self) -> Option<String> {

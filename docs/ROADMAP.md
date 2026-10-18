@@ -364,9 +364,15 @@ complete project on that engine, then any game of the kind.
 ## M8: Complete map and world editor
 Every edit one undo step through c3-edit; maps saved to their own files (native scene, or DMap /
 PUL for the classic client).
-- [ ] New map from scratch (size, default ground) with the project's own art; resize; map
+- [x] New map from scratch (size, default ground) with the project's own art; resize; map
       properties (name, id, flags, music, weather, light); minimap generation; the map list
       (create, clone, rename, delete)
+  - Done 2026-10-18: New Map covers the ground with a project image; Resize is an undoable
+    scene command (a one-image ground grows with the map); Project Settings > Maps gains a
+    per-map light (name, id, music, PvP were there; weather comes with regions); Generate
+    Minimap renders the map in pieces into `maps/<name>.minimap.png`, the radar shows it (a
+    Conquer map without one shows the client's own `ani/MiniMap.Ani` picture); the Project
+    panel duplicates, renames and deletes maps with undo, the map list entry following
 - [ ] Drag and drop from the Project panel into the Scene view and the Hierarchy: sprites,
       objects, effects, sounds, models, NPC looks (makes an NPC), monsters (makes a spawn area),
       tiles; a ghost preview snapped to the cell under the cursor
