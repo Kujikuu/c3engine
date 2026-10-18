@@ -313,16 +313,22 @@ impl Studio {
         if self.stage.is_none() {
             self.stage = Some(Stage::new(Rc::clone(game), state, tilt));
         }
-        // A project effect opens in the editor beside the stage.
-        if self.effect_editor.is_some() {
-            egui::Panel::right("effect editor")
+        // A project effect or animation set opens in the editor beside the stage.
+        if self.effect_editor.is_some() || self.character_editor.is_some() {
+            egui::Panel::right("asset editor")
                 .resizable(true)
                 .default_size(300.0)
                 .size_range(240.0..=480.0)
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .auto_shrink(false)
-                        .show(ui, |ui| self.effect_editor_ui(ui));
+                        .show(ui, |ui| {
+                            if self.character_editor.is_some() {
+                                self.character_editor_ui(ui)
+                            } else {
+                                self.effect_editor_ui(ui)
+                            }
+                        });
                 });
         }
         let Some(stage) = &mut self.stage else { return };
@@ -354,6 +360,7 @@ impl Studio {
         if let Some(name) = pick_effect {
             stage.effect = name.clone();
             play_effect = true;
+            self.character_editor = None;
             self.open_effect(&name);
         }
         let Some(stage) = &mut self.stage else { return };

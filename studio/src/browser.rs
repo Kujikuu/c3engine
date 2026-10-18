@@ -35,6 +35,8 @@ pub(crate) enum AssetKind {
     Gltf,
     /// An effect in the engine's own format.
     Effect,
+    /// An animation set: a glTF model as one of the game's looks.
+    Character,
     Texture,
     Font,
     Sprites,
@@ -57,6 +59,7 @@ impl AssetKind {
             "dds" | "tga" | "png" | "jpg" | "jpeg" | "bmp" => Self::Texture,
             "gltf" | "glb" => Self::Gltf,
             "c3fx" => Self::Effect,
+            "c3char" => Self::Character,
             "ttf" | "otf" => Self::Font,
             "wav" | "mp3" | "ogg" => Self::Sound,
             "txt" | "ron" | "toml" | "json" | "csv" | "lua" => Self::Data,
@@ -71,6 +74,7 @@ impl AssetKind {
             Self::Model | Self::Gltf => icons::CUBE,
             Self::Font => icons::TEXT_AA,
             Self::Effect => icons::SPARKLE,
+            Self::Character => icons::PERSON_SIMPLE,
             Self::Texture => icons::IMAGE,
             Self::Sprites => icons::FILM_STRIP,
             Self::Puzzle => icons::PUZZLE_PIECE,
@@ -90,6 +94,7 @@ impl AssetKind {
             Self::Texture => Color32::from_rgb(196, 140, 220),
             Self::Sprites | Self::Puzzle | Self::Terrain => Color32::from_rgb(230, 160, 100),
             Self::Effect => Color32::from_rgb(240, 200, 90),
+            Self::Character => Color32::from_rgb(110, 200, 190),
             Self::Package => Color32::from_rgb(180, 150, 110),
             Self::Data | Self::Sound | Self::Font | Self::Other => Color32::from_gray(170),
         }
@@ -104,6 +109,7 @@ impl AssetKind {
             Self::Gltf => "Model (glTF)",
             Self::Font => "Font",
             Self::Effect => "Effect (C3FX)",
+            Self::Character => "Animation set",
             Self::Texture => "Texture",
             Self::Sprites => "Sprite set (ANI)",
             Self::Puzzle => "Ground tiles (PUL)",
@@ -119,7 +125,7 @@ impl AssetKind {
     fn opens(self) -> bool {
         matches!(
             self,
-            Self::Map | Self::Scene | Self::Model | Self::Gltf | Self::Effect
+            Self::Map | Self::Scene | Self::Model | Self::Gltf | Self::Effect | Self::Character
         )
     }
 }
@@ -1104,6 +1110,12 @@ impl Studio {
             AssetKind::Effect => {
                 self.inspect_asset = false;
                 self.preview_effect = Some(key.rel.clone());
+                self.show_panel(crate::shell::Panel::Preview);
+                return;
+            }
+            AssetKind::Character => {
+                self.inspect_asset = false;
+                self.open_character(&key.rel);
                 self.show_panel(crate::shell::Panel::Preview);
                 return;
             }

@@ -5,6 +5,7 @@
 use crate::app::{Focus, Studio};
 use crate::icons;
 use crate::theme;
+use crate::value_form::{Touch, comment_header, field, grid, models_in, pick};
 use c3_edit::ValueDoc;
 use c3_play::native_effect::{self, BlendMode, EffectFile, LayerFile, TrailFile};
 use eframe::egui::{self, DragValue, RichText};
@@ -45,30 +46,6 @@ impl LayerKind {
     }
 }
 
-/// Widgets of one edit, so a drag or a field's typing is one undo step.
-#[derive(Default)]
-struct Touch {
-    changed: bool,
-    started: bool,
-    finished: bool,
-}
-
-impl Touch {
-    fn track(&mut self, r: egui::Response) -> egui::Response {
-        self.changed |= r.changed();
-        self.started |= r.drag_started() || r.gained_focus();
-        self.finished |= r.drag_stopped() || r.lost_focus();
-        r
-    }
-
-    /// A one-click change (a button, a pick): its own step.
-    fn click(&mut self) {
-        self.changed = true;
-        self.started = true;
-        self.finished = true;
-    }
-}
-
 impl Studio {
     /// Opens effect `path` for editing when it is one of the project's own (`.c3fx`).
     pub(crate) fn open_effect(&mut self, path: &str) {
@@ -89,15 +66,7 @@ impl Studio {
                     Some(dir) => (crate::new_map::images_in(dir), models_in(dir)),
                     None => Default::default(),
                 };
-                let header: String = (text.lines())
-                    .take_while(|l| l.trim_start().starts_with('#'))
-                    .map(|l| {
-                        format!(
-                            "{l}
-"
-                        )
-                    })
-                    .collect();
+                let header = comment_header(&text);
                 self.effect_editor = Some(EffectEditor {
                     path: path.to_owned(),
                     doc: ValueDoc::new(file),
@@ -464,60 +433,4 @@ fn layer_fields(
             });
         }
     });
-}
-
-/// A combo box over `options`; returns a newly picked one.
-fn pick(ui: &mut egui::Ui, id: &str, current: &str, options: &[String]) -> Option<String> {
-    let shown = if current.is_empty() { "none" } else { current };
-    let mut picked = None;
-    egui::ComboBox::from_id_salt(("effect pick", id, ui.next_auto_id()))
-        .selected_text(shown)
-        .width(170.0)
-        .show_ui(ui, |ui| {
-            for option in options {
-                if ui.selectable_label(option == current, option).clicked() {
-                    picked = Some(option.clone());
-                }
-            }
-        });
-    picked.filter(|p| p != current)
-}
-
-fn grid(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
-    egui::Grid::new(id)
-        .num_columns(2)
-        .spacing([10.0, 5.0])
-        .show(ui, body);
-}
-
-fn field(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
-    ui.label(RichText::new(label).color(theme::TEXT_DIM));
-    add(ui);
-    ui.end_row();
-}
-
-/// glTF models under `dir`, as asset paths.
-fn models_in(dir: &std::path::Path) -> Vec<String> {
-    let mut found = Vec::new();
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(folder) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&folder) else {
-            continue;
-        };
-        for path in entries.flatten().map(|e| e.path()) {
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(str::to_ascii_lowercase);
-            if path.is_dir() {
-                stack.push(path);
-            } else if matches!(ext.as_deref(), Some("gltf" | "glb"))
-                && let Ok(rel) = path.strip_prefix(dir)
-            {
-                found.push(rel.to_string_lossy().replace('\\', "/"));
-            }
-        }
-    }
-    found.sort();
-    found
 }

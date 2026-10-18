@@ -442,8 +442,14 @@ PUL for the classic client).
     selected. The World tab lists every map's NPCs (search, click to open). Each game names
     its tables (Conquer: cq_monstertype, cq_itemtype, cq_magictype by type, cq_levexp).
     Classes have no data in the engine yet: their form comes with professions (M12)
-- [ ] Effect editor (layers, particles, trails, timing, preview) and animation set editor
+- [x] Effect editor (layers, particles, trails, timing, preview) and animation set editor
       (actions, frames, sockets, sounds per action)
+  - Done 2026-10-18: a project `.c3fx` opens beside its preview: timing and layers
+    (flipbooks with bursts, models, trails), each change one undo step written at once. An
+    animation set (`.c3char`) dresses roles of a look (players, monsters or NPCs) in a glTF
+    model: each action's animation, frame time and sound, and models held at its parts (a
+    sword in the hand); it opens on the Preview stage with the same editor column. Native
+    parts draw in their material colour
 - [ ] Data-driven game UI: windows, HUD and dialogs as layout files (images, text, bars, grids,
       buttons, data bindings), skins from images; a Studio UI editor with live preview
 - [ ] Client front end from data: login and server list, character creation and selection,

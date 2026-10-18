@@ -12,6 +12,7 @@ mod arrange;
 mod asset_import;
 mod asset_ops;
 mod browser;
+mod character_editor;
 mod code_view;
 mod data_panel;
 mod dialogue_panel;
@@ -49,6 +50,7 @@ mod stage;
 mod table_schema;
 mod theme;
 mod tq_plugin;
+mod value_form;
 mod world_view;
 
 use eframe::egui;

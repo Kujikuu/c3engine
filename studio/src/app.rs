@@ -43,6 +43,8 @@ pub(crate) enum Focus {
     Assets,
     /// The effect being edited in the Preview panel.
     Effect,
+    /// The animation set being edited in the Preview panel.
+    Character,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -148,6 +150,7 @@ pub struct Studio {
     pub(crate) world: crate::world_view::WorldView,
     /// The project effect open in the Preview panel's editor.
     pub(crate) effect_editor: Option<crate::effect_editor::EffectEditor>,
+    pub(crate) character_editor: Option<crate::character_editor::CharacterEditor>,
     /// Panels asked to the front while the dock was drawing.
     pub(crate) panel_requests: Vec<crate::shell::Panel>,
     pub(crate) drawing_dock: bool,
@@ -258,6 +261,7 @@ impl Studio {
             ground_thumbs: Default::default(),
             world: Default::default(),
             effect_editor: None,
+            character_editor: None,
             panel_requests: Vec::new(),
             drawing_dock: false,
             hover: None,
@@ -354,6 +358,10 @@ impl Studio {
                 },
                 Err(_) => s.open_model(&crate::tq_plugin::ModelEntry { id: 0, path: model }),
             }
+        }
+        if let Some(set) = flag("--character") {
+            s.open_character(&set);
+            s.show_panel(crate::shell::Panel::Preview);
         }
         if let Some(effect) = flag("--effect") {
             s.preview_effect = Some(effect);
@@ -982,6 +990,7 @@ impl Studio {
             Focus::Dialogue => self.dialogues.undo(),
             Focus::Settings | Focus::Assets => None,
             Focus::Effect => self.effect_step(false),
+            Focus::Character => self.character_step(false),
         };
         if let Some(doc) = &self.doc {
             self.editor.forget_missing(doc.scene());
@@ -1013,6 +1022,7 @@ impl Studio {
             Focus::Dialogue => self.dialogues.redo(),
             Focus::Settings | Focus::Assets => None,
             Focus::Effect => self.effect_step(true),
+            Focus::Character => self.character_step(true),
         };
         if let Some(doc) = &self.doc {
             self.editor.forget_missing(doc.scene());
@@ -1059,6 +1069,7 @@ impl Studio {
                 )
             }
             Focus::Effect => self.effect_labels(),
+            Focus::Character => self.character_labels(),
         }
     }
 
@@ -1090,6 +1101,7 @@ impl Studio {
             }
             Focus::Assets => Some(("Assets".to_owned(), self.assets.as_ref()?.history())),
             Focus::Effect => self.effect_history(),
+            Focus::Character => self.character_history(),
         }
     }
 
@@ -1198,7 +1210,7 @@ impl Studio {
                     self.save_dialogue();
                 }
                 // Settings, assets and effects are saved as they change.
-                Focus::Settings | Focus::Assets | Focus::Effect => {}
+                Focus::Settings | Focus::Assets | Focus::Effect | Focus::Character => {}
             }
         }
         if ctx.egui_wants_keyboard_input() {
