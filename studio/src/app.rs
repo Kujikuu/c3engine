@@ -727,26 +727,63 @@ impl Studio {
         }
     }
 
-    pub(crate) fn load_map(&mut self, map: &MapRef) {
-        let loaded = match map {
-            MapRef::Project(name) => match &self.project {
-                Some(project) => c3_scene::native::load_scene(&project.map_file(name))
-                    .map(|scene| (scene, Vec::new()))
-                    .map_err(|e| e.to_string()),
-                None => return,
-            },
-            MapRef::Client(path) => match (&self.client, &self.project) {
-                (Some(client), Some(project)) => client.import_map(path).and_then(|imported| {
+    /// Reads map `map` from disk: its scene and what was wrong with it.
+    pub(crate) fn read_map(&self, map: &MapRef) -> Result<(c3_scene::Scene, Vec<String>), String> {
+        let project = self.project.as_ref().ok_or("no project is open")?;
+        match map {
+            MapRef::Project(name) => c3_scene::native::load_scene(&project.map_file(name))
+                .map(|scene| (scene, Vec::new()))
+                .map_err(|e| e.to_string()),
+            MapRef::Client(path) => {
+                let client = self
+                    .client
+                    .as_ref()
+                    .ok_or("the project's content isn't loaded")?;
+                client.import_map(path).and_then(|imported| {
                     let mut scene = imported.scene;
                     let file = project.population_file(map.name());
                     let population =
                         c3_scene::native::load_population(&file).map_err(|e| e.to_string())?;
                     scene.set_population(population);
                     Ok((scene, imported.warnings))
-                }),
-                _ => return,
-            },
-        };
+                })
+            }
+        }
+    }
+
+    /// Writes `scene` as map `map`: a project scene, or a client map (DMap, its ground when
+    /// `ground` changed, and its population beside the project's maps).
+    pub(crate) fn write_map(
+        &self,
+        map: &MapRef,
+        scene: &c3_scene::Scene,
+        ground: Option<&c3_scene::TileLayer>,
+    ) -> Result<(), String> {
+        let project = self.project.as_ref().ok_or("no project is open")?;
+        match map {
+            MapRef::Client(path) => {
+                let client = self
+                    .client
+                    .as_ref()
+                    .ok_or("the project's content isn't loaded")?;
+                // Content used in place belongs to the original client: keep its original.
+                let backup = !project.content_in_project();
+                client.save_map(scene, path, backup)?;
+                if let Some(ground) = ground {
+                    client.save_ground(ground, backup)?;
+                }
+                // DMaps hold no population: it lives next to the project's maps.
+                let file = project.population_file(map.name());
+                c3_scene::native::save_population(&scene.population(), &file)
+                    .map_err(|e| e.to_string())
+            }
+            MapRef::Project(name) => c3_scene::native::save_scene(scene, &project.map_file(name))
+                .map_err(|e| e.to_string()),
+        }
+    }
+
+    pub(crate) fn load_map(&mut self, map: &MapRef) {
+        let loaded = self.read_map(map);
         match loaded {
             Ok((scene, warnings)) => {
                 self.inspect_asset = false;
@@ -821,36 +858,18 @@ impl Studio {
 
     /// Saves the open map to its own file: a DMap in place, or an engine-format scene.
     pub(crate) fn save(&mut self) -> bool {
-        let (Some(project), Some(doc)) = (&self.project, &mut self.doc) else {
+        let Some(doc) = &mut self.doc else {
             return false;
         };
         doc.end_group();
         let name = doc.name().to_owned();
-        let saved = match &doc.map {
-            MapRef::Client(path) => match &self.client {
-                // Content used in place belongs to the original client: keep its original.
-                Some(client) => client
-                    .save_map(doc.scene(), path, !project.content_in_project())
-                    .and_then(|_| match doc.changed_ground() {
-                        Some(ground) => client.save_ground(ground, !project.content_in_project()),
-                        None => Ok(()),
-                    })
-                    .and_then(|_| {
-                        // DMaps hold no population: it lives next to the project's maps.
-                        let file = project.population_file(&name);
-                        c3_scene::native::save_population(&doc.scene().population(), &file)
-                            .map_err(|e| e.to_string())
-                    }),
-                None => Err("the project's content isn't loaded".to_owned()),
-            },
-            MapRef::Project(_) => {
-                c3_scene::native::save_scene(doc.scene(), &project.map_file(&name))
-                    .map_err(|e| e.to_string())
-            }
-        };
+        let doc = self.doc.as_ref().expect("checked above");
+        let saved = self.write_map(&doc.map, doc.scene(), doc.changed_ground());
         match saved {
             Ok(()) => {
-                doc.mark_saved();
+                if let Some(doc) = &mut self.doc {
+                    doc.mark_saved();
+                }
                 self.notify(format!("Saved {name}"));
                 true
             }

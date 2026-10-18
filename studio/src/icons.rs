@@ -13,6 +13,7 @@ pub const ARROW_DOWN: &str = "\u{E03E}";
 pub const ARROW_LINE_DOWN: &str = "\u{E05C}";
 pub const ARROW_LINE_UP: &str = "\u{E066}";
 pub const ARROW_RIGHT: &str = "\u{E06C}";
+pub const ARROWS_LEFT_RIGHT: &str = "\u{E0A0}";
 pub const ARROW_SQUARE_OUT: &str = "\u{E5DE}";
 pub const ARROW_UP: &str = "\u{E08E}";
 pub const BOOK_OPEN: &str = "\u{E0E6}";

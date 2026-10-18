@@ -411,7 +411,11 @@ PUL for the classic client).
     snow, leaves) and light. In play: fights stop in safe and no-PK zones, region music and
     ambience play, light and weather follow the hero, and events.rhai hears
     on_enter_region(id) / on_leave_region(id). Booths themselves come with M12's trade
-- [ ] Portals: destination picker, two-way links, jump to the destination
+- [x] Portals: destination picker, two-way links, jump to the destination
+  - Done 2026-10-18: the Inspector picks the destination map from the map list and the
+    arrival cell, opens the destination at the arrival, and Link both ways makes (or reuses)
+    a portal by the arrival on the destination map leading back; travellers arrive beside
+    portals, never on them. Map keys compare without case (DMap paths)
 - [ ] World view: every map as a node with its portal links; open a map from it
 
 ## M9: Content editors and the game UI

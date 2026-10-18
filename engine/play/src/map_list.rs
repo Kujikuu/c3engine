@@ -107,8 +107,12 @@ impl MapList {
         self.maps.iter().find(|m| m.ids.contains(&id))
     }
 
+    /// The map at `key` (file paths compare without case or slash direction, as Windows
+    /// and the classic client do).
     pub fn by_key(&self, key: &str) -> Option<&MapInfo> {
-        self.maps.iter().find(|m| m.key == key)
+        let norm = |k: &str| k.replace('\\', "/").to_lowercase();
+        let key = norm(key);
+        self.maps.iter().find(|m| norm(&m.key) == key)
     }
 
     /// What portals call map `id`: its name, or that no map has it.

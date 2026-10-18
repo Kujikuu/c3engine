@@ -37,6 +37,7 @@ mod node_editor;
 mod panels;
 mod placing;
 mod play;
+mod portal_links;
 mod project_settings;
 mod scene_inspector;
 mod script_panel;

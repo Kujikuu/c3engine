@@ -211,7 +211,7 @@ impl Studio {
         let doc = self.doc.as_ref()?;
         let portal = doc.scene().portals.iter().find(|p| p.id == id)?;
         let (mut cell, mut to) = (portal.cell, portal.to);
-        let mut go = false;
+        let (mut go, mut link) = (false, false);
         grid(ui, "portal", |ui| {
             row(ui, "Id", |ui| {
                 ui.label(id.to_string())
@@ -232,6 +232,18 @@ impl Studio {
                 row(ui, "Arrive at", |ui| cell_field(ui, it, &mut target.cell));
             }
         });
+        if to.is_some() {
+            link = ui
+                .button(theme::icon_text(icons::ARROWS_LEFT_RIGHT, "Link both ways"))
+                .on_hover_text(
+                    "Makes (or reuses) a portal by the arrival on that map that leads back here;                      saves that map",
+                )
+                .clicked();
+        }
+        if link {
+            self.link_portal_both_ways(id);
+            return None;
+        }
         if go && let Some(target) = to {
             self.go_to_portal_target(target);
             return None;
