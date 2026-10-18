@@ -251,6 +251,11 @@ impl Content {
         ))
     }
 
+    /// The client's files: loose and packed.
+    pub fn files(&self) -> &ClientFs {
+        &self.fs
+    }
+
     /// Decodes an image asset (DDS/TGA).
     pub fn load_image(&self, path: &str) -> Option<Image> {
         texture::decode_image(&self.fs.read(path)?).ok()
@@ -272,5 +277,9 @@ impl c3_render::SceneAssets for Content {
 
     fn image(&self, path: &str) -> Option<Image> {
         self.load_image(path)
+    }
+
+    fn effect(&self, name: &str) -> Result<Effect, String> {
+        self.load_effect(name)
     }
 }

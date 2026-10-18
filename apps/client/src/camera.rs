@@ -1,7 +1,6 @@
 //! 2D world camera for isometric maps: a world-pixel centre and a zoom factor.
 
-use glam::camera::rh::proj::directx;
-use glam::{Mat4, Vec2};
+use glam::Vec2;
 
 pub const MIN_ZOOM: f32 = 0.05;
 pub const MAX_ZOOM: f32 = 4.0;
@@ -23,12 +22,6 @@ impl Camera2d {
             self.center.x + half.x,
             self.center.y + half.y,
         ]
-    }
-
-    /// World → clip transform (y down, like screen space).
-    pub fn view_proj(&self, viewport: Vec2) -> Mat4 {
-        let [l, t, r, b] = self.view_rect(viewport);
-        directx::orthographic(l, r, b, t, -1.0, 1.0)
     }
 
     pub fn screen_to_world(&self, screen: Vec2, viewport: Vec2) -> Vec2 {

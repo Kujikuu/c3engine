@@ -1,12 +1,16 @@
 //! The only module that knows about TQ/Conquer formats. It opens a client folder as an
-//! asset source and converts maps and models to engine types. Everything else in the
-//! Studio works on `c3_scene` / `c3_assets` types.
+//! asset source and converts maps and models to engine types; the scene view draws through
+//! it ([`SceneAssets`]). Everything else in the Studio works on `c3_scene` / `c3_assets` types.
 //!
 //! When more games are supported this becomes one implementation of a format-plugin trait.
 
+use c3_assets::effect::Effect;
+use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_assets::{Image, model::Model};
 use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs::ClientFs};
-use c3_scene::Scene;
+use c3_render::SceneAssets;
+use c3_scene::{Scene, TileLayer};
+use game_conquer::Content;
 use std::path::{Path, PathBuf};
 
 pub use scene_io::Imported;
@@ -68,7 +72,8 @@ pub fn c3_summary(bytes: &[u8]) -> String {
 /// A game client folder: loose files plus packed archives.
 pub struct Client {
     pub root: PathBuf,
-    fs: ClientFs,
+    /// The game's own loader: maps' art and effects as the client draws them.
+    content: Content,
     /// `ini/3dobj.ini`: model id → C3 path.
     objects: PathTable,
     /// `ini/3dtexture.ini`: texture id → image path.
@@ -102,9 +107,11 @@ pub fn check_client(root: &Path) -> Result<(), String> {
 
 impl Client {
     pub fn open(root: &str) -> Result<Self, String> {
-        let fs = ClientFs::open(root).map_err(|e| e.to_string())?;
+        let content = Content::open(root)?;
         let table = |name: &str| {
-            fs.read(&format!("ini/{name}"))
+            content
+                .files()
+                .read(&format!("ini/{name}"))
                 .map(|b| PathTable::parse(&b))
                 .unwrap_or_default()
         };
@@ -112,8 +119,17 @@ impl Client {
             root: PathBuf::from(root),
             objects: table("3dobj.ini"),
             textures: table("3dtexture.ini"),
-            fs,
+            content,
         })
+    }
+
+    fn fs(&self) -> &ClientFs {
+        self.content.files()
+    }
+
+    /// Camera tilt of 3D models and effects on maps, in degrees.
+    pub fn tilt_deg(&self) -> f32 {
+        self.content.oblique_angle()
     }
 
     /// Map files found in the client, as asset paths.
@@ -145,7 +161,7 @@ impl Client {
 
     pub fn import_model(&self, path: &str) -> Result<Model, String> {
         let bytes = self
-            .fs
+            .fs()
             .read(path)
             .ok_or_else(|| format!("File not found: {path}"))?;
         let file = C3File::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
@@ -159,12 +175,12 @@ impl Client {
     }
 
     pub fn import_map(&self, path: &str) -> Result<Imported, String> {
-        scene_io::import_map(&self.fs, path).map_err(|e| format!("{path}: {e}"))
+        scene_io::import_map(self.fs(), path).map_err(|e| format!("{path}: {e}"))
     }
 
     /// Bytes of `path` (loose or packed).
     pub fn read(&self, path: &str) -> Option<Vec<u8>> {
-        self.fs.read(path).map(|b| b.into_owned())
+        self.fs().read(path).map(|b| b.into_owned())
     }
 
     /// Files inside the client's packages whose names are known, with their sizes, and the
@@ -201,18 +217,18 @@ impl Client {
             if !rel.contains('.') || !seen.insert(rel.to_ascii_lowercase()) {
                 continue;
             }
-            if let Some(size) = self.fs.packed_size(&rel)
+            if let Some(size) = self.fs().packed_size(&rel)
                 && !self.root.join(&rel).is_file()
             {
                 files.push((rel, u64::from(size)));
             }
         }
-        (files, self.fs.packed_count())
+        (files, self.fs().packed_count())
     }
 
     /// Decodes an image asset (DDS/TGA).
     pub fn load_image(&self, path: &str) -> Option<Image> {
-        texture::decode_image(&self.fs.read(path)?).ok()
+        texture::decode_image(&self.fs().read(path)?).ok()
     }
 
     /// Writes `scene` to the DMap at `path` (atomic). With `backup`, the original is first
@@ -236,4 +252,26 @@ pub fn write_map_file(file: &Path, bytes: &[u8], backup: bool) -> Result<(), Str
     let tmp = PathBuf::from(tmp);
     std::fs::write(&tmp, bytes).map_err(|e| format!("Save failed: {e}"))?;
     std::fs::rename(&tmp, file).map_err(|e| format!("Save failed: {e}"))
+}
+
+impl SceneAssets for Client {
+    fn sprite_set(&self, path: &str) -> Option<SpriteSet> {
+        self.content.sprite_set(path)
+    }
+
+    fn prefab(&self, path: &str) -> Option<Prefab> {
+        self.content.prefab(path)
+    }
+
+    fn tile_layer(&self, path: &str) -> Option<TileLayer> {
+        self.content.tile_layer(path)
+    }
+
+    fn image(&self, path: &str) -> Option<Image> {
+        self.content.image(path)
+    }
+
+    fn effect(&self, name: &str) -> Result<Effect, String> {
+        self.content.effect(name)
+    }
 }

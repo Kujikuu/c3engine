@@ -624,6 +624,7 @@ dependencies = [
  "c3-scene",
  "dirs",
  "eframe",
+ "game-conquer",
  "glam",
  "image",
  "rfd",

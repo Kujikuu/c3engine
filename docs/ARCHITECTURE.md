@@ -50,11 +50,23 @@ client files ──ClientFs (AssetSource)──► scene_io::import_map ──�
 `Scene` = Grid (flags/surface/height) + IsoProjection + ground TileLayer/Tileset + Portals +
 Entities (Sprite/Prefab/Sound/Effect) + ParallaxLayers + `meta` (format values the exporter needs).
 
+## Drawing a scene: one path for the game and the editor
+```
+Scene + SceneAssets (game's loader) ──► c3_render::scene_view::SceneView::prepare
+    parallax ─► ground ─► objects + map effects + caller's actors (isometric painter's order)
+                                     └─► mesh_draws + frame ─► Renderer (window or offscreen)
+```
+`SceneView` owns the streamed art caches, the map's playing effects and the `EffectLibrary`.
+Actors are game code: the caller passes their cells and poses them in a callback (`Poser`).
+The client's `World` and the Studio's Scene view both draw through it, so the editor shows
+exactly what the game shows.
+
 ## Dependency rules
 - `engine/*` may depend only on other `engine/*` crates and third-party crates.
 - `formats/*` depends on `engine/assets` (and `engine/scene` / `engine/anim` for conversion).
 - `games/*` depends on engine + formats. **Engine never depends on games.**
-- `studio` depends on engine + formats; games register editors/inspectors through plugins.
+- `studio` depends on engine + formats; game-specific code is reached only through its plugin
+  module (`studio/src/tq_plugin.rs`, which uses `game-conquer`'s content loader).
 - Editing goes through `engine/edit`; no editor (UI, assistant, MCP) mutates projects directly.
 - The server and client share `engine/game`; neither depends on the Studio.
 

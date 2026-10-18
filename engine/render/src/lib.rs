@@ -8,10 +8,12 @@
 pub mod actor;
 mod assets;
 pub mod effect;
+pub mod effect_library;
 pub mod ground;
 mod mesh;
 pub mod objects;
 pub mod parallax;
+pub mod scene_view;
 mod sprite;
 mod target;
 mod texture;

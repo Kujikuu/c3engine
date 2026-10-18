@@ -1,14 +1,14 @@
-//! Map viewport: draws ground tiles and overlays, handles camera input, and reports
-//! pointer interaction for the active tool (see `editor`).
+//! Map viewport: draws the scene as the game does (through the engine's `SceneView`) with
+//! editing overlays on top, handles camera input, and reports pointer interaction for the
+//! active tool (see `editor`).
 
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
 use crate::tq_plugin::Client;
-use c3_render::Frame;
-use c3_render::ground::{self, GroundCache};
+use c3_render::View;
+use c3_render::scene_view::SceneView;
 use c3_scene::{CellPos, EntityKind};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
-use glam::camera::rh::proj::directx;
 
 pub const MIN_ZOOM: f32 = 0.03;
 pub const MAX_ZOOM: f32 = 4.0;
@@ -59,7 +59,8 @@ pub struct Overlays {
     pub grid: bool,
     pub blocked: bool,
     pub portals: bool,
-    pub objects: bool,
+    /// Dots on object, sound and effect anchors.
+    pub markers: bool,
 }
 
 /// How the active tool wants the viewport to behave this frame.
@@ -72,6 +73,8 @@ pub struct ViewMode {
     /// Portal being dragged; drawn under the cursor.
     /// Id of the portal being dragged.
     pub dragging_portal: Option<i32>,
+    /// Animation clock for objects and effects.
+    pub time_ms: u64,
 }
 
 /// Pointer state over the map this frame.
@@ -96,7 +99,7 @@ pub fn show(
     ui: &mut egui::Ui,
     client: &Client,
     gpu: &mut GpuView,
-    ground: &mut GroundCache,
+    scene_view: &mut SceneView,
     doc: &mut MapDoc,
     cam: &mut Camera,
     ov: Overlays,
@@ -147,9 +150,23 @@ pub fn show(
         ]
     };
 
-    let streaming = draw_ground(ui, &painter, rect, client, gpu, ground, doc, view, cam.zoom);
+    let streaming = draw_scene(
+        ui,
+        &painter,
+        rect,
+        client,
+        gpu,
+        scene_view,
+        doc,
+        View {
+            rect: [view.min.x, view.min.y, view.max.x, view.max.y],
+            center: (cam.center.x, cam.center.y),
+            zoom: cam.zoom,
+            time_ms: mode.time_ms,
+        },
+    );
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
-    if ov.objects {
+    if ov.markers {
         draw_objects(&painter, doc, rect, to_screen);
     }
 
@@ -214,50 +231,34 @@ pub fn show(
     ViewResult { pointer, streaming }
 }
 
-/// Renders visible ground tiles with the engine renderer and paints the result.
-/// Returns true while tiles are still streaming in.
+/// Renders the scene with the engine renderer and paints the result.
+/// Returns true while art is still streaming in.
 #[allow(clippy::too_many_arguments)]
-fn draw_ground(
+fn draw_scene(
     ui: &egui::Ui,
     painter: &egui::Painter,
     rect: Rect,
     client: &Client,
     gpu: &mut GpuView,
-    cache: &mut GroundCache,
+    scene_view: &mut SceneView,
     doc: &MapDoc,
-    view: Rect,
-    zoom: f32,
+    view: View,
 ) -> bool {
-    // Half a screen pixel of overlap hides seams between tiles.
-    let ground = match doc.scene().ground.as_ref() {
-        Some(layer) => ground::sprites(
-            layer,
-            [view.min.x, view.min.y, view.max.x, view.max.y],
-            0.5 / zoom,
-            cache,
-            &mut gpu.renderer,
-            ground::DEFAULT_DECODE_BUDGET,
-            |path| client.load_image(path),
-        ),
-        None => ground::GroundSprites {
-            sprites: Vec::new(),
-            streaming: false,
-        },
-    };
-    let (sprites, streaming) = (ground.sprites, ground.streaming);
+    scene_view.prepare(
+        doc.scene(),
+        client,
+        &mut gpu.renderer,
+        &view,
+        &[],
+        |_, _| {},
+    );
+    let meshes = scene_view.mesh_draws(|_| &[]);
+    let frame = scene_view.frame(&meshes, view.rect, [0.0044, 0.0044, 0.0044, 1.0]);
     let ppp = ui.ctx().pixels_per_point();
     let size = [
         (rect.width() * ppp).round() as u32,
         (rect.height() * ppp).round() as u32,
     ];
-    let frame = Frame {
-        clear: [0.0044, 0.0044, 0.0044, 1.0],
-        sprite_view: directx::orthographic(
-            view.min.x, view.max.x, view.max.y, view.min.y, -1.0, 1.0,
-        ),
-        sprites: &sprites,
-        ..Default::default()
-    };
     let texture = gpu.render(size, &frame);
     painter.image(
         texture,
@@ -265,6 +266,7 @@ fn draw_ground(
         Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
         Color32::WHITE,
     );
+    let streaming = scene_view.streaming();
     if streaming {
         ui.ctx().request_repaint();
     }
@@ -307,7 +309,7 @@ fn draw_cells(
     let cy0 = (cells.iter().map(|c| c.1).min().unwrap() - 1).max(0);
     let cy1 = (cells.iter().map(|c| c.1).max().unwrap() + 1).min(h - 1);
 
-    let grid_stroke = Stroke::new(1.0, Color32::from_white_alpha((45.0 * grid_alpha) as u8));
+    let grid_stroke = Stroke::new(1.0, Color32::from_white_alpha((28.0 * grid_alpha) as u8));
     for y in cy0..=cy1 {
         for x in cx0..=cx1 {
             let c = to_screen(doc.cell_to_world((x, y)));

@@ -1,11 +1,12 @@
-//! 3D effects: the map's own (fires, fountains, glows), which play forever like the client's
-//! `C3DMapEffect`s, one-shots such as the click marker, and effects carried by actors.
+//! Playing 3D effects: the map's own (fires, fountains, glows), which play forever like the
+//! client's `C3DMapEffect`s, one-shots such as the click marker, and effects carried by actors.
+//! [`EffectLibrary`] loads each effect and its textures once and shares them by every instance.
 
+use crate::assets::SceneAssets;
+use crate::effect::{self, EffectMesh, EffectPlayer};
+use crate::{Renderer, TextureId};
 use c3_assets::effect::{Effect, Playback};
-use c3_render::effect::{self, EffectMesh, EffectPlayer};
-use c3_render::{Renderer, TextureId};
 use c3_scene::{CellPos, EntityKind, Scene};
-use game_conquer::Content;
 use glam::{Mat4, Vec3};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -90,26 +91,40 @@ impl Spot {
 pub struct EffectLibrary {
     effects: HashMap<String, Option<Rc<Effect>>>,
     textures: HashMap<String, Option<TextureId>>,
+    /// Load failures not yet reported (see [`EffectLibrary::take_errors`]).
+    errors: Vec<String>,
 }
 
 impl EffectLibrary {
     /// Effect `name`, loaded once; `None` if it can't be loaded.
-    fn effect(&mut self, name: &str, content: &Content) -> Option<Rc<Effect>> {
-        self.effects
-            .entry(name.to_owned())
-            .or_insert_with(|| match content.load_effect(name) {
-                Ok(e) => Some(Rc::new(e)),
-                Err(err) => {
-                    eprintln!("effect {name}: {err}");
-                    None
-                }
-            })
-            .clone()
+    fn effect(&mut self, name: &str, assets: &dyn SceneAssets) -> Option<Rc<Effect>> {
+        if let Some(effect) = self.effects.get(name) {
+            return effect.clone();
+        }
+        let effect = match assets.effect(name) {
+            Ok(e) => Some(Rc::new(e)),
+            Err(err) => {
+                self.errors.push(format!("effect {name}: {err}"));
+                None
+            }
+        };
+        self.effects.insert(name.to_owned(), effect.clone());
+        effect
+    }
+
+    /// Load failures since the last call, each reported once.
+    pub fn take_errors(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.errors)
     }
 
     /// Starts effect `name` at `now_ms`, playing its own loops.
-    pub fn start(&mut self, name: &str, content: &Content, now_ms: u64) -> Option<RunningEffect> {
-        let effect = self.effect(name, content)?;
+    pub fn start(
+        &mut self,
+        name: &str,
+        assets: &dyn SceneAssets,
+        now_ms: u64,
+    ) -> Option<RunningEffect> {
+        let effect = self.effect(name, assets)?;
         Some(RunningEffect {
             name: name.to_owned(),
             player: EffectPlayer::new(&effect, now_ms),
@@ -123,27 +138,34 @@ impl EffectLibrary {
         effect: &Effect,
         layer: usize,
         renderer: &mut Renderer,
-        content: &Content,
+        assets: &dyn SceneAssets,
     ) -> Option<TextureId> {
         let path = effect.layers.get(layer)?.texture.as_deref()?;
         *self.textures.entry(path.to_owned()).or_insert_with(|| {
-            content
-                .load_image(path)
+            assets
+                .image(path)
                 .map(|image| renderer.upload_texture(&image))
         })
+    }
+
+    /// Releases the uploaded textures (the effects stay loaded).
+    pub fn release_textures(&mut self, renderer: &mut Renderer) {
+        for id in self.textures.drain().filter_map(|(_, t)| t) {
+            renderer.release_texture(id);
+        }
     }
 
     /// Effect `name` standing at `spot`, playing its loops from `now_ms`.
     pub fn place(
         &mut self,
         name: &str,
-        content: &Content,
+        assets: &dyn SceneAssets,
         scene: &Scene,
         spot: Spot,
         tilt_deg: f32,
         now_ms: u64,
     ) -> Option<MapEffect> {
-        let running = self.start(name, content, now_ms)?;
+        let running = self.start(name, assets, now_ms)?;
         let Spot {
             position,
             rotation,
@@ -168,7 +190,7 @@ impl EffectLibrary {
     pub fn map_effects(
         &mut self,
         scene: &Scene,
-        content: &Content,
+        assets: &dyn SceneAssets,
         tilt_deg: f32,
         now_ms: u64,
     ) -> Vec<MapEffect> {
@@ -186,7 +208,7 @@ impl EffectLibrary {
                 spot.rotation = Vec3::new(t.angles[1], 0.0, t.angles[2]);
                 spot.scale = Vec3::from(t.scale);
             }
-            if let Some(mut e) = self.place(name, content, scene, spot, tilt_deg, now_ms) {
+            if let Some(mut e) = self.place(name, assets, scene, spot, tilt_deg, now_ms) {
                 e.running = e.running.endless();
                 out.push(e);
             }

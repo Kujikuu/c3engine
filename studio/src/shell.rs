@@ -349,6 +349,12 @@ impl Studio {
         }
     }
 
+    /// Logs a problem straight to the console (without the status bar).
+    pub(crate) fn log_error(&mut self, text: String) {
+        let at = self.started.elapsed().as_secs_f32();
+        self.push_log(Level::Error, text, at);
+    }
+
     fn push_log(&mut self, level: Level, text: String, at: f32) {
         self.log.push(LogEntry { level, text, at });
         if self.log.len() > MAX_LOG {

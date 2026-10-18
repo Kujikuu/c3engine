@@ -6,10 +6,10 @@
 //! trails on attacks, `C3DRolePart::Set3DEffect`) and draws them in its own space; role
 //! effects (level-up, hits) stand at the actor's feet (`CRole::Show`, `m_objEffect`).
 
-use crate::effects::{EffectLibrary, RunningEffect};
 use c3_assets::effect::Effect;
 use c3_render::actor::{self, ActorPose};
 use c3_render::effect::{self as effects_render, EffectMesh};
+use c3_render::effect_library::{EffectLibrary, RunningEffect};
 use c3_render::{MeshVertex, Renderer, TextureId};
 use c3_scene::path::{self, PathRules};
 use c3_scene::{CellPos, Scene};

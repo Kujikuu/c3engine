@@ -32,6 +32,7 @@ impl GroundCache {
 }
 
 /// Visible-area result.
+#[derive(Default)]
 pub struct GroundSprites {
     pub sprites: Vec<Sprite>,
     /// Some visible tiles are still waiting to be decoded.

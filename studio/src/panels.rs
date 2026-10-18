@@ -112,7 +112,18 @@ impl Studio {
             theme::toggle_chip(ui, &mut o.grid, "Grid", Color32::from_gray(200), "G");
             theme::toggle_chip(ui, &mut o.blocked, "Blocked", colors::BLOCKED, "B");
             theme::toggle_chip(ui, &mut o.portals, "Portals", colors::PORTAL, "P");
-            theme::toggle_chip(ui, &mut o.objects, "Objects", colors::COVER, "O");
+            ui.separator();
+            self.layers_menu(ui);
+            if theme::icon_toggle(
+                ui,
+                self.animate,
+                icons::FILM_STRIP,
+                "Animate objects and effects",
+            )
+            .clicked()
+            {
+                self.animate ^= true;
+            }
             if self.editor.tool.uses_brush() {
                 ui.separator();
                 ui.label(RichText::new("Brush").color(theme::TEXT_DIM));
@@ -160,6 +171,45 @@ impl Studio {
         });
     }
 
+    /// What the Scene view draws: the scene's layers and the anchor markers.
+    fn layers_menu(&mut self, ui: &mut egui::Ui) {
+        let (l, o) = (&mut self.layers, &mut self.overlays);
+        let hidden = [l.sky, l.ground, l.objects, l.effects, !o.markers]
+            .iter()
+            .filter(|on| !**on)
+            .count();
+        let title = match hidden {
+            0 => theme::icon_text(icons::STACK, "Layers"),
+            n => theme::icon_text(icons::STACK, &format!("Layers ({n} hidden)")),
+        };
+        ui.menu_button(title, |ui| {
+            ui.label(RichText::new("Scene").color(theme::TEXT_DIM).small());
+            for (on, label, key) in [
+                (&mut l.sky, "Sky and water", ""),
+                (&mut l.ground, "Ground", ""),
+                (&mut l.objects, "Objects", "O"),
+                (&mut l.effects, "Effects", "E"),
+            ] {
+                if ui
+                    .add(egui::Button::selectable(*on, label).shortcut_text(key))
+                    .clicked()
+                {
+                    *on ^= true;
+                }
+            }
+            ui.separator();
+            ui.label(RichText::new("Editor").color(theme::TEXT_DIM).small());
+            let markers = egui::Button::selectable(o.markers, "Anchor markers").shortcut_text("M");
+            if ui
+                .add(markers)
+                .on_hover_text("Dots where objects, sounds and effects are anchored")
+                .clicked()
+            {
+                o.markers ^= true;
+            }
+        });
+    }
+
     fn map_viewport(&mut self, ui: &mut egui::Ui) {
         let Some(gpu) = &mut self.gpu else {
             ui.colored_label(
@@ -168,7 +218,9 @@ impl Studio {
             );
             return;
         };
-        let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
+        let (Some(client), Some(doc), Some(scene_view)) =
+            (&self.client, &mut self.doc, &mut self.scene_view)
+        else {
             if self.maps.is_empty() {
                 theme::empty_state(
                     ui,
@@ -202,12 +254,14 @@ impl Studio {
                 (self.editor.brush, color)
             }),
             dragging_portal: self.editor.dragging_portal(),
+            time_ms: self.scene_ms as u64,
         };
+        scene_view.layers = self.layers;
         let r = map_view::show(
             ui,
             client,
             gpu,
-            &mut self.ground,
+            scene_view,
             doc,
             &mut self.cam,
             self.overlays,
@@ -215,8 +269,17 @@ impl Studio {
         );
         self.hover = r.pointer.cell;
         self.streaming = r.streaming;
+        if self.animate {
+            // Capped so a long pause doesn't jump animations ahead.
+            self.scene_ms += f64::from(ui.input(|i| i.stable_dt).min(0.1)) * 1000.0;
+            ui.ctx().request_repaint();
+        }
+        let errors = scene_view.library.take_errors();
         if let Some(msg) = self.editor.handle(doc, &r.pointer) {
             self.notify(msg);
+        }
+        for error in errors {
+            self.log_error(error);
         }
         if self.fit_pending {
             ui.ctx().request_repaint();
@@ -356,10 +419,18 @@ impl Studio {
         theme::section(ui, "Legend", |ui| {
             theme::legend(ui, colors::BLOCKED, "Blocked cell");
             theme::legend(ui, colors::PORTAL, "Portal");
-            theme::legend(ui, colors::COVER, "Cover object (trees, buildings)");
-            theme::legend(ui, colors::TERRAIN, "Terrain object");
-            theme::legend(ui, colors::SOUND, "Sound source");
-            theme::legend(ui, colors::EFFECT, "Effect");
+            if self.overlays.markers {
+                theme::legend(ui, colors::COVER, "Cover object (trees, buildings)");
+                theme::legend(ui, colors::TERRAIN, "Terrain object");
+                theme::legend(ui, colors::SOUND, "Sound source");
+                theme::legend(ui, colors::EFFECT, "Effect");
+            } else {
+                ui.label(
+                    RichText::new("Anchor markers (M) colour objects, sounds and effects.")
+                        .color(theme::TEXT_DIM)
+                        .small(),
+                );
+            }
         });
     }
 
@@ -501,16 +572,19 @@ impl Studio {
             } else if let Some(doc) = &self.doc {
                 ui.label(self.save_target().unwrap_or_else(|| doc.name().to_owned()));
                 ui.separator();
+                let tiles = self.scene_view.as_ref().map_or(0, |v| v.loaded_tiles());
                 if self.streaming {
                     ui.add(egui::Spinner::new().size(12.0));
-                    ui.label(format!(
-                        "Loading tiles {}/{}",
-                        self.ground.loaded(),
-                        doc.used_tiles()
-                    ));
+                    ui.label(format!("Loading art · tiles {tiles}/{}", doc.used_tiles()));
                 } else {
+                    ui.label(RichText::new(format!("{tiles} tiles loaded")).color(theme::TEXT_DIM));
+                }
+                if let Some(view) = &self.scene_view
+                    && view.effect_count() > 0
+                {
+                    ui.separator();
                     ui.label(
-                        RichText::new(format!("{} tiles loaded", self.ground.loaded()))
+                        RichText::new(format!("{} effects", view.effect_count()))
                             .color(theme::TEXT_DIM),
                     );
                 }

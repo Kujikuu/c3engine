@@ -13,7 +13,7 @@ use crate::shell::{self, LogEntry, Panel};
 use crate::theme;
 use crate::tq_plugin::{Client, ModelEntry};
 use c3_project::{Project, RecentProjects};
-use c3_render::ground::GroundCache;
+use c3_render::scene_view::{Layers, SceneView};
 use c3_scene::CellPos;
 use eframe::egui::{self, Key};
 use std::path::PathBuf;
@@ -59,7 +59,14 @@ pub struct Studio {
     pub(crate) editor: Editor,
     /// Engine renderer; `None` if eframe isn't running on wgpu.
     pub(crate) gpu: Option<GpuView>,
-    pub(crate) ground: GroundCache,
+    /// The open map drawn as the game draws it; needs the project's content.
+    pub(crate) scene_view: Option<SceneView>,
+    /// Which parts of the scene the Scene view draws.
+    pub(crate) layers: Layers,
+    /// Objects and effects animate in the Scene view.
+    pub(crate) animate: bool,
+    /// The Scene view's animation clock (stops while `animate` is off).
+    pub(crate) scene_ms: f64,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -119,13 +126,17 @@ impl Studio {
             },
             overlays: Overlays {
                 grid: true,
-                blocked: true,
+                // The scene shows the art now; walkability is shown on demand (B).
+                blocked: false,
                 portals: true,
-                objects: false,
+                markers: false,
             },
             editor: Editor::default(),
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
-            ground: GroundCache::default(),
+            scene_view: None,
+            layers: Layers::default(),
+            animate: true,
+            scene_ms: 0.0,
             hover: None,
             streaming: false,
             error: None,
@@ -178,6 +189,14 @@ impl Studio {
             s.fit_pending = false;
             s.cam.zoom = z;
         }
+        let cell = flag("--cell").and_then(|c| {
+            let (x, y) = c.split_once(',')?;
+            Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
+        });
+        if let (Some(cell), Some(doc)) = (cell, &s.doc) {
+            s.fit_pending = false;
+            s.cam.center = doc.cell_to_world(cell);
+        }
         s
     }
 
@@ -212,11 +231,20 @@ impl Studio {
 
     /// Closes the open map and model (without asking).
     pub(crate) fn close_documents(&mut self) {
+        self.set_scene_view(None);
         self.doc = None;
         self.model = None;
         self.filter.clear();
         self.hover = None;
         self.editor = Editor::default();
+    }
+
+    /// Replaces the Scene view's renderer state, freeing the old one's textures.
+    fn set_scene_view(&mut self, view: Option<SceneView>) {
+        if let (Some(old), Some(gpu)) = (&mut self.scene_view, &mut self.gpu) {
+            old.release(&mut gpu.renderer);
+        }
+        self.scene_view = view;
     }
 
     pub(crate) fn is_dirty(&self) -> bool {
@@ -255,6 +283,10 @@ impl Studio {
                 self.inspect_asset = false;
                 let doc = MapDoc::new(map.clone(), scene, warnings);
                 self.cam.center = doc.bounds().center();
+                let view = self.client.as_ref().map(|client| {
+                    SceneView::new(doc.scene(), client, client.tilt_deg(), self.scene_ms as u64)
+                });
+                self.set_scene_view(view);
                 self.doc = Some(doc);
                 self.fit_pending = true;
                 self.error = None;
@@ -430,12 +462,14 @@ impl Studio {
             if i.modifiers.command {
                 return;
             }
-            let o = &mut self.overlays;
+            let (o, l) = (&mut self.overlays, &mut self.layers);
             for (key, flag) in [
                 (Key::G, &mut o.grid),
                 (Key::B, &mut o.blocked),
                 (Key::P, &mut o.portals),
-                (Key::O, &mut o.objects),
+                (Key::M, &mut o.markers),
+                (Key::O, &mut l.objects),
+                (Key::E, &mut l.effects),
             ] {
                 if i.key_pressed(key) {
                     *flag ^= true;

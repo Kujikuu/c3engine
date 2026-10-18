@@ -32,7 +32,9 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 5: Scene view draws maps like the client (objects, parallax, effects, actors)
+Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
+the end as M8.
+- [ ] M3 step 6: Scene editor (place/move/delete objects, effects, NPCs, spawns, portals)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -98,18 +100,16 @@ Toward the Unity/UE5-style editor, in order:
       their folders with a badge (names from ANI frames + ini tables: 23,655 of 25,013 named, 0.6 s),
       double-click opens maps/models, context menu (Open, Show in Explorer, Copy Path), Inspector
       shows the selected asset (size, storage, texture preview, C3 contents); `--browse`, `--select`
-- [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
-      as the client does
+- [x] (5) Scene view on the shared renderer: `c3_render::scene_view::SceneView` draws a scene the
+      way the client does (parallax sky/water, ground, objects, map effects, and the caller's actors
+      in one painter's order); the client's `World` and the Studio's Scene view both draw through it.
+      `EffectLibrary` moved into the engine (`c3_render::effect_library`), `SceneAssets` gained
+      `effect`. Scene bar: Layers menu (sky, ground, objects O, effects E, anchor markers M) and an
+      Animate toggle; effect load errors go to the Console; `--cell x,y` frames a cell
 - [ ] (6) Scene editor: place/move/delete objects, effects, NPCs, monster spawns and portals;
       inspector for the selection; export DMap + Redux data
 - [ ] (7) Play mode (offline): walk the current map inside the Studio, stop to return to editing
 - [ ] (8) Model / animation / effect viewers: actions, sockets, equipment, timeline
-
-## M4: AI integration
-- [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
-- [ ] Studio assistant panel (`engine/ai`, Claude API): chat that edits the project through c3-edit
-      tools; shows each change, applies on confirm, one undo step per request; API key in settings
-- [ ] Project context for AI: schemas, tables, map summaries and docs the model can query
 
 ## M5: Gameplay framework (shared by client and server)
 - [ ] `engine/game`: entities, stats and levels, combat and skills, items and inventory, drops,
@@ -133,3 +133,9 @@ Toward the Unity/UE5-style editor, in order:
 - [ ] Build from the Studio: package a playable client and server from a project
 - [ ] Launcher/patcher
 - [ ] glTF import/export (Blender pipeline) for models + animations
+
+## M8: AI integration (was M4; deferred by the user to after M7)
+- [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
+- [ ] Studio assistant panel (`engine/ai`, Claude API): chat that edits the project through c3-edit
+      tools; shows each change, applies on confirm, one undo step per request; API key in settings
+- [ ] Project context for AI: schemas, tables, map summaries and docs the model can query

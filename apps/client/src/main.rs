@@ -11,7 +11,6 @@
 
 mod actors;
 mod camera;
-mod effects;
 mod gfx;
 mod world;
 
@@ -149,10 +148,11 @@ impl App {
         self.update();
         let viewport = self.viewport();
         let Some(gfx) = &mut self.gfx else { return };
+        let rect = self.camera.view_rect(viewport);
         self.world
             .prepare(&mut gfx.renderer, &self.camera, viewport);
         let meshes = self.world.mesh_draws();
-        gfx.draw(&self.world.frame(&meshes, &self.camera, viewport));
+        gfx.draw(&self.world.frame(&meshes, rect));
         if let Some(fps) = self.fps.tick(Instant::now()) {
             let name = self
                 .world
