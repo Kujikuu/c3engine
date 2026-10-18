@@ -18,14 +18,24 @@ const PLAYER_PATH: PathRules = PathRules {
 impl Sim {
     /// Brings a player into the world at `cell` (or the walkable cell nearest it).
     pub fn add_player(&mut self, name: impl Into<String>, cell: CellPos, level: u32) -> EntityId {
-        let cell = path::nearest_walkable(&self.grid, cell, 30).unwrap_or(cell);
         let id = self.new_entity();
+        self.insert_player(id, name.into(), cell, level);
+        id
+    }
+
+    /// Player `id` (not in use here) as a new character.
+    pub(crate) fn insert_player(&mut self, id: EntityId, name: String, cell: CellPos, level: u32) {
+        assert!(
+            !self.players.contains_key(&id),
+            "player {id:?} is already here"
+        );
+        let cell = path::nearest_walkable(&self.grid, cell, 30).unwrap_or(cell);
         let stats = self.rules.player_stats(level);
         self.players.insert(
             id,
             Player {
                 id,
-                name: name.into(),
+                name,
                 cell,
                 direction: 0,
                 level,
@@ -49,7 +59,6 @@ impl Sim {
         );
         self.index.insert(id, cell);
         self.events.push(Event::Appeared(id));
-        id
     }
 
     pub(crate) fn living(&mut self, id: EntityId) -> Option<&mut Player> {

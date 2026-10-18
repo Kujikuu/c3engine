@@ -26,6 +26,20 @@ pub struct MapWorld {
 /// Makes a new account's character: its name, at a start cell.
 pub type NewCharacter = Box<dyn Fn(&str, CellPos) -> PlayerSave>;
 
+/// A map the server is asked for: by a game id (a portal), or by key (a saved character's).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapKey<'a> {
+    Id(u32),
+    Key(&'a str),
+}
+
+/// Loads a map the server doesn't run yet.
+pub type MapLoader = Box<dyn FnMut(MapKey) -> Result<MapWorld, String>>;
+
+/// Where the server's player ids start: above any id a map's simulation gives out, so a
+/// player keeps theirs from map to map.
+const PLAYER_IDS: u32 = 1 << 30;
+
 pub struct ServerConfig {
     /// Folder of the account files.
     pub accounts: PathBuf,
@@ -35,6 +49,9 @@ pub struct ServerConfig {
     pub save_every_ms: u64,
     /// Game time per tick (ms), the pace the server runs at.
     pub tick_ms: u64,
+    /// Loads the maps players go to that the server doesn't run yet; without it, the
+    /// server runs only the maps it started with.
+    pub load_map: Option<MapLoader>,
 }
 
 /// A cell near `start` picked by `name`, so new characters don't all stand on one spot.
@@ -67,6 +84,8 @@ pub struct GameServer {
     accounts: Accounts,
     config: ServerConfig,
     online: BTreeMap<Client, Online>,
+    /// The next player id to give out.
+    next_player: u32,
     since_save_ms: u64,
     log: Vec<String>,
 }
@@ -82,6 +101,7 @@ impl GameServer {
             accounts: Accounts::new(config.accounts.clone()),
             config,
             online: BTreeMap::new(),
+            next_player: PLAYER_IDS,
             since_save_ms: 0,
             log: Vec::new(),
         }
@@ -114,13 +134,21 @@ impl GameServer {
                 }
             }
         }
+        let mut travels = Vec::new();
         for (index, map) in self.maps.iter_mut().enumerate() {
             map.sim.advance(ms);
             let events = map.sim.take_events();
             for event in &events {
-                match event {
-                    c3_game::Event::Warning(text) => self.log.push(format!("{}: {text}", map.key)),
-                    c3_game::Event::ScriptLog(text) => self.log.push(format!("Script: {text}")),
+                match *event {
+                    c3_game::Event::Warning(ref text) => {
+                        self.log.push(format!("{}: {text}", map.key));
+                    }
+                    c3_game::Event::ScriptLog(ref text) => {
+                        self.log.push(format!("Script: {text}"));
+                    }
+                    c3_game::Event::Travel { player, map, cell } => {
+                        travels.push((index, player, map, cell));
+                    }
                     _ => {}
                 }
             }
@@ -128,6 +156,9 @@ impl GameServer {
                 let update = map.sim.update_for(player.hero, &mut player.viewer, &events);
                 self.fronts[client.front].update(client.conn, &update, map, player.hero);
             }
+        }
+        for (from, hero, map, cell) in travels {
+            self.travel(from, hero, map, cell);
         }
         self.since_save_ms += ms;
         if self.since_save_ms >= self.config.save_every_ms {
@@ -213,17 +244,27 @@ impl GameServer {
             save.map = first_key.clone();
             save
         };
-        let save = match self.accounts.login(account, password, new_character) {
+        let mut save = match self.accounts.login(account, password, new_character) {
             Ok(save) => save,
             Err(e) => return front.refuse(client.conn, &e.to_string()),
         };
-        let map = self
-            .maps
-            .iter()
-            .position(|m| m.key == save.map)
-            .unwrap_or(0);
+        // An unnamed map is the first.
+        let found = match save.map.as_str() {
+            "" => Ok(0),
+            key => self.map_index(MapKey::Key(key)),
+        };
+        let map = found.unwrap_or_else(|e| {
+            // The map is gone: start over at the first map's start.
+            self.log
+                .push(format!("{account}'s map {} can't be played: {e}", save.map));
+            save.cell = self.maps[0].start;
+            0
+        });
+        let hero = EntityId(self.next_player);
+        self.next_player += 1;
         let world = &mut self.maps[map];
-        let hero = world.sim.add_saved_player(&save);
+        world.sim.add_saved_player_as(&save, hero);
+        let front = &mut self.fronts[client.front];
         let welcome = Welcome {
             hero,
             map: world.key.clone(),
@@ -241,6 +282,66 @@ impl GameServer {
                 viewer: Viewer::default(),
             },
         );
+    }
+
+    /// The index of map `key`, loaded if the server doesn't run it yet.
+    fn map_index(&mut self, key: MapKey) -> Result<usize, String> {
+        let found = self.maps.iter().position(|m| match key {
+            MapKey::Id(id) => m.map_ids.contains(&id),
+            MapKey::Key(k) => m.key == k,
+        });
+        if let Some(index) = found {
+            return Ok(index);
+        }
+        let load = self
+            .config
+            .load_map
+            .as_mut()
+            .ok_or("the server runs only the maps it started with")?;
+        let world = load(key)?;
+        self.log.push(format!("Loaded map {}", world.key));
+        self.maps.push(world);
+        Ok(self.maps.len() - 1)
+    }
+
+    /// Takes player `hero` from map `from` to `cell` of the map with game id `map`.
+    fn travel(&mut self, from: usize, hero: EntityId, map: u32, cell: CellPos) {
+        let Some(client) = self
+            .online
+            .iter()
+            .find(|(_, p)| p.map == from && p.hero == hero)
+            .map(|(c, _)| *c)
+        else {
+            return;
+        };
+        let to = match self.map_index(MapKey::Id(map)) {
+            Ok(to) => to,
+            Err(e) => {
+                let account = &self.online[&client].account;
+                self.log
+                    .push(format!("{account} can't go to map {map}: {e}"));
+                return;
+            }
+        };
+        let Some(mut save) = self.maps[from].sim.save_player(hero) else {
+            return;
+        };
+        self.maps[from].sim.remove_player(hero);
+        let world = &mut self.maps[to];
+        save.map = world.key.clone();
+        save.cell = cell;
+        world.sim.add_saved_player_as(&save, hero);
+        let welcome = Welcome {
+            hero,
+            map: world.key.clone(),
+            map_ids: world.map_ids.clone(),
+        };
+        self.fronts[client.front].moved(client.conn, &welcome, world);
+        let p = self.online.get_mut(&client).expect("found above");
+        p.map = to;
+        p.viewer = Viewer::default();
+        self.log
+            .push(format!("{} went to {}", p.account, world.key));
     }
 
     /// The player of `client` left: save their character and take it out of the world.

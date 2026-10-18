@@ -183,6 +183,20 @@ impl Front for ConquerFront {
         }
     }
 
+    fn moved(&mut self, conn: ConnId, welcome: &Welcome, world: &MapWorld) {
+        let Some(client) = self.clients.get_mut(&conn) else {
+            return;
+        };
+        match client.moved(welcome, &world.sim) {
+            Ok(packets) => {
+                for packet in packets {
+                    self.game.send(conn, packet);
+                }
+            }
+            Err(why) => self.kick(conn, &why),
+        }
+    }
+
     fn update(&mut self, conn: ConnId, update: &WorldUpdate, world: &MapWorld, _hero: EntityId) {
         let Some(client) = self.clients.get_mut(&conn) else {
             return;

@@ -5,8 +5,10 @@ use super::packets::{self as pk, Request, action};
 use super::{ConquerFront, ConquerSetup};
 use crate::ConquerGameRules;
 use c3_net::packet::{Reader, Writer, packet_type};
+use c3_online::MapKey;
+use c3_play::serve::MapSource;
 use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
-use c3_scene::{Grid, IsoProjection, Npc, Scene};
+use c3_scene::{Grid, IsoProjection, Npc, Portal, PortalTarget, Scene};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -14,6 +16,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const MAP_ID: u32 = 1002;
+/// The map the test map's portal leads to, loaded when first needed.
+const OTHER_MAP_ID: u32 = 1003;
+const PORTAL: (i32, i32) = (12, 12);
 const NPC_ID: u32 = 7;
 /// "test1234" as the client seals it.
 const SEALED_PASSWORD: [u8; 16] = [
@@ -27,7 +32,14 @@ fn scene() -> Scene {
         projection: IsoProjection::for_grid(64.0, 32.0, grid.width),
         grid,
         ground: None,
-        portals: Vec::new(),
+        portals: vec![Portal {
+            cell: PORTAL,
+            id: 0,
+            to: Some(PortalTarget {
+                map: OTHER_MAP_ID,
+                cell: (20, 20),
+            }),
+        }],
         entities: Vec::new(),
         layers: Vec::new(),
         npcs: vec![Npc {
@@ -70,6 +82,17 @@ fn server(accounts: &std::path::Path) -> (ServerHandle, SocketAddr) {
             rules: Arc::new(ConquerGameRules),
             settings: crate::module::conquer_settings(),
             fronts: vec![Box::new(front)],
+            more_maps: Some(Box::new(|| {
+                let source = |_: MapKey| {
+                    Ok(ServedMap {
+                        key: "other".into(),
+                        scene: scene(),
+                        map_ids: vec![OTHER_MAP_ID],
+                        start: (10, 10),
+                    })
+                };
+                Ok(Box::new(source) as MapSource)
+            })),
         },
     )
     .expect("server starts");
@@ -209,6 +232,14 @@ fn conquer_clients_log_in_walk_and_meet() {
     let (mut other, other_hero) = enter(account_addr, "friend");
     other.wait_for(pk::PLAYER, |p| u32_at(p, 4) == hero);
     game.wait_for(pk::PLAYER, |p| u32_at(p, 4) == other_hero);
+
+    // The client steps on the portal: the server flies its hero to the other map.
+    let data = PORTAL.0 as u32 | (PORTAL.1 as u32) << 16;
+    game.send(pk::action(hero, action::CHANGE_MAP, data, (0, 0), 0));
+    let flown = game.wait_for(pk::ACTION, |p| {
+        u32_at(p, 8) == hero && u16::from_le_bytes([p[22], p[23]]) == action::FLY_MAP
+    });
+    assert_eq!(u32_at(&flown, 12), OTHER_MAP_ID);
 
     drop((game, other));
     drop(server);

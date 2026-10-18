@@ -28,6 +28,10 @@ pub trait Front {
     fn poll(&mut self) -> Vec<FrontEvent>;
     /// Lets `conn` in as `welcome.hero` on `world`.
     fn welcome(&mut self, conn: ConnId, welcome: &Welcome, world: &MapWorld);
+    /// `conn`'s hero, `welcome.hero`, went to another map, `world` (it is let in there).
+    fn moved(&mut self, conn: ConnId, welcome: &Welcome, world: &MapWorld) {
+        self.welcome(conn, welcome, world);
+    }
     /// Shows `conn` (playing `hero` on `world`) what changed around it.
     fn update(&mut self, conn: ConnId, update: &WorldUpdate, world: &MapWorld, hero: EntityId);
     /// Tells `conn` its login failed, and closes it.

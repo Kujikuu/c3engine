@@ -21,6 +21,7 @@ dirs = "7.0.0"
 eframe = "0.37.0"
 egui_extras = "0.37.0"
 game-conquer = { version = "0.1.0", path = "../games/conquer" }
+c3-games = { version = "0.1.0", path = "../games/registry" }
 glam = "0.34.1"
 notify = "8"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp"] }

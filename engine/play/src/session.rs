@@ -88,8 +88,8 @@ impl Screen<'_> {
 pub enum MapChange {
     /// Through a portal or a teleport here: map `map` (an id), at `cell`.
     Local { map: u32, cell: CellPos },
-    /// The server moved the hero to another map.
-    Remote(Welcome),
+    /// The server moved the hero to another map; its first updates wait for it.
+    Remote(Welcome, Vec<WorldUpdate>),
 }
 
 pub struct Session {
@@ -286,33 +286,45 @@ impl Session {
         maps: &MapList,
         renderer: &mut c3_render::Renderer,
     ) -> Option<Result<String, String>> {
+        // The new map's first update (the hero, and what is around) comes after the welcome.
+        if let Some(MapChange::Remote(_, updates)) = &self.map_change
+            && updates.is_empty()
+        {
+            return None;
+        }
         let change = self.map_change.take()?;
         let game = Rc::clone(&self.world.game);
         Some(match change {
-            MapChange::Local { map, cell } => {
-                let Some(info) = maps.by_id(map) else {
-                    let text = format!("There is no map {map}.");
-                    self.ui.system(&text, style::BAD);
-                    return Some(Err(text));
-                };
-                let info = info.clone();
-                game.load_map(project, &info.key).and_then(|scene| {
+            MapChange::Local { map, cell } => maps
+                .by_id(map)
+                .cloned()
+                .ok_or_else(|| format!("There is no map {map}."))
+                .and_then(|info| {
+                    let scene = game.load_map(project, &info.key)?;
                     self.enter_map_here(&info, scene, cell, renderer)?;
                     Ok(info.name)
-                })
-            }
-            MapChange::Remote(welcome) => {
-                let name = maps
-                    .by_key(&welcome.map)
-                    .map_or_else(|| welcome.map.clone(), |m| m.name.clone());
-                let music = maps.by_key(&welcome.map).map(|m| m.music.clone());
-                game.load_map(project, &welcome.map).map(|scene| {
-                    self.enter_map_online(welcome, scene, music, renderer);
-                    name
+                }),
+            MapChange::Remote(welcome, updates) => {
+                let info = maps.by_key(&welcome.map);
+                let name = info.map_or_else(|| welcome.map.clone(), |m| m.name.clone());
+                let music = info.and_then(|m| non_empty(&m.music));
+                game.load_map(project, &welcome.map).and_then(|scene| {
+                    self.enter_map_online(welcome, updates, scene, music, renderer)?;
+                    Ok(name)
                 })
             }
         })
-        .map(|r| r.inspect_err(|e| self.ui.system(e, style::BAD)))
+        .map(|moved| match moved {
+            Ok(name) => {
+                self.ui
+                    .system(format!("You arrive in {name}."), style::GOLD);
+                Ok(name)
+            }
+            Err(e) => {
+                self.ui.system(&e, style::BAD);
+                Err(e)
+            }
+        })
     }
 
     /// The hero (as it is) on `cell` of `scene`, a new simulation of map `info`.
@@ -340,8 +352,6 @@ impl Session {
         self.setup = setup;
         self.replace_world(sim, hero, info.key.clone(), scene, renderer)?;
         self.audio.set_map(info.ids.clone(), non_empty(&info.music));
-        self.ui
-            .system(format!("You arrive in {}.", info.name), style::GOLD);
         Ok(())
     }
 
@@ -349,23 +359,24 @@ impl Session {
     fn enter_map_online(
         &mut self,
         welcome: Welcome,
+        updates: Vec<WorldUpdate>,
         scene: Scene,
         music: Option<String>,
         renderer: &mut c3_render::Renderer,
-    ) {
-        let (sim, problems) = game::mirror_sim(
+    ) -> Result<(), String> {
+        let (mut sim, problems) = game::mirror_sim(
             &scene,
             self.setup.tables.as_ref(),
             &*self.world.game.rules(),
             &self.settings.gameplay,
         );
         self.report(problems);
-        if let Err(e) = self.replace_world(sim, welcome.hero, welcome.map.clone(), scene, renderer)
-        {
-            self.ui.system(e, style::BAD);
+        for update in updates {
+            sim.apply_update(update);
         }
-        self.audio
-            .set_map(welcome.map_ids, music.as_deref().and_then(non_empty));
+        self.replace_world(sim, welcome.hero, welcome.map.clone(), scene, renderer)?;
+        self.audio.set_map(welcome.map_ids, music);
+        Ok(())
     }
 
     /// Plays `sim` (hero `hero`) on `scene` from now on, the old world's textures freed.
@@ -642,7 +653,11 @@ impl Session {
             Link::Remote(conn) => {
                 for event in conn.poll() {
                     match event {
-                        RemoteEvent::Update(update) => self.sim.apply_update(update),
+                        RemoteEvent::Update(update) => match &mut self.map_change {
+                            // The new map's updates wait for it to load.
+                            Some(MapChange::Remote(_, waiting)) => waiting.push(update),
+                            _ => self.sim.apply_update(update),
+                        },
                         RemoteEvent::Closed(why) => {
                             let why =
                                 why.unwrap_or_else(|| "the server closed the connection".into());
@@ -650,7 +665,7 @@ impl Session {
                         }
                         // Let in again: the server moved the hero to another map.
                         RemoteEvent::Welcome(welcome) => {
-                            self.map_change = Some(MapChange::Remote(welcome));
+                            self.map_change = Some(MapChange::Remote(welcome, Vec::new()));
                         }
                         RemoteEvent::Refused(_) => {}
                     }

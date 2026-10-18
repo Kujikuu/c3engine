@@ -241,6 +241,53 @@ impl ConquerClient {
         Ok(out)
     }
 
+    /// The hero went to another map (`welcome`'s, simulated by `sim`): the client flies
+    /// there, its items swapped for their new ids, and is shown what is around.
+    pub fn moved(&mut self, welcome: &Welcome, sim: &Sim) -> Result<Vec<Vec<u8>>, String> {
+        let map_id = *welcome
+            .map_ids
+            .first()
+            .ok_or("That map isn't one the Conquer client knows.")?;
+        let p = sim
+            .player(welcome.hero)
+            .ok_or("The character isn't in the world.")?
+            .clone();
+        let mut out: Vec<Vec<u8>> = self
+            .me
+            .iter()
+            .flat_map(|old| old.bag.iter().chain(&old.equipment))
+            .map(|i| pk::item_action(i.id, 0, item::REMOVE))
+            .collect();
+        out.extend(p.bag.iter().map(|i| pk::item_info(i.id, i.kind, 0)));
+        out.extend(
+            p.equipment
+                .iter()
+                .map(|i| pk::item_info(i.id, i.kind, slot_of(sim.rules(), i.kind))),
+        );
+        self.hero = Some(welcome.hero);
+        self.map_id = map_id;
+        self.npcs = sim.npcs().to_vec();
+        self.seen.clear();
+        self.cells.clear();
+        self.cells.insert(p.id, p.cell);
+        self.steps_to = None;
+        out.push(pk::action(
+            self.hero_id(),
+            action::FLY_MAP,
+            map_id,
+            cell16(p.cell),
+            p.direction.into(),
+        ));
+        self.points = points(sim.rules(), p.level);
+        out.push(pk::attributes(
+            self.hero_id(),
+            &Self::stats(&p, self.points),
+        ));
+        self.me = Some(p);
+        out.extend(self.surroundings());
+        Ok(out)
+    }
+
     /// The client loaded its map: where the hero stands, its bars, and everything around.
     fn enter(&mut self) -> Vec<Vec<u8>> {
         let Some(me) = &self.me else {
@@ -559,6 +606,11 @@ impl ConquerClient {
                     if let Some((_, packet)) = ids.entity(data).and_then(|e| self.seen.get(&e)) {
                         out.push(packet.clone());
                     }
+                }
+                action::CHANGE_MAP => {
+                    let portal = ((data & 0xFFFF) as i32, (data >> 16) as i32);
+                    self.steps_to = None;
+                    inputs.push(Input::EnterPortal(portal));
                 }
                 action::JUMP => {
                     let to = ((data & 0xFFFF) as i32, (data >> 16) as i32);

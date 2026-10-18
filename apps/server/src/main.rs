@@ -7,7 +7,8 @@
 //! first), with the project's NPCs, spawns, rules, scripts and quests. Any project serves:
 //! the game that plays it comes from `c3-games`, its numbers from Project Settings (port,
 //! tick, saving, new characters). New characters start on the first map, at `--cell` (else
-//! the settings' start cell, else its middle). Accounts and characters are kept in
+//! the settings' start cell, else its middle). Maps players go to through portals are loaded
+//! when first needed. Accounts and characters are kept in
 //! `<project>/server/accounts`; an unknown account name logs in by making the account.
 //!
 //! Project Settings > Network > fronts also serve other clients; Conquer's settings serve the
@@ -18,7 +19,7 @@
 //! Type `quit` to stop (characters are saved).
 
 use c3_core::settings::FrontSettings;
-use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
+use c3_play::serve::{ServeSetup, ServedMap, ServerHandle, project_maps};
 use c3_scene::CellPos;
 use std::io::BufRead;
 use std::sync::mpsc;
@@ -99,6 +100,7 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
                 .ok_or("the project has no map to serve; make one in the Studio")?,
         );
     }
+    let list = c3_play::map_list::MapList::new(&project, &*game, &settings);
     let mut maps = Vec::new();
     for (i, key) in keys.into_iter().enumerate() {
         let scene = game.load_map(&project, &key)?;
@@ -114,7 +116,9 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
             scene.spawns.len()
         );
         maps.push(ServedMap {
-            map_ids: game.map_ids(&key),
+            map_ids: list
+                .by_key(&key)
+                .map_or_else(|| game.map_ids(&key), |m| m.ids.clone()),
             key,
             scene,
             start,
@@ -133,9 +137,17 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
             accounts: project.server_dir().join("accounts"),
             rules: game.rules(),
             fronts: c3_games::fronts(&settings.network, &args.listen)?,
+            more_maps: Some(project_maps(project.clone(), settings.clone(), open_game)),
             settings,
         },
     )
+}
+
+/// The game that plays `project`, for the server's thread.
+fn open_game(
+    project: &c3_project::Project,
+) -> Result<std::rc::Rc<dyn c3_play::GameModule>, String> {
+    c3_games::open_project(project).map(|(game, _)| game)
 }
 
 fn main() {

@@ -17,7 +17,7 @@ pub use accounts::{AccountError, Accounts};
 pub use client::{Connection, RemoteEvent};
 pub use front::{EngineFront, Front, FrontEvent};
 pub use msg::{ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
-pub use server::{GameServer, MapWorld, NewCharacter, ServerConfig};
+pub use server::{GameServer, MapKey, MapLoader, MapWorld, NewCharacter, ServerConfig};
 
 #[cfg(test)]
 mod tests;

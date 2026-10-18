@@ -808,6 +808,7 @@ dependencies = [
  "c3-data",
  "c3-edit",
  "c3-formats-tq",
+ "c3-games",
  "c3-play",
  "c3-project",
  "c3-render",

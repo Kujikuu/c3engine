@@ -45,6 +45,11 @@ pub struct PlaySetup {
     pub maps: MapList,
 }
 
+/// The game that plays `project`, for the local server's thread.
+fn open_game(project: &c3_project::Project) -> Result<Rc<dyn GameModule>, String> {
+    c3_games::open_project(project).map(|(game, _)| game)
+}
+
 /// The account Play mode logs in to its local server with.
 const PLAY_ACCOUNT: &str = "player";
 
@@ -127,6 +132,9 @@ impl PlaySession {
                 rules: game.rules(),
                 settings: setup.settings.clone(),
                 fronts: Vec::new(),
+                more_maps: setup.project.clone().map(|project| {
+                    c3_play::serve::project_maps(project, setup.settings.clone(), open_game)
+                }),
             },
         )?;
         let session = Session::join_scene(

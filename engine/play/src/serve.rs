@@ -3,15 +3,19 @@
 //! it. The `c3-server` app and the Studio's Play mode (through a local server) both start one.
 //!
 //! The server speaks the engine's protocol; a game may add fronts for other clients (a game's
-//! original protocol), all serving the same worlds.
+//! original protocol), all serving the same worlds. Maps players go to through portals are
+//! loaded when first needed, by a [`MapSource`] made on the server's thread.
 
 use crate::game::{self, GameSetup};
-use crate::module::GameRules;
+use crate::map_list::MapList;
+use crate::module::{GameModule, GameRules};
 use c3_core::ProjectSettings;
-use c3_online::{EngineFront, Front, GameServer, MapWorld, ServerConfig};
+use c3_online::{EngineFront, Front, GameServer, MapKey, MapLoader, MapWorld, ServerConfig};
+use c3_project::Project;
 use c3_scene::{CellPos, Scene, path};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -29,6 +33,45 @@ pub struct ServedMap {
     pub start: CellPos,
 }
 
+/// Loads the maps the server doesn't run yet.
+pub type MapSource = Box<dyn FnMut(MapKey) -> Result<ServedMap, String>>;
+
+/// Makes the [`MapSource`] on the server's thread (a game lives on one thread).
+pub type MapSourceMaker = Box<dyn FnOnce() -> Result<MapSource, String> + Send>;
+
+/// Opens the game that plays a project.
+pub type OpenGame = fn(&Project) -> Result<Rc<dyn GameModule>, String>;
+
+/// The maps of `project` (as `settings` list them), played by the game `open` opens; new
+/// characters never start on them, so they start in the middle.
+pub fn project_maps(project: Project, settings: ProjectSettings, open: OpenGame) -> MapSourceMaker {
+    Box::new(move || {
+        let game = open(&project)?;
+        let maps = MapList::new(&project, &*game, &settings);
+        let source = move |key: MapKey| {
+            let (key, map_ids) = match key {
+                MapKey::Id(id) => maps
+                    .by_id(id)
+                    .map(|m| (m.key.clone(), m.ids.clone()))
+                    .ok_or_else(|| format!("there is no map {id}"))?,
+                MapKey::Key(key) => maps.by_key(key).map_or_else(
+                    || (key.to_owned(), game.map_ids(key)),
+                    |m| (m.key.clone(), m.ids.clone()),
+                ),
+            };
+            let scene = game.load_map(&project, &key)?;
+            let start = (scene.grid.width as i32 / 2, scene.grid.height as i32 / 2);
+            Ok(ServedMap {
+                key,
+                scene,
+                map_ids,
+                start,
+            })
+        };
+        Ok(Box::new(source) as MapSource)
+    })
+}
+
 /// Where the served game's data is.
 pub struct ServeSetup {
     /// Address to listen on (`127.0.0.1:0` picks a free port).
@@ -43,6 +86,39 @@ pub struct ServeSetup {
     pub settings: ProjectSettings,
     /// Fronts for other clients beside the engine's own, already listening.
     pub fronts: Vec<Box<dyn Front + Send>>,
+    /// Where maps the server doesn't start with come from; `None` serves only those.
+    pub more_maps: Option<MapSourceMaker>,
+}
+
+/// Makes served maps into simulations, all alike.
+struct Worlds {
+    scripts: Option<PathBuf>,
+    tables: Option<PathBuf>,
+    rules: Arc<dyn GameRules>,
+    settings: c3_core::settings::GameplaySettings,
+    seed: u64,
+}
+
+impl Worlds {
+    /// Map `m` simulated; what was wrong with it goes to `say`.
+    fn world(&self, m: ServedMap, say: &impl Fn(String)) -> MapWorld {
+        let setup = GameSetup {
+            scripts: self.scripts.clone(),
+            tables: self.tables.clone(),
+            map_ids: m.map_ids.clone(),
+            seed: self.seed,
+            settings: self.settings.clone(),
+        };
+        let (sim, problems) = game::new_sim(&m.scene, &setup, &*self.rules);
+        problems.into_iter().for_each(say);
+        let start = path::nearest_walkable(&m.scene.grid, m.start, START_SEARCH).unwrap_or(m.start);
+        MapWorld {
+            key: m.key,
+            map_ids: m.map_ids,
+            sim,
+            start,
+        }
+    }
 }
 
 /// A running server.
@@ -69,6 +145,7 @@ impl ServerHandle {
             rules,
             settings,
             fronts: extra,
+            more_maps,
             ..
         } = setup;
         let mut fronts: Vec<Box<dyn Front + Send>> = vec![Box::new(front)];
@@ -79,30 +156,27 @@ impl ServerHandle {
         let thread = std::thread::Builder::new()
             .name("c3 game server".into())
             .spawn(move || {
-                let say = |line: String| sink.lock().expect("server log").push(line);
-                let seed = game::time_seed();
-                let worlds = maps
-                    .into_iter()
-                    .map(|m| {
-                        let setup = GameSetup {
-                            scripts: scripts.clone(),
-                            tables: tables.clone(),
-                            map_ids: m.map_ids.clone(),
-                            seed,
-                            settings: settings.gameplay.clone(),
-                        };
-                        let (sim, problems) = game::new_sim(&m.scene, &setup, &*rules);
-                        problems.into_iter().for_each(&say);
-                        let start = path::nearest_walkable(&m.scene.grid, m.start, START_SEARCH)
-                            .unwrap_or(m.start);
-                        MapWorld {
-                            key: m.key,
-                            map_ids: m.map_ids,
-                            sim,
-                            start,
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                let say = move |line: String| sink.lock().expect("server log").push(line);
+                let maker = Worlds {
+                    scripts,
+                    tables,
+                    rules,
+                    settings: settings.gameplay.clone(),
+                    seed: game::time_seed(),
+                };
+                let worlds: Vec<MapWorld> =
+                    maps.into_iter().map(|m| maker.world(m, &say)).collect();
+                let load_map = more_maps.and_then(|make| match make() {
+                    Ok(mut source) => {
+                        let say = say.clone();
+                        let load = move |key: MapKey| Ok(maker.world(source(key)?, &say));
+                        Some(Box::new(load) as MapLoader)
+                    }
+                    Err(e) => {
+                        say(format!("Only the maps started with are served: {e}"));
+                        None
+                    }
+                });
                 say(format!("Serving {} map(s) on {addr}", worlds.len()));
                 for front in fronts.iter().skip(1) {
                     say(format!("Also serving clients on {}", front.local_addr()));
@@ -115,6 +189,7 @@ impl ServerHandle {
                     }),
                     save_every_ms: seconds_to_ms(settings.network.save_interval_seconds),
                     tick_ms: settings.gameplay.tick_ms,
+                    load_map,
                 };
                 let fronts = fronts.into_iter().map(|f| f as Box<dyn Front>).collect();
                 let mut server = GameServer::new(fronts, worlds, config);

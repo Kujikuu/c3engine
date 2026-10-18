@@ -52,7 +52,15 @@ impl PlayerSave {
 impl Sim {
     /// Brings a stored character into the world.
     pub fn add_saved_player(&mut self, save: &PlayerSave) -> EntityId {
-        let id = self.add_player(save.name.clone(), save.cell, save.level.max(1));
+        let id = self.new_entity();
+        self.add_saved_player_as(save, id);
+        id
+    }
+
+    /// Adds the character `save` as player `id`, an id from outside (a server keeps a
+    /// player's id from map to map), which must not be one of this simulation's own.
+    pub fn add_saved_player_as(&mut self, save: &PlayerSave, id: EntityId) {
+        self.insert_player(id, save.name.clone(), save.cell, save.level.max(1));
         let bag: Vec<Item> = save.bag.iter().map(|&kind| self.new_item(kind)).collect();
         let worn: Vec<Item> = save
             .equipment
@@ -74,7 +82,6 @@ impl Sim {
             save.life.min(p.stats.max_life)
         };
         p.mana = save.mana.min(p.stats.max_mana);
-        id
     }
 
     /// Player `id` as stored.
