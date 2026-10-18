@@ -4,6 +4,7 @@
 //! images of their own (`path#index`), its animations a sprite set, its frames a tileset. A
 //! model's textures are images named `model#texture<i>`.
 
+use crate::native_character::{self, CharacterFile};
 use crate::native_effect;
 use c3_assets::Image;
 use c3_assets::effect::Effect;
@@ -20,6 +21,9 @@ use std::rc::Rc;
 /// The animation of every image's sprite set that plays all its frames in order.
 pub const ALL_FRAMES: &str = "all";
 
+/// Animation sets by path.
+pub type CharacterSets = Vec<(String, CharacterFile)>;
+
 /// The project's assets and their import settings.
 pub struct NativeAssets {
     db: RefCell<AssetDb>,
@@ -27,6 +31,8 @@ pub struct NativeAssets {
     decoded: RefCell<HashMap<String, Option<Rc<Image>>>>,
     /// Read models by file, or why they couldn't be read.
     models: RefCell<HashMap<String, Result<Rc<Imported>, String>>>,
+    /// The project's animation sets (`.c3char`), read once (`None`: to read).
+    characters: RefCell<Option<Rc<CharacterSets>>>,
 }
 
 impl NativeAssets {
@@ -41,6 +47,7 @@ impl NativeAssets {
             db: RefCell::new(db),
             decoded: RefCell::new(HashMap::new()),
             models: RefCell::new(HashMap::new()),
+            characters: RefCell::new(None),
         }
     }
 
@@ -51,6 +58,7 @@ impl NativeAssets {
             .unwrap_or(path);
         self.decoded.borrow_mut().remove(file);
         self.models.borrow_mut().remove(file);
+        self.characters.borrow_mut().take();
         self.db.borrow_mut().refresh(file)
     }
 
@@ -58,7 +66,35 @@ impl NativeAssets {
     pub fn reload_all(&self) -> Vec<String> {
         self.decoded.borrow_mut().clear();
         self.models.borrow_mut().clear();
+        self.characters.borrow_mut().take();
         self.db.borrow_mut().rescan()
+    }
+
+    /// The project's animation sets that read, by path.
+    pub fn characters(&self) -> Rc<CharacterSets> {
+        if let Some(read) = self.characters.borrow().as_ref() {
+            return Rc::clone(read);
+        }
+        let paths: Vec<String> = (self.db.borrow().iter())
+            .filter(|(_, m)| m.import == Importer::Character)
+            .map(|(p, _)| p.to_owned())
+            .collect();
+        let read: Vec<(String, CharacterFile)> = (paths.into_iter())
+            .filter_map(|p| {
+                let text = String::from_utf8(self.read(&p)?).ok()?;
+                Some((p, native_character::parse(&text).ok()?))
+            })
+            .collect();
+        let read = Rc::new(read);
+        *self.characters.borrow_mut() = Some(Rc::clone(&read));
+        read
+    }
+
+    /// The animation set roles looking like `look` wear, if the project has one.
+    pub fn character_for(&self, look: &crate::Look) -> Option<CharacterFile> {
+        (self.characters().iter())
+            .find(|(_, c)| c.dresses(look))
+            .map(|(_, c)| c.clone())
     }
 
     /// How asset `path` is imported, when it is one of the project's.

@@ -25,6 +25,7 @@ pub mod input;
 pub mod map_list;
 pub mod module;
 pub mod native;
+pub mod native_character;
 pub mod native_effect;
 pub mod project_game;
 pub mod screen;

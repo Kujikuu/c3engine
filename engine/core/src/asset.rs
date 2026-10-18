@@ -41,6 +41,8 @@ pub enum Importer {
     Model(ModelImport),
     /// The engine's own effect file (`.c3fx`).
     Effect,
+    /// The engine's own animation set (`.c3char`): a model as one of the game's looks.
+    Character,
     Font,
     Data,
     #[default]
@@ -55,6 +57,7 @@ impl Importer {
             "wav" | "ogg" | "mp3" => Self::Sound(SoundImport::for_file(name)),
             "gltf" | "glb" => Self::Model(ModelImport::default()),
             "c3fx" => Self::Effect,
+            "c3char" => Self::Character,
             "ttf" | "otf" => Self::Font,
             "toml" | "ron" | "json" | "csv" | "txt" | "lua" => Self::Data,
             _ => Self::Other,
@@ -67,6 +70,7 @@ impl Importer {
             Self::Sound(_) => "Sound",
             Self::Model(_) => "Model",
             Self::Effect => "Effect",
+            Self::Character => "Animation set",
             Self::Font => "Font",
             Self::Data => "Data",
             Self::Other => "File",
@@ -79,7 +83,7 @@ impl Importer {
             Self::Image(i) => i.problems(),
             Self::Sound(s) => s.problems(),
             Self::Model(m) => m.problems(),
-            Self::Effect | Self::Font | Self::Data | Self::Other => Vec::new(),
+            Self::Effect | Self::Character | Self::Font | Self::Data | Self::Other => Vec::new(),
         }
     }
 }

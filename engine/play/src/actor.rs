@@ -533,11 +533,12 @@ pub fn pose_actor(
     for part in actors[a].drawables() {
         let actor = &mut actors[a];
         let texture = actor.texture(part, poser.renderer(), game);
-        poser.solid(
+        poser.tinted(
             actor.posed(part, now_ms),
             PosedIndices::External(ActorPart { actor: a, part }),
             texture,
             actor.transform(part, role, now_ms),
+            actor.model(part.group).tint,
         );
     }
     for m in actors[a].effect_meshes(scene, tilt_deg, now_ms, eye) {

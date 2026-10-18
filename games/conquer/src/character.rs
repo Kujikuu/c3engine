@@ -387,6 +387,7 @@ impl Content {
             model: self.load_model_path(path)?,
             texture: self.tables.textures.get(part.texture).map(str::to_owned),
             effect_key: Some(key),
+            tint: [1.0; 4],
         })
     }
 }

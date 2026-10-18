@@ -97,13 +97,25 @@ impl<K> Poser<'_, K> {
         texture: Option<TextureId>,
         transform: Mat4,
     ) {
+        self.tinted(vertices, indices, texture, transform, [1.0; 4]);
+    }
+
+    /// A solid mesh drawn in `tint` (times its texture).
+    pub fn tinted(
+        &mut self,
+        vertices: Vec<MeshVertex>,
+        indices: PosedIndices<K>,
+        texture: Option<TextureId>,
+        transform: Mat4,
+        tint: [f32; 4],
+    ) {
         let group = self.group;
         self.push(PosedMesh {
             vertices,
             indices,
             texture,
             transform,
-            tint: [1.0; 4],
+            tint,
             group,
             style: MeshStyle::SOLID,
         });

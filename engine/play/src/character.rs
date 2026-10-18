@@ -48,6 +48,8 @@ pub struct PartModel {
     /// The game's key selecting the part's action effects ([`crate::Looks::part_effects`]);
     /// `None` for parts without any.
     pub effect_key: Option<u64>,
+    /// Colour the part is drawn in (times its texture); white leaves it as is.
+    pub tint: [f32; 4],
 }
 
 impl PartModel {
@@ -56,6 +58,7 @@ impl PartModel {
             model,
             texture,
             effect_key: None,
+            tint: [1.0; 4],
         }
     }
 }

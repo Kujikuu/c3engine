@@ -118,8 +118,12 @@ impl Looks for BasicGame {
         }
     }
 
+    /// Players are look 1 (a project's animation set for look 1 dresses them).
     fn default_player(&self) -> Look {
-        Look::default()
+        Look {
+            body: 1,
+            ..Look::default()
+        }
     }
 
     fn character(&self, look: &Look, _act: u32) -> Result<Character, String> {
