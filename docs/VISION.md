@@ -7,9 +7,10 @@ C3Engine is a game engine and studio written in Rust, modelled on TQ Digital's
 complete online game like Conquer (client, server, content and rules) entirely in the Studio,
 controlling everything visually, as easily as possible, without touching engine code.
 Conquer Online 5065 is the first game project and the proving ground, never part of the engine.
-Eudemons Online is the second: the engine must be able to make either one, and an indie's own
-game of the same kind, with everything a shipped game has (cursors, camera, settings, UI,
-login screens, sounds), all set from the Studio the way Unity's Project Settings work.
+Beyond Conquer, the engine must be able to make any game of this kind (Eudemons-like with pets,
+or an indie's own design), built from scratch in the Studio rather than imported, with
+everything a shipped game has (cursors, camera, settings, UI, login screens, sounds), all set
+from the Studio the way Unity's Project Settings work.
 
 Scope is the kind of games C3 made: 2D/2.5D isometric online RPGs (tiled maps, 3D
 characters, effects, cell-based movement, client/server play). Full 3D is not a goal for now.

@@ -173,13 +173,14 @@ In order; each step is playable in the Studio's Play mode:
       to check there: jump, teleport, items and equipment, shop buy/sell, other players.
       Skills over this protocol come with M7 step 5
 
-## M7: Complete engine: Conquer first, Eudemons second
+## M7: Complete engine: Conquer first, then any game of its kind
 Review (2026-10-18): M3, M5 and M6 were proven on a scratch project with four hand-made NPCs. A
 real imported Conquer project had empty maps, tables and scripts: the import brings only the
 client's files, and the world (NPCs, spawns, tables, NPC logic) lives in TQ's server data. This
-milestone makes Conquer itself a complete, editable project, then proves the engine on Eudemons
-Online (user, 2026-10-18: "a complete game engine that can truly create Conquer Online or
-Eudemons, with everything, like Unity, easier for indies"). In order:
+milestone makes Conquer itself a complete, editable project, then makes sure any game of the
+kind can be built from scratch (user, 2026-10-18: "a complete game engine that can truly
+create Conquer Online or Eudemons, with everything, like Unity, easier for indies"; not an
+import of the existing Eudemons client, but the possibility to create any). In order:
 - [ ] (1) Full import in one step: "Import Conquer 5065" takes the client folder and TQ's server
       data (an SQL dump such as `tq_re/db/cq_finalized_mariadb.sql`) and fills the project:
       every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn areas (`cq_generator`), portals and their
@@ -240,10 +241,11 @@ Eudemons, with everything, like Unity, easier for indies"). In order:
         starting items), tick rate, view range, ports and protocol fronts
   - [ ] Localization: string tables (the client's StrRes.ini and the game's own), fonts
         (GBK and Unicode)
-- [ ] (8) Eudemons Online as the second game, from `D:\Conquer\Eudemons Online`: DNP packages
-      and the newer C3 / map / ini formats it uses (round-trip tests like M1), an importer into
-      a project, and the gameplay it adds as data-driven systems usable by any game (eudemons:
-      pets that are summoned, fight, level, evolve and are equipped; its classes and items)
+- [ ] (8) Any game of the kind, from scratch: gameplay systems a game switches on and shapes
+      with data instead of Conquer-specific code: classes and stats, skills, pets and companions
+      (summon, fight, level, evolve, equip: an Eudemons-like game), mounts, crafting, guilds,
+      events; the game's own formulas as scripts; new content (characters, monsters, items,
+      maps) made in the Studio from the project's own art, not only from TQ files
 - [ ] (9) Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), a sample
       game, in-Studio getting-started guide and tooltips, clear errors that say how to fix them
 
