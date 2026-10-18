@@ -108,7 +108,14 @@ impl GameScreen {
             left: false,
         };
         screen.session.report(problems);
+        let prefs = screen.controls.prefs;
+        screen.session.set_player_prefs(prefs);
         screen
+    }
+
+    /// The player's volumes and window (the host makes the window fullscreen or not).
+    pub fn prefs(&self) -> c3_core::settings::PlayerPrefs {
+        self.controls.prefs
     }
 
     pub fn world(&mut self) -> &mut World {
@@ -536,6 +543,7 @@ impl GameScreen {
             device,
             rows: &rows,
             listening: self.listening,
+            prefs: self.controls.prefs,
         };
         for action in self.session.ui(ui, &screen, hovered, (&hint, &controls)) {
             match action {
@@ -545,6 +553,11 @@ impl GameScreen {
                     self.controls_changed();
                 }
                 UiAction::Leave => self.left = true,
+                UiAction::SetPrefs(prefs) => {
+                    self.controls.prefs = prefs;
+                    self.session.set_player_prefs(prefs);
+                    self.controls_changed();
+                }
                 _ => {}
             }
         }

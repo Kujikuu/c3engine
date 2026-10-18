@@ -461,8 +461,19 @@ PUL for the classic client).
     Control.Ani. The Studio's Game UI panel draws the dialogs as the game does, with sample
     values: select, drag (one undo step), edit every field; files are patched byte for byte
     and written into the project's assets, so a client used in place is never written
-- [ ] Client front end from data: login and server list, character creation and selection,
+- [x] Client front end from data: login and server list, character creation and selection,
       loading screens, settings menu (keys, video, audio); the game UI's minimap / radar
+  - Done 2026-10-19: `c3-client --project P --front` starts at the front end: log in, pick a
+    server (settings [[network.server]]), pick or make a character (name and one of
+    settings [characters] looks; accounts keep up to per_account), wait while the world
+    loads. Protocol 2 lists an account's characters and logs in naming one to enter or make.
+    Screens come from the game UI's dialogs (screen=login/servers/characters/create/loading,
+    with edit and list controls), else the engine's own. Conquer uses its native (not
+    Flash) 5065 dialogs: CDlgLogin 129 and CDlgRoleCreate 151 from the client's GUI.ini and
+    Control.Ani, one character per account entered at once, loading as the client's
+    centred line. The menu's Settings page keeps the player's volumes and full screen; the
+    radar shows over every game UI (the 5065 minimap window is M12, as decided). Still to
+    come for 5065: RoleChoose 150 (professions, M12) and the 3D preview of the bodies
 
 ## M10: Visual scripting (Unreal Blueprints-style; a whole Conquer game without code)
 Decided 2026-10-18: every game rule and behaviour can be made in node graphs; Rhai stays as

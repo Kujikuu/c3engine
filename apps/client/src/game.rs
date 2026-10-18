@@ -3,6 +3,7 @@
 //! simulated here or played on a game server. Any project plays: the game comes from
 //! `c3-games`, its window, look and numbers from Project Settings.
 
+use crate::front::{FrontOutcome, FrontPhase};
 use crate::gfx::Gfx;
 use crate::ui_layer::UiLayer;
 use c3_core::ProjectSettings;
@@ -36,6 +37,9 @@ pub struct GameArgs {
     pub cell: Option<CellPos>,
     /// Play on a server (which picks the map) instead of here.
     pub online: Option<Online>,
+    /// Start at the front end (log in, pick a server and a character); `online` then
+    /// only types in its server and account.
+    pub front: bool,
     /// Chat lines said at the start, in turn.
     pub say: Vec<String>,
 }
@@ -57,27 +61,43 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         eprintln!("warning: {problem}");
     }
     let maps = MapList::new(&project, &*game, &settings);
-    let mut session = match &args.online {
-        Some(o) => Session::join(
-            Rc::clone(&game),
-            &project,
-            settings.clone(),
-            &o.server,
-            &o.account,
-            &o.password,
-        )?,
-        None => local_session(&project, Rc::clone(&game), &settings, &maps, &args)?,
-    };
-    for line in &args.say {
-        session.say(line);
-    }
     let title = match settings.player.game_name.as_str() {
         "" => project.name().to_owned(),
         name => name.to_owned(),
     };
-    let controls = PlayerControls::load(&title);
+    let phase = if args.front {
+        let online = args.online.as_ref();
+        Phase::Front(Box::new(FrontPhase::new(
+            Rc::clone(&game),
+            &settings,
+            title.clone(),
+            online.map(|o| o.server.clone()),
+            online.map(|o| (o.account.clone(), o.password.clone())),
+        )))
+    } else {
+        let mut session = match &args.online {
+            Some(o) => Session::join(
+                Rc::clone(&game),
+                &project,
+                settings.clone(),
+                &o.server,
+                &o.account,
+                &o.password,
+            )?,
+            None => local_session(&project, Rc::clone(&game), &settings, &maps, &args)?,
+        };
+        for line in &args.say {
+            session.say(line);
+        }
+        Phase::Game(Box::new(GameScreen::new(
+            session,
+            PlayerControls::load(&title),
+        )))
+    };
     let mut app = GameApp {
-        screen: GameScreen::new(session, controls),
+        phase,
+        game,
+        title: title.clone(),
         window: WindowSetup {
             title,
             icon,
@@ -89,6 +109,8 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         gfx: None,
         ui: None,
         last_frame: Instant::now(),
+        quit: false,
+        fullscreen: None,
     };
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     event_loop.run_app(&mut app).map_err(|e| e.to_string())
@@ -137,8 +159,17 @@ struct WindowSetup {
     fonts: Option<Vec<c3_ui::fonts::GameFont>>,
 }
 
+/// Before the world (the front end) or in it.
+enum Phase {
+    Front(Box<FrontPhase>),
+    Game(Box<GameScreen>),
+}
+
 struct GameApp {
-    screen: GameScreen,
+    phase: Phase,
+    game: Rc<dyn GameModule>,
+    /// The game's name (its controls are kept under it).
+    title: String,
     window: WindowSetup,
     settings: ProjectSettings,
     project: c3_project::Project,
@@ -147,6 +178,10 @@ struct GameApp {
     gfx: Option<Gfx>,
     ui: Option<UiLayer>,
     last_frame: Instant,
+    /// The player quit from the front end.
+    quit: bool,
+    /// The player's full-screen choice as last seen.
+    fullscreen: Option<bool>,
 }
 
 impl GameApp {
@@ -160,7 +195,38 @@ impl GameApp {
         let (Some(gfx), Some(ui)) = (&mut self.gfx, &mut self.ui) else {
             return;
         };
-        let screen = &mut self.screen;
+        let screen = match &mut self.phase {
+            Phase::Game(screen) => screen,
+            Phase::Front(front) => {
+                let mut outcome = FrontOutcome::Stay;
+                let input = ui.take_input(&gfx.window);
+                ui.run(&gfx.window, input, |ui| {
+                    outcome = front.update(ui, ui.max_rect());
+                });
+                gfx.draw(&c3_render::Frame::empty(), Some(ui));
+                match outcome {
+                    FrontOutcome::Stay => {}
+                    FrontOutcome::Quit => self.quit = true,
+                    FrontOutcome::Play(conn, welcome, updates) => {
+                        let entered = Session::entered(
+                            Rc::clone(&self.game),
+                            &self.project,
+                            self.settings.clone(),
+                            (conn, welcome, updates),
+                        );
+                        match entered {
+                            Ok(session) => {
+                                let controls = PlayerControls::load(&self.title);
+                                self.phase =
+                                    Phase::Game(Box::new(GameScreen::new(session, controls)));
+                            }
+                            Err(e) => front.failed(e),
+                        }
+                    }
+                }
+                return;
+            }
+        };
         let mut input = ui.take_input(&gfx.window);
         screen.before_frame(&mut input);
         ui.run(&gfx.window, input, |ui| {
@@ -169,6 +235,16 @@ impl GameApp {
             screen.overlay(ui, rect, hovered);
         });
         screen.follow_map_change(&self.project, &self.maps, &mut gfx.renderer);
+        // The player's Settings page decides the window, once they change it.
+        let fullscreen = screen.prefs().fullscreen;
+        if self
+            .fullscreen
+            .replace(fullscreen)
+            .is_some_and(|was| was != fullscreen)
+        {
+            gfx.window
+                .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
+        }
         let viewport = screen.viewport();
         let camera = &screen.view_camera();
         let view_rect = camera.view_rect(viewport);
@@ -237,7 +313,8 @@ impl ApplicationHandler for GameApp {
             }
             WindowEvent::RedrawRequested => {
                 self.redraw();
-                if self.screen.left() {
+                let left = matches!(&self.phase, Phase::Game(s) if s.left());
+                if left || self.quit {
                     event_loop.exit();
                 }
             }

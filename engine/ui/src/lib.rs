@@ -11,6 +11,7 @@ mod bag;
 mod chat;
 mod dialogue;
 pub mod fonts;
+pub mod front;
 pub mod gui;
 mod gui_data;
 mod hud;
@@ -27,7 +28,7 @@ use c3_scene::CellPos;
 use egui::{Pos2, Rect, TextureId};
 
 /// What the player asked the game for.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UiAction {
     /// Pick dialogue answer `n`.
     Answer(usize),
@@ -53,6 +54,8 @@ pub enum UiAction {
     ToggleSound,
     /// Run, or walk again.
     ToggleRun,
+    /// The player changed the Settings page (volumes, fullscreen).
+    SetPrefs(c3_core::settings::PlayerPrefs),
     /// Change what `action` is bound to on the active device (the next key or button).
     Rebind(Action),
     /// Back to the game's own controls.
@@ -77,6 +80,8 @@ pub struct ControlsView<'a> {
     pub rows: &'a [ControlRow],
     /// The action waiting for its new key or button.
     pub listening: Option<Action>,
+    /// The player's volumes and window, for the Settings page.
+    pub prefs: c3_core::settings::PlayerPrefs,
 }
 
 /// A line for the host's console (script output, data problems).

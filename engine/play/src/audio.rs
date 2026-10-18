@@ -4,7 +4,7 @@
 use crate::module::{Act, GameModule};
 use c3_audio::{Audio, MusicDirector, SoundFile, Volumes};
 use c3_core::asset::Importer;
-use c3_core::settings::AudioSettings;
+use c3_core::settings::{AudioSettings, PlayerPrefs};
 use c3_game::{EntityId, Event, Sim, distance};
 use std::rc::Rc;
 
@@ -17,6 +17,9 @@ pub struct GameAudio {
     region_music: Option<String>,
     /// The map's own music (its entry in the map list), when no region has any.
     map_music: Option<String>,
+    /// The project's volumes and the player's, which scale them.
+    project: Volumes,
+    player: PlayerPrefs,
 }
 
 impl GameAudio {
@@ -30,6 +33,8 @@ impl GameAudio {
             game,
             region_music: None,
             map_music: None,
+            project: Volumes::default(),
+            player: PlayerPrefs::default(),
         }
     }
 
@@ -48,12 +53,28 @@ impl GameAudio {
 
     /// Plays by `settings` from now on.
     pub fn apply(&mut self, settings: &AudioSettings) {
-        self.audio.set_volumes(Volumes {
+        self.project = Volumes {
             master: settings.master_volume as f32,
             music: settings.music_volume as f32,
             sound: settings.sound_volume as f32,
-        });
+        };
         self.audio.hearing_range = settings.hearing_range as f32;
+        self.set_volumes();
+    }
+
+    /// Plays at the player's volumes (over the project's) from now on.
+    pub fn set_player(&mut self, prefs: PlayerPrefs) {
+        self.player = prefs;
+        self.set_volumes();
+    }
+
+    fn set_volumes(&mut self) {
+        let (p, q) = (self.project, self.player);
+        self.audio.set_volumes(Volumes {
+            master: p.master * q.master,
+            music: p.music * q.music,
+            sound: p.sound * q.sound,
+        });
     }
 
     /// Reads sound `path` again (it changed on disk), or every sound.

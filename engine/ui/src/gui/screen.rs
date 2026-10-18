@@ -27,6 +27,10 @@ pub trait GuiData {
     fn items(&self, _key: &str) -> Vec<u32> {
         Vec::new()
     }
+    /// The rows of a list control and which one is picked.
+    fn rows(&self, _key: &str) -> (Vec<String>, Option<usize>) {
+        (Vec::new(), None)
+    }
 }
 
 /// What the player did on the UI.
@@ -34,8 +38,10 @@ pub trait GuiData {
 pub enum GuiEvent {
     /// A control with `action=` was clicked.
     Action(String),
-    /// Slot `index` of grid list `list` was clicked.
+    /// Slot `index` of grid list `list` (or row `index` of a list control) was clicked.
     Item { list: String, index: usize },
+    /// Edit `field` now reads `text`.
+    Edited { field: String, text: String },
 }
 
 /// How a dialog's layout pixels sit on the screen.
@@ -250,6 +256,13 @@ impl Painter<'_, '_> {
                 } else {
                     egui::Sense::hover()
                 };
+                // Without a size it is as big as its picture.
+                let rect = match self.frame(frames, 0) {
+                    Some((_, picture)) if at.w <= 0 || at.h <= 0 => {
+                        Rect::from_min_size(rect.min, picture * self.place.scale)
+                    }
+                    _ => rect,
+                };
                 let response = self.ui.interact(rect, id, sense);
                 let frame = if control.kind == ControlKind::Check {
                     usize::from(data.number(&control.value).is_some_and(|v| v != 0.0))
@@ -312,6 +325,74 @@ impl Painter<'_, '_> {
                     crate::fonts::font(control.size * self.place.scale),
                     Color32::from_rgb(r, g, b),
                 );
+            }
+            ControlKind::Edit => {
+                let mut text = data.text(&control.value).unwrap_or_default();
+                let [r, g, b] = control.color;
+                let font = crate::fonts::font(control.size * self.place.scale);
+                let edit = egui::TextEdit::singleline(&mut text)
+                    .id_salt(("gui edit", control.parent, control.id))
+                    .password(control.password)
+                    .frame(egui::Frame::NONE)
+                    .font(font)
+                    .text_color(Color32::from_rgb(r, g, b))
+                    .interactive(self.live);
+                if self.ui.put(rect, edit).changed() {
+                    events.push(GuiEvent::Edited {
+                        field: control.value.clone(),
+                        text,
+                    });
+                }
+            }
+            ControlKind::List => {
+                let (rows, picked) = data.rows(&control.value);
+                let height = (control.size + 6.0) * self.place.scale;
+                let font = crate::fonts::font(control.size * self.place.scale);
+                let [r, g, b] = control.color;
+                for (index, row) in rows.iter().enumerate() {
+                    let top = rect.top() + index as f32 * height;
+                    if top + height > rect.bottom() + 0.5 {
+                        break;
+                    }
+                    let line = Rect::from_min_size(
+                        Pos2::new(rect.left(), top),
+                        Vec2::new(rect.width(), height),
+                    );
+                    let id =
+                        self.ui
+                            .scope_id()
+                            .with(("gui row", control.parent, control.id, index));
+                    let sense = if self.live {
+                        egui::Sense::click()
+                    } else {
+                        egui::Sense::hover()
+                    };
+                    let response = self.ui.interact(line, id, sense);
+                    if picked == Some(index) {
+                        self.ui.painter().rect_filled(
+                            line,
+                            2.0,
+                            Color32::from_rgba_unmultiplied(255, 220, 120, 60),
+                        );
+                    } else if self.live && response.hovered() {
+                        self.ui
+                            .painter()
+                            .rect_filled(line, 2.0, Color32::from_white_alpha(20));
+                    }
+                    self.ui.painter().text(
+                        line.left_center() + Vec2::new(4.0, 0.0),
+                        egui::Align2::LEFT_CENTER,
+                        row,
+                        font.clone(),
+                        Color32::from_rgb(r, g, b),
+                    );
+                    if response.clicked() {
+                        events.push(GuiEvent::Item {
+                            list: control.value.clone(),
+                            index,
+                        });
+                    }
+                }
             }
             ControlKind::Grid => {
                 let items = data.items(&control.value);

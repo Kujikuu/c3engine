@@ -55,10 +55,28 @@ const NUMBERS: [&str; 11] = [
     "hero.bag_size",
 ];
 const LISTS: [&str; 2] = ["hero.bag", "hero.equipment"];
+/// What the front end's edits and lists show.
+const FIELDS: [&str; 3] = ["front.account", "front.password", "front.name"];
+const ROWS: [&str; 3] = ["front.servers", "front.characters", "front.looks"];
 /// Actions the game carries out (besides `toggle:<dialog>`).
-const ACTIONS: [&str; 6] = ["bag", "quests", "menu", "chat", "sound", "run"];
+const ACTIONS: [&str; 14] = [
+    "bag",
+    "quests",
+    "menu",
+    "chat",
+    "sound",
+    "run",
+    "login",
+    "servers",
+    "enter",
+    "new",
+    "create",
+    "next_look",
+    "prev_look",
+    "back",
+];
 
-const KINDS: [(ControlKind, &str); 7] = [
+const KINDS: [(ControlKind, &str); 9] = [
     (ControlKind::Dialog, "dialog"),
     (ControlKind::Image, "image"),
     (ControlKind::Button, "button"),
@@ -66,7 +84,12 @@ const KINDS: [(ControlKind, &str); 7] = [
     (ControlKind::Progress, "progress"),
     (ControlKind::Text, "text"),
     (ControlKind::Grid, "grid"),
+    (ControlKind::Edit, "edit"),
+    (ControlKind::List, "list"),
 ];
+
+/// The screens dialogs belong to (empty: the game's).
+const SCREENS: [&str; 6] = ["", "login", "servers", "characters", "create", "loading"];
 
 fn kind_name(kind: ControlKind) -> &'static str {
     KINDS
@@ -94,9 +117,22 @@ impl GuiData for Sample {
         })
     }
 
+    fn rows(&self, key: &str) -> (Vec<String>, Option<usize>) {
+        let rows: &[&str] = match key {
+            "front.servers" => &["First server", "Second server"],
+            "front.characters" => &["Hero  Lv 12", "Second  Lv 3"],
+            "front.looks" => &["Small", "Large"],
+            _ => &[],
+        };
+        (rows.iter().map(|r| (*r).to_owned()).collect(), Some(0))
+    }
+
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some("Hero".into()),
+            "front.account" => Some("player".into()),
+            "front.password" => Some("secret".into()),
+            "front.server" | "front.look" | "front.name" => Some("Sample".into()),
             _ => self.number(key).map(|n| format!("{n}")),
         }
     }
@@ -315,7 +351,9 @@ fn toolbar(
                     let count = (editor.gui.controls.iter())
                         .filter(|c| c.parent == id)
                         .count();
-                    let text = format!("Dialog {id}  ({count})");
+                    let screen = find(&editor.gui, (0, id)).map_or("", |d| d.screen.as_str());
+                    let screen = if screen.is_empty() { "game" } else { screen };
+                    let text = format!("Dialog {id}  · {screen}  ({count})");
                     if ui
                         .selectable_label(editor.dialog == Some(id), text)
                         .clicked()
@@ -468,7 +506,10 @@ fn canvas(
         theme::TEXT_DIM,
     );
     let gui = editor.gui.clone();
+    // The dialog in view and the others of its screen open from the start.
+    let screen = (editor.dialog.and_then(|d| find(&gui, (0, d)))).map_or("", |d| d.screen.as_str());
     let shown: Vec<&Control> = (gui.dialogs())
+        .filter(|d| d.screen == screen)
         .filter(|d| d.open.eq_ignore_ascii_case("always") || Some(d.id) == editor.dialog)
         .collect();
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(area));
@@ -668,6 +709,18 @@ fn inspector(
                         }
                     });
                 }
+                ControlKind::Edit => {
+                    binding(ui, "Field", "value", &control.value, &FIELDS, &mut edit);
+                    field(ui, "Password", |ui| {
+                        let mut hide = control.password;
+                        if ui.checkbox(&mut hide, "Hide what is typed").changed() {
+                            edit = Some(("password", if hide { "1" } else { "" }.to_owned()));
+                        }
+                    });
+                }
+                ControlKind::List => {
+                    binding(ui, "Rows", "value", &control.value, &ROWS, &mut edit);
+                }
                 ControlKind::Text => {
                     field(ui, "Text", |ui| {
                         let mut text = control.text.clone();
@@ -712,6 +765,12 @@ fn inspector(
                 });
             }
             if key.0 == 0 {
+                field(ui, "Screen", |ui| {
+                    let screens: Vec<String> = SCREENS.iter().map(|s| (*s).to_owned()).collect();
+                    if let Some(screen) = pick(ui, "screen", &control.screen, &screens) {
+                        edit = Some(("screen", screen));
+                    }
+                });
                 field(ui, "Open", |ui| {
                     let mut always = control.open.eq_ignore_ascii_case("always");
                     if ui

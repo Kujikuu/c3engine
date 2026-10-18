@@ -3,6 +3,7 @@
 //! Play mode rebinds for the session only, so the project's bindings stay what it tests.
 
 use c3_core::input::{Action, Binding, InputSettings};
+use c3_core::settings::PlayerPrefs;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -11,6 +12,7 @@ use std::path::PathBuf;
 #[serde(default)]
 struct ControlsFile {
     bindings: BTreeMap<Action, Vec<Binding>>,
+    prefs: PlayerPrefs,
 }
 
 /// The player's rebinds and where they are kept.
@@ -19,6 +21,8 @@ pub struct PlayerControls {
     /// `None`: kept for this session only.
     file: Option<PathBuf>,
     pub bindings: BTreeMap<Action, Vec<Binding>>,
+    /// Volumes and the window, as the player set them.
+    pub prefs: PlayerPrefs,
 }
 
 impl PlayerControls {
@@ -34,13 +38,16 @@ impl PlayerControls {
                 .join(c3_project::folder_name(name))
                 .join("controls.toml")
         });
-        let bindings = file
+        let kept = file
             .as_ref()
             .and_then(|f| std::fs::read_to_string(f).ok())
             .and_then(|text| toml::from_str::<ControlsFile>(&text).ok())
-            .map(|f| f.bindings)
             .unwrap_or_default();
-        Self { file, bindings }
+        Self {
+            file,
+            bindings: kept.bindings,
+            prefs: kept.prefs,
+        }
     }
 
     /// Keeps the controls on the player's machine (session-only controls aren't kept).
@@ -53,6 +60,7 @@ impl PlayerControls {
         }
         let text = toml::to_string_pretty(&ControlsFile {
             bindings: self.bindings.clone(),
+            prefs: self.prefs,
         })
         .map_err(|e| e.to_string())?;
         std::fs::write(file, text).map_err(|e| e.to_string())

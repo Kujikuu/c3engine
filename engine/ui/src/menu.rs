@@ -18,6 +18,8 @@ const CONTROLS_CHROME: f32 = 130.0;
 pub(crate) enum Page {
     Main,
     Controls,
+    /// Volumes and the window.
+    Settings,
 }
 
 /// Shows the menu's `page` centred on `rect`.
@@ -39,6 +41,7 @@ pub(crate) fn window(
             style::panel().show(ui, |ui| match current {
                 Page::Main => main(ui, page, actions),
                 Page::Controls => controls_page(ui, rect, page, controls, actions),
+                Page::Settings => settings_page(ui, page, controls, actions),
             });
         });
 }
@@ -66,9 +69,51 @@ fn main(ui: &mut egui::Ui, page: &mut Option<Page>, actions: &mut Vec<UiAction>)
     if button(ui, icons::GAME_CONTROLLER, "Controls").clicked() {
         *page = Some(Page::Controls);
     }
+    if button(ui, icons::GEAR_SIX, "Settings").clicked() {
+        *page = Some(Page::Settings);
+    }
     if button(ui, icons::SIGN_OUT, "Leave the game").clicked() {
         *page = None;
         actions.push(UiAction::Leave);
+    }
+}
+
+/// Volumes (over the game's own) and the window; each change is kept at once.
+fn settings_page(
+    ui: &mut egui::Ui,
+    page: &mut Option<Page>,
+    controls: &ControlsView,
+    actions: &mut Vec<UiAction>,
+) {
+    ui.set_width(WIDTH);
+    ui.label(style::title(icons::GEAR_SIX, "Settings"));
+    ui.add_space(8.0);
+    let mut prefs = controls.prefs;
+    let mut changed = false;
+    egui::Grid::new("game settings")
+        .num_columns(2)
+        .spacing([12.0, 8.0])
+        .show(ui, |ui| {
+            for (name, value) in [
+                ("Volume", &mut prefs.master),
+                ("Music", &mut prefs.music),
+                ("Sounds", &mut prefs.sound),
+            ] {
+                ui.label(name);
+                let slider = egui::Slider::new(value, 0.0..=1.0).show_value(false);
+                changed |= ui.add(slider).changed();
+                ui.end_row();
+            }
+            ui.label("Window");
+            changed |= ui.checkbox(&mut prefs.fullscreen, "Full screen").changed();
+            ui.end_row();
+        });
+    if changed {
+        actions.push(UiAction::SetPrefs(prefs));
+    }
+    ui.add_space(8.0);
+    if ui.button(format!("{}  Back", icons::ARROW_LEFT)).clicked() {
+        *page = Some(Page::Main);
     }
 }
 

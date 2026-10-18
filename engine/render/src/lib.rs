@@ -67,6 +67,21 @@ pub struct Frame<'a> {
     pub light: Light,
 }
 
+impl Frame<'_> {
+    /// Nothing but black (what draws under a screen of UI alone).
+    pub fn empty() -> Frame<'static> {
+        Frame {
+            clear: [0.0, 0.0, 0.0, 1.0],
+            sprite_view: Mat4::IDENTITY,
+            sprites: &[],
+            mesh_view: Mat4::IDENTITY,
+            meshes: &[],
+            order: &[],
+            light: Light::default(),
+        }
+    }
+}
+
 /// The scene's light: a colour over the map, sprites and solid meshes (effects keep
 /// their glow), and whether models are shaded by a sun.
 #[derive(Debug, Clone, Copy, PartialEq)]

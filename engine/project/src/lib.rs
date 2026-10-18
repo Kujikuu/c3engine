@@ -181,6 +181,25 @@ impl Project {
             .map_err(|e| Error::Settings(file, e.to_string()))
     }
 
+    /// The project's settings over `defaults` (its game's): what the file leaves out, a
+    /// section or a key added since it was written, is the game's, not the engine's.
+    /// `None` when it has no settings file yet.
+    pub fn load_settings_over(
+        &self,
+        defaults: &ProjectSettings,
+    ) -> Result<Option<ProjectSettings>> {
+        let file = self.settings_file();
+        if !file.is_file() {
+            return Ok(None);
+        }
+        let bad = |e: &dyn std::fmt::Display| Error::Settings(file.clone(), e.to_string());
+        let text = std::fs::read_to_string(&file).map_err(|e| Error::Io(file.clone(), e))?;
+        let own: toml::Table = toml::from_str(&text).map_err(|e| bad(&e))?;
+        let mut merged = toml::Table::try_from(defaults).map_err(|e| bad(&e))?;
+        merge(&mut merged, own);
+        merged.try_into().map(Some).map_err(|e| bad(&e))
+    }
+
     /// Writes the project's settings.
     pub fn save_settings(&self, settings: &ProjectSettings) -> Result<()> {
         let file = self.settings_file();
@@ -330,6 +349,18 @@ pub fn minimap_file_in(maps: &Path, key: &str) -> PathBuf {
 /// What a map's minimap file ends with.
 pub const MINIMAP_SUFFIX: &str = ".minimap.png";
 
+/// `over`'s keys written onto `base`, tables merged key by key (lists and values replace).
+fn merge(base: &mut toml::Table, over: toml::Table) {
+    for (key, value) in over {
+        match (base.get_mut(&key), value) {
+            (Some(toml::Value::Table(b)), toml::Value::Table(o)) => merge(b, o),
+            (_, value) => {
+                base.insert(key, value);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +396,15 @@ mod tests {
         let partial = project.load_settings().unwrap().unwrap();
         assert_eq!(partial.gameplay.bag_size, 60);
         assert_eq!(partial.camera, ProjectSettings::default().camera);
+        // Over a game's defaults, what the file leaves out is the game's.
+        let mut game = ProjectSettings::default();
+        game.characters.per_account = 1;
+        game.gameplay.bag_size = 20;
+        let over = project.load_settings_over(&game).unwrap().unwrap();
+        assert_eq!(
+            (over.gameplay.bag_size, over.characters.per_account),
+            (60, 1)
+        );
         std::fs::write(project.settings_file(), "[gameplay]\nbag_size = \"many\"\n").unwrap();
         assert!(matches!(project.load_settings(), Err(Error::Settings(..))));
         let _ = std::fs::remove_dir_all(&dir);

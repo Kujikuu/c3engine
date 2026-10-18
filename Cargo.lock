@@ -604,7 +604,9 @@ version = "0.1.0"
 dependencies = [
  "c3-assets",
  "c3-core",
+ "c3-game",
  "c3-games",
+ "c3-online",
  "c3-play",
  "c3-project",
  "c3-render",

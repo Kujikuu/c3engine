@@ -476,6 +476,30 @@ pub struct NetworkSettings {
     /// Fronts for other clients.
     #[serde(rename = "front", skip_serializing_if = "Vec::is_empty")]
     pub fronts: Vec<FrontSettings>,
+    /// The servers the client's login offers (none: this machine's, on `port`).
+    #[serde(rename = "server", skip_serializing_if = "Vec::is_empty")]
+    pub servers: Vec<ServerEntry>,
+}
+
+/// A server the login offers: the name players see and its `host:port`.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ServerEntry {
+    pub name: String,
+    pub address: String,
+}
+
+impl NetworkSettings {
+    /// The servers to log in to: the listed ones, else this machine's.
+    pub fn login_servers(&self) -> Vec<ServerEntry> {
+        if !self.servers.is_empty() {
+            return self.servers.clone();
+        }
+        vec![ServerEntry {
+            name: "This computer".into(),
+            address: format!("127.0.0.1:{}", self.port),
+        }]
+    }
 }
 
 impl Default for NetworkSettings {
@@ -485,6 +509,30 @@ impl Default for NetworkSettings {
             save_interval_seconds: 60.0,
             join_timeout_seconds: 8.0,
             fronts: Vec::new(),
+            servers: Vec::new(),
+        }
+    }
+}
+
+/// What a player chose in the game's Settings menu: kept on their machine, over the
+/// project's settings.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PlayerPrefs {
+    /// Loudness of everything, music and sounds, 0 to 1 (times the project's volumes).
+    pub master: f32,
+    pub music: f32,
+    pub sound: f32,
+    pub fullscreen: bool,
+}
+
+impl Default for PlayerPrefs {
+    fn default() -> Self {
+        Self {
+            master: 1.0,
+            music: 1.0,
+            sound: 1.0,
+            fullscreen: false,
         }
     }
 }

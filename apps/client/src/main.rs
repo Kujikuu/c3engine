@@ -13,6 +13,7 @@
 //! the hero · drag or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E
 //! turn the hero · Esc to quit. `--effect` plays on the hero.
 
+mod front;
 mod game;
 mod gfx;
 mod ui_layer;
@@ -313,6 +314,8 @@ struct Args {
     walk_to: Option<(i32, i32)>,
     /// Start with running on.
     run: bool,
+    /// Start at the front end (log in, pick a server and a character).
+    front: bool,
     /// Chat lines said at the start, in turn (`/` commands too).
     say: Vec<String>,
 }
@@ -346,6 +349,7 @@ fn parse_args() -> Args {
         effect: flag("--effect"),
         walk_to: flag("--walk-to").and_then(|v| parse_cell(&v)),
         run: args.iter().any(|a| a == "--run"),
+        front: args.iter().any(|a| a == "--front"),
         say: (args.windows(2))
             .filter(|w| w[0] == "--say")
             .map(|w| w[1].clone())
@@ -401,6 +405,7 @@ fn main() {
             map: args.map,
             cell: args.cell,
             online,
+            front: args.front,
             say: args.say,
         };
         if let Err(e) = game::run(game) {

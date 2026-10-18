@@ -226,6 +226,18 @@ impl Session {
         Self::joined(game, scene, tables, settings, joined)
     }
 
+    /// Plays on a server that has let the player in (the front end logged in on `conn`):
+    /// the map of `project` it put the hero on.
+    pub fn entered(
+        game: Rc<dyn GameModule>,
+        project: &Project,
+        settings: ProjectSettings,
+        joined: (Connection, Welcome, Vec<WorldUpdate>),
+    ) -> Result<Self, String> {
+        let scene = game.load_map(project, &joined.1.map)?;
+        Self::joined(game, scene, Some(project.tables_dir()), settings, joined)
+    }
+
     fn joined(
         game: Rc<dyn GameModule>,
         scene: Scene,
@@ -463,6 +475,11 @@ impl Session {
 
     pub fn settings(&self) -> &ProjectSettings {
         &self.settings
+    }
+
+    /// Plays at the player's volumes from now on.
+    pub fn set_player_prefs(&mut self, prefs: c3_core::settings::PlayerPrefs) {
+        self.audio.set_player(prefs);
     }
 
     /// Plays by `settings` from now on: the simulation's numbers, sound and look. (The tilt
@@ -879,9 +896,10 @@ impl Session {
         let mut host = Vec::new();
         for action in actions {
             match action {
-                UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => {
-                    host.push(action)
-                }
+                UiAction::Rebind(_)
+                | UiAction::ResetControls
+                | UiAction::Leave
+                | UiAction::SetPrefs(_) => host.push(action),
                 action => self.act(action),
             }
         }
@@ -905,14 +923,20 @@ impl Session {
             UiAction::Say(text) => Input::Say(text),
             UiAction::ToggleSound => return self.audio.toggle_muted(),
             UiAction::ToggleRun => return self.toggle_running(),
-            UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => return,
+            UiAction::Rebind(_)
+            | UiAction::ResetControls
+            | UiAction::Leave
+            | UiAction::SetPrefs(_) => return,
         };
         self.input(input);
     }
 }
 
 /// The game's UI from data, when the project names its files and the game has them.
-fn game_gui(game: &dyn GameModule, ui: &c3_core::settings::UiSettings) -> Option<c3_ui::gui::Gui> {
+pub fn game_gui(
+    game: &dyn GameModule,
+    ui: &c3_core::settings::UiSettings,
+) -> Option<c3_ui::gui::Gui> {
     if !ui.from_data() {
         return None;
     }

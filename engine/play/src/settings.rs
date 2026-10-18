@@ -11,7 +11,7 @@ use c3_ui::fonts::GameFont;
 /// The settings `project` plays by: its settings file, else `game`'s defaults. A file that
 /// can't be read gives the defaults and says why.
 pub fn load(project: &Project, game: &dyn GameModule) -> (ProjectSettings, Option<String>) {
-    match project.load_settings() {
+    match project.load_settings_over(&game.default_settings()) {
         Ok(Some(settings)) => match settings.problems().first() {
             None => (settings, None),
             Some(problem) => (

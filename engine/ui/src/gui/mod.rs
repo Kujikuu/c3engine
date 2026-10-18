@@ -116,6 +116,10 @@ pub enum ControlKind {
     Progress,
     Text,
     Grid,
+    /// A text field (`value` names the field; `password=1` hides what is typed).
+    Edit,
+    /// Rows to pick one of (`value` names the list).
+    List,
 }
 
 impl ControlKind {
@@ -128,6 +132,8 @@ impl ControlKind {
             "progress" => Self::Progress,
             "text" => Self::Text,
             "grid" => Self::Grid,
+            "edit" => Self::Edit,
+            "list" => Self::List,
             _ => return None,
         })
     }
@@ -175,6 +181,14 @@ pub struct Control {
     pub rows: u32,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
+    /// The screen a dialog belongs to (`login`, `servers`, `characters`, `create`,
+    /// `loading`); empty: the game's.
+    pub screen: String,
+    /// An edit hides what is typed.
+    pub password: bool,
+    /// Its own place wins over the layout's (the client's code moves it, as TQ's does for
+    /// screens it lays out per resolution).
+    pub fixed: bool,
 }
 
 impl Control {
@@ -220,6 +234,9 @@ impl Control {
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
             open: text("open"),
+            screen: text("screen").to_ascii_lowercase(),
+            password: section.int("password").is_some_and(|p| p != 0),
+            fixed: section.int("fixed").is_some_and(|f| f != 0),
         })
     }
 }
@@ -233,6 +250,8 @@ pub struct Gui {
     pub controls: Vec<Control>,
     /// Dialogs opened by actions.
     open: BTreeSet<u32>,
+    /// The screen shown (empty: the game).
+    screen: String,
 }
 
 impl Gui {
@@ -245,7 +264,19 @@ impl Gui {
                 .filter_map(Control::parse)
                 .collect(),
             open: BTreeSet::new(),
+            screen: String::new(),
         }
+    }
+
+    /// Shows the dialogs of `screen` (empty: the game's).
+    pub fn set_screen(&mut self, screen: &str) {
+        self.screen = screen.to_ascii_lowercase();
+    }
+
+    /// Whether the UI has dialogs for `screen`.
+    pub fn has_screen(&self, screen: &str) -> bool {
+        self.dialogs()
+            .any(|d| d.screen.eq_ignore_ascii_case(screen))
     }
 
     /// The dialogs on the screen, in drawing order.
@@ -253,8 +284,10 @@ impl Gui {
         (self.controls.iter()).filter(|c| c.parent == 0 && c.kind == ControlKind::Dialog)
     }
 
+    /// Whether `dialog` shows: on the screen shown, open from the start or opened.
     pub fn is_open(&self, dialog: &Control) -> bool {
-        dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id)
+        dialog.screen == self.screen
+            && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))
     }
 
     /// Opens dialog `id`, or closes it when it is open.
@@ -266,9 +299,13 @@ impl Gui {
 
     /// Where `control` sits: the layout's place, else its own.
     pub fn rect(&self, control: &Control) -> GuiRect {
-        (self.layout.rect(control.parent, control.id))
-            .or(control.rect)
-            .unwrap_or_default()
+        let laid = self.layout.rect(control.parent, control.id);
+        let placed = if control.fixed {
+            control.rect.or(laid)
+        } else {
+            laid.or(control.rect)
+        };
+        placed.unwrap_or_default()
     }
 }
 
