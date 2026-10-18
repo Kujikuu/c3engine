@@ -17,6 +17,7 @@ use crate::module::GameRules;
 use c3_data::{Column, ColumnKind, Table, Value};
 use c3_game::{
     Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
+    StatusType,
 };
 use c3_script::Formulas;
 use c3_script::formulas::map_int;
@@ -30,6 +31,7 @@ pub const MONSTERS: &str = "monsters";
 pub const ITEMS: &str = "items";
 pub const SHOPS: &str = "shops";
 pub const SKILLS: &str = "skills";
+pub const STATUSES: &str = "statuses";
 
 /// A project's first `scripts/rules.rhai`: the engine's own formulas, ready to change.
 pub const FORMULAS_TEMPLATE: &str = r#"// The game's formulas. Every function is optional: take one out and the engine's own
@@ -214,6 +216,12 @@ pub fn table_templates() -> Vec<Table> {
             skill_columns(),
             skill_rows(),
         ),
+        table(
+            STATUSES,
+            "Status effects and buffs skills put on",
+            status_columns(),
+            status_rows(),
+        ),
     ]
 }
 
@@ -233,6 +241,43 @@ fn skill_columns() -> Vec<Column> {
         int("power", "How strong it is (damage, or life healed)"),
         int("level", "The level needed to learn it"),
         text("effect", "The effect shown on each one it reaches"),
+        int("status", "The status it puts on those it reaches; 0: none"),
+    ]
+}
+
+fn status_columns() -> Vec<Column> {
+    vec![
+        int("id", "The status (skills name it)"),
+        text("name", "What players see"),
+        int("duration_ms", "Milliseconds it lasts"),
+        int(
+            "life_per_tick",
+            "Life it gives (or takes, below 0) every tick",
+        ),
+        int("tick_ms", "Milliseconds between its life changes"),
+        int("attack_percent", "Attack change in percent (+50, -30)"),
+        int("defence_percent", "Defence change in percent"),
+        int("dodge_percent", "Dodge and accuracy change in percent"),
+        int(
+            "speed_percent",
+            "Walking and hitting speed change in percent",
+        ),
+        int("stun", "1: its bearer can't act"),
+        text("effect", "The effect shown on its bearer while it lasts"),
+    ]
+}
+
+fn status_rows() -> Vec<Vec<Value>> {
+    let status = |id, name: &str, numbers: &[i64]| {
+        let mut row = vec![Value::Int(id), Value::Text(name.into())];
+        row.extend(ints(numbers));
+        row.push(Value::Text(String::new()));
+        row
+    };
+    vec![
+        status(1, "Guard", &[15000, 0, 1000, 0, 50, 0, 0, 0]),
+        status(2, "Poison", &[8000, -4, 1000, 0, 0, 0, -20, 0]),
+        status(3, "Stun", &[2000, 0, 1000, 0, 0, 0, 0, 1]),
     ]
 }
 
@@ -244,14 +289,22 @@ fn skill_rows() -> Vec<Vec<Value>> {
             Value::Text(target.into()),
             Value::Text(kind.into()),
         ];
-        row.extend(ints(numbers));
+        row.extend(ints(&numbers[..6]));
         row.push(Value::Text(String::new()));
+        row.push(Value::Int(numbers[6]));
         row
     };
     vec![
-        skill(1, "Fire Bolt", "enemy", "damage", &[8, 0, 1500, 10, 18, 1]),
-        skill(2, "Mend", "self", "heal", &[0, 0, 5000, 15, 40, 1]),
-        skill(3, "Quake", "ground", "damage", &[6, 2, 6000, 25, 12, 1]),
+        skill(
+            1,
+            "Fire Bolt",
+            "enemy",
+            "damage",
+            &[8, 0, 1500, 10, 18, 1, 0],
+        ),
+        skill(2, "Mend", "self", "heal", &[0, 0, 5000, 15, 40, 1, 0]),
+        skill(3, "Quake", "ground", "damage", &[6, 2, 6000, 25, 12, 1, 3]),
+        skill(4, "Guard", "self", "status", &[0, 0, 20000, 10, 0, 1, 1]),
     ]
 }
 
@@ -289,6 +342,7 @@ pub struct DataRules {
     levels: BTreeMap<u32, Level>,
     shops: HashMap<u32, Vec<u32>>,
     skills: HashMap<u32, SkillType>,
+    statuses: HashMap<u32, StatusType>,
     formulas: Option<Formulas>,
     /// Formula failures: those not handed out yet, and every one seen (each is told once).
     problems: RefCell<(Vec<String>, HashSet<String>)>,
@@ -382,6 +436,9 @@ impl DataRules {
         if let Some(t) = read(SKILLS, &mut problems) {
             rules.read_skills(&t, &mut problems);
         }
+        if let Some(t) = read(STATUSES, &mut problems) {
+            rules.read_statuses(&t);
+        }
         if let Some(t) = read(SHOPS, &mut problems) {
             for row in rows(&t) {
                 rules
@@ -459,8 +516,11 @@ impl DataRules {
             let kind = match row.text("kind").trim().to_ascii_lowercase().as_str() {
                 "" | "damage" => SkillKind::Damage,
                 "heal" => SkillKind::Heal,
+                "status" => SkillKind::Status,
                 other => {
-                    problems.push(format!("skill {id}: kind \"{other}\" isn't damage or heal"));
+                    problems.push(format!(
+                        "skill {id}: kind \"{other}\" isn't damage, heal or status"
+                    ));
                     SkillKind::Damage
                 }
             };
@@ -476,8 +536,30 @@ impl DataRules {
                 power: row.uint("power"),
                 level: row.uint("level"),
                 effect: row.text("effect").to_owned(),
+                status: row.uint("status"),
             };
             self.skills.insert(id, skill);
+        }
+    }
+
+    fn read_statuses(&mut self, t: &Table) {
+        let percent = |row: &Row, column: &str| row.int(column).clamp(-100, 10_000) as i32;
+        for row in rows(t) {
+            let id = row.uint("id");
+            let status = StatusType {
+                id,
+                name: row.text("name").to_owned(),
+                duration_ms: row.uint("duration_ms"),
+                life_per_tick: row.int("life_per_tick").clamp(-1_000_000, 1_000_000) as i32,
+                tick_ms: row.uint("tick_ms"),
+                attack_percent: percent(&row, "attack_percent"),
+                defence_percent: percent(&row, "defence_percent"),
+                dodge_percent: percent(&row, "dodge_percent"),
+                speed_percent: percent(&row, "speed_percent"),
+                stun: row.int("stun") != 0,
+                effect: row.text("effect").to_owned(),
+            };
+            self.statuses.insert(id, status);
         }
     }
 
@@ -688,6 +770,10 @@ impl Rules for DataRules {
 
     fn skill(&self, id: u32) -> Option<&SkillType> {
         self.skills.get(&id)
+    }
+
+    fn status(&self, id: u32) -> Option<&StatusType> {
+        self.statuses.get(&id)
     }
 
     fn skill_hit(

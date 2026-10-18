@@ -115,6 +115,31 @@ pub enum SkillKind {
     #[default]
     Damage,
     Heal,
+    /// Only puts its status on those it reaches (a buff or a curse).
+    Status,
+}
+
+/// A status effect or buff: how long it lasts, how it changes stats and life.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StatusType {
+    pub id: u32,
+    pub name: String,
+    /// Milliseconds it lasts.
+    pub duration_ms: u32,
+    /// Life it gives (or takes, below 0) every `tick_ms`.
+    pub life_per_tick: i32,
+    pub tick_ms: u32,
+    /// Percent changes: +50 is half again, -30 is 30% less.
+    pub attack_percent: i32,
+    pub defence_percent: i32,
+    /// Dodge and accuracy.
+    pub dodge_percent: i32,
+    /// Walking and hitting speed.
+    pub speed_percent: i32,
+    /// Its bearer can't act (stunned, frozen).
+    pub stun: bool,
+    /// The effect shown on its bearer while it lasts.
+    pub effect: String,
 }
 
 /// A skill or spell players learn.
@@ -138,6 +163,8 @@ pub struct SkillType {
     pub level: u32,
     /// The effect shown on each one it reaches (or where it lands).
     pub effect: String,
+    /// The status it puts on those it reaches; 0: none.
+    pub status: u32,
 }
 
 /// Something a monster leaves on the ground when it dies.
@@ -177,6 +204,11 @@ pub trait Rules: std::any::Any {
 
     /// A skill players may learn.
     fn skill(&self, _id: u32) -> Option<&SkillType> {
+        None
+    }
+
+    /// A status effect skills may put on.
+    fn status(&self, _id: u32) -> Option<&StatusType> {
         None
     }
 

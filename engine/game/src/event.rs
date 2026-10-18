@@ -55,6 +55,16 @@ pub enum Event {
         target: EntityId,
         amount: u32,
     },
+    /// `target` bears status `status` (anew, or again from the start).
+    StatusStarted {
+        target: EntityId,
+        status: u32,
+    },
+    /// Status `status` wore off `target`.
+    StatusEnded {
+        target: EntityId,
+        status: u32,
+    },
     Revived(EntityId),
     ExpGained {
         player: EntityId,

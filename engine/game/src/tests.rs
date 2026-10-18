@@ -14,6 +14,9 @@ const CHARM: u32 = 400;
 const FIRE: u32 = 10;
 const MEND: u32 = 11;
 const QUAKE: u32 = 12;
+const RAGE: u32 = 20;
+const POISON: u32 = 21;
+const STUN: u32 = 22;
 
 struct TestRules {
     monsters: Vec<MonsterType>,
@@ -21,6 +24,7 @@ struct TestRules {
     armor: ItemType,
     others: Vec<ItemType>,
     skills: Vec<SkillType>,
+    statuses: Vec<StatusType>,
 }
 
 fn monster(id: u32, life: u32, attack: u32, aggressive: bool) -> MonsterType {
@@ -56,6 +60,9 @@ impl Rules for TestRules {
     }
     fn skill(&self, id: u32) -> Option<&SkillType> {
         self.skills.iter().find(|s| s.id == id)
+    }
+    fn status(&self, id: u32) -> Option<&StatusType> {
+        self.statuses.iter().find(|s| s.id == id)
     }
     fn player_stats(&self, level: u32) -> Stats {
         Stats {
@@ -125,6 +132,30 @@ fn rules() -> Box<dyn Rules> {
             durability: 3,
             ..ItemType::default()
         },
+        statuses: vec![
+            StatusType {
+                id: RAGE,
+                name: "Rage".into(),
+                duration_ms: 1000,
+                attack_percent: 50,
+                ..StatusType::default()
+            },
+            StatusType {
+                id: POISON,
+                name: "Poison".into(),
+                duration_ms: 3000,
+                life_per_tick: -5,
+                tick_ms: 1000,
+                ..StatusType::default()
+            },
+            StatusType {
+                id: STUN,
+                name: "Stun".into(),
+                duration_ms: 1000,
+                stun: true,
+                ..StatusType::default()
+            },
+        ],
         skills: vec![
             SkillType {
                 id: FIRE,
@@ -816,4 +847,42 @@ fn skills_cost_mana_rest_and_reach_their_area() {
     assert_eq!(sim.player(hero).unwrap().life, 80, "50 + 30");
     // Known skills are kept.
     assert_eq!(sim.save_player(hero).unwrap().skills, [FIRE, QUAKE, MEND]);
+}
+
+#[test]
+fn statuses_change_stats_tick_life_stun_and_wear_off() {
+    let mut sim = Sim::new(
+        Grid::new(40, 40),
+        vec![],
+        vec![spawn(1, SLIME, (20, 20), (20, 20), 1)],
+        rules(),
+        12,
+    );
+    let mut settings = sim.settings().clone();
+    settings.monster_wander = 0;
+    sim.set_settings(settings);
+    let hero = sim.add_player("Hero", (5, 5), 1);
+    assert!(sim.add_status(hero, RAGE, None));
+    assert!(!sim.add_status(hero, 999, None), "no such status");
+    assert_eq!(sim.player(hero).unwrap().stats.attack_min, 15, "+50% of 10");
+    sim.advance(1050);
+    assert_eq!(sim.player(hero).unwrap().stats.attack_min, 10, "worn off");
+    assert!(sim.take_events().iter().any(|e| matches!(
+        e,
+        Event::StatusEnded { target, status: RAGE } if *target == hero
+    )));
+    // Poison: 5 life a second for 3 seconds, the kill the poisoner's.
+    let slime = sim.monsters().next().unwrap().id;
+    let life = sim.monster(slime).unwrap().life;
+    sim.add_status(slime, POISON, Some(hero));
+    sim.advance(3100);
+    assert_eq!(sim.monster(slime).unwrap().life, life - 15);
+    assert!(sim.monster(slime).unwrap().statuses.is_empty());
+    // Stunned, the hero stands still.
+    sim.add_status(hero, STUN, None);
+    sim.walk(hero, (9, 5));
+    sim.advance(900);
+    assert_eq!(sim.player(hero).unwrap().cell, (5, 5));
+    sim.advance(3000);
+    assert_eq!(sim.player(hero).unwrap().cell, (9, 5));
 }

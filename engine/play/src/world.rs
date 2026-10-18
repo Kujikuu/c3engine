@@ -53,7 +53,7 @@ impl World {
     /// `tilt_deg`.
     pub fn new(game: Rc<dyn GameModule>, map_path: String, scene: Scene, tilt_deg: f32) -> Self {
         let view = SceneView::new(&scene, game.assets(), tilt_deg, 0);
-        Self {
+        let mut world = Self {
             game,
             map_path,
             scene,
@@ -64,6 +64,20 @@ impl World {
             background: linear_background(
                 c3_core::settings::GraphicsSettings::default().background,
             ),
+        };
+        world.mark_portals();
+        world
+    }
+
+    /// Shows the game's portal effect on every portal (decoration: a game without one, or a
+    /// client missing it, still plays).
+    fn mark_portals(&mut self) {
+        let Some(effect) = self.game.portal_effect() else {
+            return;
+        };
+        let cells: Vec<_> = self.scene.portals.iter().map(|p| p.cell).collect();
+        for cell in cells {
+            let _ = self.place_effect(&effect, cell, true);
         }
     }
 
@@ -215,6 +229,7 @@ impl World {
         }
         self.view
             .reload_assets(&self.scene, self.game.assets(), renderer, now_ms);
+        self.mark_portals();
     }
 
     pub fn clear_effects(&mut self) {

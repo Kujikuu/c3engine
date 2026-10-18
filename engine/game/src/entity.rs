@@ -87,6 +87,9 @@ pub struct Player {
     /// When (game ms) each skill rested will be ready again.
     #[serde(default)]
     pub cooldowns: BTreeMap<u32, u64>,
+    /// Status effects it bears.
+    #[serde(default)]
+    pub statuses: Vec<crate::statuses::ActiveStatus>,
     pub stats: Stats,
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.
@@ -135,6 +138,9 @@ pub struct Monster {
     pub direction: u8,
     pub life: u32,
     pub stats: Stats,
+    /// Status effects it bears.
+    #[serde(default)]
+    pub statuses: Vec<crate::statuses::ActiveStatus>,
     /// Where it was born; it returns there when it gives up a chase.
     pub home: CellPos,
     /// The spawn area it belongs to.

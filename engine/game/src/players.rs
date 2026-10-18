@@ -55,6 +55,7 @@ impl Sim {
                 wallet: Default::default(),
                 skills: Vec::new(),
                 cooldowns: Default::default(),
+                statuses: Vec::new(),
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),
@@ -294,6 +295,7 @@ impl Sim {
                 let percent = 100 + u32::from(e.quality) * per_step;
                 stats.with_bonus(&t.bonus.scaled(percent))
             });
+        p.stats = crate::statuses::with_statuses(p.stats, &p.statuses, &*self.rules);
         p.life = p.life.min(p.stats.max_life);
         p.mana = p.mana.min(p.stats.max_mana);
     }
@@ -499,6 +501,10 @@ impl Sim {
             }
             return;
         }
+        if self.is_stunned(id) {
+            return;
+        }
+        let p = &self.players[&id];
         match p.task.clone() {
             Task::Idle => {}
             Task::Walk => {

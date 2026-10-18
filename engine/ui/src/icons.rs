@@ -43,6 +43,7 @@ pub const HEART: &str = "\u{E2A8}";
 pub const SCROLL: &str = "\u{EB7A}";
 pub const LIGHTNING: &str = "\u{E2DE}";
 pub const SHIELD: &str = "\u{E40A}";
+pub const HOURGLASS: &str = "\u{E2B2}";
 pub const SPARKLE: &str = "\u{E6A2}";
 pub const SPEAKER_HIGH: &str = "\u{E44A}";
 pub const SPEAKER_X: &str = "\u{E45C}";

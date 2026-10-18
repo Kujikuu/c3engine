@@ -41,6 +41,10 @@ impl Chat {
                 style::BAD,
             )),
             Event::Revived(id) if *id == hero => Some(("You are back.".to_owned(), style::GOOD)),
+            Event::StatusEnded { target, status } if *target == hero => sim
+                .rules()
+                .status(*status)
+                .map(|t| (format!("{} wore off.", t.name), style::DIM)),
             Event::LeveledUp { player, level } if *player == hero => {
                 Some((format!("Level up! You are level {level}."), style::GOLD))
             }

@@ -243,6 +243,7 @@ impl GameUi {
         let typing = self.chat.typing;
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();
         hud::hint_line(ui, view);
+        hud::status_row(ui, view, player);
         quests::npc_marks(&ui.painter_at(view.rect), view);
         let mut open = hud::Open {
             bag: &mut self.bag_open,

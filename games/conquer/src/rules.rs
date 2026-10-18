@@ -10,6 +10,7 @@
 use c3_data::{Table, Value};
 use c3_game::{
     Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
+    StatusType,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,6 +23,13 @@ const LIFE_POTION_CHANCE: u32 = 8;
 const MANA_POTION_CHANCE: u32 = 4;
 /// `cq_magictype.sort` of healing magic (`MAGICSORT_RECRUIT`).
 const SORT_HEAL: i64 = 2;
+/// `cq_magictype.sort` of magic that puts a status on (`MAGICSORT_ATTACHSTATUS`).
+const SORT_STATUS: i64 = 6;
+/// `cq_magictype.status` flags (TQ's `KEEPEFFECT_*`) and the stat each raises.
+const STATUS_ACCURACY: u32 = 0x20;
+const STATUS_SHIELD: u32 = 0x40;
+const STATUS_SUPERMAN: u32 = 0x2000;
+const STATUS_CYCLONE: u32 = 0x40000;
 /// A `cq_magictype.power` above this is a physical skill: that much over, in percent of a hit.
 const PERCENT_POWER: u32 = 30000;
 /// Profession whose stat growth players get until professions are chosen (Trojan).
@@ -52,6 +60,7 @@ pub struct ConquerRules {
     points: HashMap<u32, Points>,
     shops: HashMap<u32, Vec<u32>>,
     skills: HashMap<u32, SkillType>,
+    statuses: HashMap<u32, StatusType>,
 }
 
 /// A table's rows read by column name.
@@ -136,17 +145,23 @@ impl ConquerRules {
                 "ground",
                 "delay_ms",
                 "need_level",
+                "status",
+                "step_secs",
             ],
         )?;
         for v in rows.each().filter(|v| int(v[3]) == 0) {
             let id = uint(v[0]);
-            let kind = if int(v[1]) == SORT_HEAL {
-                SkillKind::Heal
-            } else {
-                SkillKind::Damage
+            let kind = match int(v[1]) {
+                SORT_HEAL => SkillKind::Heal,
+                SORT_STATUS => SkillKind::Status,
+                _ => SkillKind::Damage,
             };
+            let status = (kind == SkillKind::Status)
+                .then(|| self.read_status(id, v[2].as_text().unwrap_or_default(), &v))
+                .flatten()
+                .unwrap_or(0);
             let target = match kind {
-                SkillKind::Heal => SkillTarget::Myself,
+                SkillKind::Heal | SkillKind::Status => SkillTarget::Myself,
                 SkillKind::Damage if int(v[9]) != 0 => SkillTarget::Ground,
                 SkillKind::Damage => SkillTarget::Enemy,
             };
@@ -166,10 +181,35 @@ impl ConquerRules {
                     power: if int(v[5]) < 0 { u32::MAX } else { uint(v[5]) },
                     level: uint(v[11]),
                     effect: String::new(),
+                    status,
                 },
             );
         }
         Ok(())
+    }
+
+    /// The status an attach-status magic puts on (its `status` flag says which stat; its power
+    /// is 30000 + the stat's new percent; `step_secs` how long), by the magic's type.
+    fn read_status(&mut self, id: u32, name: &str, v: &[&Value]) -> Option<u32> {
+        let change = i64::from(uint(v[5])) - i64::from(PERCENT_POWER) - 100;
+        let change = change.clamp(-100, 10_000) as i32;
+        let mut status = StatusType {
+            id,
+            name: name.to_owned(),
+            duration_ms: uint(v[13]).saturating_mul(1000),
+            tick_ms: 1000,
+            ..StatusType::default()
+        };
+        match uint(v[12]) {
+            STATUS_ACCURACY => status.dodge_percent = change,
+            STATUS_SHIELD => status.defence_percent = change,
+            STATUS_SUPERMAN => status.attack_percent = change,
+            // Cyclone's power is its speed gain itself.
+            STATUS_CYCLONE => status.speed_percent = change + 100,
+            _ => return None,
+        }
+        self.statuses.insert(id, status);
+        Some(id)
     }
 
     fn read_monsters(&mut self, t: &Table) -> Result<(), String> {
@@ -385,6 +425,10 @@ impl Rules for ConquerRules {
 
     fn skill(&self, id: u32) -> Option<&SkillType> {
         self.skills.get(&id)
+    }
+
+    fn status(&self, id: u32) -> Option<&StatusType> {
+        self.statuses.get(&id)
     }
 
     fn item(&self, kind: u32) -> Option<&ItemType> {

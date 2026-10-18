@@ -114,6 +114,17 @@ impl SimView {
                     cell,
                     ref targets,
                 } => self.show_cast(caster, skill, cell, targets, sim, world),
+                Event::StatusStarted { target, status } | Event::StatusEnded { target, status } => {
+                    let effect =
+                        (sim.rules().status(status)).and_then(|t| world.game.status_effect(t));
+                    if let (Some(i), Some(effect)) = (self.actor(target), effect) {
+                        world.actors[i].remove_effect(&effect);
+                        if matches!(event, Event::StatusStarted { .. }) {
+                            // Decoration: a client without the effect still plays.
+                            let _ = world.actor_effect(i, &effect, true);
+                        }
+                    }
+                }
                 Event::Died { id, .. } => {
                     if let Some(i) = self.actor(id) {
                         let die = world.game.looks().action(Act::Die);

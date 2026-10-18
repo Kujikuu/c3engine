@@ -67,6 +67,7 @@ impl Player {
             wallet: Default::default(),
             skills: Vec::new(),
             cooldowns: Default::default(),
+            statuses: Vec::new(),
             ..self.clone()
         }
     }
@@ -106,7 +107,9 @@ impl Event {
             } => std::iter::once(caster)
                 .chain(targets.iter().copied())
                 .collect(),
-            Event::Healed { target, .. } => vec![target],
+            Event::Healed { target, .. }
+            | Event::StatusStarted { target, .. }
+            | Event::StatusEnded { target, .. } => vec![target],
             Event::LeveledUp { player, .. }
             | Event::PickedUp { player, .. }
             | Event::Used { player, .. }

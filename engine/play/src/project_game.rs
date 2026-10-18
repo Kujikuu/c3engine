@@ -9,7 +9,7 @@ use c3_assets::Image;
 use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_audio::MusicRegion;
-use c3_game::{EntityId, Sim};
+use c3_game::{EntityId, Sim, SkillType, StatusType};
 use c3_project::{Project, ProjectSettings};
 use c3_render::SceneAssets;
 use c3_scene::{Scene, TileLayer};
@@ -138,6 +138,18 @@ impl GameModule for ProjectGame {
 
     fn click_effect(&self) -> Option<String> {
         self.game.click_effect()
+    }
+
+    fn portal_effect(&self) -> Option<String> {
+        self.game.portal_effect()
+    }
+
+    fn skill_media(&self, skill: &SkillType) -> (Option<String>, Option<String>) {
+        self.game.skill_media(skill)
+    }
+
+    fn status_effect(&self, status: &StatusType) -> Option<String> {
+        self.game.status_effect(status)
     }
 
     fn level_up_effect(&self) -> Option<String> {

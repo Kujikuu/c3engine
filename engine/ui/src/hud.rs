@@ -329,6 +329,66 @@ pub(crate) fn bar(
     }
 }
 
+/// The statuses the hero bears, under the hint line: name and seconds left, good ones green,
+/// bad ones red; the tooltip says what each does.
+pub(crate) fn status_row(ui: &mut egui::Ui, view: &GameView, p: &Player) {
+    let rules = view.sim.rules();
+    let now = view.sim.now_ms();
+    let mut at =
+        view.rect.left_top() + egui::vec2(10.0, if view.hint.is_empty() { 10.0 } else { 40.0 });
+    let painter = ui.painter_at(view.rect);
+    for s in &p.statuses {
+        let Some(t) = rules.status(s.id) else {
+            continue;
+        };
+        let bad = t.stun
+            || t.life_per_tick < 0
+            || t.attack_percent + t.defence_percent + t.dodge_percent + t.speed_percent < 0;
+        let color = if bad { style::BAD } else { style::GOOD };
+        let left = s.until_ms.saturating_sub(now).div_ceil(1000);
+        let text = format!("{}  {}  {left}s", icons::HOURGLASS, t.name);
+        let galley = painter.layout_no_wrap(text, fonts::font(12.0), color);
+        let rect = Rect::from_min_size(at, galley.size() + egui::vec2(12.0, 6.0));
+        painter.rect_filled(rect, 4.0, style::backing(1.0));
+        painter.rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.0, color.gamma_multiply(0.6)),
+            egui::StrokeKind::Inside,
+        );
+        painter.galley(at + egui::vec2(6.0, 3.0), galley, color);
+        ui.allocate_rect(rect, egui::Sense::hover())
+            .on_hover_text(status_tip(t));
+        at.x = rect.right() + 6.0;
+    }
+}
+
+/// What a status does, for its tooltip.
+fn status_tip(t: &c3_game::StatusType) -> String {
+    let mut lines = vec![t.name.clone()];
+    for (what, percent) in [
+        ("Attack", t.attack_percent),
+        ("Defence", t.defence_percent),
+        ("Dodge and accuracy", t.dodge_percent),
+        ("Speed", t.speed_percent),
+    ] {
+        if percent != 0 {
+            lines.push(format!("{what} {percent:+}%"));
+        }
+    }
+    if t.life_per_tick != 0 {
+        lines.push(format!(
+            "{:+} life every {:.1} s",
+            t.life_per_tick,
+            t.tick_ms as f32 / 1000.0
+        ));
+    }
+    if t.stun {
+        lines.push("Can't act".to_owned());
+    }
+    lines.join("\n")
+}
+
 /// Size of a skill bar slot.
 const SKILL_SLOT: f32 = 34.0;
 /// Height the skill bar takes above the bottom bar.
@@ -381,6 +441,7 @@ pub(crate) fn skill_bar(
         let (icon, color) = match t.kind {
             SkillKind::Heal => (icons::SPARKLE, style::GOOD),
             SkillKind::Damage => (icons::LIGHTNING, style::GOLD),
+            SkillKind::Status => (icons::SHIELD, style::MANA),
         };
         let color = if short {
             color.gamma_multiply(0.35)

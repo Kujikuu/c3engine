@@ -23,6 +23,8 @@ use std::sync::Arc;
 pub const DEFAULT_MAP_ID: u32 = 1002;
 /// Effect marking where the player clicked to walk.
 const CLICK_EFFECT: &str = "mouse";
+/// The effect the client draws on every portal.
+const PORTAL_EFFECT: &str = "Exit";
 /// Effect played on a player rising a level.
 const LEVEL_UP: &str = "LevelUp";
 /// Action of a dying role (`_ACTION_DIE`).
@@ -164,6 +166,12 @@ impl GameModule for ConquerModule {
             .iter()
             .map(|(s, n)| (*s, (*n).to_owned()))
             .collect()
+    }
+
+    /// The client draws `Exit` on every passage cell as it loads a map
+    /// (`CTerrainLayer::LoadDataPassage`).
+    fn portal_effect(&self) -> Option<String> {
+        Some(PORTAL_EFFECT.to_owned())
     }
 
     fn click_effect(&self) -> Option<String> {

@@ -208,6 +208,11 @@ impl Actor {
         self.role_effects.clear();
     }
 
+    /// Stops the effects named `name` it carries.
+    pub fn remove_effect(&mut self, name: &str) {
+        self.role_effects.retain(|e| e.name() != name);
+    }
+
     /// Plays `effect` at the actor's feet.
     pub fn add_effect(&mut self, effect: RunningEffect) {
         self.role_effects.push(effect);

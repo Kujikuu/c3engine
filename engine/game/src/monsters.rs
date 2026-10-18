@@ -67,6 +67,7 @@ impl Sim {
                     direction,
                     life: kind.stats.max_life,
                     stats: kind.stats,
+                    statuses: Vec::new(),
                     home: cell,
                     spawn: Some(spawn.id),
                     target: None,
@@ -98,6 +99,10 @@ impl Sim {
             }
             return;
         }
+        if self.is_stunned(id) {
+            return;
+        }
+        let m = &self.monsters[&id];
         let (cell, home, kind) = (m.cell, m.home, m.kind);
         let view = self.rules.monster(kind).map_or(0, |t| t.view_range) as i32;
         let aggressive = self.rules.monster(kind).is_some_and(|t| t.aggressive);

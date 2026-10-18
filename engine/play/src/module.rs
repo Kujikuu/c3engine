@@ -6,7 +6,7 @@
 use crate::character::{Character, CharacterMotions, Look};
 use c3_assets::Image;
 use c3_audio::MusicRegion;
-use c3_game::{EntityId, Player, Rules, Sim, SkillType};
+use c3_game::{EntityId, Player, Rules, Sim, SkillType, StatusType};
 use c3_project::{Project, ProjectSettings};
 use c3_render::SceneAssets;
 use c3_scene::{Npc, Scene};
@@ -104,6 +104,10 @@ pub trait GameModule {
     fn formulas_template(&self) -> Option<&'static str> {
         None
     }
+    /// The effect every portal shows, looping (TQ's client draws `Exit` on each).
+    fn portal_effect(&self) -> Option<String> {
+        None
+    }
     /// The effect marking where the player clicked to walk.
     fn click_effect(&self) -> Option<String> {
         None
@@ -119,6 +123,10 @@ pub trait GameModule {
             (!skill.effect.is_empty()).then(|| skill.effect.clone()),
             None,
         )
+    }
+    /// The effect its bearer shows while `status` lasts.
+    fn status_effect(&self, status: &StatusType) -> Option<String> {
+        (!status.effect.is_empty()).then(|| status.effect.clone())
     }
     /// The effect and sound of using item type `kind`.
     fn item_use(&self, kind: u32) -> (Option<String>, Option<String>) {

@@ -21,6 +21,7 @@ mod rules;
 mod save;
 mod sim;
 mod skills;
+mod statuses;
 
 pub use c3_core::settings::GameplaySettings;
 pub use commands::HELP as COMMAND_HELP;
@@ -31,10 +32,12 @@ pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{
     Drop, Fighter, ItemType, MonsterType, Rules, SkillKind, SkillTarget, SkillType, Stats,
+    StatusType,
 };
 pub use save::{PlayerSave, SavedItem};
 pub use sim::Sim;
 pub use skills::CastAt;
+pub use statuses::ActiveStatus;
 
 use c3_scene::CellPos;
 use serde::{Deserialize, Serialize};

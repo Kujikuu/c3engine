@@ -143,14 +143,20 @@ impl Sim {
         });
         match t.kind {
             SkillKind::Damage => {
-                for target in targets {
+                for target in targets.iter().copied() {
                     self.skill_hits(id, t, target);
                 }
             }
             SkillKind::Heal => {
-                for target in targets {
+                for target in targets.iter().copied() {
                     self.heal(id, t, target);
                 }
+            }
+            SkillKind::Status => {}
+        }
+        if t.status != 0 {
+            for target in targets {
+                self.add_status(target, t.status, Some(id));
             }
         }
     }
@@ -158,7 +164,13 @@ impl Sim {
     /// Who a cast of `t` at `goal` reaches: its target, or everyone fitting in its area.
     fn reached(&self, caster: EntityId, t: &SkillType, goal: CellPos, at: CastAt) -> Vec<EntityId> {
         let area = t.area as i32;
-        match t.kind {
+        // A status aimed at oneself reaches friends; at a monster or the ground, foes.
+        let kind = match (t.kind, t.target) {
+            (SkillKind::Status, SkillTarget::Myself) => SkillKind::Heal,
+            (SkillKind::Status, _) => SkillKind::Damage,
+            (kind, _) => kind,
+        };
+        match kind {
             SkillKind::Damage if area > 0 => (self.monsters.values())
                 .filter(|m| m.is_alive() && distance(m.cell, goal) <= area)
                 .map(|m| m.id)
@@ -167,11 +179,11 @@ impl Sim {
                 CastAt::Entity(e) if self.is_foe(e) => vec![e],
                 _ => Vec::new(),
             },
-            SkillKind::Heal if area > 0 => (self.players.values())
+            SkillKind::Heal | SkillKind::Status if area > 0 => (self.players.values())
                 .filter(|p| p.is_alive() && distance(p.cell, goal) <= area)
                 .map(|p| p.id)
                 .collect(),
-            SkillKind::Heal => match at {
+            SkillKind::Heal | SkillKind::Status => match at {
                 CastAt::Entity(e) if self.living_player_cell(e).is_some() => vec![e],
                 _ => vec![caster],
             },
