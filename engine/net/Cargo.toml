@@ -4,3 +4,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+tokio = { version = "1", features = ["rt", "net", "io-util", "sync", "macros", "time"] }

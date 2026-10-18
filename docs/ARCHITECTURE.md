@@ -8,7 +8,8 @@ c3engine/
     render/    wgpu renderer: 2D sprites/tiles, 2.5D iso, 3D skinned meshes, particles, lighting
     scene/     maps, tile/height/cell grids, scene objects, portals, cameras
     anim/      skeletal + sprite animation, blend/state machines
-    net/       transport (tokio), packet codec framework, cipher trait, prediction
+    net/       c3-net: TCP server/client (tokio on a background thread; the game polls), framing
+               and cipher traits, fixed-layout packet reader/writer
     ui/        c3-ui: in-game UI on egui (HUD, chat, bag + equipment, shop, NPC dialogue,
                quest log + tracker, world overlays and quest marks); returns UiActions; owns
                the shared icon font

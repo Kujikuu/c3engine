@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M6 step 1: `engine/net` transport, packet framework, cipher trait (see M6 below)
+- [ ] M6 step 2: the engine's protocol, server world and client mirror; `apps/server` (see M6 below)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -151,7 +151,8 @@ In order; each step is playable in the Studio's Play mode:
       kill counting in the simulation, `/quest` command; quest log, tracker and NPC quest marks
 
 ## M6: Networking + engine server
-- [ ] `engine/net`: transport, packet framework, cipher trait
+- [x] `engine/net`: transport (tokio on a background thread, poll/send API), framing trait
+      (length-prefixed), cipher trait with re-keying hook, fixed-layout packet reader/writer
 - [ ] Game server (`apps/server`) built from a project: accounts, database, maps, spawns, NPCs
 - [ ] Client ↔ server play: login, spawn, walk/jump, other players, monsters, combat
 - [ ] Play mode with a local server inside the Studio
