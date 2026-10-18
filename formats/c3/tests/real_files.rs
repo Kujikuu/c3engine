@@ -328,3 +328,101 @@ fn every_map_imports_to_scene_and_exports_back() {
         failed.join("\n")
     );
 }
+
+/// Every packed .c3 parses as a container and round-trips; typed PHY/MOTI chunks
+/// decode and re-encode to the exact chunk bytes.
+#[test]
+fn c3_models_round_trip() {
+    use c3_formats_tq::c3::{C3File, ChunkKind, motion::Motion, phy::Mesh};
+    use std::collections::BTreeMap;
+    let Some(dir) = client_dir() else { return };
+    let a = wdf::Wdf::open(dir.join("c3.wdf")).unwrap();
+    let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+    let (mut files, mut failed) = (0, Vec::<String>::new());
+    for e in &a.entries {
+        let b = a.entry_bytes(e);
+        if !b.starts_with(b"MAXFILE") {
+            continue;
+        }
+        files += 1;
+        let file = match C3File::parse(b) {
+            Ok(f) => f,
+            Err(err) => {
+                failed.push(format!("{:#x}: container: {err}", e.uid));
+                continue;
+            }
+        };
+        if file.to_bytes() != b {
+            failed.push(format!("{:#x}: container bytes differ", e.uid));
+        }
+        for c in &file.chunks {
+            *kinds.entry(c.id_str()).or_default() += 1;
+            let result = match c.kind() {
+                ChunkKind::Phy(layout) => Mesh::parse(&c.body, layout).map(|m| m.to_bytes()),
+                ChunkKind::Motion => Motion::parse(&c.body).map(|m| m.to_bytes()),
+                _ => continue,
+            };
+            match result {
+                Ok(bytes) if bytes == c.body => {}
+                Ok(_) => failed.push(format!("{:#x}: {} re-encode differs", e.uid, c.id_str())),
+                Err(err) => failed.push(format!("{:#x}: {}: {err}", e.uid, c.id_str())),
+            }
+        }
+    }
+    eprintln!("c3 files: {files}, chunks: {kinds:?}");
+    assert!(files > 0);
+    assert!(
+        failed.is_empty(),
+        "{} failed, first 10:\n{}",
+        failed.len(),
+        failed
+            .iter()
+            .take(10)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// Every packed .c3 converts to an engine model with valid indices, and paired
+/// motions pose every vertex to a finite position.
+#[test]
+fn c3_models_import_to_engine() {
+    use c3_formats_tq::{c3::C3File, model_io};
+    let Some(dir) = client_dir() else { return };
+    let a = wdf::Wdf::open(dir.join("c3.wdf")).unwrap();
+    let (mut parts, mut animated, mut failed) = (0, 0, Vec::<String>::new());
+    for e in &a.entries {
+        let b = a.entry_bytes(e);
+        if !b.starts_with(b"MAXFILE") {
+            continue;
+        }
+        let model = model_io::import_model(&C3File::parse(b).unwrap()).unwrap();
+        for p in &model.parts {
+            parts += 1;
+            let n = p.mesh.vertices.len() as u32;
+            if p.mesh.indices.iter().any(|&i| i >= n) {
+                failed.push(format!("{:#x} {}: index out of range", e.uid, p.mesh.name));
+            }
+            if let Some(clip) = &p.clip {
+                animated += 1;
+                let posed = p
+                    .mesh
+                    .posed_positions(Some(clip), clip.frame_count as f32 / 2.0);
+                if posed.iter().any(|v| !v.is_finite()) {
+                    failed.push(format!(
+                        "{:#x} {}: non-finite posed vertex",
+                        e.uid, p.mesh.name
+                    ));
+                }
+            }
+        }
+    }
+    eprintln!("model parts: {parts}, animated: {animated}");
+    assert!(
+        failed.is_empty(),
+        "{} failed, first: {:?}",
+        failed.len(),
+        failed.first()
+    );
+}

@@ -24,7 +24,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Course correction (2026-10-18), see DECISIONS.md
 - [x] (1) `engine/scene` + `engine/assets` + TQ importer/exporter: 144/144 maps round-trip
 - [x] (2) Studio edits engine `Scene`s; TQ access isolated in `studio/src/tq_plugin.rs`
-- [ ] (3) Finish M1: C3 models (PHY/MOTI/PTCL)
+- [x] (3) C3 models: container + PHY + MOTI (incl. XKEY), engine `c3-anim` Clip/skinning and
+      `c3_assets::model`, TQ importer `model_io`; all 4,516 files verified; `modelshot` renders posed models
+- [ ] (3b) Typed decode of SHAP/SMOT (trails), PTCL/PTCX/PTC3 (particles), CAME (camera). Currently raw
+- [ ] (3c) Remaining M1 tables: ini/dat wiring (3DObj, 3DMotion, 3DTexture, armor, weapon), DNP, MSK
 - [ ] (4) M2 renderer (wgpu)
 
 ## M2: Renderer

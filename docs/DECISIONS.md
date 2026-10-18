@@ -14,6 +14,10 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · **Course correction (drift).** Studio work jumped ahead of M1/M2 and edited raw TQ `DMap`s, so the Studio was a Conquer editor rather than an engine editor. Fix, in this order: (1) game-agnostic `engine/scene` + `engine/assets`, plus a TQ importer/exporter; (2) move the Studio onto engine types; (3) finish M1 with the C3 models; (4) M2 wgpu renderer. **Rule: no new Studio features until (1)–(2) are done; editors only ever touch engine types.**
 - 2026-10-18 · Engine text is UTF-8. TQ strings are GBK, converted at the importer/exporter boundary (`encoding_rs`). Export→import round-trips are *semantic*: bytes after a fixed-string NUL are not preserved. The raw format parsers stay byte-exact.
 
+- 2026-10-18 · Engine math uses **glam** (`Mat4`, column vectors). TQ/D3D matrices load with `Mat4::from_cols_array` and no conversion (same memory layout).
+- 2026-10-18 · Engine animation sampling defaults to the **classic C3 behaviour** (linear matrix blend, matching the original look). SRT/slerp sampling (the client's Enhanced mode) comes later as an option.
+- 2026-10-18 · Imported mesh positions are stored **already bound** (bind matrix applied, as the client does). `bind_pose` is kept for a future exporter.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

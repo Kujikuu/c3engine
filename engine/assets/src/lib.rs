@@ -3,6 +3,8 @@
 //! Games and format plugins provide an [`AssetSource`] (loose folders, packed archives, …).
 //! Engine code reads assets only through it, by forward-slash relative path.
 
+pub mod model;
+
 use std::borrow::Cow;
 
 /// Read-only virtual file system.

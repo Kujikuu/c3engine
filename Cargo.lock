@@ -512,10 +512,17 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 [[package]]
 name = "c3-anim"
 version = "0.1.0"
+dependencies = [
+ "glam",
+]
 
 [[package]]
 name = "c3-assets"
 version = "0.1.0"
+dependencies = [
+ "c3-anim",
+ "glam",
+]
 
 [[package]]
 name = "c3-audio"
@@ -533,9 +540,11 @@ version = "0.1.0"
 name = "c3-formats-tq"
 version = "0.1.0"
 dependencies = [
+ "c3-anim",
  "c3-assets",
  "c3-scene",
  "encoding_rs",
+ "glam",
  "png 0.17.16",
  "thiserror 2.0.21",
 ]
@@ -1342,6 +1351,12 @@ dependencies = [
  "log",
  "xml-rs",
 ]
+
+[[package]]
+name = "glam"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc148d4ddd3930c52f9e5ae79b89805c6f07e9ff417e7b083e0348cea60a5aba"
 
 [[package]]
 name = "glifo"

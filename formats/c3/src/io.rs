@@ -32,6 +32,11 @@ impl<'a> Reader<'a> {
         self.data.len() - self.pos
     }
 
+    /// Next `n` bytes without consuming them.
+    pub fn peek(&self, n: usize) -> Option<&'a [u8]> {
+        self.data.get(self.pos..self.pos + n)
+    }
+
     pub fn bytes(&mut self, n: usize) -> Result<&'a [u8]> {
         let end = self.pos.checked_add(n).filter(|&e| e <= self.data.len());
         let end = end.ok_or(Error::Eof(self.pos))?;

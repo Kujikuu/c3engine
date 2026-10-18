@@ -4,3 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+c3-anim = { version = "0.1.0", path = "../anim" }
+glam = "0.34.1"
