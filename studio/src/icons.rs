@@ -58,6 +58,7 @@ pub const IMAGE: &str = "\u{E2CA}";
 pub const INFO: &str = "\u{E2CE}";
 pub const KEY: &str = "\u{E2D6}";
 pub const LAYOUT: &str = "\u{E6D6}";
+pub const LINK_SIMPLE: &str = "\u{E2E6}";
 pub const LINK_BREAK: &str = "\u{E2E4}";
 pub const LIST_BULLETS: &str = "\u{E2F2}";
 pub const LOCK: &str = "\u{E2FA}";

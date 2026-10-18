@@ -1,6 +1,6 @@
 //! The World view: every map of the game as a card, the portals between them as arrows
-//! (a link both ways drawn once, with two heads). Drag cards to arrange them (kept in the
-//! project's `world.ron`), drag the background to pan, scroll to zoom, double-click a card
+//! (a link both ways drawn once, with two heads). Drag cards to arrange them (the moved ones
+//! kept in the project's `world.ron`), drag the background to pan, scroll to zoom, double-click a card
 //! to open its map in the Scene.
 
 use crate::app::Studio;
@@ -32,8 +32,10 @@ pub(crate) struct WorldView {
     cards: Vec<MapCard>,
     /// Which card leads to which (by index), and how many portals do.
     links: BTreeMap<(usize, usize), usize>,
-    /// Where each map's card is, by key (saved).
+    /// Where each map's card is, by key.
     places: BTreeMap<String, [f32; 2]>,
+    /// The places of cards moved by hand (saved); the others follow the automatic layout.
+    pinned: BTreeMap<String, [f32; 2]>,
     offset: Vec2,
     zoom: f32,
     dragging: Option<usize>,
@@ -144,7 +146,7 @@ impl Studio {
             w.zoom = 1.0;
         }
         let Some(project) = &self.project else { return };
-        w.places = std::fs::read_to_string(project.root.join(LAYOUT_FILE))
+        w.pinned = std::fs::read_to_string(project.root.join(LAYOUT_FILE))
             .ok()
             .and_then(|t| ron::from_str(&t).ok())
             .unwrap_or_default();
@@ -190,9 +192,12 @@ impl Studio {
         }
         let places = auto_layout(self.world.cards.len(), &self.world.links);
         let w = &mut self.world;
-        for (card, place) in w.cards.iter().zip(places) {
-            w.places.entry(card.key.clone()).or_insert(place);
-        }
+        w.places = (w.cards.iter().zip(places))
+            .map(|(card, auto)| {
+                let place = w.pinned.get(&card.key).copied().unwrap_or(auto);
+                (card.key.clone(), place)
+            })
+            .collect();
     }
 
     /// Draws the canvas; returns the map to open (a double-clicked card).
@@ -252,6 +257,8 @@ impl Studio {
             }
             if resp.drag_stopped() {
                 w.dragging = None;
+                let key = w.cards[i].key.clone();
+                w.pinned.insert(key.clone(), w.places[&key]);
                 moved = true;
             }
             if resp.double_clicked() {
@@ -301,7 +308,7 @@ impl Studio {
         }
         if moved && let Some(project) = &self.project {
             let text =
-                ron::ser::to_string_pretty(&w.places, Default::default()).unwrap_or_default();
+                ron::ser::to_string_pretty(&w.pinned, Default::default()).unwrap_or_default();
             // A layout that can't be saved only costs the arrangement.
             let _ = std::fs::write(project.root.join(LAYOUT_FILE), text);
         }

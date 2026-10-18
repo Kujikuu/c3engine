@@ -57,6 +57,12 @@ pub struct DataPanel {
     import: Option<ImportDialog>,
     /// Rows matching the search, by index (`None` = recompute).
     filtered: Option<Vec<usize>>,
+    /// A column being renamed or described.
+    pub(crate) column_text: Option<crate::table_schema::ColumnText>,
+    /// Tables the open table's columns refer to.
+    pub(crate) referred: crate::table_schema::ReferredTables,
+    /// What the reference picker searches for.
+    pub(crate) reference_search: String,
 }
 
 impl DataPanel {
@@ -103,6 +109,7 @@ impl DataPanel {
 impl Studio {
     /// Re-reads the project's table names.
     pub(crate) fn refresh_tables(&mut self) {
+        self.data.referred.forget(None);
         self.data.names = self
             .project
             .as_ref()
@@ -311,6 +318,7 @@ impl Studio {
             Ok(()) => {
                 open.doc.mark_saved();
                 let name = open.name.clone();
+                self.data.referred.forget(Some(&name));
                 self.notify(format!("Saved table {name}"));
                 true
             }
@@ -327,6 +335,7 @@ impl Studio {
         let table = open.doc.table();
         let total = table.rows.len();
         let mut add = false;
+        let mut add_column = false;
         let mut delete = false;
         let mut save = false;
         ui.horizontal(|ui| {
@@ -364,6 +373,10 @@ impl Studio {
                 add = ui
                     .button(theme::icon_text(icons::PLUS, "Add row"))
                     .clicked();
+                add_column = ui
+                    .button(theme::icon_text(icons::PLUS, "Column"))
+                    .on_hover_text("Adds a column at the end; right-click a column's name for more")
+                    .clicked();
             });
         });
         if add {
@@ -381,6 +394,15 @@ impl Studio {
         }
         if save {
             self.save_table();
+        }
+        if add_column
+            && let Some(last) = self
+                .data
+                .open
+                .as_ref()
+                .and_then(|t| t.doc.table().columns.last().map(|c| c.name.clone()))
+        {
+            self.column_action(&last, crate::table_schema::ColumnAction::InsertAfter);
         }
     }
 
@@ -400,6 +422,15 @@ impl Studio {
     }
 
     fn table_grid(&mut self, ui: &mut egui::Ui) {
+        // The tables its columns refer to, read before the grid borrows the open table.
+        let referred: Vec<String> = (self.data.open.iter())
+            .flat_map(|t| t.doc.table().columns.iter())
+            .map(|c| c.references.clone())
+            .filter(|r| !r.is_empty())
+            .collect();
+        for name in referred {
+            self.referred(&name);
+        }
         let rows: Vec<usize> = self.data.rows().to_vec();
         let Some(open) = &self.data.open else { return };
         let table: &Table = open.doc.table();
@@ -409,6 +440,9 @@ impl Studio {
         let mut commit: Option<TableCommand> = None;
         let mut cancel = false;
         let editing = &mut self.data.editing;
+        let names = &self.data.names;
+        let referred = &self.data.referred;
+        let mut column_action = None;
         // Wide tables scroll sideways; rows scroll inside the grid.
         egui::ScrollArea::horizontal()
             .auto_shrink(false)
@@ -420,6 +454,8 @@ impl Studio {
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center));
                 for c in &table.columns {
                     let width = match c.kind {
+                        // Referenced rows show their names.
+                        _ if !c.references.is_empty() => 170.0,
                         ColumnKind::Text => 150.0,
                         ColumnKind::Bool => 60.0,
                         ColumnKind::Int | ColumnKind::Float => 86.0,
@@ -435,8 +471,22 @@ impl Studio {
                                 } else {
                                     c.name.clone()
                                 };
-                                ui.label(RichText::new(name).strong())
-                                    .on_hover_text(column_hint(c));
+                                let mut name = RichText::new(name).strong();
+                                if !c.references.is_empty() {
+                                    name = name.color(theme::ACCENT);
+                                }
+                                let label = egui::Label::new(name)
+                                    .selectable(false)
+                                    .sense(egui::Sense::click());
+                                ui.add(label)
+                                    .on_hover_text(column_hint(c))
+                                    .context_menu(|ui| {
+                                        if let Some(action) =
+                                            crate::table_schema::column_menu(ui, c, i == 0, names)
+                                        {
+                                            column_action = Some((c.name.clone(), action));
+                                        }
+                                    });
                             });
                         }
                     })
@@ -487,7 +537,15 @@ impl Studio {
                                                 }
                                             }
                                             _ => {
-                                                let text = value.to_string();
+                                                // A cell naming another table's row shows
+                                                // that row's name.
+                                                let refers = &table.columns[c].references;
+                                                let text = match value.as_int() {
+                                                    Some(k) if !refers.is_empty() => {
+                                                        referred.label(refers, k)
+                                                    }
+                                                    _ => value.to_string(),
+                                                };
                                                 let color = match value {
                                                     Value::Text(_) => theme::TEXT,
                                                     _ => egui::Color32::from_rgb(170, 200, 235),
@@ -542,6 +600,9 @@ impl Studio {
             self.data.editing = None;
             self.run_table(command);
         }
+        if let Some((name, action)) = column_action {
+            self.column_action(&name, action);
+        }
     }
 
     /// The selected row in the Inspector, every column editable; false if none is selected.
@@ -556,6 +617,18 @@ impl Studio {
         let Some(r) = table.find(key) else {
             return false;
         };
+        // Pickers for columns naming other tables' rows (they need the Studio, so the
+        // row is read first).
+        let refers: Vec<(String, String, i64)> = (table.columns.iter().enumerate())
+            .filter(|(_, c)| !c.references.is_empty())
+            .filter_map(|(c, col)| {
+                Some((
+                    col.name.clone(),
+                    col.references.clone(),
+                    table.rows[r][c].as_int()?,
+                ))
+            })
+            .collect();
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(icons::DATABASE)
@@ -569,6 +642,7 @@ impl Studio {
         });
         ui.separator();
         let mut commit = None;
+        let mut reference_rows = Vec::new();
         egui::Grid::new("row inspector")
             .num_columns(2)
             .spacing([10.0, 4.0])
@@ -582,6 +656,16 @@ impl Studio {
                         column: column.name.clone(),
                         value,
                     };
+                    if let Some((_, refers, current)) =
+                        refers.iter().find(|(name, ..)| *name == column.name)
+                    {
+                        reference_rows.push((column.name.clone(), refers.clone(), *current));
+                        let label = self.data.referred.label(refers, *current);
+                        ui.label(RichText::new(label).color(theme::ACCENT))
+                            .on_hover_text("Pick another below, under References");
+                        ui.end_row();
+                        continue;
+                    }
                     match table.rows[r][c].clone() {
                         Value::Int(mut v) => {
                             if ui.add(egui::DragValue::new(&mut v)).changed() {
@@ -612,6 +696,26 @@ impl Studio {
                     ui.end_row();
                 }
             });
+        // Columns naming other tables' rows, each with a picker.
+        if !reference_rows.is_empty() {
+            ui.add_space(6.0);
+            theme::section(ui, "References", |ui| {
+                for (column, refers, current) in reference_rows {
+                    ui.label(RichText::new(format!("{column} → {refers}")).color(theme::TEXT_DIM));
+                    if let Some(picked) = self.reference_field(ui, &refers, current) {
+                        commit = Some(TableCommand::SetCell {
+                            key,
+                            column,
+                            value: Value::Int(picked),
+                        });
+                    }
+                }
+            });
+        }
+        let Some(open) = &self.data.open else {
+            return true;
+        };
+        let table = open.doc.table();
         if let Some(command) = commit {
             if let TableCommand::SetCell { column, .. } = &command
                 && column == &table.columns[0].name

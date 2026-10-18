@@ -44,6 +44,7 @@ mod script_panel;
 mod selection;
 mod shell;
 mod stage;
+mod table_schema;
 mod theme;
 mod tq_plugin;
 mod world_view;

@@ -2,7 +2,7 @@
 
 use crate::history::{History, HistoryEntry};
 use crate::{EditError, Outcome};
-use c3_data::{Table, Value};
+use c3_data::{Column, ColumnKind, Table, Value};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +26,20 @@ pub enum TableCommand {
     },
     /// Deletes the row with `key`.
     RemoveRow { key: i64 },
+    /// Adds `column` at `index` (after the key column at least), or at the end; every row
+    /// gets its empty value.
+    AddColumn {
+        column: Column,
+        #[serde(default)]
+        index: Option<usize>,
+    },
+    /// Renames column `from` to `to`.
+    RenameColumn { from: String, to: String },
+    /// Replaces column `name`'s kind, explanation and reference with `column`'s (its name
+    /// stays); values are converted to a new kind.
+    SetColumn { name: String, column: Column },
+    /// Deletes column `name` and its values (not the key column).
+    RemoveColumn { name: String },
 }
 
 /// A recorded change, with what it replaced.
@@ -35,6 +49,11 @@ enum Change {
         column: usize,
         before: Value,
         after: Value,
+    },
+    /// The columns and every row (a change of the table's shape).
+    Schema {
+        before: Box<Table>,
+        after: Box<Table>,
     },
     /// Row `index` added (`before` none) or removed (`after` none).
     Row {
@@ -70,6 +89,10 @@ impl TableDoc {
             TableCommand::SetCell { key, column, value } => self.set_cell(*key, column, value)?,
             TableCommand::AddRow { values, key } => self.add_row(values.as_deref(), *key)?,
             TableCommand::RemoveRow { key } => self.remove_row(*key)?,
+            TableCommand::AddColumn { column, index } => self.add_column(column, *index)?,
+            TableCommand::RenameColumn { from, to } => self.rename_column(from, to)?,
+            TableCommand::SetColumn { name, column } => self.set_column(name, column)?,
+            TableCommand::RemoveColumn { name } => self.remove_column(name)?,
         };
         let changed = change.is_some();
         if let Some(change) = change {
@@ -165,8 +188,99 @@ impl TableDoc {
         ))
     }
 
+    fn column_index(&self, name: &str) -> Result<usize, EditError> {
+        (self.table.column(name)).ok_or_else(|| EditError::NoColumn(name.to_owned()))
+    }
+
+    fn check_name(&self, name: &str) -> Result<(), EditError> {
+        if name.trim().is_empty() {
+            return Err(EditError::WrongKind("a column needs a name".into()));
+        }
+        if self.table.column(name).is_some() {
+            return Err(EditError::WrongKind(format!(
+                "there is a column {name} already"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Records the table as `after`, replacing it whole.
+    fn reshape(&mut self, after: Table, summary: String) -> (String, Option<Change>) {
+        if after == self.table {
+            return ("Nothing changed".into(), None);
+        }
+        let before = std::mem::replace(&mut self.table, after.clone());
+        let change = Change::Schema {
+            before: Box::new(before),
+            after: Box::new(after),
+        };
+        (summary, Some(change))
+    }
+
+    fn add_column(&mut self, column: &Column, index: Option<usize>) -> Edit {
+        self.check_name(&column.name)?;
+        let len = self.table.columns.len();
+        let at = index.unwrap_or(len).clamp(1.min(len), len);
+        let mut after = self.table.clone();
+        after.columns.insert(at, column.clone());
+        for row in &mut after.rows {
+            row.insert(at, column.kind.default_value());
+        }
+        Ok(self.reshape(after, format!("Added column {}", column.name)))
+    }
+
+    fn rename_column(&mut self, from: &str, to: &str) -> Edit {
+        let c = self.column_index(from)?;
+        if from == to {
+            return Ok(("Nothing changed".into(), None));
+        }
+        self.check_name(to)?;
+        let mut after = self.table.clone();
+        after.columns[c].name = to.to_owned();
+        Ok(self.reshape(after, format!("Renamed column {from} to {to}")))
+    }
+
+    fn set_column(&mut self, name: &str, column: &Column) -> Edit {
+        let c = self.column_index(name)?;
+        if c == 0 && column.kind != ColumnKind::Int {
+            return Err(EditError::WrongKind(
+                "the key column stays a whole number".into(),
+            ));
+        }
+        let mut after = self.table.clone();
+        let kind = column.kind;
+        after.columns[c] = Column {
+            name: name.to_owned(),
+            ..column.clone()
+        };
+        if kind != self.table.columns[c].kind {
+            for row in &mut after.rows {
+                row[c] = row[c].converted(kind);
+            }
+        }
+        Ok(self.reshape(after, format!("Changed column {name}")))
+    }
+
+    fn remove_column(&mut self, name: &str) -> Edit {
+        let c = self.column_index(name)?;
+        if c == 0 {
+            return Err(EditError::WrongKind(
+                "the key column can't be deleted".into(),
+            ));
+        }
+        let mut after = self.table.clone();
+        after.columns.remove(c);
+        for row in &mut after.rows {
+            row.remove(c);
+        }
+        Ok(self.reshape(after, format!("Deleted column {name}")))
+    }
+
     fn apply(&mut self, change: &Change, forward: bool) {
         match change {
+            Change::Schema { before, after } => {
+                self.table = (**if forward { after } else { before }).clone();
+            }
             Change::Cell {
                 row,
                 column,
@@ -253,7 +367,6 @@ impl TableDoc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use c3_data::{Column, ColumnKind};
 
     fn doc() -> TableDoc {
         let mut t = Table::new(
@@ -305,5 +418,54 @@ mod tests {
         assert_eq!(d.table().rows.len(), 1);
         while d.redo().is_some() {}
         assert_eq!(d.table().key(0), Some(2));
+    }
+
+    #[test]
+    fn columns_add_rename_retype_reference_and_undo() {
+        let mut d = doc();
+        let drop = Column {
+            references: "items".into(),
+            ..Column::new("drop", ColumnKind::Int)
+        };
+        d.execute(&TableCommand::AddColumn {
+            column: drop,
+            index: Some(0),
+        })
+        .unwrap();
+        // Nothing goes before the key column.
+        assert_eq!(d.table().columns[1].name, "drop");
+        assert_eq!(d.table().rows[0][1], Value::Int(0));
+        d.execute(&TableCommand::RenameColumn {
+            from: "weight".into(),
+            to: "mass".into(),
+        })
+        .unwrap();
+        assert!(
+            d.execute(&TableCommand::RenameColumn {
+                from: "mass".into(),
+                to: "name".into(),
+            })
+            .is_err()
+        );
+        d.execute(&TableCommand::SetColumn {
+            name: "mass".into(),
+            column: Column::new("ignored", ColumnKind::Int),
+        })
+        .unwrap();
+        assert_eq!(d.table().get(1, "mass"), Some(&Value::Int(2)), "1.5 rounds");
+        assert!(
+            d.execute(&TableCommand::RemoveColumn { name: "id".into() })
+                .is_err()
+        );
+        d.execute(&TableCommand::RemoveColumn {
+            name: "drop".into(),
+        })
+        .unwrap();
+        assert_eq!(d.table().columns.len(), 3);
+        d.undo();
+        d.undo();
+        assert_eq!(d.table().get(1, "mass"), Some(&Value::Float(1.5)));
+        assert_eq!(d.table().columns[1].references, "items");
+        assert_eq!(d.table().row_label(1), "1 · Blade");
     }
 }

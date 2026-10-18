@@ -1391,6 +1391,7 @@ impl eframe::App for Studio {
         self.new_map_dialog(&ctx);
         self.project_settings_window(&ctx);
         self.rename_window(&ctx);
+        self.column_text_window(&ctx);
         if std::mem::take(&mut self.fonts_dirty) {
             self.install_game_fonts(&ctx);
         }

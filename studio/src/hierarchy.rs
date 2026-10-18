@@ -380,7 +380,7 @@ fn file_stem(path: &str) -> &str {
 
 /// A search box over `labels` and the matches as buttons (the first few hundred); returns
 /// the index of the one clicked.
-fn search_list(
+pub(crate) fn search_list(
     ui: &mut egui::Ui,
     search: &mut String,
     placeholder: &str,

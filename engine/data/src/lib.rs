@@ -162,6 +162,10 @@ pub struct Column {
     /// What the column means, for editors and AI tools.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub doc: String,
+    /// The table whose rows this integer column names by key (an item's drop names a
+    /// row of the items table); editors offer those rows. Empty: none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub references: String,
 }
 
 impl Column {
@@ -170,6 +174,41 @@ impl Column {
             name: name.into(),
             kind,
             doc: String::new(),
+            references: String::new(),
+        }
+    }
+}
+
+impl Value {
+    /// This value as `kind`: read again from its text, else `kind`'s empty value.
+    pub fn converted(&self, kind: ColumnKind) -> Value {
+        if self.fits(kind) {
+            return match (self, kind) {
+                (Value::Int(v), ColumnKind::Float) => Value::Float(*v as f64),
+                _ => self.clone(),
+            };
+        }
+        let text = match self {
+            // A decimal becomes a whole number by rounding.
+            Value::Float(v) => format!("{}", v.round()),
+            other => other.to_string(),
+        };
+        kind.parse(&text).unwrap_or_else(|| kind.default_value())
+    }
+}
+
+impl Table {
+    /// A short name for row `key`: its `name` column (or first text column), else the key.
+    pub fn row_label(&self, key: i64) -> String {
+        let text = (self.column("name"))
+            .or_else(|| self.columns.iter().position(|c| c.kind == ColumnKind::Text));
+        let name = text
+            .and_then(|c| self.find(key).and_then(|r| self.rows[r].get(c)))
+            .map(Value::to_string)
+            .filter(|n| !n.is_empty());
+        match name {
+            Some(name) => format!("{key} · {name}"),
+            None => key.to_string(),
         }
     }
 }

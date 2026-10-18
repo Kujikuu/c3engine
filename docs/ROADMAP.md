@@ -424,8 +424,13 @@ PUL for the classic client).
     the project's world.ron), Fit frames the linked maps, double-click opens a map
 
 ## M9: Content editors and the game UI
-- [ ] Table and schema editor: create tables, add, rename and type columns; references between
+- [x] Table and schema editor: create tables, add, rename and type columns; references between
       tables (an item's monster drop, a shop's goods) as pickers
+  - Done 2026-10-18: right-click a column's name to rename, describe, change its type (values
+    converted), make it refer to another table, insert or delete it; + Column adds one; all
+    undoable table commands. A column referring to a table shows each row's name
+    ("1000010 · Resolutive") and the row Inspector picks from that table (searchable) and
+    jumps to the row. New tables came earlier
 - [ ] Forms with previews over the tables: characters and classes, monsters (look, stats, drops,
       where they spawn), items (icon and model, stats, which shops sell them), skills, shops,
       drops, levels, NPCs (one list across all maps, jump to the map)
