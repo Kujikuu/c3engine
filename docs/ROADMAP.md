@@ -41,7 +41,7 @@ easy for indies. The foundation (M7) comes first, because every later step needs
 - [x] M7 step 2: Project Settings (done 2026-10-18)
 - [x] M7 step 3: Input System (done 2026-10-18)
 - [x] M7 step 4: Native asset pipeline (done 2026-10-18)
-- [ ] M7 step 5: Multi-map worlds
+- [x] M7 step 5: Multi-map worlds (done 2026-10-18)
 
 Why this order: see "Review (2026-10-18)" below.
 
@@ -196,6 +196,7 @@ not yet an engine anyone can make a game with:
   zoom 0.05..4, keys, HUD sizes, "silver"...).
 - **One map per world.** A `Sim` holds one map; portals have no destination and no code uses
   them; cross-map teleports are refused; the server never moves a player between maps.
+  (Closed by step 5.)
 - **Thin gameplay.** Entity kinds are fixed (player, monster, ground item); melee auto-attack
   only; no skills, status effects, PvP, pets, teams, trade, guilds, mounts; one money field;
   items have no stacks or durability; scripts run only when talking to an NPC; game rules are
@@ -304,10 +305,26 @@ complete project on that engine, then any game of the kind.
     a folder rename that the map followed)
   - Later: the Undo History panel lists asset steps (step 7); placing assets by dragging
     them into the Scene (M8); roles drawn from sheets or glTF models (step 6 / M9); map music
-    for native projects (step 5's map properties)
-- [ ] (5) Multi-map worlds: the map list as an engine registry (ids, names, properties);
+    for native projects (done in step 5: Project Settings > Maps)
+- [x] (5) Multi-map worlds: the map list as an engine registry (ids, names, properties);
       portals with a destination map and cell; players move between maps through portals and
       teleports, in Play mode and on the server (one `Sim` per map, transfers between them)
+  - Done 2026-10-18 in five commits (5a-5e): `Portal.to` (a map id and cell) and
+    `Population.links` (Conquer's `cq_passway` + `cq_portal`, set on import), Project
+    Settings > Maps (`MapEntry`: key, id, name, music, PvP) and `c3_play::map_list::MapList`
+    (listed maps first, the game's own ids, then free ids); `c3_game::portals` (walk into a
+    portal or `Input::EnterPortal`; same map: placed; another: `Event::Travel`); scripts'
+    teleports travel too. Play and the client follow travel (`Session::follow_map_change`:
+    the hero carried over, the old map's textures freed, map music). The server
+    (`GameServer`) moves players between `MapWorld`s and loads maps when first needed
+    (`MapLoader`, `serve::project_maps`); players keep a server-wide id; fronts get `moved`
+    (the engine client re-welcomes, Conquer's flies with action 86 and enters portals with
+    85). Studio: the portal Inspector (destination, arrival, open it), destinations in the
+    Hierarchy, new maps listed at once. Verified on the scratch project (Meadow ↔ Grove,
+    local and online) and the Conquer project (Twin City → forum, local and online)
+  - Later: two-way links and a World view (M8); weather, light and safe zones per map (M8
+    regions); the original Conquer client walking through a portal is covered by a protocol
+    test, not yet by a session with the real client
 - [ ] (6) Data-driven gameplay core: attributes and stats defined in data; formulas as scripts
       (rules from tables + scripts, so a game needs no Rust); items with stacks, durability and
       quality; equipment slots defined in data; currencies; skills and magic (targeting, area,

@@ -92,6 +92,15 @@ client files ──ClientFs (AssetSource)──► scene_io::import_map ──�
 `Scene` = Grid (flags/surface/height) + IsoProjection + ground TileLayer/Tileset + Portals +
 Entities (Sprite/Prefab/Sound/Effect) + ParallaxLayers + `meta` (format values the exporter needs).
 
+## Maps and travel
+```
+settings.toml [[maps]] + game.maps() ──► c3_play::map_list::MapList (key ⇄ ids, name, music)
+Portal { cell, id, to: Some(PortalTarget { map: id, cell }) }
+Sim: walk into a portal ──► same map: placed │ other map: Event::Travel
+   Play / client: Session::follow_map_change ──► load_map, new Sim + World, hero carried over
+   server: GameServer::travel ──► MapWorld (loaded by MapLoader if new) ──► Front::moved
+```
+
 ## Drawing a scene: one path for the game and the editor
 ```
 Scene + SceneAssets (game's loader) ──► c3_render::scene_view::SceneView::prepare
