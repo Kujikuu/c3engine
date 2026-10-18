@@ -82,7 +82,7 @@ pub struct Overlays {
 
 /// How the active tool wants the viewport to behave this frame.
 #[derive(Default, Clone, Copy)]
-pub struct ViewMode {
+pub struct ViewMode<'a> {
     /// Left-drag pans (Inspect tool). Right/middle-drag always pans.
     pub pan_with_primary: bool,
     /// Brush preview: radius in cells and colour.
@@ -92,9 +92,12 @@ pub struct ViewMode {
     pub dragging_portal: Option<i32>,
     /// Animation clock for objects and effects.
     pub time_ms: u64,
-    pub selected: Option<Selection>,
-    /// Where the dragged selection would land (its anchor cell).
+    /// What is selected; the first leads a drag.
+    pub selection: &'a [Selection],
+    /// Where the dragged selection would land (its first one's cell).
     pub drag_target: Option<CellPos>,
+    /// A selection box being dragged out (world corners).
+    pub boxing: Option<((f32, f32), (f32, f32))>,
 }
 
 /// Pointer state over the map this frame.
@@ -110,6 +113,8 @@ pub struct Pointer {
     pub primary_down: bool,
     pub primary_released: bool,
     pub secondary_clicked: bool,
+    /// Shift is held (adds to the selection).
+    pub shift: bool,
 }
 
 /// What can be dragged onto the map.
@@ -235,7 +240,7 @@ pub fn show(
     );
     draw_cells(&painter, doc, view, rect, ov, cam.zoom, to_screen, diamond);
     if ov.spawns {
-        draw_spawns(&painter, doc, rect, mode.selected, to_screen);
+        draw_spawns(&painter, doc, rect, mode.selection, to_screen);
     }
     if ov.markers {
         draw_objects(&painter, doc, rect, to_screen);
@@ -247,12 +252,12 @@ pub fn show(
             doc,
             rect,
             cam.zoom,
-            mode.selected,
+            mode.selection,
             &modelled,
             to_screen,
         );
     }
-    draw_selection(&painter, doc, mode, to_screen, diamond);
+    draw_selection(&painter, doc, &mode, to_screen, diamond);
 
     // Pointer.
     // While an asset is dragged in from the Project panel the view isn't "hovered" (the
@@ -308,6 +313,7 @@ pub fn show(
         primary_down: down && resp.is_pointer_button_down_on() && !dragging,
         primary_released: released && !dragging,
         secondary_clicked: resp.secondary_clicked(),
+        shift: ui.input(|i| i.modifiers.shift),
     };
 
     if ov.portals || mode.dragging_portal.is_some() {
@@ -470,7 +476,7 @@ fn draw_spawns(
     painter: &egui::Painter,
     doc: &MapDoc,
     rect: Rect,
-    selected: Option<Selection>,
+    selection: &[Selection],
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
     for s in &doc.scene().spawns {
@@ -478,7 +484,7 @@ fn draw_spawns(
         if !Rect::from_points(&corners).intersects(rect) {
             continue;
         }
-        let chosen = selected == Some(Selection::Spawn(s.id));
+        let chosen = selection.contains(&Selection::Spawn(s.id));
         let stroke = match chosen {
             true => Stroke::new(2.0, colors::SELECTED),
             false => Stroke::new(1.5, colors::SPAWN),
@@ -516,7 +522,7 @@ fn draw_npcs(
     doc: &MapDoc,
     rect: Rect,
     zoom: f32,
-    selected: Option<Selection>,
+    selection: &[Selection],
     modelled: &HashSet<u32>,
     to_screen: impl Fn(Pos2) -> Pos2,
 ) {
@@ -526,7 +532,7 @@ fn draw_npcs(
         if !rect.expand(60.0).contains(p) {
             continue;
         }
-        let chosen = selected == Some(Selection::Npc(n.id));
+        let chosen = selection.contains(&Selection::Npc(n.id));
         let has_model = modelled.contains(&n.id);
         if !has_model {
             painter.circle(
@@ -561,52 +567,70 @@ fn draw_npcs(
 fn draw_selection(
     painter: &egui::Painter,
     doc: &MapDoc,
-    mode: ViewMode,
+    mode: &ViewMode,
     to_screen: impl Fn(Pos2) -> Pos2,
     diamond: impl Fn(Pos2, f32) -> Vec<Pos2>,
 ) {
-    let Some(selected) = mode.selected else {
-        return;
-    };
     let scene = doc.scene();
-    let Some(anchor) = selected.cell(scene) else {
-        return;
-    };
-    // Marks the selection moved by `shift` cells.
-    let mark = |shift: CellPos, alpha: f32| {
-        let stroke = Stroke::new(2.0, colors::SELECTED.gamma_multiply(alpha));
-        let cell = (anchor.0 + shift.0, anchor.1 + shift.1);
-        match selected {
-            Selection::Entity(i) => {
-                // Objects placed off-grid are marked where they really stand until moved.
-                let world = match scene.entities.get(i) {
-                    Some(e) if shift == (0, 0) => {
-                        let (x, y) = scene.entity_world(e);
-                        Pos2::new(x, y)
-                    }
-                    _ => doc.cell_to_world(cell),
-                };
-                let p = to_screen(world);
-                painter.circle_stroke(p, 9.0, stroke);
-                painter.circle_filled(p, 3.0, colors::SELECTED.gamma_multiply(alpha));
+    if let Some((a, b)) = mode.boxing {
+        let corners = Rect::from_two_pos(
+            to_screen(Pos2::new(a.0, a.1)),
+            to_screen(Pos2::new(b.0, b.1)),
+        );
+        painter.rect(
+            corners,
+            0.0,
+            colors::SELECTED.gamma_multiply(0.08),
+            Stroke::new(1.0, colors::SELECTED),
+            egui::StrokeKind::Inside,
+        );
+    }
+    // A drag moves every selected thing as far as the first one goes.
+    let shift = (mode.selection.first())
+        .and_then(|first| first.cell(scene))
+        .zip(mode.drag_target)
+        .map(|(anchor, target)| (target.0 - anchor.0, target.1 - anchor.1));
+    for &selected in mode.selection {
+        let Some(anchor) = selected.cell(scene) else {
+            continue;
+        };
+        // Marks the selection moved by `shift` cells.
+        let mark = |shift: CellPos, alpha: f32| {
+            let stroke = Stroke::new(2.0, colors::SELECTED.gamma_multiply(alpha));
+            let cell = (anchor.0 + shift.0, anchor.1 + shift.1);
+            match selected {
+                Selection::Entity(i) => {
+                    // Objects placed off-grid are marked where they really stand until moved.
+                    let world = match scene.entities.get(i) {
+                        Some(e) if shift == (0, 0) => {
+                            let (x, y) = scene.entity_world(e);
+                            Pos2::new(x, y)
+                        }
+                        _ => doc.cell_to_world(cell),
+                    };
+                    let p = to_screen(world);
+                    painter.circle_stroke(p, 9.0, stroke);
+                    painter.circle_filled(p, 3.0, colors::SELECTED.gamma_multiply(alpha));
+                }
+                Selection::Spawn(id) => {
+                    let Some(s) = scene.spawns.iter().find(|s| s.id == id) else {
+                        return;
+                    };
+                    let moved = |c: CellPos| (c.0 + shift.0, c.1 + shift.1);
+                    let corners =
+                        cell_rect_corners(doc, moved(s.min), moved(s.max)).map(&to_screen);
+                    painter.add(Shape::closed_line(corners.to_vec(), stroke));
+                }
+                Selection::Npc(_) | Selection::Portal(_) => {
+                    let center = to_screen(doc.cell_to_world(cell));
+                    painter.add(Shape::closed_line(diamond(center, 1.2), stroke));
+                }
             }
-            Selection::Spawn(id) => {
-                let Some(s) = scene.spawns.iter().find(|s| s.id == id) else {
-                    return;
-                };
-                let moved = |c: CellPos| (c.0 + shift.0, c.1 + shift.1);
-                let corners = cell_rect_corners(doc, moved(s.min), moved(s.max)).map(&to_screen);
-                painter.add(Shape::closed_line(corners.to_vec(), stroke));
-            }
-            Selection::Npc(_) | Selection::Portal(_) => {
-                let center = to_screen(doc.cell_to_world(cell));
-                painter.add(Shape::closed_line(diamond(center, 1.2), stroke));
-            }
+        };
+        mark((0, 0), 1.0);
+        if let Some(shift) = shift {
+            mark(shift, 0.6);
         }
-    };
-    mark((0, 0), 1.0);
-    if let Some(target) = mode.drag_target {
-        mark((target.0 - anchor.0, target.1 - anchor.1), 0.6);
     }
 }
 

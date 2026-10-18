@@ -85,10 +85,12 @@ pub struct Editor {
     pub brush: i32,
     /// Portal being dragged: (id, cell it started on).
     dragging_portal: Option<(i32, CellPos)>,
-    /// What the Inspector shows and Delete removes.
-    pub selected: Option<Selection>,
+    /// What edits act on; the first is what the Inspector shows.
+    selection: Vec<Selection>,
     /// The selection is being dragged from this cell.
     drag_from: Option<CellPos>,
+    /// A selection box being dragged out: the world point it started at, and where it reaches.
+    boxing: Option<((f32, f32), (f32, f32))>,
 }
 
 impl Default for Editor {
@@ -97,8 +99,9 @@ impl Default for Editor {
             tool: Tool::Select,
             brush: 0,
             dragging_portal: None,
-            selected: None,
+            selection: Vec::new(),
             drag_from: None,
+            boxing: None,
         }
     }
 }
@@ -109,10 +112,39 @@ impl Editor {
         self.dragging_portal.map(|(id, _)| id)
     }
 
+    /// What the Inspector shows: the first of the selection.
+    pub fn selected(&self) -> Option<Selection> {
+        self.selection.first().copied()
+    }
+
+    pub fn selection(&self) -> &[Selection] {
+        &self.selection
+    }
+
+    /// Selects `selection` alone (or nothing).
+    pub fn select(&mut self, selection: Option<Selection>) {
+        self.selection = selection.into_iter().collect();
+    }
+
+    /// Selects all of `selection` (the first shows in the Inspector).
+    pub fn select_all(&mut self, selection: Vec<Selection>) {
+        self.selection = selection;
+    }
+
+    /// Drops what is no longer on the map (after an undo).
+    pub fn forget_missing(&mut self, scene: &c3_scene::Scene) {
+        self.selection.retain(|s| s.exists(scene));
+    }
+
+    /// The selection box being dragged out, as world corners.
+    pub fn boxing(&self) -> Option<((f32, f32), (f32, f32))> {
+        self.boxing
+    }
+
     /// Where the dragged selection would land if dropped on `hover`: its new anchor cell.
     pub fn drag_target(&self, doc: &MapDoc, hover: Option<CellPos>) -> Option<CellPos> {
         let (from, to) = (self.drag_from?, hover?);
-        let anchor = self.selected?.cell(doc.scene())?;
+        let anchor = self.selected()?.cell(doc.scene())?;
         (from != to).then_some((anchor.0 + to.0 - from.0, anchor.1 + to.1 - from.1))
     }
 
@@ -160,22 +192,93 @@ impl Editor {
 
     fn handle_select(&mut self, doc: &mut MapDoc, p: &Pointer, what: Pickable) -> Option<String> {
         if p.primary_released {
+            if let Some((from, to)) = self.boxing.take() {
+                return Some(self.finish_box(doc, from, to, p.shift, what));
+            }
             let target = self.drag_target(doc, p.cell);
             self.drag_from = None;
-            let selected = self.selected?;
-            let command = selected.move_to(doc.scene(), target?)?;
-            return Some(match doc.execute(&command) {
-                Ok(outcome) => outcome.summary,
-                Err(e) => format!("Can't move {}: {e}", selected.label(doc.scene())),
-            });
+            return self.move_selection(doc, target?);
+        }
+        if p.primary_down
+            && let (Some(boxing), Some(world)) = (&mut self.boxing, p.world)
+        {
+            boxing.1 = world;
         }
         if p.primary_pressed {
-            self.selected = p.cell.zip(p.world).and_then(|(cell, world)| {
+            let picked = p.cell.zip(p.world).and_then(|(cell, world)| {
                 selection::pick(doc.scene(), cell, world, p.pick_radius, what)
             });
-            self.drag_from = self.selected.and(p.cell);
+            match picked {
+                // Shift adds or takes away; it doesn't drag.
+                Some(s) if p.shift => match self.selection.iter().position(|x| *x == s) {
+                    Some(i) => {
+                        self.selection.remove(i);
+                    }
+                    None => self.selection.push(s),
+                },
+                Some(s) => {
+                    // Pressing on the selection drags all of it, the pressed one leading.
+                    match self.selection.iter().position(|x| *x == s) {
+                        Some(i) => self.selection.swap(0, i),
+                        None => self.selection = vec![s],
+                    }
+                    self.drag_from = p.cell;
+                }
+                None => {
+                    if !p.shift {
+                        self.selection.clear();
+                    }
+                    self.boxing = p.world.map(|w| (w, w));
+                }
+            }
         }
         None
+    }
+
+    /// Selects what the box from `a` to `b` holds (`add`: keeps the selection too).
+    fn finish_box(
+        &mut self,
+        doc: &MapDoc,
+        a: (f32, f32),
+        b: (f32, f32),
+        add: bool,
+        what: Pickable,
+    ) -> String {
+        let min = (a.0.min(b.0), a.1.min(b.1));
+        let max = (a.0.max(b.0), a.1.max(b.1));
+        let found = selection::in_box(doc.scene(), min, max, what);
+        if !add {
+            self.selection.clear();
+        }
+        for s in found {
+            if !self.selection.contains(&s) {
+                self.selection.push(s);
+            }
+        }
+        format!("{} selected", self.selection.len())
+    }
+
+    /// Moves the selection so its first one stands on `to` (one undo step).
+    fn move_selection(&mut self, doc: &mut MapDoc, to: CellPos) -> Option<String> {
+        let first = self.selected()?;
+        let anchor = first.cell(doc.scene())?;
+        let delta = (to.0 - anchor.0, to.1 - anchor.1);
+        self.nudge(doc, delta)
+    }
+
+    /// Moves the whole selection by `delta` cells (one undo step); returns what happened.
+    pub fn nudge(&mut self, doc: &mut MapDoc, delta: CellPos) -> Option<String> {
+        let first = self.selected()?;
+        let commands = selection::move_all(doc.scene(), &self.selection, delta);
+        let label = match self.selection.len() {
+            1 => format!("Move {}", first.label(doc.scene())),
+            n => format!("Move {n} things"),
+        };
+        let results = doc.execute_batch(&label, &commands);
+        Some(match results.into_iter().find_map(Result::err) {
+            Some(e) => format!("Can't move: {e}"),
+            None => label,
+        })
     }
 
     fn handle_portal(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {

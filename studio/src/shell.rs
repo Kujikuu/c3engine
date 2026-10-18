@@ -183,7 +183,7 @@ impl Studio {
                 self.redo();
             }
             ui.separator();
-            let selected = self.editor.selected.is_some() && self.doc.is_some();
+            let selected = self.editor.selected().is_some() && self.doc.is_some();
             let duplicate = egui::Button::new(theme::icon_text(icons::COPY, "Duplicate"))
                 .shortcut_text("Ctrl+D");
             if ui.add_enabled(selected, duplicate).clicked() {

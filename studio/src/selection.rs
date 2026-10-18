@@ -1,8 +1,10 @@
-//! What the Scene view has selected (one portal, object, NPC or spawn area), how to pick it
-//! under the pointer, and the commands that move or delete it.
+//! What the Scene view has selected (portals, objects, NPCs and spawn areas), how to pick it
+//! under the pointer or in a box, the commands that move or delete it, and copies of it on
+//! the clipboard (pasted on this map or another).
 
 use c3_edit::{SceneCommand, entity_label};
-use c3_scene::{CellPos, Placement, Scene, Spawn};
+use c3_scene::{CellPos, Entity, Npc, Placement, PortalTarget, Scene, Spawn};
+use std::collections::HashSet;
 
 /// One selected thing on the map, by the id (or index) commands use.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -72,38 +74,6 @@ impl Selection {
         })
     }
 
-    /// The command that adds a copy one cell down-right (new ids for NPCs and spawns).
-    pub fn duplicate(self, scene: &Scene) -> Option<SceneCommand> {
-        let shift = |c: CellPos| (c.0 + 1, c.1 + 1);
-        Some(match self {
-            Self::Portal(_) => SceneCommand::AddPortal {
-                cell: shift(self.cell(scene)?),
-                id: None,
-            },
-            Self::Entity(i) => {
-                let mut entity = scene.entities.get(i)?.clone();
-                entity.placement = Placement::Cell(shift(self.cell(scene)?));
-                SceneCommand::AddEntity {
-                    entity,
-                    index: None,
-                }
-            }
-            Self::Npc(id) => {
-                let mut npc = scene.npcs.iter().find(|n| n.id == id)?.clone();
-                npc.id = 0;
-                npc.cell = shift(npc.cell);
-                SceneCommand::AddNpc { npc }
-            }
-            Self::Spawn(id) => {
-                let mut spawn = spawn(scene, id)?.clone();
-                spawn.id = 0;
-                spawn.min = shift(spawn.min);
-                spawn.max = shift(spawn.max);
-                SceneCommand::AddSpawn { spawn }
-            }
-        })
-    }
-
     pub fn remove(self) -> SceneCommand {
         match self {
             Self::Portal(id) => SceneCommand::RemovePortal { id },
@@ -111,6 +81,170 @@ impl Selection {
             Self::Npc(id) => SceneCommand::RemoveNpc { id },
             Self::Spawn(id) => SceneCommand::RemoveSpawn { id },
         }
+    }
+}
+
+/// The commands that delete `selection` (objects last-first, so indices stay right).
+pub fn remove_all(selection: &[Selection]) -> Vec<SceneCommand> {
+    let mut sorted = selection.to_vec();
+    sorted.sort_by_key(|s| match s {
+        Selection::Entity(i) => std::cmp::Reverse(*i),
+        _ => std::cmp::Reverse(usize::MAX),
+    });
+    sorted.into_iter().map(Selection::remove).collect()
+}
+
+/// The commands that move `selection` by `delta` cells.
+pub fn move_all(scene: &Scene, selection: &[Selection], delta: CellPos) -> Vec<SceneCommand> {
+    (selection.iter())
+        .filter_map(|s| {
+            let at = s.cell(scene)?;
+            s.move_to(scene, (at.0 + delta.0, at.1 + delta.1))
+        })
+        .collect()
+}
+
+/// Everything anchored inside the world box `min`..`max` (of the kinds `what` picks).
+pub fn in_box(scene: &Scene, min: (f32, f32), max: (f32, f32), what: Pickable) -> Vec<Selection> {
+    let inside = |(x, y): (f32, f32)| x >= min.0 && x <= max.0 && y >= min.1 && y <= max.1;
+    let mut found = Vec::new();
+    if what.portals {
+        let portals = scene
+            .portals
+            .iter()
+            .filter(|p| inside(scene.cell_to_world(p.cell)));
+        found.extend(portals.map(|p| Selection::Portal(p.id)));
+    }
+    if what.objects {
+        let objects =
+            (scene.entities.iter().enumerate()).filter(|(_, e)| inside(scene.entity_world(e)));
+        found.extend(objects.map(|(i, _)| Selection::Entity(i)));
+    }
+    if what.npcs {
+        let npcs = scene
+            .npcs
+            .iter()
+            .filter(|n| inside(scene.cell_to_world(n.cell)));
+        found.extend(npcs.map(|n| Selection::Npc(n.id)));
+    }
+    if what.spawns {
+        let spawns = (scene.spawns.iter()).filter(|s| inside(scene.cell_to_world(s.center())));
+        found.extend(spawns.map(|s| Selection::Spawn(s.id)));
+    }
+    found
+}
+
+/// What a map holds, to find what commands added to it.
+pub struct Census {
+    entities: usize,
+    portals: HashSet<i32>,
+    npcs: HashSet<u32>,
+    spawns: HashSet<u32>,
+}
+
+impl Census {
+    pub fn of(scene: &Scene) -> Self {
+        Self {
+            entities: scene.entities.len(),
+            portals: scene.portals.iter().map(|p| p.id).collect(),
+            npcs: scene.npcs.iter().map(|n| n.id).collect(),
+            spawns: scene.spawns.iter().map(|s| s.id).collect(),
+        }
+    }
+
+    /// What `scene` holds that it didn't.
+    pub fn added(&self, scene: &Scene) -> Vec<Selection> {
+        let portals = (scene.portals.iter()).filter(|p| !self.portals.contains(&p.id));
+        let npcs = scene.npcs.iter().filter(|n| !self.npcs.contains(&n.id));
+        let spawns = scene.spawns.iter().filter(|s| !self.spawns.contains(&s.id));
+        (portals.map(|p| Selection::Portal(p.id)))
+            .chain((self.entities..scene.entities.len()).map(Selection::Entity))
+            .chain(npcs.map(|n| Selection::Npc(n.id)))
+            .chain(spawns.map(|s| Selection::Spawn(s.id)))
+            .collect()
+    }
+}
+
+/// Copies of things on a map, placed relative to the first one's cell.
+#[derive(Clone, Debug)]
+pub struct Clip {
+    items: Vec<(CellPos, Copied)>,
+}
+
+#[derive(Clone, Debug)]
+enum Copied {
+    Portal(Option<PortalTarget>),
+    Entity(Entity),
+    Npc(Npc),
+    Spawn(Spawn),
+}
+
+impl Clip {
+    /// `selection` copied out of `scene`; `None` when nothing is left to copy.
+    pub fn of(scene: &Scene, selection: &[Selection]) -> Option<Self> {
+        let anchor = selection.first()?.cell(scene)?;
+        let items: Vec<(CellPos, Copied)> = (selection.iter())
+            .filter_map(|s| {
+                let cell = s.cell(scene)?;
+                let copied = match *s {
+                    Selection::Portal(id) => {
+                        Copied::Portal(scene.portals.iter().find(|p| p.id == id)?.to)
+                    }
+                    Selection::Entity(i) => Copied::Entity(scene.entities.get(i)?.clone()),
+                    Selection::Npc(id) => {
+                        Copied::Npc(scene.npcs.iter().find(|n| n.id == id)?.clone())
+                    }
+                    Selection::Spawn(id) => Copied::Spawn(spawn(scene, id)?.clone()),
+                };
+                Some(((cell.0 - anchor.0, cell.1 - anchor.1), copied))
+            })
+            .collect();
+        (!items.is_empty()).then_some(Self { items })
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// The commands that add the copies to `scene` with the first one on `at` (NPCs, spawn
+    /// areas and portals get ids of their own; portals keep where they lead).
+    pub fn commands(&self, scene: &Scene, at: CellPos) -> Vec<SceneCommand> {
+        let mut next_portal = scene.portals.iter().map(|p| p.id).max().unwrap_or(0) + 1;
+        let mut commands = Vec::new();
+        for (offset, copied) in &self.items {
+            let cell = (at.0 + offset.0, at.1 + offset.1);
+            match copied.clone() {
+                Copied::Portal(to) => {
+                    let id = next_portal;
+                    next_portal += 1;
+                    commands.push(SceneCommand::AddPortal { cell, id: Some(id) });
+                    if to.is_some() {
+                        commands.push(SceneCommand::SetPortalTarget { id, to });
+                    }
+                }
+                Copied::Entity(mut entity) => {
+                    entity.placement = Placement::Cell(cell);
+                    commands.push(SceneCommand::AddEntity {
+                        entity,
+                        index: None,
+                    });
+                }
+                Copied::Npc(mut npc) => {
+                    npc.id = 0;
+                    npc.cell = cell;
+                    commands.push(SceneCommand::AddNpc { npc });
+                }
+                Copied::Spawn(mut spawn) => {
+                    let from = spawn.center();
+                    let (dx, dy) = (cell.0 - from.0, cell.1 - from.1);
+                    spawn.id = 0;
+                    spawn.min = (spawn.min.0 + dx, spawn.min.1 + dy);
+                    spawn.max = (spawn.max.0 + dx, spawn.max.1 + dy);
+                    commands.push(SceneCommand::AddSpawn { spawn });
+                }
+            }
+        }
+        commands
     }
 }
 

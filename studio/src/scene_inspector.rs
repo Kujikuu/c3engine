@@ -119,7 +119,7 @@ fn extra_section(ui: &mut egui::Ui, extra: &BTreeMap<String, String>) {
 impl Studio {
     /// Shows the selection's properties; false when nothing is selected.
     pub(crate) fn selection_inspector(&mut self, ui: &mut egui::Ui) -> bool {
-        let (Some(doc), Some(selected)) = (&self.doc, self.editor.selected) else {
+        let (Some(doc), Some(selected)) = (&self.doc, self.editor.selected()) else {
             return false;
         };
         let scene = doc.scene();
@@ -143,6 +143,11 @@ impl Studio {
             ui.label(RichText::new(icon).size(22.0).color(theme::ACCENT));
             ui.vertical(|ui| {
                 ui.label(RichText::new(&title).size(15.0).strong());
+                let others = self.editor.selection().len() - 1;
+                let kind = match others {
+                    0 => kind.to_owned(),
+                    n => format!("{kind} · +{n} selected"),
+                };
                 ui.label(RichText::new(kind).color(theme::TEXT_DIM).small());
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -237,12 +242,10 @@ impl Studio {
         if let Some(doc) = self.doc.as_ref().filter(|d| d.map == map) {
             self.fit_pending = false;
             self.cam.center = doc.cell_to_world(to.cell);
-            self.editor.selected = doc
-                .scene()
-                .portals
-                .iter()
+            let portal = (doc.scene().portals.iter())
                 .find(|p| p.cell == to.cell)
                 .map(|p| Selection::Portal(p.id));
+            self.editor.select(portal);
         }
     }
 

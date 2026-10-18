@@ -135,6 +135,8 @@ pub struct Studio {
     pub(crate) picking_effect: bool,
     /// Selection the Hierarchy last scrolled to.
     pub(crate) revealed: Option<crate::selection::Selection>,
+    /// Things copied from a map, ready to paste on any map.
+    pub(crate) clipboard: Option<crate::selection::Clip>,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -233,6 +235,7 @@ impl Studio {
             look_search: String::new(),
             picking_effect: false,
             revealed: None,
+            clipboard: None,
             hover: None,
             streaming: false,
             error: None,
@@ -418,7 +421,8 @@ impl Studio {
                 npcs: true,
                 spawns: true,
             };
-            s.editor.selected = crate::selection::pick(doc.scene(), cell, world, 24.0, everything);
+            let picked = crate::selection::pick(doc.scene(), cell, world, 24.0, everything);
+            s.editor.select(picked);
         }
         s
     }
@@ -553,36 +557,84 @@ impl Studio {
         self.live_scene = live;
     }
 
-    /// Deletes what the Scene view has selected.
+    /// Deletes what the Scene view has selected (one undo step).
     pub(crate) fn delete_selection(&mut self) {
-        let (Some(doc), Some(selected)) = (&mut self.doc, self.editor.selected) else {
+        let Some(doc) = &mut self.doc else { return };
+        let selection = self.editor.selection().to_vec();
+        let Some(first) = selection.first() else {
             return;
         };
-        let label = selected.label(doc.scene());
-        match doc.execute(&selected.remove()) {
-            Ok(outcome) => {
-                self.editor.selected = None;
-                self.notify(outcome.summary);
+        let label = match selection.len() {
+            1 => format!("Delete {}", first.label(doc.scene())),
+            n => format!("Delete {n} things"),
+        };
+        let results = doc.execute_batch(&label, &crate::selection::remove_all(&selection));
+        match results.into_iter().find_map(Result::err) {
+            Some(e) => self.error = Some(format!("Can't delete: {e}")),
+            None => {
+                self.editor.select(None);
+                self.notify(label);
             }
-            Err(e) => self.error = Some(format!("Can't delete {label}: {e}")),
         }
     }
 
-    /// Adds a copy of the selection next to it and selects the copy.
+    /// Adds a copy of the selection one cell down-right and selects the copies.
     pub(crate) fn duplicate_selection(&mut self) {
-        let command = match (&self.doc, self.editor.selected) {
-            (Some(doc), Some(selected)) => selected.duplicate(doc.scene()),
-            _ => None,
+        let Some(doc) = &self.doc else { return };
+        let selection = self.editor.selection();
+        let Some(clip) = crate::selection::Clip::of(doc.scene(), selection) else {
+            return;
         };
-        if let Some(command) = command {
-            self.create(command);
+        let Some(at) = selection[0].cell(doc.scene()) else {
+            return;
+        };
+        self.place_clip(&clip, (at.0 + 1, at.1 + 1), "Duplicate");
+    }
+
+    /// Copies the selection to the Studio's clipboard (it pastes on any map).
+    pub(crate) fn copy_selection(&mut self) {
+        let Some(doc) = &self.doc else { return };
+        if let Some(clip) = crate::selection::Clip::of(doc.scene(), self.editor.selection()) {
+            let what = format!("Copied {} from {}", clip.len(), doc.name());
+            // The system clipboard says what was copied (the copy itself stays in the Studio).
+            self.ctx.copy_text(what.clone());
+            self.notify(format!("{what} · Ctrl+V pastes it under the pointer"));
+            self.clipboard = Some(clip);
         }
+    }
+
+    /// Pastes the clipboard with its first thing under the pointer (else the view's middle).
+    pub(crate) fn paste(&mut self) {
+        let (Some(doc), Some(clip)) = (&self.doc, self.clipboard.clone()) else {
+            return;
+        };
+        let at = self
+            .hover
+            .unwrap_or_else(|| doc.world_to_cell(self.cam.center));
+        self.place_clip(&clip, at, "Paste");
+    }
+
+    /// Adds `clip` with its first thing on `at` as one undo step called `verb`, and selects
+    /// what it added.
+    fn place_clip(&mut self, clip: &crate::selection::Clip, at: CellPos, verb: &str) {
+        let Some(doc) = &mut self.doc else { return };
+        let census = crate::selection::Census::of(doc.scene());
+        let commands = clip.commands(doc.scene(), at);
+        let label = format!("{verb} {} things", clip.len());
+        let results = doc.execute_batch(&label, &commands);
+        let refused = results.into_iter().filter(Result::is_err).count();
+        self.editor.select_all(census.added(doc.scene()));
+        self.editor.tool = crate::editor::Tool::Select;
+        self.notify(match refused {
+            0 => label,
+            n => format!("{label} ({n} off the map left out)"),
+        });
     }
 
     /// Centres the Scene view on the selection, or fits the map when nothing is selected.
     pub(crate) fn frame_selection(&mut self) {
         let cell = self.doc.as_ref().and_then(|doc| {
-            let cell = self.editor.selected?.cell(doc.scene())?;
+            let cell = self.editor.selected()?.cell(doc.scene())?;
             Some(doc.cell_to_world(cell))
         });
         match cell {
@@ -669,6 +721,8 @@ impl Studio {
             Ok((scene, warnings)) => {
                 self.inspect_asset = false;
                 let doc = MapDoc::new(map.clone(), scene, warnings);
+                // Ids and indices name other things on another map.
+                self.editor.select(None);
                 self.cam.center = doc.bounds().center();
                 self.doc = Some(doc);
                 self.rebuild_live_scene();
@@ -855,6 +909,9 @@ impl Studio {
             Focus::Dialogue => self.dialogues.undo(),
             Focus::Settings | Focus::Assets => None,
         };
+        if let Some(doc) = &self.doc {
+            self.editor.forget_missing(doc.scene());
+        }
         if let Some(label) = label {
             self.notify(format!("Undid: {label}"));
         }
@@ -882,6 +939,9 @@ impl Studio {
             Focus::Dialogue => self.dialogues.redo(),
             Focus::Settings | Focus::Assets => None,
         };
+        if let Some(doc) = &self.doc {
+            self.editor.forget_missing(doc.scene());
+        }
         if let Some(label) = label {
             self.notify(format!("Redid: {label}"));
         }
@@ -1014,6 +1074,23 @@ impl Studio {
                 p && i.modifiers.shift,
             )
         });
+        // Copy and paste arrive as events (the platform turns Ctrl+C / Ctrl+V into them).
+        let (copy, paste) = ctx.input(|i| {
+            let copy = i.events.iter().any(|e| matches!(e, egui::Event::Copy));
+            // Paste comes as an event only while the system clipboard holds text.
+            let paste = i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)))
+                || (i.modifiers.command && i.key_pressed(Key::V));
+            (copy, paste)
+        });
+        let map_keys = !ctx.egui_wants_keyboard_input()
+            && self.playing.is_none()
+            && self.workspace != Workspace::Models;
+        if map_keys && copy {
+            self.copy_selection();
+        }
+        if map_keys && paste {
+            self.paste();
+        }
         if play {
             self.toggle_play();
         }
@@ -1089,7 +1166,7 @@ impl Studio {
                 }
             }
             if i.key_pressed(Key::Escape) {
-                self.editor.selected = None;
+                self.editor.select(None);
             }
             if i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace) {
                 delete = true;

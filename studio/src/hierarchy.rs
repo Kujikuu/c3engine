@@ -60,11 +60,14 @@ impl Studio {
         ui.separator();
         let Some(doc) = &self.doc else { return };
         let scene = doc.scene();
-        let selected = self.editor.selected;
+        let selected = self.editor.selected();
         // A new selection (picked in the Scene) opens its group and scrolls to its row once.
         let reveal = selected.filter(|s| self.revealed != Some(*s));
         self.revealed = selected;
-        let tree = Tree { selected, reveal };
+        let tree = Tree {
+            selected: self.editor.selection(),
+            reveal,
+        };
         egui::ScrollArea::vertical()
             .auto_shrink(false)
             .show(ui, |ui| {
@@ -130,7 +133,7 @@ impl Studio {
                 });
             });
         if let Some(selection) = picked {
-            self.editor.selected = Some(selection);
+            self.editor.select(Some(selection));
             self.inspect_asset = false;
             self.frame_selection();
         }
@@ -236,22 +239,10 @@ impl Studio {
     /// Runs a create command and selects what it made.
     pub(crate) fn create(&mut self, command: SceneCommand) {
         let Some(doc) = &mut self.doc else { return };
+        let census = crate::selection::Census::of(doc.scene());
         match doc.execute(&command) {
             Ok(outcome) => {
-                let scene = doc.scene();
-                self.editor.selected = match command {
-                    SceneCommand::AddPortal { cell, .. } => scene
-                        .portal_at(cell)
-                        .map(|i| Selection::Portal(scene.portals[i].id)),
-                    SceneCommand::AddNpc { .. } => scene.npcs.last().map(|n| Selection::Npc(n.id)),
-                    SceneCommand::AddSpawn { .. } => {
-                        scene.spawns.last().map(|s| Selection::Spawn(s.id))
-                    }
-                    SceneCommand::AddEntity { .. } => {
-                        scene.entities.len().checked_sub(1).map(Selection::Entity)
-                    }
-                    _ => None,
-                };
+                self.editor.select_all(census.added(doc.scene()));
                 self.editor.tool = crate::editor::Tool::Select;
                 self.inspect_asset = false;
                 self.notify(outcome.summary);
@@ -289,13 +280,13 @@ pub(crate) fn new_spawn(at: CellPos) -> Spawn {
 }
 
 /// How the tree marks the selection this frame.
-struct Tree {
-    selected: Option<Selection>,
+struct Tree<'a> {
+    selected: &'a [Selection],
     /// Selection to open the group of and scroll to (it just changed).
     reveal: Option<Selection>,
 }
 
-impl Tree {
+impl Tree<'_> {
     /// A collapsible group whose rows select (and show) what they list.
     fn group(
         &self,
@@ -314,7 +305,7 @@ impl Tree {
             .show(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                     for (label, selection) in rows {
-                        let on = Some(*selection) == self.selected;
+                        let on = self.selected.contains(selection);
                         let row = ui
                             .add(
                                 egui::Button::selectable(on, label)

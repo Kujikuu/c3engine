@@ -186,7 +186,8 @@ impl Studio {
             }),
             dragging_portal: self.editor.dragging_portal(),
             time_ms: self.scene_ms as u64,
-            selected: self.editor.selected,
+            selection: self.editor.selection(),
+            boxing: self.editor.boxing(),
             drag_target: self.editor.drag_target(doc, self.hover),
         };
         live.view.layers = self.layers;
