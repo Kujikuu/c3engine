@@ -6,7 +6,9 @@
 pub mod actor;
 pub mod character;
 pub mod npc;
+pub mod rules;
 pub mod server_data;
+pub mod sim_view;
 pub mod world;
 
 use c3_anim::Clip;
@@ -66,6 +68,8 @@ struct Tables {
     /// `Action3DEffect.ini`, `Action3DEffect1.ini`, `Action3DEffect2.ini` (effect slots 0–2):
     /// look·10⁹ + action·10⁶ + part·10³ + variant → effect name.
     action_effects: [HashMap<u64, String>; 3],
+    /// `Monster.dat` (encrypted): monster type id → drawing size in percent.
+    monster_zoom: HashMap<u32, u32>,
 }
 
 impl Tables {
@@ -105,8 +109,19 @@ impl Tables {
                 "Action3DEffect2.ini",
             ]
             .map(|name| character::parse_action_effects(&bytes(name))),
+            monster_zoom: monster_zoom(&bytes("Monster.dat")),
         }
     }
+}
+
+/// Monster type id → `ZoomPercent`, from `Monster.dat` (`[Name]` sections with `TypeID`).
+fn monster_zoom(encrypted: &[u8]) -> HashMap<u32, u32> {
+    let plain = c3_formats_tq::cipher::decrypt(encrypted, c3_formats_tq::cipher::SEED_DATA);
+    Ini::parse(&plain)
+        .sections
+        .iter()
+        .filter_map(|s| Some((s.get_parsed("TypeID")?, s.get_parsed("ZoomPercent")?)))
+        .collect()
 }
 
 impl Content {
@@ -133,6 +148,11 @@ impl Content {
             tables,
             npc_tables,
         })
+    }
+
+    /// How large monster type `kind` is drawn, in percent (100 when `Monster.dat` doesn't say).
+    pub fn monster_zoom(&self, kind: u32) -> f32 {
+        self.tables.monster_zoom.get(&kind).copied().unwrap_or(100) as f32
     }
 
     /// DMap path of map document `id` (as the server refers to maps).

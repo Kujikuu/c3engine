@@ -94,12 +94,6 @@ impl ScriptHost {
         self.tables.borrow_mut().clear();
     }
 
-    /// A value of the game's tables as text (an item's name for a message), if there is one.
-    pub fn table_text(&self, table: &str, key: i64, column: &str) -> Option<String> {
-        let value = self.tables.borrow_mut().lookup(table, key, column).ok()?;
-        (!value.is_unit()).then(|| value.to_string())
-    }
-
     /// Problems in `source` without running it: syntax errors, and a warning when
     /// `entry` is not defined.
     pub fn check(&self, source: &str, entry: Option<&str>) -> Vec<Diagnostic> {

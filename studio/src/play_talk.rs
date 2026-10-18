@@ -1,74 +1,44 @@
 //! NPC dialogue in Play mode: clicking an NPC walks the hero up to it and runs its script;
 //! the dialogue window shows the NPC's page and answers (number keys pick, Esc closes).
 //! Scripts are read from disk on each talk, so saving a script changes the next dialogue.
+//! What a script gives or takes lands on the hero in the simulation.
 
 use crate::icons;
+use crate::play_hud::{Hud, LogLine};
 use crate::theme;
+use c3_game::{EntityId, Sim, Task, distance};
 use c3_scene::{CellPos, Npc};
-use c3_script::{Conversation, Effect, NpcInfo, PlayerState, ScriptError, ScriptHost};
+use c3_script::{Conversation, Effect, NpcInfo, PlayerState, ScriptError, ScriptHost, Step};
 use eframe::egui::{self, Color32, RichText};
 use game_conquer::world::World;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 /// Cells from the NPC within which the hero can talk.
 const TALK_RANGE: i32 = 3;
-/// Seconds a game message stays on screen.
-const MESSAGE_SECONDS: f64 = 8.0;
-/// Most game messages shown at once.
-const MAX_MESSAGES: usize = 6;
 const DIALOG_WIDTH: f32 = 420.0;
-
-/// Where the project keeps what dialogues need.
-pub struct TalkSetup {
-    pub scripts: Option<PathBuf>,
-    pub tables: Option<PathBuf>,
-    /// The game's item table, for item names in messages.
-    pub item_table: Option<&'static str>,
-    /// Game map ids of the map being played (teleports within it work).
-    pub map_ids: Vec<u32>,
-}
-
-/// A line for the Studio's console.
-pub enum LogLine {
-    Info(String),
-    Error(String),
-}
 
 pub struct Talk {
     host: Option<ScriptHost>,
-    item_table: Option<&'static str>,
+    /// Game map ids of the map being played (teleports within it work).
     map_ids: Vec<u32>,
-    pub player: PlayerState,
+    /// Script variables kept with the hero.
+    flags: BTreeMap<String, i64>,
     conversation: Option<Conversation>,
     /// The NPC the hero walks up to before talking.
     approach: Option<(NpcInfo, String, CellPos)>,
-    /// Game messages: when shown (seconds), text, colour.
-    messages: Vec<(f64, String, Color32)>,
-    log: Vec<LogLine>,
 }
 
 impl Talk {
-    pub fn new(setup: TalkSetup) -> Self {
+    /// Dialogues running the scripts in `scripts` (reading tables from `tables`).
+    pub fn new(scripts: Option<PathBuf>, tables: Option<PathBuf>, map_ids: Vec<u32>) -> Self {
         Self {
-            host: setup.scripts.map(|dir| ScriptHost::new(dir, setup.tables)),
-            item_table: setup.item_table,
-            map_ids: setup.map_ids,
-            player: PlayerState {
-                name: "Hero".into(),
-                level: 1,
-                money: 1000,
-                ..Default::default()
-            },
+            host: scripts.map(|dir| ScriptHost::new(dir, tables)),
+            map_ids,
+            flags: BTreeMap::new(),
             conversation: None,
             approach: None,
-            messages: Vec::new(),
-            log: Vec::new(),
         }
-    }
-
-    /// Lines for the console since the last call.
-    pub fn take_log(&mut self) -> Vec<LogLine> {
-        std::mem::take(&mut self.log)
     }
 
     /// Whether a dialogue window is open (it takes the number keys and Esc).
@@ -83,10 +53,10 @@ impl Talk {
     }
 
     /// The player clicked `npc`: walk up to it, then talk.
-    pub fn approach(&mut self, npc: &Npc, world: &mut World, now: f64) {
+    pub fn approach(&mut self, npc: &Npc, sim: &mut Sim, hero: EntityId, hud: &mut Hud, now: f64) {
         self.cancel();
         if npc.script.is_empty() {
-            self.message(
+            hud.message(
                 now,
                 format!("{} has nothing to say.", npc.name),
                 theme::TEXT_DIM,
@@ -98,96 +68,104 @@ impl Talk {
             name: npc.name.clone(),
         };
         self.approach = Some((info, npc.script.clone(), npc.cell));
-        let Some(hero) = world.hero() else { return };
-        if distance(hero.cell, npc.cell) > 1 || hero.is_moving() {
-            let goal = beside(world, npc.cell, hero.cell);
-            // The hero is the first actor.
-            if let Some(hero) = world.actors.first_mut() {
-                hero.walk_to(goal, &world.scene);
-            }
+        let Some(from) = sim.player(hero).map(|p| p.cell) else {
+            return;
+        };
+        if distance(from, npc.cell) > 1 {
+            let goal = beside(sim, npc.cell, from);
+            sim.walk(hero, goal);
         }
     }
 
     /// Opens the dialogue once the hero has walked up to the NPC.
-    pub fn update(&mut self, world: &mut World, now: f64) {
-        let Some(hero) = world.hero_mut() else { return };
-        if hero.is_moving() {
+    pub fn update(
+        &mut self,
+        sim: &mut Sim,
+        hero: EntityId,
+        world: &mut World,
+        hud: &mut Hud,
+        now: f64,
+    ) {
+        let Some(p) = sim.player(hero) else { return };
+        if p.task != Task::Idle || self.approach.is_none() {
             return;
         }
-        let Some((npc, script, cell)) = self.approach.take() else {
-            return;
-        };
-        if distance(hero.cell, cell) > TALK_RANGE {
-            self.message(now, format!("Can't reach {}.", npc.name), theme::WARNING);
+        let (npc, script, cell) = self.approach.take().expect("checked above");
+        if distance(p.cell, cell) > TALK_RANGE {
+            hud.message(now, format!("Can't reach {}.", npc.name), theme::WARNING);
             return;
         }
-        hero.face(cell);
+        if let Some(actor) = world.hero_mut() {
+            actor.face(cell);
+        }
         let Some(host) = &mut self.host else { return };
-        let step = Conversation::start(host, &script, npc, &mut self.player);
-        self.after_step(step, world, now);
+        let mut state = player_state(sim, hero, &self.flags);
+        let step = Conversation::start(host, &script, npc, &mut state);
+        self.after_step(step, state, sim, hero, hud, now);
     }
 
-    fn choose(&mut self, index: usize, world: &mut World, now: f64) {
+    fn choose(&mut self, index: usize, sim: &mut Sim, hero: EntityId, hud: &mut Hud, now: f64) {
         let (Some(conversation), Some(host)) = (self.conversation.take(), &mut self.host) else {
             return;
         };
-        let step = conversation.choose(host, index, &mut self.player);
-        self.after_step(step, world, now);
+        let mut state = player_state(sim, hero, &self.flags);
+        let step = conversation.choose(host, index, &mut state);
+        self.after_step(step, state, sim, hero, hud, now);
     }
 
+    /// Carries out a dialogue step: the hero takes the script's changes, the effects show.
     fn after_step(
         &mut self,
-        step: Result<c3_script::Step, ScriptError>,
-        world: &mut World,
+        step: Result<Step, ScriptError>,
+        state: PlayerState,
+        sim: &mut Sim,
+        hero: EntityId,
+        hud: &mut Hud,
         now: f64,
     ) {
+        // Changes made before an error stay, as on a server.
+        self.flags = state.flags.clone();
+        apply_state(sim, hero, &state);
         match step {
             Ok((next, effects)) => {
                 self.conversation = next;
                 for effect in effects {
-                    self.apply(effect, world, now);
+                    self.show(effect, sim, hero, hud, now);
                 }
             }
             Err(e) => {
-                self.message(now, "Script error; see the Console.".into(), theme::DANGER);
-                self.log.push(LogLine::Error(format!("Script error: {e}")));
+                hud.message(now, "Script error; see the Console.", theme::DANGER);
+                hud.log(LogLine::Error(format!("Script error: {e}")));
             }
         }
     }
 
-    fn apply(&mut self, effect: Effect, world: &mut World, now: f64) {
+    fn show(&mut self, effect: Effect, sim: &mut Sim, hero: EntityId, hud: &mut Hud, now: f64) {
+        let name = |kind: i64| Hud::item_name(sim, kind.try_into().unwrap_or(0));
         match effect {
-            Effect::Message(text) => self.message(now, text, theme::BRAND),
-            Effect::GaveItem { item, count } => {
-                let name = self.item_name(item);
-                self.message(
-                    now,
-                    format!("You received {count} × {name}."),
-                    theme::SUCCESS,
-                );
-            }
-            Effect::TookItem { item, count } => {
-                let name = self.item_name(item);
-                self.message(
-                    now,
-                    format!("You handed over {count} × {name}."),
-                    theme::TEXT,
-                );
-            }
+            Effect::Message(text) => hud.message(now, text, theme::BRAND),
+            Effect::GaveItem { item, count } => hud.message(
+                now,
+                format!("You received {count} × {}.", name(item)),
+                theme::SUCCESS,
+            ),
+            Effect::TookItem { item, count } => hud.message(
+                now,
+                format!("You handed over {count} × {}.", name(item)),
+                theme::TEXT,
+            ),
             Effect::Money(n) if n >= 0 => {
-                self.message(now, format!("You received {n} silver."), theme::SUCCESS)
+                hud.message(now, format!("You received {n} silver."), theme::SUCCESS)
             }
-            Effect::Money(n) => self.message(now, format!("You paid {} silver.", -n), theme::TEXT),
+            Effect::Money(n) => hud.message(now, format!("You paid {} silver.", -n), theme::TEXT),
             Effect::Teleport { map, cell } => {
                 let here = map == 0 || self.map_ids.iter().any(|&id| i64::from(id) == map);
                 let cell = (cell.0 as i32, cell.1 as i32);
-                if here && world.scene.grid.index(cell).is_some() {
+                if here && sim.grid().get(cell).is_some_and(|c| !c.is_blocked()) {
                     self.conversation = None;
-                    if let Some(hero) = world.hero_mut() {
-                        hero.place(cell);
-                    }
+                    sim.place(hero, cell);
                 } else {
-                    self.message(
+                    hud.message(
                         now,
                         format!(
                             "Teleport to map {map} ({}, {}): Play mode runs only the open map.",
@@ -197,30 +175,20 @@ impl Talk {
                     );
                 }
             }
-            Effect::Log(text) => self.log.push(LogLine::Info(format!("Script: {text}"))),
+            Effect::Log(text) => hud.log(LogLine::Info(format!("Script: {text}"))),
         }
     }
 
-    fn item_name(&self, item: i64) -> String {
-        self.item_table
-            .zip(self.host.as_ref())
-            .and_then(|(table, host)| host.table_text(table, item, "name"))
-            .unwrap_or_else(|| format!("item {item}"))
-    }
-
-    fn message(&mut self, now: f64, text: String, color: Color32) {
-        self.messages.push((now, text, color));
-        if self.messages.len() > MAX_MESSAGES {
-            self.messages.remove(0);
-        }
-    }
-
-    /// Draws the dialogue window, game messages and the player's purse over the game view.
-    pub fn ui(&mut self, ui: &mut egui::Ui, rect: egui::Rect, world: &mut World) {
+    /// Draws the dialogue window over the game view and takes its answers.
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: egui::Rect,
+        sim: &mut Sim,
+        hero: EntityId,
+        hud: &mut Hud,
+    ) {
         let now = ui.input(|i| i.time);
-        self.messages.retain(|m| now - m.0 < MESSAGE_SECONDS);
-        self.purse(ui, rect);
-        self.message_list(ui, rect, now);
         let Some(conversation) = &self.conversation else {
             return;
         };
@@ -294,57 +262,9 @@ impl Talk {
         }
         close |= keys.1;
         if let Some(i) = chosen {
-            self.choose(i, world, now);
+            self.choose(i, sim, hero, hud, now);
         } else if close {
             self.conversation = None;
-        }
-    }
-
-    fn purse(&self, ui: &egui::Ui, rect: egui::Rect) {
-        let p = &self.player;
-        let items: i64 = p.items.values().sum();
-        let text = format!(
-            "{}  Lv {}   {}  {} silver   {}  {items} items",
-            icons::USER,
-            p.level,
-            icons::COINS,
-            p.money,
-            icons::PACKAGE
-        );
-        let painter = ui.painter_at(rect);
-        let galley = painter.layout_no_wrap(text, egui::FontId::proportional(13.0), theme::TEXT);
-        let pad = egui::vec2(8.0, 5.0);
-        let at = rect.right_bottom() - galley.size() - pad * 2.0 - egui::vec2(10.0, 10.0);
-        painter.rect_filled(
-            egui::Rect::from_min_size(at, galley.size() + pad * 2.0),
-            4.0,
-            Color32::from_black_alpha(150),
-        );
-        painter.galley(at + pad, galley, theme::TEXT);
-    }
-
-    fn message_list(&self, ui: &egui::Ui, rect: egui::Rect, now: f64) {
-        let painter = ui.painter_at(rect);
-        let mut y = rect.bottom() - 14.0;
-        for (at, text, color) in self.messages.iter().rev() {
-            // Fade out over the last second.
-            let alpha = (MESSAGE_SECONDS - (now - at)).clamp(0.0, 1.0) as f32;
-            let galley = painter.layout_no_wrap(
-                text.clone(),
-                egui::FontId::proportional(13.0),
-                color.gamma_multiply(alpha),
-            );
-            y -= galley.size().y + 4.0;
-            let pos = egui::pos2(rect.left() + 14.0, y);
-            painter.rect_filled(
-                egui::Rect::from_min_size(
-                    pos - egui::vec2(6.0, 2.0),
-                    galley.size() + egui::vec2(12.0, 4.0),
-                ),
-                3.0,
-                Color32::from_black_alpha((120.0 * alpha) as u8),
-            );
-            painter.galley(pos, galley, Color32::WHITE);
         }
     }
 }
@@ -361,14 +281,52 @@ const NUMBER_KEYS: [egui::Key; 9] = [
     egui::Key::Num9,
 ];
 
-/// Steps between two cells (diagonals count one).
-fn distance(a: CellPos, b: CellPos) -> i32 {
-    (a.0 - b.0).abs().max((a.1 - b.1).abs())
+/// The hero as scripts see it.
+fn player_state(sim: &Sim, hero: EntityId, flags: &BTreeMap<String, i64>) -> PlayerState {
+    let Some(p) = sim.player(hero) else {
+        return PlayerState::default();
+    };
+    let mut items = BTreeMap::new();
+    for item in &p.bag {
+        *items.entry(i64::from(item.kind)).or_insert(0) += 1;
+    }
+    PlayerState {
+        name: p.name.clone(),
+        level: p.level.into(),
+        money: p.money as i64,
+        items,
+        flags: flags.clone(),
+    }
+}
+
+/// Puts a script's changes to money and items on the hero.
+fn apply_state(sim: &mut Sim, hero: EntityId, after: &PlayerState) {
+    let before = player_state(sim, hero, &after.flags);
+    if before.money != after.money {
+        sim.set_money(hero, after.money.max(0) as u64);
+    }
+    let kinds: BTreeSet<i64> = before
+        .items
+        .keys()
+        .chain(after.items.keys())
+        .copied()
+        .collect();
+    for kind in kinds {
+        let Ok(k) = u32::try_from(kind) else { continue };
+        let change = after.item_count(kind) - before.item_count(kind);
+        if change > 0 {
+            for _ in 0..change {
+                sim.give_item(hero, k);
+            }
+        } else if change < 0 {
+            sim.take_items(hero, k, (-change) as usize);
+        }
+    }
 }
 
 /// The walkable cell next to `npc` nearest `from` (or the NPC's own cell).
-fn beside(world: &World, npc: CellPos, from: CellPos) -> CellPos {
-    let grid = &world.scene.grid;
+fn beside(sim: &Sim, npc: CellPos, from: CellPos) -> CellPos {
+    let grid = sim.grid();
     (-1..=1)
         .flat_map(|dx| (-1..=1).map(move |dy| (npc.0 + dx, npc.1 + dy)))
         .filter(|&c| c != npc && grid.get(c).is_some_and(|cell| !cell.is_blocked()))

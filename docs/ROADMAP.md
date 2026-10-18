@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M5 step 3: simulation (see M5 below)
+- [ ] M5 step 4: game UI (see M5 below)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -138,7 +138,7 @@ In order; each step is playable in the Studio's Play mode:
       magic, levels, shop goods)
 - [x] (2) Scripting: `engine/script` Rhai host, `scripts/*.rhai`; NPC dialogue API (text,
       options, give/take, teleport); Studio script editor with errors; NPC scripts run in Play mode
-- [ ] (3) Simulation: `engine/game` world (players, monsters, NPCs, ground items, cell index),
+- [x] (3) Simulation: `engine/game` world (players, monsters, NPCs, ground items, cell index),
       tick loop, spawns from spawn areas, monster AI, movement rules, combat + death + respawn,
       exp/levels, drops, inventory/equipment, money, shops; game rules trait implemented by
       `games/conquer` (TQ formulas); Play mode becomes a view of the simulation

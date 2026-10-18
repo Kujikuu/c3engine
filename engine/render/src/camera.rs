@@ -29,6 +29,10 @@ impl Camera2d {
         self.center + (screen - viewport / 2.0) / self.zoom
     }
 
+    pub fn world_to_screen(&self, world: Vec2, viewport: Vec2) -> Vec2 {
+        (world - self.center) * self.zoom + viewport / 2.0
+    }
+
     /// Zooms by `factor`, keeping the world point under `anchor` (screen pixels) fixed.
     pub fn zoom_at(&mut self, factor: f32, anchor: Vec2, viewport: Vec2) {
         let before = self.screen_to_world(anchor, viewport);

@@ -40,6 +40,8 @@ struct Playing {
     frame_ms: u32,
     /// Returns to standing after one run through (attacks, emotes).
     once: bool,
+    /// Stays on the last frame after one run through (dying).
+    hold: bool,
 }
 
 /// Part action effect that stops all of the part's effects.
@@ -158,6 +160,7 @@ impl Actor {
                 started_ms: 0,
                 frame_ms: DEFAULT_FRAME_MS,
                 once: false,
+                hold: false,
             },
             step: None,
             path: VecDeque::new(),
@@ -188,7 +191,7 @@ impl Actor {
 
     /// Turns to face `cell` (when standing elsewhere).
     pub fn face(&mut self, cell: CellPos) {
-        if let Some(d) = path::direction(self.cell, cell) {
+        if let Some(d) = path::facing(self.cell, cell) {
             self.direction = d;
         }
     }
@@ -243,7 +246,7 @@ impl Actor {
             None => {}
         }
         let run_through = now_ms >= self.playing.started_ms + self.action_ms();
-        if self.step.is_none() {
+        if self.step.is_none() && !self.playing.hold {
             if stepped || (self.playing.once && run_through) {
                 self.play(action::STANDBY, now_ms, content, library);
             } else if run_through {
@@ -283,6 +286,18 @@ impl Actor {
         }
     }
 
+    /// Plays action `act` once and stays on its last frame (dying).
+    pub fn play_and_hold(
+        &mut self,
+        act: u32,
+        now_ms: u64,
+        content: &Content,
+        library: &mut EffectLibrary,
+    ) {
+        self.play(act, now_ms, content, library);
+        self.playing.hold = true;
+    }
+
     /// Starts action `act` from its first frame (looping), with its part effects.
     pub fn play(&mut self, act: u32, now_ms: u64, content: &Content, library: &mut EffectLibrary) {
         if let Some(look) = &self.look {
@@ -296,6 +311,7 @@ impl Actor {
         self.playing.action = act;
         self.playing.started_ms = now_ms;
         self.playing.once = false;
+        self.playing.hold = false;
         for group in 0..self.part_effects.len() {
             let Some(type_id) = self.model(group).type_id else {
                 continue;
@@ -402,7 +418,12 @@ impl Actor {
     fn frame(&self, now_ms: u64) -> f32 {
         let elapsed = now_ms.saturating_sub(self.playing.started_ms) as f32;
         let frames = self.character.body.model.frame_count().max(1) as f32;
-        (elapsed / self.playing.frame_ms.max(1) as f32) % frames
+        let frame = elapsed / self.playing.frame_ms.max(1) as f32;
+        if self.playing.hold {
+            frame.min(frames - 1.0)
+        } else {
+            frame % frames
+        }
     }
 
     /// Every visible mesh, body first then attachments.

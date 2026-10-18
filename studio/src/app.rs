@@ -266,6 +266,11 @@ impl Studio {
         ) {
             session.talk_to(id);
         }
+        if args.iter().any(|a| a == "--attack")
+            && let Some(session) = &mut s.playing
+        {
+            session.attack_nearest();
+        }
         let pick = flag("--pick").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (pick, &s.doc) {
             let world = doc.scene().cell_to_world(cell);

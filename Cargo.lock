@@ -585,6 +585,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "c3-game"
+version = "0.1.0"
+dependencies = [
+ "c3-scene",
+]
+
+[[package]]
 name = "c3-net"
 version = "0.1.0"
 
@@ -639,6 +646,7 @@ dependencies = [
  "c3-data",
  "c3-edit",
  "c3-formats-tq",
+ "c3-game",
  "c3-project",
  "c3-render",
  "c3-scene",
@@ -1475,6 +1483,7 @@ dependencies = [
  "c3-assets",
  "c3-data",
  "c3-formats-tq",
+ "c3-game",
  "c3-render",
  "c3-scene",
  "glam",

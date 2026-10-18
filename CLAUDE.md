@@ -21,7 +21,8 @@ append decisions, document formats as you implement them.
   `play.rs` (Play mode in the Game view), `stage.rs` (Preview stage), `data_panel.rs` (Data
   panel: game tables, SQL import, row Inspector), `script_panel.rs` + `code_view.rs` (Script
   panel: Rhai editor with live problems and function reference), `play_talk.rs` (NPC dialogue in
-  Play mode), `icons.rs` (bundled
+  Play mode), `play_hud.rs` (Play mode feedback: life, purse, messages, damage numbers, drops),
+  `icons.rs` (bundled
   Phosphor font; **never emoji as icons**), `theme.rs` (Unity-like dark theme + shared widgets).
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
   `home.rs` (start page, project dialogs, File menu, Project inspector section), `maps.rs` (project

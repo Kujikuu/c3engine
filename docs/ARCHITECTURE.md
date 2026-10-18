@@ -14,8 +14,9 @@ c3engine/
     script/    Rhai script host: sandboxed, hot reload, NPC dialogue API, editor diagnostics
     project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
                sources, recent projects)
-    game/      (planned) gameplay framework shared by client and server: entities, stats,
-               combat, items, quests, spawns; rules come from project tables + scripts
+    game/      c3-game: the simulation shared by Play mode, client and server: one map's
+               players, monsters and drops in fixed ticks (movement, spawns, monster AI,
+               combat, exp/levels, bag, equipment, shops); a game's `Rules` decide numbers
     edit/      c3-edit: headless editing API. Typed serializable
                commands with undo/redo, queries and their schemas. Used by the Studio UI,
                the AI assistant and the MCP server alike

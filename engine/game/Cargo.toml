@@ -1,0 +1,7 @@
+[package]
+name = "c3-game"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+c3-scene = { version = "0.1.0", path = "../scene" }

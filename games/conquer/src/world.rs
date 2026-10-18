@@ -32,6 +32,8 @@ pub struct World {
     pub map_path: String,
     pub scene: Scene,
     pub actors: Vec<Actor>,
+    /// Removed actors whose textures are freed on the next prepare.
+    retired: Vec<Actor>,
     view: SceneView<ActorPart>,
     /// Game time in milliseconds: the clock for animation and movement.
     clock_ms: f64,
@@ -45,6 +47,7 @@ impl World {
             map_path,
             scene,
             actors: Vec::new(),
+            retired: Vec::new(),
             view,
             clock_ms: 0.0,
         }
@@ -82,14 +85,34 @@ impl World {
 
     /// The hero starts action `act`: looping, or `once` then standing.
     pub fn hero_action(&mut self, act: u32, once: bool) {
+        self.actor_action(0, act, once);
+    }
+
+    /// Actor `index` starts action `act`: looping, or `once` then standing.
+    pub fn actor_action(&mut self, index: usize, act: u32, once: bool) {
         let now_ms = self.now_ms();
-        let Some(hero) = self.actors.first_mut() else {
+        let Some(actor) = self.actors.get_mut(index) else {
             return;
         };
         if once {
-            hero.perform(act, now_ms, &self.content, &mut self.view.library);
+            actor.perform(act, now_ms, &self.content, &mut self.view.library);
         } else {
-            hero.play(act, now_ms, &self.content, &mut self.view.library);
+            actor.play(act, now_ms, &self.content, &mut self.view.library);
+        }
+    }
+
+    /// Actor `index` plays action `act` once and stays on its last frame (dying).
+    pub fn actor_hold(&mut self, index: usize, act: u32) {
+        let now_ms = self.now_ms();
+        if let Some(actor) = self.actors.get_mut(index) {
+            actor.play_and_hold(act, now_ms, &self.content, &mut self.view.library);
+        }
+    }
+
+    /// Removes actor `index` (the last actor takes its place, as `Vec::swap_remove`).
+    pub fn remove_actor(&mut self, index: usize) {
+        if index < self.actors.len() {
+            self.retired.push(self.actors.swap_remove(index));
         }
     }
 
@@ -197,6 +220,9 @@ impl World {
 
     /// Builds this frame's sprites, posed actors and painter's order.
     pub fn prepare(&mut self, renderer: &mut Renderer, camera: &Camera2d, viewport: Vec2) {
+        for mut actor in self.retired.drain(..) {
+            actor.release_textures(renderer);
+        }
         let view = View {
             rect: camera.view_rect(viewport),
             center: (camera.center.x, camera.center.y),

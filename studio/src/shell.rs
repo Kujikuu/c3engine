@@ -301,16 +301,15 @@ impl Studio {
             return;
         };
         let start = doc.world_to_cell(self.cam.center);
-        let talk = crate::play_talk::TalkSetup {
+        let setup = crate::play::PlaySetup {
             scripts: self.project.as_ref().map(|p| p.scripts_dir()),
             tables: self.project.as_ref().map(|p| p.tables_dir()),
-            item_table: Some(game_conquer::server_data::ITEM_TABLE),
             map_ids: match &doc.map {
                 MapRef::Client(path) => client.map_ids(path),
                 MapRef::Project(_) => Vec::new(),
             },
         };
-        match crate::play::PlaySession::start(client, doc, start, state, talk) {
+        match crate::play::PlaySession::start(client, doc, start, state, setup) {
             Ok(session) => {
                 self.playing = Some(session);
                 if self.scripts.is_dirty() {

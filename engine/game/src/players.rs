@@ -1,0 +1,490 @@
+//! Players: what hosts tell them to do (walk, attack, pick up, buy…) and how they carry it
+//! out each tick.
+
+use crate::entity::{BAG_SIZE, Item, Player, Task};
+use crate::event::Event;
+use crate::sim::Sim;
+use crate::{EntityId, REVIVE_MS, distance};
+use c3_scene::CellPos;
+use c3_scene::path::{self, PathRules};
+use std::collections::VecDeque;
+
+/// Path search budget for a player's walk.
+const PLAYER_PATH: PathRules = PathRules {
+    max_climb: 25,
+    max_nodes: 20_000,
+};
+
+impl Sim {
+    /// Brings a player into the world at `cell` (or the walkable cell nearest it).
+    pub fn add_player(&mut self, name: impl Into<String>, cell: CellPos, level: u32) -> EntityId {
+        let cell = path::nearest_walkable(&self.grid, cell, 30).unwrap_or(cell);
+        let id = self.new_entity();
+        let stats = self.rules.player_stats(level);
+        self.players.insert(
+            id,
+            Player {
+                id,
+                name: name.into(),
+                cell,
+                direction: 0,
+                level,
+                exp: 0,
+                life: stats.max_life,
+                mana: stats.max_mana,
+                money: 0,
+                stats,
+                bag: Vec::new(),
+                equipment: Vec::new(),
+                running: false,
+                task: Task::Idle,
+                path: VecDeque::new(),
+                next_step_ms: 0,
+                next_attack_ms: 0,
+                revive_at_ms: None,
+            },
+        );
+        self.index.insert(id, cell);
+        self.events.push(Event::Appeared(id));
+        id
+    }
+
+    fn living(&mut self, id: EntityId) -> Option<&mut Player> {
+        self.players.get_mut(&id).filter(|p| p.is_alive())
+    }
+
+    fn plan_path(&mut self, id: EntityId, goal: CellPos) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        p.path = path::find_path(&self.grid, p.cell, goal, &PLAYER_PATH).into();
+    }
+
+    /// Walks the player to `goal` (or as near as it can get).
+    pub fn walk(&mut self, id: EntityId, goal: CellPos) {
+        let Some(p) = self.living(id) else { return };
+        p.task = Task::Walk;
+        self.plan_path(id, goal);
+    }
+
+    pub fn set_running(&mut self, id: EntityId, running: bool) {
+        if let Some(p) = self.players.get_mut(&id) {
+            p.running = running;
+        }
+    }
+
+    /// Sends the player after monster `target`, hitting it when in range.
+    pub fn attack(&mut self, id: EntityId, target: EntityId) {
+        if !self.monsters.get(&target).is_some_and(|m| m.is_alive()) {
+            return;
+        }
+        if let Some(p) = self.living(id) {
+            p.task = Task::Attack(target);
+            p.path.clear();
+        }
+    }
+
+    /// The living monster within `radius` cells the player can reach in fewest steps.
+    pub fn nearest_monster(&self, id: EntityId, radius: i32) -> Option<EntityId> {
+        let p = self.players.get(&id)?;
+        let range = p.stats.attack_range.max(1) as i32;
+        let rules = PathRules {
+            max_nodes: 2_000,
+            ..PLAYER_PATH
+        };
+        self.monsters
+            .values()
+            .filter(|m| m.is_alive() && distance(m.cell, p.cell) <= radius)
+            .filter_map(|m| {
+                if distance(m.cell, p.cell) <= range {
+                    return Some((0, m.id));
+                }
+                let path = path::find_path(&self.grid, p.cell, m.cell, &rules);
+                let end = *path.last()?;
+                (distance(end, m.cell) <= range).then_some((path.len(), m.id))
+            })
+            .min()
+            .map(|(_, id)| id)
+    }
+
+    /// Walks the player to item `item` and picks it up.
+    pub fn pick_up(&mut self, id: EntityId, item: EntityId) {
+        let Some(cell) = self.items.get(&item).map(|i| i.cell) else {
+            return;
+        };
+        let Some(p) = self.living(id) else { return };
+        p.task = Task::PickUp(item);
+        self.plan_path(id, cell);
+    }
+
+    /// Puts the player on `cell` at once (a teleport).
+    pub fn place(&mut self, id: EntityId, cell: CellPos) {
+        if !self.walkable(cell) {
+            return;
+        }
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        self.index.moved(id, p.cell, cell);
+        p.cell = cell;
+        p.path.clear();
+        p.task = Task::Idle;
+        self.events.push(Event::Placed { id, cell });
+    }
+
+    /// Uses item `item` from the bag: wears equipment, drinks a potion.
+    pub fn use_item(&mut self, id: EntityId, item: u32) {
+        let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
+            return;
+        };
+        let Some(slot) = p.bag.iter().position(|i| i.id == item) else {
+            return;
+        };
+        let kind = p.bag[slot].kind;
+        let Some(t) = self.rules.item(kind) else {
+            return;
+        };
+        if t.slot.is_some() {
+            let worn = self
+                .players
+                .get_mut(&id)
+                .expect("checked above")
+                .bag
+                .remove(slot);
+            self.wear(id, worn);
+            return;
+        }
+        if t.restores_life == 0 && t.restores_mana == 0 {
+            self.message(id, format!("{} can't be used.", t.name));
+            return;
+        }
+        let (life, mana) = (t.restores_life, t.restores_mana);
+        let p = self.players.get_mut(&id).expect("checked above");
+        p.life = (p.life + life).min(p.stats.max_life);
+        p.mana = (p.mana + mana).min(p.stats.max_mana);
+        p.bag.remove(slot);
+        self.events.push(Event::Used { player: id, kind });
+    }
+
+    /// Dresses the player in a new item of `kind` (starting gear); false if it isn't worn.
+    pub fn equip(&mut self, id: EntityId, kind: u32) -> bool {
+        if self.rules.item(kind).and_then(|t| t.slot).is_none() || !self.players.contains_key(&id) {
+            return false;
+        }
+        let item = Item {
+            id: self.new_item_id(),
+            kind,
+        };
+        self.wear(id, item);
+        true
+    }
+
+    /// Takes off the item worn in item `item`'s place, into the bag (if there is room).
+    pub fn unequip(&mut self, id: EntityId, item: u32) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let Some(at) = p.equipment.iter().position(|i| i.id == item) else {
+            return;
+        };
+        if p.bag.len() >= BAG_SIZE {
+            self.message(id, "Your bag is full.");
+            return;
+        }
+        let item = p.equipment.remove(at);
+        p.bag.push(item);
+        self.refresh_stats(id);
+    }
+
+    /// Puts `item` on, moving what was worn in its slot to the bag.
+    fn wear(&mut self, id: EntityId, item: Item) {
+        let slot_of = |kind: u32, rules: &dyn crate::Rules| rules.item(kind).and_then(|t| t.slot);
+        let slot = slot_of(item.kind, &*self.rules);
+        let p = self.players.get_mut(&id).expect("wearing");
+        if let Some(at) = p
+            .equipment
+            .iter()
+            .position(|e| slot_of(e.kind, &*self.rules) == slot)
+        {
+            let old = p.equipment.remove(at);
+            p.bag.push(old);
+        }
+        p.equipment.push(item);
+        self.refresh_stats(id);
+    }
+
+    /// Recomputes the player's stats from its level and what it wears.
+    pub(crate) fn refresh_stats(&mut self, id: EntityId) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let base = self.rules.player_stats(p.level);
+        p.stats = p
+            .equipment
+            .iter()
+            .filter_map(|e| self.rules.item(e.kind))
+            .fold(base, |stats, t| stats.with_bonus(&t.bonus));
+        p.life = p.life.min(p.stats.max_life);
+        p.mana = p.mana.min(p.stats.max_mana);
+    }
+
+    /// Buys one `kind` from NPC `npc`'s shop.
+    pub fn buy(&mut self, id: EntityId, npc: u32, kind: u32) {
+        let Some(p) = self.players.get(&id) else {
+            return;
+        };
+        if !self.npc_in_reach(p.cell, npc) || !self.rules.shop(npc).contains(&kind) {
+            return;
+        }
+        let Some(price) = self.rules.item(kind).map(|t| t.price) else {
+            return;
+        };
+        if p.money < price {
+            self.message(id, "You don't have enough money.");
+            return;
+        }
+        if !self.give_item(id, kind) {
+            return;
+        }
+        let p = self.players.get_mut(&id).expect("checked above");
+        p.money -= price;
+        self.events.push(Event::Bought {
+            player: id,
+            kind,
+            price,
+        });
+    }
+
+    /// Sells item `item` from the bag to NPC `npc`'s shop.
+    pub fn sell(&mut self, id: EntityId, npc: u32, item: u32) {
+        let Some(p) = self.players.get(&id) else {
+            return;
+        };
+        if !self.npc_in_reach(p.cell, npc) || self.rules.shop(npc).is_empty() {
+            return;
+        }
+        let Some(slot) = p.bag.iter().position(|i| i.id == item) else {
+            return;
+        };
+        let kind = p.bag[slot].kind;
+        let price = self.rules.sell_price(kind);
+        let p = self.players.get_mut(&id).expect("checked above");
+        p.bag.remove(slot);
+        p.money += price;
+        self.events.push(Event::Sold {
+            player: id,
+            kind,
+            price,
+        });
+    }
+
+    /// Puts a new `kind` in the player's bag; false (and a message) when it is full.
+    pub fn give_item(&mut self, id: EntityId, kind: u32) -> bool {
+        let item = self.new_item_id();
+        let Some(p) = self.players.get_mut(&id) else {
+            return false;
+        };
+        if p.bag.len() >= BAG_SIZE {
+            self.message(id, "Your bag is full.");
+            return false;
+        }
+        p.bag.push(Item { id: item, kind });
+        true
+    }
+
+    /// Takes `count` items of `kind` from the bag, if it holds that many.
+    pub fn take_items(&mut self, id: EntityId, kind: u32, count: usize) -> bool {
+        let Some(p) = self.players.get_mut(&id) else {
+            return false;
+        };
+        if p.bag.iter().filter(|i| i.kind == kind).count() < count {
+            return false;
+        }
+        let mut left = count;
+        p.bag.retain(|i| {
+            let take = left > 0 && i.kind == kind;
+            left -= usize::from(take);
+            !take
+        });
+        true
+    }
+
+    /// Sets the player's money (scripts change it directly).
+    pub fn set_money(&mut self, id: EntityId, money: u64) {
+        if let Some(p) = self.players.get_mut(&id) {
+            p.money = money;
+        }
+    }
+
+    // ---- ticking ----
+
+    pub(crate) fn tick_player(&mut self, id: EntityId) {
+        let now = self.now_ms;
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        if let Some(at) = p.revive_at_ms {
+            if now >= at {
+                p.revive_at_ms = None;
+                p.life = p.stats.max_life;
+                p.mana = p.stats.max_mana;
+                self.events.push(Event::Revived(id));
+            }
+            return;
+        }
+        match p.task.clone() {
+            Task::Idle => {}
+            Task::Walk => {
+                if !self.step_player(id) {
+                    self.players.get_mut(&id).expect("ticking").task = Task::Idle;
+                }
+            }
+            Task::Attack(target) => self.chase_and_hit(id, target),
+            Task::PickUp(item) => self.walk_to_item(id, item),
+        }
+    }
+
+    /// Takes the next planned step when it is time; false when there is none left.
+    fn step_player(&mut self, id: EntityId) -> bool {
+        let now = self.now_ms;
+        let p = self.players.get_mut(&id).expect("ticking");
+        if now < p.next_step_ms {
+            return true;
+        }
+        let Some(next) = p.path.pop_front() else {
+            return false;
+        };
+        if !path::can_step(&self.grid, p.cell, next, &PLAYER_PATH) {
+            p.path.clear();
+            return false;
+        }
+        p.direction = path::direction(p.cell, next).unwrap_or(p.direction);
+        self.index.moved(id, p.cell, next);
+        p.cell = next;
+        p.next_step_ms = now + p.step_ms();
+        self.events.push(Event::Moved {
+            id,
+            to: next,
+            running: p.running,
+        });
+        true
+    }
+
+    fn chase_and_hit(&mut self, id: EntityId, target: EntityId) {
+        let Some(goal) = self
+            .monsters
+            .get(&target)
+            .filter(|m| m.is_alive())
+            .map(|m| m.cell)
+        else {
+            let p = self.players.get_mut(&id).expect("ticking");
+            p.task = Task::Idle;
+            p.path.clear();
+            return;
+        };
+        let p = self.players.get_mut(&id).expect("ticking");
+        let range = p.stats.attack_range.max(1) as i32;
+        if distance(p.cell, goal) <= range {
+            p.path.clear();
+            if self.now_ms >= p.next_attack_ms {
+                p.next_attack_ms = self.now_ms + u64::from(p.stats.attack_ms.max(1));
+                p.direction = path::facing(p.cell, goal).unwrap_or(p.direction);
+                self.player_hits(id, target);
+            }
+            return;
+        }
+        // Re-plan when the monster moved away from where the path leads.
+        if p.path.back().is_none_or(|&end| distance(end, goal) > range) {
+            self.plan_path(id, goal);
+            let p = self.players.get_mut(&id).expect("ticking");
+            if p.path.is_empty() {
+                // Nothing brings it closer (a wall between them).
+                p.task = Task::Idle;
+                self.message(id, "You can't reach it.");
+                return;
+            }
+        }
+        self.step_player(id);
+    }
+
+    fn walk_to_item(&mut self, id: EntityId, item: EntityId) {
+        let Some(cell) = self.items.get(&item).map(|i| i.cell) else {
+            self.players.get_mut(&id).expect("ticking").task = Task::Idle;
+            return;
+        };
+        let here = self.players[&id].cell;
+        if here == cell {
+            self.players.get_mut(&id).expect("ticking").task = Task::Idle;
+            self.take_ground_item(id, item);
+        } else if !self.step_player(id) {
+            // The path ran out short of the item.
+            self.players.get_mut(&id).expect("ticking").task = Task::Idle;
+        }
+    }
+
+    fn take_ground_item(&mut self, id: EntityId, item: EntityId) {
+        let Some(ground) = self.items.get(&item) else {
+            return;
+        };
+        let (money, kind) = (ground.money, ground.kind);
+        if let Some(kind) = kind
+            && !self.give_item(id, kind)
+        {
+            return;
+        }
+        let ground = self.items.remove(&item).expect("checked above");
+        self.index.remove(item, ground.cell);
+        let p = self.players.get_mut(&id).expect("picking up");
+        p.money += money;
+        self.events.push(Event::PickedUp {
+            player: id,
+            money,
+            kind,
+        });
+        self.events.push(Event::Vanished(item));
+    }
+
+    /// The player dies; it comes back after a while where it fell.
+    pub(crate) fn kill_player(&mut self, id: EntityId, killer: Option<EntityId>) {
+        let now = self.now_ms;
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        p.life = 0;
+        p.task = Task::Idle;
+        p.path.clear();
+        p.revive_at_ms = Some(now + REVIVE_MS);
+        self.events.push(Event::Died { id, killer });
+    }
+
+    /// Adds experience, rising levels as it fills them.
+    pub(crate) fn gain_exp(&mut self, id: EntityId, amount: u64) {
+        if amount == 0 {
+            return;
+        }
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        p.exp += amount;
+        self.events.push(Event::ExpGained { player: id, amount });
+        loop {
+            let p = self.players.get_mut(&id).expect("levelling");
+            let Some(need) = self.rules.level_exp(p.level) else {
+                // The top level keeps no experience.
+                p.exp = 0;
+                break;
+            };
+            if p.exp < need {
+                break;
+            }
+            p.exp -= need;
+            p.level += 1;
+            let level = p.level;
+            self.events.push(Event::LeveledUp { player: id, level });
+            self.refresh_stats(id);
+            let p = self.players.get_mut(&id).expect("levelling");
+            p.life = p.stats.max_life;
+            p.mana = p.stats.max_mana;
+        }
+    }
+}
