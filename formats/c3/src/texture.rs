@@ -186,11 +186,7 @@ fn decode_dds(data: &[u8]) -> Result<Image> {
             "unsupported DDS pixel format ({bits} bpp)"
         )));
     };
-    Ok(Image {
-        width,
-        height,
-        rgba,
-    })
+    Ok(Image::new(width, height, rgba))
 }
 
 fn decode_tga(data: &[u8]) -> Result<Image> {
@@ -247,9 +243,5 @@ fn decode_tga(data: &[u8]) -> Result<Image> {
         }
         px = flipped;
     }
-    Ok(Image {
-        width,
-        height,
-        rgba: px,
-    })
+    Ok(Image::new(width, height, px))
 }

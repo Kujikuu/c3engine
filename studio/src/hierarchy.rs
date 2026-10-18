@@ -92,12 +92,12 @@ impl Studio {
                     let rows: Vec<Row> = (scene.entities.iter().enumerate())
                         .filter_map(|(i, e)| {
                             let (kind, name) = match &e.kind {
-                                EntityKind::Effect { name, .. } => (0, name.as_str()),
-                                EntityKind::Sprite { animation, .. } => (1, animation.as_str()),
-                                EntityKind::Prefab { asset } => (1, file_stem(asset)),
-                                EntityKind::Sound { asset, .. } => (2, file_stem(asset)),
+                                EntityKind::Effect { name, .. } => (0, name.clone()),
+                                EntityKind::Sprite { .. } => (1, c3_edit::entity_label(e)),
+                                EntityKind::Prefab { asset } => (1, file_stem(asset).to_owned()),
+                                EntityKind::Sound { asset, .. } => (2, file_stem(asset).to_owned()),
                             };
-                            (kind == keep).then(|| (name.to_owned(), Selection::Entity(i)))
+                            (kind == keep).then_some((name, Selection::Entity(i)))
                         })
                         .collect();
                     tree.group(ui, icon, group, &rows, &mut picked);

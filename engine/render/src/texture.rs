@@ -19,7 +19,8 @@ type Groups = [wgpu::BindGroup; 2];
 
 pub(crate) struct Textures {
     layout: wgpu::BindGroupLayout,
-    samplers: [wgpu::Sampler; 2],
+    /// Smooth, then sharp (pixel art); each by [`Wrap`].
+    samplers: [[wgpu::Sampler; 2]; 2],
     groups: HashMap<TextureId, Groups>,
     /// 1×1 white, used for untextured draws.
     white: Groups,
@@ -49,26 +50,28 @@ impl Textures {
                 },
             ],
         });
-        let sampler = |label, address_mode| {
+        let sampler = |label, address_mode, filter| {
             device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some(label),
                 address_mode_u: address_mode,
                 address_mode_v: address_mode,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
+                mag_filter: filter,
+                min_filter: filter,
                 ..Default::default()
             })
         };
-        let samplers = [
-            sampler("c3 clamp sampler", wgpu::AddressMode::ClampToEdge),
-            sampler("c3 repeat sampler", wgpu::AddressMode::Repeat),
-        ];
+        let samplers = [wgpu::FilterMode::Linear, wgpu::FilterMode::Nearest].map(|filter| {
+            [
+                sampler("c3 clamp sampler", wgpu::AddressMode::ClampToEdge, filter),
+                sampler("c3 repeat sampler", wgpu::AddressMode::Repeat, filter),
+            ]
+        });
         let white_texture = Self::create(device, [1, 1]);
         Self::write(queue, &white_texture, [1, 1], &[255; 4]);
         let white = Self::bind(
             device,
             &layout,
-            &samplers,
+            &samplers[0],
             &white_texture.create_view(&Default::default()),
         );
         Self {
@@ -157,7 +160,7 @@ impl Textures {
         let group = Self::bind(
             device,
             &self.layout,
-            &self.samplers,
+            &self.samplers[usize::from(image.sharp)],
             &texture.create_view(&Default::default()),
         );
         let id = TextureId(self.next);

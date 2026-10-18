@@ -73,7 +73,10 @@ fn parse_args() -> Result<Args, String> {
 
 fn start(args: &Args) -> Result<ServerHandle, String> {
     let project = c3_project::Project::open(&args.project).map_err(|e| e.to_string())?;
-    let game = c3_games::open_project(&project)?;
+    let (game, asset_problems) = c3_games::open_project(&project)?;
+    for problem in asset_problems {
+        eprintln!("warning: {problem}");
+    }
     println!("Game: {}", game.name());
     let (mut settings, problem) = c3_play::settings::load(&project, &*game);
     if let Some(problem) = problem {

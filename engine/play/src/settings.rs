@@ -99,7 +99,7 @@ pub fn window_icon(settings: &ProjectSettings, game: &dyn GameModule) -> Option<
     }
     if path.to_ascii_lowercase().ends_with(".ico") {
         let bytes = game.read_file(&path)?;
-        let cursor = c3_assets::cursor::decode(&bytes, &crate::basic::decode_image).ok()?;
+        let cursor = c3_assets::cursor::decode(&bytes, &crate::native::decode_image).ok()?;
         return cursor.frames.into_iter().next().map(|f| f.image);
     }
     game.assets().image(&path)

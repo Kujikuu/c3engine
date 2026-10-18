@@ -51,11 +51,7 @@ fn shading_ramp(rgb: [f32; 3]) -> Image {
             rgba.push(255);
         }
     }
-    Image {
-        width: SIZE,
-        height: SIZE,
-        rgba,
-    }
+    Image::new(SIZE, SIZE, rgba)
 }
 
 /// A soft grass tile that repeats without seams.
@@ -73,11 +69,7 @@ fn ground_tile() -> Image {
             rgba.push(255);
         }
     }
-    Image {
-        width: size,
-        height: size,
-        rgba,
-    }
+    Image::new(size, size, rgba)
 }
 
 fn hash(x: u32, y: u32) -> u32 {

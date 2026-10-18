@@ -1,8 +1,8 @@
 //! The engine's own game: plays a project made from scratch, with no game content of another
-//! engine. Its maps are the project's scenes; images come from the project's `assets/`
-//! (PNG, JPG, BMP, TGA); roles are drawn as plain figures until the project gives them models;
-//! the rules are simple defaults. Later steps of the roadmap replace these defaults with the
-//! project's settings, assets and data.
+//! engine. Its maps are the project's scenes; its art is the engine's built-in placeholders
+//! (the project's own images come through [`crate::project_game::ProjectGame`]); roles are
+//! drawn as plain figures until the project gives them models; the rules are simple defaults.
+//! Later steps of the roadmap replace these defaults with the project's data.
 
 use crate::character::{Character, CharacterMotions, Look, LookKind, PartModel};
 use crate::module::{Act, GameModule, GameRules, Looks, load_project_scene};
@@ -14,7 +14,7 @@ use c3_project::Project;
 use c3_render::SceneAssets;
 use c3_scene::{Grid, IsoProjection, Npc, Scene, TileLayer, Tileset};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::builtin::{self, GROUND_IMAGE, GROUND_TILE};
@@ -28,18 +28,16 @@ const ATTACK: u32 = 400;
 const DIE: u32 = 330;
 const JUMP: u32 = 130;
 
-/// The engine's own game for `project`.
+/// The engine's own game.
 pub struct BasicGame {
     assets: BasicAssets,
     rules: Arc<BasicRules>,
 }
 
-impl BasicGame {
-    pub fn new(project: &Project) -> Self {
+impl Default for BasicGame {
+    fn default() -> Self {
         Self {
-            assets: BasicAssets {
-                root: project.assets_dir(),
-            },
+            assets: BasicAssets,
             rules: Arc::new(BasicRules),
         }
     }
@@ -75,8 +73,8 @@ impl GameModule for BasicGame {
         -30.0
     }
 
-    fn read_file(&self, path: &str) -> Option<Vec<u8>> {
-        std::fs::read(self.assets.root.join(path)).ok()
+    fn read_file(&self, _path: &str) -> Option<Vec<u8>> {
+        None
     }
 
     fn slot_names(&self) -> Vec<(u8, String)> {
@@ -161,10 +159,8 @@ impl Looks for BasicGame {
     }
 }
 
-/// The project's images, and the ones the engine draws itself.
-struct BasicAssets {
-    root: PathBuf,
-}
+/// The images the engine draws itself.
+struct BasicAssets;
 
 impl SceneAssets for BasicAssets {
     fn sprite_set(&self, _path: &str) -> Option<SpriteSet> {
@@ -180,22 +176,12 @@ impl SceneAssets for BasicAssets {
     }
 
     fn image(&self, path: &str) -> Option<Image> {
-        builtin::image(path).or_else(|| decode_image(&std::fs::read(self.root.join(path)).ok()?))
+        builtin::image(path)
     }
 
     fn effect(&self, name: &str) -> Result<Effect, String> {
         Err(format!("the project has no effect \"{name}\""))
     }
-}
-
-/// Decodes a PNG, JPG, BMP or TGA image.
-pub fn decode_image(bytes: &[u8]) -> Option<Image> {
-    let rgba = image::load_from_memory(bytes).ok()?.to_rgba8();
-    Some(Image {
-        width: rgba.width(),
-        height: rgba.height(),
-        rgba: rgba.into_raw(),
-    })
 }
 
 /// Simple rules until the project defines its own: players grow with their level, hits deal

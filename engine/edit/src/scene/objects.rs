@@ -8,6 +8,10 @@ use c3_scene::{CellPos, Entity, EntityKind, Placement};
 /// A short description of an entity for labels: `tree01`, `sound ball1`, `effect fire`.
 pub fn entity_label(e: &Entity) -> String {
     match &e.kind {
+        // A sheet's animation by its sheet (`hero walk`); a TQ sprite set by its animation.
+        EntityKind::Sprite {
+            asset, animation, ..
+        } if asset.contains('.') => format!("{} {animation}", file_stem(asset)),
         EntityKind::Sprite { animation, .. } => animation.clone(),
         EntityKind::Prefab { asset } => file_stem(asset).to_owned(),
         EntityKind::Sound { asset, .. } => format!("sound {}", file_stem(asset)),

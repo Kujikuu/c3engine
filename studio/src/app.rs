@@ -390,12 +390,19 @@ impl Studio {
                 Err(e) => self.error = Some(format!("Can't open the project's client folder: {e}")),
             }
         }
-        self.game = match (&self.client, &self.project) {
-            (Some(client), _) => Some(client.game()),
-            (None, Some(project)) => {
-                Some(std::rc::Rc::new(c3_play::basic::BasicGame::new(project)))
+        let game: Option<std::rc::Rc<dyn c3_play::GameModule>> = match &self.client {
+            Some(client) => Some(client.game()),
+            None => Some(std::rc::Rc::new(c3_play::basic::BasicGame::default())),
+        };
+        self.game = match (game, &self.project) {
+            (Some(game), Some(project)) => {
+                let (game, problems) = c3_play::ProjectGame::open(project, game);
+                if let Some(problem) = problems.into_iter().next() {
+                    self.error = Some(problem);
+                }
+                Some(std::rc::Rc::new(game))
             }
-            (None, None) => None,
+            _ => None,
         };
         if let (Some(game), Some(project)) = (&self.game, &self.project) {
             let (settings, problem) = c3_play::settings::load(project, &**game);

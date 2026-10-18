@@ -3,6 +3,8 @@
 //! ([`Looks`]), its rules ([`GameRules`]) and sounds. [`basic::BasicGame`] is the engine's own
 //! game, for projects made from scratch.
 //!
+//! - [`project_game::ProjectGame`]: a game with the project's own assets ([`native`]) over
+//!   its content.
 //! - [`world::World`]: a map being played, drawn with its actors.
 //! - [`actor::Actor`]: a role's models walking and acting on the map.
 //! - [`sim_view::SimView`]: a simulation's events shown on the world's actors.
@@ -20,6 +22,8 @@ pub mod cursor;
 pub mod game;
 pub mod input;
 pub mod module;
+pub mod native;
+pub mod project_game;
 pub mod screen;
 pub mod serve;
 pub mod session;
@@ -30,3 +34,4 @@ pub mod world;
 
 pub use character::{Attachment, Character, CharacterMotions, Look, LookKind, PartModel};
 pub use module::{Act, GameModule, GameRules, Looks, load_project_scene};
+pub use project_game::ProjectGame;

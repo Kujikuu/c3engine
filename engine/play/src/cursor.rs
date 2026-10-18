@@ -156,7 +156,7 @@ pub fn read(game: &dyn GameModule, setting: &settings::Cursor) -> Result<Cursor,
     let lower = path.to_ascii_lowercase();
     let mut cursor = if [".cur", ".ani", ".ico"].iter().any(|e| lower.ends_with(e)) {
         let bytes = game.read_file(&path).ok_or("the file can't be found")?;
-        cursor::decode(&bytes, &crate::basic::decode_image)?
+        cursor::decode(&bytes, &crate::native::decode_image)?
     } else {
         let image = game
             .assets()

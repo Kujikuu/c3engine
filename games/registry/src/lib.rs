@@ -6,6 +6,7 @@
 use c3_core::settings::NetworkSettings;
 use c3_online::Front;
 use c3_play::GameModule;
+use c3_play::ProjectGame;
 use c3_play::basic::BasicGame;
 use c3_project::Project;
 use c3_scene::Scene;
@@ -16,12 +17,15 @@ use game_conquer::protocol::{ConquerFront, ConquerSetup};
 use std::path::Path;
 use std::rc::Rc;
 
-/// The game that plays `project`.
-pub fn open_project(project: &Project) -> Result<Rc<dyn GameModule>, String> {
-    Ok(match project.tq_client() {
+/// The game that plays `project`, with the project's own assets over its content, and what
+/// was wrong with the assets' sidecars (they were repaired).
+pub fn open_project(project: &Project) -> Result<(Rc<dyn GameModule>, Vec<String>), String> {
+    let game: Rc<dyn GameModule> = match project.tq_client() {
         Some((_, dir)) => Rc::new(ConquerModule::open(dir)?),
-        None => Rc::new(BasicGame::new(project)),
-    })
+        None => Rc::new(BasicGame::default()),
+    };
+    let (game, problems) = ProjectGame::open(project, game);
+    Ok((Rc::new(game), problems))
 }
 
 /// A client's map opened for viewing.

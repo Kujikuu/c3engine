@@ -40,7 +40,10 @@ pub struct GameArgs {
 /// Opens the game window and plays until it is closed.
 pub fn run(args: GameArgs) -> Result<(), String> {
     let project = c3_project::Project::open(&args.project).map_err(|e| e.to_string())?;
-    let game = c3_games::open_project(&project)?;
+    let (game, asset_problems) = c3_games::open_project(&project)?;
+    for problem in asset_problems {
+        eprintln!("warning: {problem}");
+    }
     let (settings, problem) = c3_play::settings::load(&project, &*game);
     if let Some(problem) = problem {
         eprintln!("warning: {problem}");

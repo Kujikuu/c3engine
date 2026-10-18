@@ -22,6 +22,8 @@ pub struct Image {
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
+    /// Drawn with sharp pixels (nearest sampling) rather than smoothed: pixel art.
+    pub sharp: bool,
 }
 
 impl Image {
@@ -31,6 +33,7 @@ impl Image {
             width,
             height,
             rgba,
+            sharp: false,
         }
     }
 }

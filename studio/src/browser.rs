@@ -389,15 +389,7 @@ impl Browser {
 }
 
 fn decode_image(bytes: &[u8]) -> Option<Image> {
-    if let Some(img) = tq_plugin::decode_tq_image(bytes) {
-        return Some(img);
-    }
-    let decoded = image::load_from_memory(bytes).ok()?.to_rgba8();
-    Some(Image::new(
-        decoded.width(),
-        decoded.height(),
-        decoded.into_raw(),
-    ))
+    tq_plugin::decode_tq_image(bytes).or_else(|| c3_play::native::decode_image(bytes))
 }
 
 /// Uploads `img` scaled down to at most `max` pixels on its longest side.
