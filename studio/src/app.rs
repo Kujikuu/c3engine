@@ -272,7 +272,8 @@ impl Studio {
         }
         if let Some(name) = flag("--make-map") {
             let form = crate::new_map::NewMapForm::default();
-            s.create_map(&name, form.width, form.height);
+            let ground = flag("--ground").unwrap_or_default();
+            s.create_map(&name, form.width, form.height, &ground);
         }
         if let Some(folder) = flag("--browse") {
             s.browse_to(&folder, false);

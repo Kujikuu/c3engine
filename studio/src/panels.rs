@@ -8,6 +8,7 @@ use crate::map_view::{self, ViewMode, colors};
 use crate::selection::Pickable;
 use crate::shell::Level;
 use crate::theme;
+use c3_edit::SceneCommand;
 use eframe::egui::{self, Color32, Key, RichText};
 
 impl Studio {
@@ -327,13 +328,10 @@ impl Studio {
     fn map_inspector(&mut self, ui: &mut egui::Ui) {
         let Some(doc) = &self.doc else { return };
         let scene = doc.scene();
+        let mut resize = None;
         theme::section(ui, "Map", |ui| {
             theme::kv(ui, "Name", doc.name());
-            theme::kv(
-                ui,
-                "Cells",
-                &format!("{} × {}", scene.grid.width, scene.grid.height),
-            );
+            resize = map_size_row(ui, (scene.grid.width, scene.grid.height));
             if let Some(g) = &scene.ground {
                 theme::kv(ui, "Ground", &format!("{} × {} tiles", g.width, g.height));
                 theme::kv(ui, "Ground file", &g.source);
@@ -344,6 +342,13 @@ impl Studio {
             theme::kv(ui, "Objects", &scene.entities.len().to_string());
             theme::kv(ui, "Portals", &scene.portals.len().to_string());
         });
+        if let Some((width, height)) = resize
+            && let Some(doc) = &mut self.doc
+            && let Err(e) = doc.execute(&SceneCommand::Resize { width, height })
+        {
+            self.error = Some(format!("Can't resize the map: {e}"));
+        }
+        let Some(doc) = &self.doc else { return };
         if !doc.warnings.is_empty() {
             let title = theme::icon_text(
                 icons::WARNING,
@@ -644,4 +649,37 @@ impl Studio {
             None => {}
         }
     }
+}
+
+/// The map's size in cells, editable: returns the size to resize to when Resize is clicked.
+fn map_size_row(ui: &mut egui::Ui, current: (u32, u32)) -> Option<(u32, u32)> {
+    let id = ui.scope_id().with("map size");
+    let mut size = ui.data(|d| d.get_temp(id)).unwrap_or(current);
+    let mut resize = None;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Cells").color(theme::TEXT_DIM));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if size != current {
+                if ui
+                    .button(theme::icon_text(icons::CORNERS_OUT, "Resize"))
+                    .on_hover_text("Grows or cuts the map at its far edges")
+                    .clicked()
+                {
+                    resize = Some(size);
+                }
+                if ui.button(icons::X).on_hover_text("Keep the size").clicked() {
+                    size = current;
+                }
+            }
+            ui.add(egui::DragValue::new(&mut size.1).range(c3_edit::MAP_SIDES));
+            ui.label("×");
+            ui.add(egui::DragValue::new(&mut size.0).range(c3_edit::MAP_SIDES));
+        });
+    });
+    if size == current || resize.is_some() {
+        ui.data_mut(|d| d.remove::<(u32, u32)>(id));
+    } else {
+        ui.data_mut(|d| d.insert_temp(id, size));
+    }
+    resize
 }

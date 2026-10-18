@@ -6,9 +6,11 @@ mod cells;
 mod objects;
 mod population;
 mod portals;
+mod resize;
 
 pub use cells::{Area, MAX_AREA_CELLS};
 pub use objects::entity_label;
+pub use resize::MAP_SIDES;
 
 use crate::history::{History, HistoryEntry};
 use crate::{EditError, Outcome};
@@ -62,6 +64,10 @@ pub enum SceneCommand {
     SetSpawn { spawn: Spawn },
     /// Deletes spawn area `id`.
     RemoveSpawn { id: u32 },
+    /// Makes the map `width` × `height` cells, growing or cutting at the far edges: cells
+    /// keep their place, and portals, NPCs and spawn areas off the new map go. A ground
+    /// of one repeated image grows with the map.
+    Resize { width: u32, height: u32 },
 }
 
 /// A recorded change, with what it replaced.
@@ -84,6 +90,11 @@ enum Change {
     Spawns {
         before: Vec<Spawn>,
         after: Vec<Spawn>,
+    },
+    /// The whole scene (a resize).
+    Whole {
+        before: Box<Scene>,
+        after: Box<Scene>,
     },
 }
 
@@ -127,6 +138,7 @@ impl SceneDoc {
             SceneCommand::AddSpawn { spawn } => self.add_spawn(spawn)?,
             SceneCommand::SetSpawn { spawn } => self.set_spawn(spawn)?,
             SceneCommand::RemoveSpawn { id } => self.remove_spawn(*id)?,
+            SceneCommand::Resize { width, height } => self.resize(*width, *height)?,
         };
         let changed = change.is_some();
         if let Some(change) = change {
@@ -173,6 +185,9 @@ impl SceneDoc {
             }
             Change::Spawns { before, after } => {
                 self.scene.spawns = pick(forward, before, after).clone()
+            }
+            Change::Whole { before, after } => {
+                self.scene = (**pick(forward, before, after)).clone()
             }
         }
     }

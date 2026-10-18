@@ -16,6 +16,8 @@ const CLEAR: [f64; 4] = [0.0044, 0.0044, 0.0044, 1.0];
 pub struct LiveScene {
     pub view: SceneView<ActorPart>,
     npcs: NpcActors,
+    /// Cells of the map the view was built for (a resize rebuilds it).
+    built_size: (u32, u32),
 }
 
 /// One actor per NPC whose model loads.
@@ -38,6 +40,7 @@ impl LiveScene {
         Self {
             view: SceneView::new(scene, game.assets(), tilt_deg, now_ms),
             npcs: NpcActors::default(),
+            built_size: (scene.grid.width, scene.grid.height),
         }
     }
 
@@ -69,6 +72,14 @@ impl LiveScene {
         renderer: &mut Renderer,
         view: &View,
     ) {
+        let size = (scene.grid.width, scene.grid.height);
+        if size != self.built_size {
+            let layers = self.view.layers;
+            self.view.release(renderer);
+            self.view = SceneView::new(scene, game.assets(), self.view.tilt_deg(), view.time_ms);
+            self.view.layers = layers;
+            self.built_size = size;
+        }
         self.npcs.sync(&scene.npcs, game, renderer);
         let now = view.time_ms;
         let cells: Vec<_> = (self.npcs.actors.iter())

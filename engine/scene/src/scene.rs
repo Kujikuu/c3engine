@@ -30,6 +30,46 @@ pub struct TileLayer {
 }
 
 impl TileLayer {
+    /// `image` repeated in `tile_size` squares over the whole diamond of `grid` as
+    /// `projection` places it (a new map's ground).
+    pub fn covering(image: &str, tile_size: u32, projection: &IsoProjection, grid: &Grid) -> Self {
+        let tile = tile_size.max(1);
+        let (w, h) = (grid.width as f32, grid.height as f32);
+        let (cell_w, cell_h) = (projection.cell_w, projection.cell_h);
+        let left = projection.origin.0 - cell_w * h / 2.0;
+        let right = projection.origin.0 + cell_w * w / 2.0;
+        let top = projection.origin.1 - cell_h / 2.0;
+        let bottom = projection.origin.1 + cell_h * (w + h) / 2.0;
+        let origin = (left.floor() as i32, top.floor() as i32);
+        let width = ((right - left) / tile as f32).ceil() as u32 + 1;
+        let height = ((bottom - top) / tile as f32).ceil() as u32 + 1;
+        Self {
+            source: image.to_owned(),
+            tile_size: tile,
+            width,
+            height,
+            tiles: vec![Some(0); (width * height) as usize],
+            tileset: Tileset {
+                source: image.to_owned(),
+                frames: BTreeMap::from([(0, image.to_owned())]),
+            },
+            origin,
+            scroll: (0, 0),
+        }
+    }
+
+    /// The one image this layer repeats everywhere, if it is such a ground (as
+    /// [`TileLayer::covering`] makes).
+    pub fn single_image(&self) -> Option<&str> {
+        let [(0, image)] = self.tileset.frames.iter().collect::<Vec<_>>()[..] else {
+            return None;
+        };
+        self.tiles
+            .iter()
+            .all(|t| *t == Some(0))
+            .then_some(image.as_str())
+    }
+
     /// Layer whose source couldn't be loaded: keeps the reference, has no tiles.
     pub fn missing(source: &str) -> Self {
         Self {

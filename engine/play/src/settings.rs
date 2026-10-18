@@ -36,6 +36,19 @@ pub fn pk_map(settings: &ProjectSettings, map_ids: &[u32]) -> bool {
         .any(|m| m.pk && map_ids.contains(&m.id))
 }
 
+/// The scene light of the map answering to `map_ids`: its own (the map list's `light`), or
+/// the project's.
+pub fn map_light(settings: &ProjectSettings, map_ids: &[u32]) -> c3_render::Light {
+    let mut graphics = settings.graphics.clone();
+    if let Some(light) = (settings.maps.iter())
+        .find(|m| map_ids.contains(&m.id))
+        .and_then(|m| m.light)
+    {
+        graphics.light = light;
+    }
+    crate::world::scene_light(&graphics)
+}
+
 /// A new character called `name` at `cell`, as the settings make them.
 pub fn new_character(settings: &GameplaySettings, name: &str, cell: CellPos) -> PlayerSave {
     let start = &settings.new_character;
@@ -139,7 +152,8 @@ mod tests {
         assert_eq!((save.level, save.money), (1, 500));
         assert_eq!(save.equipment, [410003.into()]);
         assert_eq!(save.cell, (3, 4));
-        let scene = crate::basic::blank_scene(40, 20, [64.0, 32.0]);
+        let scene =
+            crate::basic::blank_scene(40, 20, [64.0, 32.0], crate::basic::GroundImage::BUILTIN);
         assert_eq!(start_cell(&g, &scene), (20, 10));
         g.start_cell = Some([5, 6]);
         assert_eq!(start_cell(&g, &scene), (5, 6));

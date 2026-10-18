@@ -33,7 +33,7 @@ pub use query::{
     CellInfo, MAX_OBJECTS, MAX_WALKABILITY_CELLS, ObjectInfo, PortalInfo, QueryResult, SceneQuery,
     SceneSummary, WalkabilityMap, entity_kind_name,
 };
-pub use scene::{Area, MAX_AREA_CELLS, SceneCommand, SceneDoc, entity_label};
+pub use scene::{Area, MAP_SIDES, MAX_AREA_CELLS, SceneCommand, SceneDoc, entity_label};
 pub use script::{ScriptCommand, ScriptDoc};
 pub use settings::{SettingsCommand, SettingsDoc};
 pub use table::{TableCommand, TableDoc};

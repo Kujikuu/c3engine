@@ -253,13 +253,14 @@ impl Session {
                 _ => {}
             }
         }
+        let light = settings::map_light(&settings, &map_ids);
         let mut audio = GameAudio::new(Rc::clone(&game), map_ids);
         audio.apply(&settings.audio);
         let slots = settings::equipment_slots(&settings, &*game);
         let tilt = settings::tilt_deg(&settings, &*game);
         let mut world = World::new(Rc::clone(&game), map_path, scene, tilt);
         world.background = world::linear_background(settings.graphics.background);
-        world.light = world::scene_light(&settings.graphics);
+        world.light = light;
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.system(
@@ -364,7 +365,7 @@ impl Session {
         let hero = sim.add_saved_player(&save);
         sim.take_events();
         self.setup = setup;
-        self.replace_world(sim, hero, info.key.clone(), scene, renderer)?;
+        self.replace_world(sim, hero, info.key.clone(), &info.ids, scene, renderer)?;
         self.audio.set_map(info.ids.clone(), non_empty(&info.music));
         Ok(())
     }
@@ -388,7 +389,15 @@ impl Session {
         for update in updates {
             sim.apply_update(update);
         }
-        self.replace_world(sim, welcome.hero, welcome.map.clone(), scene, renderer)?;
+        let ids = welcome.map_ids.clone();
+        self.replace_world(
+            sim,
+            welcome.hero,
+            welcome.map.clone(),
+            &ids,
+            scene,
+            renderer,
+        )?;
         self.audio.set_map(welcome.map_ids, music);
         Ok(())
     }
@@ -399,13 +408,14 @@ impl Session {
         sim: Sim,
         hero: EntityId,
         map_path: String,
+        map_ids: &[u32],
         scene: Scene,
         renderer: &mut c3_render::Renderer,
     ) -> Result<(), String> {
         let tilt = settings::tilt_deg(&self.settings, &*self.world.game);
         let mut world = World::new(Rc::clone(&self.world.game), map_path, scene, tilt);
         world.background = self.world.background;
-        world.light = self.world.light;
+        world.light = settings::map_light(&self.settings, map_ids);
         let view = SimView::attach(&sim, hero, &mut world)?;
         self.world.release(renderer);
         self.world = world;
@@ -426,7 +436,7 @@ impl Session {
         self.sim.set_settings(settings.gameplay.clone());
         self.audio.apply(&settings.audio);
         self.world.background = world::linear_background(settings.graphics.background);
-        self.world.light = world::scene_light(&settings.graphics);
+        self.world.light = settings::map_light(&settings, &self.setup.map_ids);
         self.slots = settings::equipment_slots(&settings, &*self.world.game);
         self.settings = settings;
     }

@@ -115,7 +115,7 @@ impl ProjectSettings {
 }
 
 /// A map of the game, as the map list names it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapEntry {
     /// The map: a project scene's name (`Meadow`), or a map file of the game's content.
     pub key: String,
@@ -130,6 +130,9 @@ pub struct MapEntry {
     /// Players may attack each other here.
     #[serde(default, skip_serializing_if = "is_false")]
     pub pk: bool,
+    /// The light over this map (night, a cave); none: the project's (Graphics > Light).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub light: Option<[u8; 3]>,
 }
 
 fn is_false(b: &bool) -> bool {

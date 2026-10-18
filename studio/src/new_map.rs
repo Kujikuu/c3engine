@@ -1,10 +1,11 @@
-//! File > New Map: a blank, walkable map of the project, covered with the engine's default
-//! ground, ready to paint, populate and play.
+//! File > New Map: a blank, walkable map of the project, covered with one of its images
+//! (or the engine's default ground), ready to paint, populate and play.
 
 use crate::app::Studio;
 use crate::icons;
 use crate::maps::MapRef;
 use crate::theme;
+use c3_play::basic::GroundImage;
 use eframe::egui::{self, DragValue, RichText};
 
 /// Cells along a side of the smallest and the largest new map.
@@ -15,6 +16,10 @@ pub struct NewMapForm {
     pub name: String,
     pub width: u32,
     pub height: u32,
+    /// The image (an asset path) repeated over the ground; empty: the engine's.
+    pub ground: String,
+    /// The project's images, to pick the ground from.
+    images: Vec<String>,
 }
 
 impl Default for NewMapForm {
@@ -23,8 +28,34 @@ impl Default for NewMapForm {
             name: "New Map".into(),
             width: 128,
             height: 128,
+            ground: String::new(),
+            images: Vec::new(),
         }
     }
+}
+
+/// Image files under `dir`, as asset paths (`tiles/grass.png`), sorted.
+fn images_in(dir: &std::path::Path) -> Vec<String> {
+    const KINDS: [&str; 6] = ["png", "jpg", "jpeg", "bmp", "tga", "dds"];
+    let mut found = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(folder) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&folder) else {
+            continue;
+        };
+        for path in entries.flatten().map(|e| e.path()) {
+            if path.is_dir() {
+                stack.push(path);
+            } else if (path.extension().and_then(|e| e.to_str()))
+                .is_some_and(|e| KINDS.contains(&e.to_ascii_lowercase().as_str()))
+                && let Ok(rel) = path.strip_prefix(dir)
+            {
+                found.push(rel.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    found.sort();
+    found
 }
 
 /// A map name that is a plain file name: no folders, nothing Windows refuses.
@@ -44,18 +75,35 @@ impl Studio {
         if let Some(name) = name {
             form.name = name.to_owned();
         }
+        if let Some(project) = &self.project {
+            form.images = images_in(&project.assets_dir());
+        }
         self.new_map = Some(form);
     }
 
-    /// Writes a blank `width` × `height` map called `name` into the project and opens it.
-    pub(crate) fn create_map(&mut self, name: &str, width: u32, height: u32) {
+    /// Writes a blank `width` × `height` map called `name` into the project, its ground
+    /// covered with image `ground` (an asset path; empty: the engine's), and opens it.
+    pub(crate) fn create_map(&mut self, name: &str, width: u32, height: u32, ground: &str) {
         let Some(project) = &self.project else {
             return;
         };
         let file = project.map_file(name);
         let cell = (self.applied_settings.as_ref())
             .map_or([64.0, 32.0], |s| s.camera.new_map_cell.map(|v| v as f32));
-        let scene = c3_play::basic::blank_scene(width, height, cell);
+        let image = if ground.is_empty() {
+            GroundImage::BUILTIN
+        } else {
+            // Squares as wide as the image.
+            let Some(size) = (self.game.as_ref()).and_then(|g| g.assets().image(ground)) else {
+                self.error = Some(format!("Can't read the ground image {ground}"));
+                return;
+            };
+            GroundImage {
+                image: ground,
+                tile_size: size.width,
+            }
+        };
+        let scene = c3_play::basic::blank_scene(width, height, cell, image);
         let written = file
             .parent()
             .map_or(Ok(()), std::fs::create_dir_all)
@@ -85,9 +133,7 @@ impl Studio {
         maps.push(c3_core::settings::MapEntry {
             key: key.to_owned(),
             id: info.id(),
-            name: String::new(),
-            music: String::new(),
-            pk: false,
+            ..Default::default()
         });
         let command = c3_edit::SettingsCommand::Set {
             path: "maps".into(),
@@ -127,6 +173,9 @@ impl Studio {
                             ui.label(RichText::new("cells").color(theme::TEXT_DIM));
                         });
                         ui.end_row();
+                        ui.label("Ground");
+                        ground_picker(ui, &mut form.ground, &form.images);
+                        ui.end_row();
                     });
                 let name = form.name.trim();
                 let ok = valid_map_name(name);
@@ -137,7 +186,7 @@ impl Studio {
                     ("A map with this name exists", theme::WARNING)
                 } else {
                     (
-                        "Every cell walkable, covered with the default ground",
+                        "Every cell walkable, the ground image repeated over it",
                         theme::TEXT_DIM,
                     )
                 };
@@ -158,12 +207,34 @@ impl Studio {
             });
         if create {
             let (name, width, height) = (form.name.trim().to_owned(), form.width, form.height);
+            let ground = std::mem::take(&mut form.ground);
             self.new_map = None;
-            self.create_map(&name, width, height);
+            self.create_map(&name, width, height, &ground);
         } else if close {
             self.new_map = None;
         }
     }
+}
+
+/// The ground image: the engine's default, or one of `images`.
+fn ground_picker(ui: &mut egui::Ui, ground: &mut String, images: &[String]) {
+    const DEFAULT: &str = "Default ground";
+    let shown = if ground.is_empty() {
+        DEFAULT.to_owned()
+    } else {
+        ground.clone()
+    };
+    egui::ComboBox::from_id_salt("new map ground")
+        .selected_text(shown)
+        .width(220.0)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(ground, String::new(), DEFAULT);
+            for image in images {
+                ui.selectable_value(ground, image.clone(), image);
+            }
+        })
+        .response
+        .on_hover_text("Square, seamless images tile best");
 }
 
 #[cfg(test)]

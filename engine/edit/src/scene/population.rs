@@ -143,12 +143,12 @@ impl SceneDoc {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::super::tests::doc;
     use super::*;
     use crate::SceneCommand;
 
-    fn npc(id: u32, cell: CellPos) -> Npc {
+    pub(crate) fn npc(id: u32, cell: CellPos) -> Npc {
         Npc {
             id,
             name: "Guard".into(),

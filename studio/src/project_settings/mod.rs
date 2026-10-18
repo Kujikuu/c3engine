@@ -103,7 +103,7 @@ impl Section {
             }
             Self::Maps => {
                 "The game's maps: the ids portals, scripts and saves name them by, the names \
-                 players see, their music, and where players may fight each other. Maps not \
+                 players see, their music and light, and where players may fight each other. Maps not \
                  listed play too, with ids the engine gives them."
             }
             Self::Graphics => "How the client draws.",
@@ -1473,12 +1473,12 @@ impl Fields<'_> {
             );
         }
         egui::Grid::new("maps")
-            .num_columns(6)
+            .num_columns(7)
             .spacing([10.0, 6.0])
             .striped(true)
             .show(ui, |ui| {
                 if !list.is_empty() {
-                    for title in ["Map", "Id", "Name", "Music", "PvP", ""] {
+                    for title in ["Map", "Id", "Name", "Music", "PvP", "Light", ""] {
                         ui.label(RichText::new(title).color(theme::TEXT_DIM).small());
                     }
                     ui.end_row();
@@ -1524,6 +1524,7 @@ impl Fields<'_> {
                         .checkbox(&mut entry.pk, "")
                         .on_hover_text("Players may attack each other here")
                         .changed();
+                    changed |= map_light_field(ui, &mut entry.light);
                     if ui
                         .button(icons::TRASH)
                         .on_hover_text("Take the map off the list")
@@ -1555,9 +1556,7 @@ impl Fields<'_> {
             list.push(MapEntry {
                 key: m.key.clone(),
                 id: m.id(),
-                name: String::new(),
-                music: String::new(),
-                pk: false,
+                ..Default::default()
             });
             changed = true;
         }
@@ -1712,4 +1711,23 @@ impl Fields<'_> {
             self.set("localization.fonts", json!(list));
         }
     }
+}
+
+/// A map's own light: off uses the project's (Graphics > Light). Returns whether it changed.
+fn map_light_field(ui: &mut egui::Ui, light: &mut Option<[u8; 3]>) -> bool {
+    ui.horizontal(|ui| {
+        let mut own = light.is_some();
+        let mut changed = ui
+            .checkbox(&mut own, "")
+            .on_hover_text("Its own light (night, a cave); off: the project's")
+            .changed();
+        if changed {
+            *light = own.then_some([255, 255, 255]);
+        }
+        if let Some(color) = light {
+            changed |= ui.color_edit_button_srgb(color).changed();
+        }
+        changed
+    })
+    .inner
 }

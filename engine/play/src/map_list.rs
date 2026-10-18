@@ -132,7 +132,7 @@ mod tests {
             id: 5,
             name: "Green Meadow".into(),
             music: "sounds/theme.ogg".into(),
-            pk: false,
+            ..MapEntry::default()
         }];
         let list = MapList::from_parts(
             &listed,

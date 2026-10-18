@@ -13,7 +13,7 @@ use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_game::{Player, Rules};
 use c3_project::Project;
 use c3_render::SceneAssets;
-use c3_scene::{Grid, IsoProjection, Npc, Scene, TileLayer, Tileset};
+use c3_scene::{Grid, IsoProjection, Npc, Scene, TileLayer};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -192,32 +192,26 @@ impl SceneAssets for BasicAssets {
     }
 }
 
-/// A blank map `width` × `height` cells: all walkable, on the engine's default ground.
-pub fn blank_scene(width: u32, height: u32, cell: [f32; 2]) -> Scene {
+/// The ground image of a new map and the size of its squares.
+pub struct GroundImage<'a> {
+    pub image: &'a str,
+    pub tile_size: u32,
+}
+
+impl GroundImage<'_> {
+    /// The engine's own ground.
+    pub const BUILTIN: GroundImage<'static> = GroundImage {
+        image: GROUND_IMAGE,
+        tile_size: GROUND_TILE,
+    };
+}
+
+/// A blank map `width` × `height` cells: all walkable, covered with `ground`.
+pub fn blank_scene(width: u32, height: u32, cell: [f32; 2], ground: GroundImage) -> Scene {
     let [cell_w, cell_h] = cell;
     let grid = Grid::new(width.max(1), height.max(1));
     let projection = IsoProjection::for_grid(cell_w, cell_h, grid.width);
-    // The ground covers the map's diamond: from its left to its right corner, top to bottom.
-    let (w, h) = (grid.width as f32, grid.height as f32);
-    let left = projection.origin.0 - cell_w * h / 2.0;
-    let right = projection.origin.0 + cell_w * w / 2.0;
-    let bottom = cell_h * (w + h) / 2.0 + projection.origin.1;
-    let origin = (left.floor() as i32, 0);
-    let tiles_x = ((right - left) / GROUND_TILE as f32).ceil() as u32 + 1;
-    let tiles_y = (bottom / GROUND_TILE as f32).ceil() as u32 + 1;
-    let ground = TileLayer {
-        source: GROUND_IMAGE.to_owned(),
-        tile_size: GROUND_TILE,
-        width: tiles_x,
-        height: tiles_y,
-        tiles: vec![Some(0); (tiles_x * tiles_y) as usize],
-        tileset: Tileset {
-            source: GROUND_IMAGE.to_owned(),
-            frames: BTreeMap::from([(0, GROUND_IMAGE.to_owned())]),
-        },
-        origin,
-        scroll: (0, 0),
-    };
+    let ground = TileLayer::covering(ground.image, ground.tile_size, &projection, &grid);
     Scene {
         grid,
         projection,
@@ -237,7 +231,7 @@ mod tests {
 
     #[test]
     fn a_blank_map_is_walkable_and_has_ground() {
-        let scene = blank_scene(40, 30, [64.0, 32.0]);
+        let scene = blank_scene(40, 30, [64.0, 32.0], GroundImage::BUILTIN);
         assert_eq!((scene.grid.width, scene.grid.height), (40, 30));
         assert!(scene.grid.cells.iter().all(|c| !c.is_blocked()));
         let ground = scene.ground.as_ref().expect("ground");
