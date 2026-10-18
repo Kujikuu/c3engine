@@ -71,6 +71,7 @@ pub const STACK: &str = "\u{E466}";
 pub const STOP: &str = "\u{E46C}";
 pub const SWORD: &str = "\u{E5BA}";
 pub const TERMINAL: &str = "\u{E47E}";
+pub const TEXT_AA: &str = "\u{E6EE}";
 pub const TRANSLATE: &str = "\u{E4A2}";
 pub const TRASH: &str = "\u{E4A6}";
 pub const TREE: &str = "\u{E6DA}";

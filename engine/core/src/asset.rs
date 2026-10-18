@@ -297,7 +297,8 @@ pub struct ModelImport {
 
 impl Default for ModelImport {
     fn default() -> Self {
-        Self { scale: 32.0 }
+        // A 1.8 unit (metre) figure stands about as tall as a classic character.
+        Self { scale: 75.0 }
     }
 }
 

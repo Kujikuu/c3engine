@@ -2,22 +2,36 @@
 //! camera and animation playback. Models are −Z up (C3 convention).
 
 use crate::gpu::GpuView;
-use crate::tq_plugin::{Client, ModelEntry};
+use crate::tq_plugin::ModelEntry;
+use c3_anim::Clip;
 use c3_assets::model::Model;
-use c3_render::{Frame, MeshDraw, MeshVertex, TextureId, actor};
+use c3_render::{Frame, MeshDraw, MeshVertex, SceneAssets, TextureId, actor};
 use eframe::egui::{self, Color32, Pos2, Rect, Sense};
 use glam::camera::rh::{proj::directx, view::look_at_mat4};
 use glam::{Mat4, Vec3};
+use std::collections::HashMap;
 
 /// Playback rate of C3 motions.
 pub const FPS: f32 = 30.0;
 
+/// A model's named animation: one clip per part.
+pub struct ModelAnimation {
+    pub name: String,
+    pub clips: Vec<Option<Clip>>,
+}
+
 pub struct ModelDoc {
     pub entry: ModelEntry,
     pub model: Model,
+    /// One texture for the whole model (a TQ model's); else each part's own.
     pub texture_path: Option<String>,
-    /// Uploaded texture: outer `None` = not attempted yet, inner `None` = unavailable.
-    texture: Option<Option<TextureId>>,
+    /// Uploaded textures by path (`None`: unavailable).
+    textures: HashMap<String, Option<TextureId>>,
+    /// The model's animations (glTF), and the one playing.
+    pub animations: Vec<ModelAnimation>,
+    pub animation: usize,
+    /// Parts are tinted by their vertex colour (a glTF material's base colour).
+    pub material_colors: bool,
     /// Bind-pose bounds centre and radius, for framing.
     pub center: Vec3,
     pub radius: f32,
@@ -45,7 +59,10 @@ impl ModelDoc {
             entry,
             model,
             texture_path,
-            texture: None,
+            textures: HashMap::new(),
+            animations: Vec::new(),
+            animation: 0,
+            material_colors: false,
             center,
             radius,
             frame: 0.0,
@@ -77,19 +94,65 @@ impl ModelDoc {
         self.frame = (self.frame.floor() + delta as f32).rem_euclid(frames);
     }
 
+    /// A glTF model: its animations (playing the first) and material colours.
+    pub fn native(mut self, animations: Vec<ModelAnimation>) -> Self {
+        self.animations = animations;
+        self.material_colors = true;
+        self.play_animation(0);
+        self
+    }
+
+    /// The tint part `part` is drawn with.
+    fn tint(&self, part: usize) -> [f32; 4] {
+        let color = self.model.parts[part]
+            .mesh
+            .vertices
+            .first()
+            .map(|v| v.color);
+        match color {
+            Some(argb) if self.material_colors => {
+                let [a, r, g, b] = argb.to_be_bytes().map(|c| f32::from(c) / 255.0);
+                [r, g, b, a]
+            }
+            _ => [1.0; 4],
+        }
+    }
+
+    /// Poses the model with animation `index`.
+    pub fn play_animation(&mut self, index: usize) {
+        let Some(a) = self.animations.get(index) else {
+            return;
+        };
+        for (part, clip) in self.model.parts.iter_mut().zip(&a.clips) {
+            part.clip = clip.clone();
+        }
+        self.animation = index;
+        self.frame = 0.0;
+    }
+
     /// Releases GPU resources owned by this document.
     pub fn release(&mut self, gpu: &mut GpuView) {
-        if let Some(Some(t)) = self.texture.take() {
+        for t in self.textures.drain().filter_map(|(_, t)| t) {
             gpu.renderer.release_texture(t);
         }
     }
 
-    fn texture(&mut self, client: &Client, gpu: &mut GpuView) -> Option<TextureId> {
-        *self.texture.get_or_insert_with(|| {
-            let img = self
-                .texture_path
-                .as_deref()
-                .and_then(|p| client.load_image(p))?;
+    /// The texture part `part` is drawn with.
+    fn texture(
+        &mut self,
+        part: usize,
+        assets: &dyn SceneAssets,
+        gpu: &mut GpuView,
+    ) -> Option<TextureId> {
+        let path = match &self.texture_path {
+            Some(p) => p.clone(),
+            None => self.model.parts[part].mesh.texture.clone(),
+        };
+        if path.is_empty() {
+            return None;
+        }
+        *self.textures.entry(path).or_insert_with_key(|path| {
+            let img = assets.image(path)?;
             Some(gpu.renderer.upload_texture(&img))
         })
     }
@@ -116,7 +179,7 @@ impl Default for OrbitCamera {
 
 pub fn show(
     ui: &mut egui::Ui,
-    client: &Client,
+    assets: &dyn SceneAssets,
     gpu: &mut GpuView,
     doc: &mut ModelDoc,
     cam: &mut OrbitCamera,
@@ -139,7 +202,10 @@ pub fn show(
         ui.ctx().request_repaint();
     }
 
-    let texture = doc.texture(client, gpu);
+    let textures: Vec<Option<TextureId>> = (0..doc.model.parts.len())
+        .map(|i| doc.texture(i, assets, gpu))
+        .collect();
+    let tints: Vec<[f32; 4]> = (0..doc.model.parts.len()).map(|i| doc.tint(i)).collect();
     let parts: Vec<(Vec<MeshVertex>, &[u32])> = (0..doc.model.parts.len())
         .map(|i| {
             (
@@ -154,12 +220,13 @@ pub fn show(
         .collect();
     let draws: Vec<MeshDraw> = parts
         .iter()
-        .map(|(v, i)| MeshDraw {
+        .zip(textures.iter().zip(&tints))
+        .map(|((v, i), (&texture, &tint))| MeshDraw {
             vertices: v,
             indices: i,
             texture,
             transform: Mat4::IDENTITY,
-            tint: [1.0; 4],
+            tint,
             group: Some(0),
             // Lit, so shapes read clearly in the editor.
             style: c3_render::MeshStyle {

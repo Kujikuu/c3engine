@@ -268,11 +268,6 @@ impl Client {
         (files, self.fs().packed_count())
     }
 
-    /// Decodes an image asset (DDS/TGA).
-    pub fn load_image(&self, path: &str) -> Option<Image> {
-        texture::decode_image(&self.fs().read(path)?).ok()
-    }
-
     /// Writes `scene` to the DMap at `path` (atomic). With `backup`, the original is first
     /// kept as `<file>.bak` (once), for content that isn't the project's own copy.
     pub fn save_map(&self, scene: &Scene, path: &str, backup: bool) -> Result<PathBuf, String> {

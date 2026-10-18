@@ -38,11 +38,6 @@ impl ProjectGame {
         };
         (Self { game, assets }, problems)
     }
-
-    /// The project's own assets (to reload them when they change).
-    pub fn native(&self) -> &NativeAssets {
-        &self.assets.native
-    }
 }
 
 impl SceneAssets for Layered {
@@ -151,5 +146,9 @@ impl GameModule for ProjectGame {
 
     fn music_regions(&self) -> Vec<MusicRegion> {
         self.game.music_regions()
+    }
+
+    fn native(&self) -> Option<&NativeAssets> {
+        Some(&self.assets.native)
     }
 }

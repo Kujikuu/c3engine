@@ -116,6 +116,11 @@ pub trait GameModule {
     fn music_regions(&self) -> Vec<MusicRegion> {
         Vec::new()
     }
+    /// The project's own assets, when the game plays in a project
+    /// ([`crate::project_game::ProjectGame`]).
+    fn native(&self) -> Option<&crate::native::NativeAssets> {
+        None
+    }
 }
 
 /// Map `key` of `project` when it is one of the project's own scenes.

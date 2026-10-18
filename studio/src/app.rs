@@ -268,11 +268,15 @@ impl Studio {
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
         }
-        if let Some(id) = flag("--model").and_then(|m| m.parse::<u64>().ok()) {
+        // A TQ model by id, or a glTF model of the project's assets by path.
+        if let Some(model) = flag("--model") {
             s.workspace = Workspace::Models;
-            match s.models.iter().find(|e| e.id == id).cloned() {
-                Some(entry) => s.open_model(&entry),
-                None => s.error = Some(format!("Model {id} is not in 3dobj.ini")),
+            match model.parse::<u64>() {
+                Ok(id) => match s.models.iter().find(|e| e.id == id).cloned() {
+                    Some(entry) => s.open_model(&entry),
+                    None => s.error = Some(format!("Model {id} is not in 3dobj.ini")),
+                },
+                Err(_) => s.open_model(&crate::tq_plugin::ModelEntry { id: 0, path: model }),
             }
         }
         if let Some(z) = flag("--zoom").and_then(|z| z.parse().ok()) {
@@ -1032,6 +1036,10 @@ impl Studio {
         let project = self.project_name();
         let title = match (&self.project, self.workspace, &self.doc, &self.model) {
             (None, ..) => "C3 Studio".to_owned(),
+            (_, Workspace::Models, _, Some(m)) if m.entry.id == 0 => {
+                let name = m.entry.path.rsplit('/').next().unwrap_or(&m.entry.path);
+                format!("{name} — {project} — C3 Studio")
+            }
             (_, Workspace::Models, _, Some(m)) => {
                 format!("Model {} — {project} — C3 Studio", m.entry.id)
             }

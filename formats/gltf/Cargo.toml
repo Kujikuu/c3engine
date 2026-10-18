@@ -1,0 +1,10 @@
+[package]
+name = "c3-formats-gltf"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+c3-anim = { version = "0.1.0", path = "../../engine/anim" }
+c3-assets = { version = "0.1.0", path = "../../engine/assets" }
+glam = "0.34.1"
+gltf = "1.4"

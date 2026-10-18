@@ -30,7 +30,10 @@ pub(crate) enum AssetKind {
     Map,
     Scene,
     Model,
+    /// A glTF model of the project's own.
+    Gltf,
     Texture,
+    Font,
     Sprites,
     Puzzle,
     Terrain,
@@ -49,6 +52,8 @@ impl AssetKind {
         let ext = lower.rsplit_once('.').map_or("", |(_, e)| e);
         tq_plugin::tq_kind(ext).unwrap_or(match ext {
             "dds" | "tga" | "png" | "jpg" | "jpeg" | "bmp" => Self::Texture,
+            "gltf" | "glb" => Self::Gltf,
+            "ttf" | "otf" => Self::Font,
             "wav" | "mp3" | "ogg" => Self::Sound,
             "txt" | "ron" | "toml" | "json" | "csv" | "lua" => Self::Data,
             _ => Self::Other,
@@ -59,7 +64,8 @@ impl AssetKind {
         match self {
             Self::Folder => icons::FOLDER,
             Self::Map | Self::Scene => icons::MAP_TRIFOLD,
-            Self::Model => icons::CUBE,
+            Self::Model | Self::Gltf => icons::CUBE,
+            Self::Font => icons::TEXT_AA,
             Self::Texture => icons::IMAGE,
             Self::Sprites => icons::FILM_STRIP,
             Self::Puzzle => icons::PUZZLE_PIECE,
@@ -75,11 +81,11 @@ impl AssetKind {
         match self {
             Self::Folder => Color32::from_rgb(214, 180, 96),
             Self::Map | Self::Scene => Color32::from_rgb(120, 190, 120),
-            Self::Model => Color32::from_rgb(110, 165, 230),
+            Self::Model | Self::Gltf => Color32::from_rgb(110, 165, 230),
             Self::Texture => Color32::from_rgb(196, 140, 220),
             Self::Sprites | Self::Puzzle | Self::Terrain => Color32::from_rgb(230, 160, 100),
             Self::Package => Color32::from_rgb(180, 150, 110),
-            Self::Data | Self::Sound | Self::Other => Color32::from_gray(170),
+            Self::Data | Self::Sound | Self::Font | Self::Other => Color32::from_gray(170),
         }
     }
 
@@ -89,6 +95,8 @@ impl AssetKind {
             Self::Map => "Map (DMap)",
             Self::Scene => "Engine scene",
             Self::Model => "Model / effect (C3)",
+            Self::Gltf => "Model (glTF)",
+            Self::Font => "Font",
             Self::Texture => "Texture",
             Self::Sprites => "Sprite set (ANI)",
             Self::Puzzle => "Ground tiles (PUL)",
@@ -102,7 +110,7 @@ impl AssetKind {
 
     /// Whether double-click opens it in the Scene view.
     fn opens(self) -> bool {
-        matches!(self, Self::Map | Self::Scene | Self::Model)
+        matches!(self, Self::Map | Self::Scene | Self::Model | Self::Gltf)
     }
 }
 
@@ -899,6 +907,14 @@ impl Studio {
                 self.workspace = Workspace::Maps;
                 self.inspect_asset = false;
                 self.open_map(&MapRef::Project(name));
+            }
+            AssetKind::Gltf => {
+                self.workspace = Workspace::Models;
+                self.inspect_asset = false;
+                self.open_model(&tq_plugin::ModelEntry {
+                    id: 0,
+                    path: key.rel.clone(),
+                });
             }
             AssetKind::Model if root.is_content => {
                 let entry = self

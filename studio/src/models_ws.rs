@@ -3,7 +3,7 @@
 
 use crate::app::Studio;
 use crate::icons;
-use crate::model_view::{self, ModelDoc, OrbitCamera};
+use crate::model_view::{self, ModelAnimation, ModelDoc, OrbitCamera};
 use crate::theme;
 use crate::tq_plugin::ModelEntry;
 use eframe::egui::{self, Key, RichText};
@@ -19,22 +19,48 @@ impl Studio {
     }
 
     pub(crate) fn open_model(&mut self, entry: &ModelEntry) {
-        let Some(client) = &self.client else { return };
         if self.model.as_ref().is_some_and(|m| m.entry == *entry) {
             return;
         }
-        match client.import_model(&entry.path) {
-            Ok(model) => {
+        let doc = if is_native_model(&entry.path) {
+            self.native_model(entry)
+        } else {
+            let Some(client) = &self.client else { return };
+            client.import_model(&entry.path).map(|model| {
                 let texture = client.texture_for(entry.id).map(str::to_owned);
+                ModelDoc::new(entry.clone(), model, texture)
+            })
+        };
+        match doc {
+            Ok(doc) => {
                 if let (Some(old), Some(gpu)) = (&mut self.model, &mut self.gpu) {
                     old.release(gpu);
                 }
-                self.model = Some(ModelDoc::new(entry.clone(), model, texture));
+                self.model = Some(doc);
                 self.orbit = OrbitCamera::default();
                 self.error = None;
             }
             Err(e) => self.error = Some(e),
         }
+    }
+
+    /// A glTF model of the project's assets.
+    fn native_model(&self, entry: &ModelEntry) -> Result<ModelDoc, String> {
+        let native = self
+            .game
+            .as_ref()
+            .and_then(|g| g.native())
+            .ok_or("the project's assets aren't open")?;
+        let imported = native.model(&entry.path)?;
+        let animations = imported
+            .animations
+            .iter()
+            .map(|a| ModelAnimation {
+                name: a.name.clone(),
+                clips: a.clips.clone(),
+            })
+            .collect();
+        Ok(ModelDoc::new(entry.clone(), imported.model.clone(), None).native(animations))
     }
 
     pub(crate) fn model_shortcuts(&mut self, ctx: &egui::Context) {
@@ -110,13 +136,18 @@ impl Studio {
             .auto_shrink(false)
             .show(ui, |ui| {
                 theme::section(ui, "Model", |ui| {
-                    theme::kv(ui, "Id", &m.entry.id.to_string());
+                    if m.entry.id != 0 {
+                        theme::kv(ui, "Id", &m.entry.id.to_string());
+                    }
                     theme::kv(ui, "File", &m.entry.path);
-                    theme::kv(
-                        ui,
-                        "Texture",
-                        m.texture_path.as_deref().unwrap_or("none (untextured)"),
-                    );
+                    let texture = match &m.texture_path {
+                        Some(t) => t.as_str(),
+                        None if m.model.parts.iter().any(|p| !p.mesh.texture.is_empty()) => {
+                            "each part's own"
+                        }
+                        None => "none (untextured)",
+                    };
+                    theme::kv(ui, "Texture", texture);
                     let verts: usize = m.model.parts.iter().map(|p| p.mesh.vertices.len()).sum();
                     let tris: usize = m.model.parts.iter().map(|p| p.mesh.indices.len() / 3).sum();
                     theme::kv(
@@ -134,6 +165,19 @@ impl Studio {
                     }
                 });
                 theme::section(ui, "Playback", |ui| {
+                    if !m.animations.is_empty() {
+                        let mut pick = m.animation;
+                        egui::ComboBox::from_label("animation")
+                            .selected_text(&m.animations[m.animation].name)
+                            .show_ui(ui, |ui| {
+                                for (i, a) in m.animations.iter().enumerate() {
+                                    ui.selectable_value(&mut pick, i, &a.name);
+                                }
+                            });
+                        if pick != m.animation {
+                            m.play_animation(pick);
+                        }
+                    }
                     let frames = m.frame_count();
                     if frames == 0 {
                         ui.label(RichText::new("No animation.").weak());
@@ -181,7 +225,7 @@ impl Studio {
     }
 
     pub(crate) fn model_viewport(&mut self, ui: &mut egui::Ui) {
-        let (Some(client), Some(gpu), Some(doc)) = (&self.client, &mut self.gpu, &mut self.model)
+        let (Some(game), Some(gpu), Some(doc)) = (&self.game, &mut self.gpu, &mut self.model)
         else {
             theme::empty_state(
                 ui,
@@ -191,6 +235,11 @@ impl Studio {
             );
             return;
         };
-        model_view::show(ui, client, gpu, doc, &mut self.orbit);
+        model_view::show(ui, game.assets(), gpu, doc, &mut self.orbit);
     }
+}
+
+/// Whether `path` is a glTF model (the project's own) rather than a TQ one.
+pub(crate) fn is_native_model(path: &str) -> bool {
+    matches!(c3_core::asset::extension(path).as_str(), "gltf" | "glb")
 }

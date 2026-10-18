@@ -1,12 +1,14 @@
-//! The project's own assets, the Unity way: plain images (PNG, JPG, BMP, TGA), sounds and other
-//! files in `assets/`, used as they are and read through their sidecars
+//! The project's own assets, the Unity way: plain images (PNG, JPG, BMP, TGA), glTF models,
+//! sounds and other files in `assets/`, used as they are and read through their sidecars
 //! ([`c3_core::asset::AssetMeta`]). An image sliced into a grid is a sprite sheet: its frames are
-//! images of their own (`path#index`), its animations a sprite set, its frames a tileset.
+//! images of their own (`path#index`), its animations a sprite set, its frames a tileset. A
+//! model's textures are images named `model#texture<i>`.
 
 use c3_assets::Image;
 use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_core::asset::{Filter, ImageImport, Importer, frame_path, split_frame};
+use c3_formats_gltf::Imported;
 use c3_project::{AssetDb, Project};
 use c3_render::SceneAssets;
 use c3_scene::{TileLayer, Tileset};
@@ -22,6 +24,8 @@ pub struct NativeAssets {
     db: RefCell<AssetDb>,
     /// Decoded images by file (`None`: not an image, or unreadable).
     decoded: RefCell<HashMap<String, Option<Rc<Image>>>>,
+    /// Read models by file, or why they couldn't be read.
+    models: RefCell<HashMap<String, Result<Rc<Imported>, String>>>,
 }
 
 impl NativeAssets {
@@ -35,6 +39,7 @@ impl NativeAssets {
         Self {
             db: RefCell::new(db),
             decoded: RefCell::new(HashMap::new()),
+            models: RefCell::new(HashMap::new()),
         }
     }
 
@@ -44,12 +49,14 @@ impl NativeAssets {
             .strip_suffix(c3_core::asset::META_SUFFIX)
             .unwrap_or(path);
         self.decoded.borrow_mut().remove(file);
+        self.models.borrow_mut().remove(file);
         self.db.borrow_mut().refresh(file)
     }
 
     /// Reads every asset again.
     pub fn reload_all(&self) -> Vec<String> {
         self.decoded.borrow_mut().clear();
+        self.models.borrow_mut().clear();
         self.db.borrow_mut().rescan()
     }
 
@@ -59,6 +66,27 @@ impl NativeAssets {
             Importer::Image(i) => Some(i.clone()),
             _ => None,
         }
+    }
+
+    /// Model `path` (glTF), read with its import settings.
+    pub fn model(&self, path: &str) -> Result<Rc<Imported>, String> {
+        if let Some(cached) = self.models.borrow().get(path) {
+            return cached.clone();
+        }
+        let read = {
+            let db = self.db.borrow();
+            match db.importer(path) {
+                Some(Importer::Model(m)) => {
+                    c3_formats_gltf::load(&db.file(path), path, m.scale).map(Rc::new)
+                }
+                Some(_) => Err(format!("{path} isn't imported as a model")),
+                None => Err(format!("the project has no asset \"{path}\"")),
+            }
+        };
+        self.models
+            .borrow_mut()
+            .insert(path.to_owned(), read.clone());
+        read
     }
 
     /// The bytes of file `path` of the assets.
@@ -144,6 +172,9 @@ impl SceneAssets for NativeAssets {
     }
 
     fn image(&self, path: &str) -> Option<Image> {
+        if let Some((model, index)) = c3_formats_gltf::split_texture_path(path) {
+            return self.model(model).ok()?.images.get(index).cloned();
+        }
         let (file, frame) = split_frame(path);
         let image = self.decode(file)?;
         let import = self.image_import(file)?;
