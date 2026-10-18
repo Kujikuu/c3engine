@@ -310,7 +310,22 @@ impl Studio {
             return;
         };
         let tilt = self.tilt_deg();
-        let stage = (self.stage).get_or_insert_with(|| Stage::new(Rc::clone(game), state, tilt));
+        if self.stage.is_none() {
+            self.stage = Some(Stage::new(Rc::clone(game), state, tilt));
+        }
+        // A project effect opens in the editor beside the stage.
+        if self.effect_editor.is_some() {
+            egui::Panel::right("effect editor")
+                .resizable(true)
+                .default_size(300.0)
+                .size_range(240.0..=480.0)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .auto_shrink(false)
+                        .show(ui, |ui| self.effect_editor_ui(ui));
+                });
+        }
+        let Some(stage) = &mut self.stage else { return };
         let mut play_effect = false;
         let mut pick_effect = None;
         egui::Panel::left("stage controls")
@@ -337,9 +352,11 @@ impl Studio {
             stage.rebuild();
         }
         if let Some(name) = pick_effect {
-            stage.effect = name;
+            stage.effect = name.clone();
             play_effect = true;
+            self.open_effect(&name);
         }
+        let Some(stage) = &mut self.stage else { return };
         if play_effect && let Err(e) = stage.play_effect() {
             self.error = Some(format!("Can't play the effect: {e}"));
         }

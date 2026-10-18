@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 /// How often trails record a new step.
 const TRAIL_STEP_MS: u64 = 30;
 /// In-between edges per trail step (`Shape_SetSegment` smoothing).
-const TRAIL_SMOOTHING: usize = 5;
+pub const TRAIL_SMOOTHING: usize = 5;
 /// Distance from the screen plane to the classic camera (`CMyBitmap::GameCameraCreate`).
 const CAMERA_DISTANCE: f32 = 1000.0;
 

@@ -41,6 +41,8 @@ pub(crate) enum Focus {
     Settings,
     /// The project's assets (the Project panel and the Inspector's Import section).
     Assets,
+    /// The effect being edited in the Preview panel.
+    Effect,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -144,6 +146,8 @@ pub struct Studio {
     /// The Ground tool's palette thumbnails.
     pub(crate) ground_thumbs: crate::ground_panel::Thumbnails,
     pub(crate) world: crate::world_view::WorldView,
+    /// The project effect open in the Preview panel's editor.
+    pub(crate) effect_editor: Option<crate::effect_editor::EffectEditor>,
     /// Panels asked to the front while the dock was drawing.
     pub(crate) panel_requests: Vec<crate::shell::Panel>,
     pub(crate) drawing_dock: bool,
@@ -253,6 +257,7 @@ impl Studio {
             clipboard: None,
             ground_thumbs: Default::default(),
             world: Default::default(),
+            effect_editor: None,
             panel_requests: Vec::new(),
             drawing_dock: false,
             hover: None,
@@ -976,6 +981,7 @@ impl Studio {
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.undo(),
             Focus::Settings | Focus::Assets => None,
+            Focus::Effect => self.effect_step(false),
         };
         if let Some(doc) = &self.doc {
             self.editor.forget_missing(doc.scene());
@@ -1006,6 +1012,7 @@ impl Studio {
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.redo(),
             Focus::Settings | Focus::Assets => None,
+            Focus::Effect => self.effect_step(true),
         };
         if let Some(doc) = &self.doc {
             self.editor.forget_missing(doc.scene());
@@ -1051,6 +1058,7 @@ impl Studio {
                     doc.and_then(|d| d.redo_label()).map(str::to_owned),
                 )
             }
+            Focus::Effect => self.effect_labels(),
         }
     }
 
@@ -1081,6 +1089,7 @@ impl Studio {
                 Some(("Project Settings".to_owned(), s.doc.history()))
             }
             Focus::Assets => Some(("Assets".to_owned(), self.assets.as_ref()?.history())),
+            Focus::Effect => self.effect_history(),
         }
     }
 
@@ -1188,8 +1197,8 @@ impl Studio {
                 Focus::Dialogue => {
                     self.save_dialogue();
                 }
-                // Settings and assets are saved as they change.
-                Focus::Settings | Focus::Assets => {}
+                // Settings, assets and effects are saved as they change.
+                Focus::Settings | Focus::Assets | Focus::Effect => {}
             }
         }
         if ctx.egui_wants_keyboard_input() {

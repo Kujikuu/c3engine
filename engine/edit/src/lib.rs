@@ -13,7 +13,8 @@
 //! ```
 //!
 //! Each kind of document has its doc and commands: scenes, tables (`TableDoc`), settings
-//! (`SettingsDoc`), assets (`AssetDoc`), dialogues (`DialogueDoc`) and scripts (`ScriptDoc`).
+//! (`SettingsDoc`), assets (`AssetDoc`), dialogues (`DialogueDoc`) and scripts (`ScriptDoc`);
+//! files edited as one value (effects, animation sets) use `ValueDoc`.
 
 mod assets;
 mod dialogue;
@@ -24,6 +25,7 @@ mod scene;
 mod script;
 mod settings;
 mod table;
+mod value;
 
 pub use assets::{AssetCommand, AssetDoc};
 pub use dialogue::{DialogueCommand, DialogueDoc};
@@ -37,6 +39,7 @@ pub use scene::{Area, MAP_SIDES, MAX_AREA_CELLS, SceneCommand, SceneDoc, entity_
 pub use script::{ScriptCommand, ScriptDoc};
 pub use settings::{SettingsCommand, SettingsDoc};
 pub use table::{TableCommand, TableDoc};
+pub use value::ValueDoc;
 
 use serde::Serialize;
 
