@@ -15,6 +15,10 @@ pub struct ProjectSettings {
     pub camera: CameraSettings,
     pub input: InputSettings,
     pub gameplay: GameplaySettings,
+    /// The game's maps: their ids (what portals and scripts name them by), names, music. Maps
+    /// of the project that aren't listed still play, with ids the engine gives them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub maps: Vec<MapEntry>,
     pub graphics: GraphicsSettings,
     pub audio: AudioSettings,
     pub network: NetworkSettings,
@@ -105,8 +109,50 @@ impl ProjectSettings {
             "The save interval and join timeout must be 1 second or more",
         );
         problems.extend(self.input.problems());
+        problems.extend(map_problems(&self.maps));
         problems
     }
+}
+
+/// A map of the game, as the map list names it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MapEntry {
+    /// The map: a project scene's name (`Meadow`), or a map file of the game's content.
+    pub key: String,
+    /// What portals, scripts and saves name the map by; 1 or more.
+    pub id: u32,
+    /// The name players see (the key's file name when empty).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    /// Music played on the map (a sound asset); none when empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub music: String,
+    /// Players may attack each other here.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pk: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !b
+}
+
+fn map_problems(maps: &[MapEntry]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (i, m) in maps.iter().enumerate() {
+        if m.key.trim().is_empty() {
+            out.push(format!("Map {} of the list names no map", i + 1));
+        }
+        if m.id == 0 {
+            out.push(format!("Map {} needs an id of 1 or more", m.key));
+        }
+        if maps[..i].iter().any(|o| o.id == m.id) {
+            out.push(format!("Two maps have id {}", m.id));
+        }
+        if maps[..i].iter().any(|o| o.key == m.key) {
+            out.push(format!("Map {} is listed twice", m.key));
+        }
+    }
+    out
 }
 
 /// The game as a program: its name, icon and window.

@@ -102,6 +102,7 @@ pub fn scene_from_dmap(dmap: &DMap, ground: TileLayer) -> Scene {
             .map(|p| Portal {
                 cell: (p.x, p.y),
                 id: p.index,
+                to: None,
             })
             .collect(),
         entities: dmap.interactive.iter().map(entity_from_tq).collect(),

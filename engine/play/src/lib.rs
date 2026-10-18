@@ -21,6 +21,7 @@ pub mod controls;
 pub mod cursor;
 pub mod game;
 pub mod input;
+pub mod map_list;
 pub mod module;
 pub mod native;
 pub mod native_effect;

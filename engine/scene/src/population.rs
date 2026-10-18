@@ -65,17 +65,27 @@ impl Spawn {
     }
 }
 
-/// A map's NPCs and spawn areas, as one value (the population file of a map).
+/// Where portal `portal` of the map leads (for maps whose files can't say).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PortalLink {
+    pub portal: i32,
+    pub to: crate::PortalTarget,
+}
+
+/// A map's NPCs, spawn areas and portal destinations, as one value (the population file of
+/// a map).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Population {
     #[serde(default)]
     pub npcs: Vec<Npc>,
     #[serde(default)]
     pub spawns: Vec<Spawn>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<PortalLink>,
 }
 
 impl Population {
     pub fn is_empty(&self) -> bool {
-        self.npcs.is_empty() && self.spawns.is_empty()
+        self.npcs.is_empty() && self.spawns.is_empty() && self.links.is_empty()
     }
 }

@@ -1,6 +1,6 @@
 //! Scene contents: ground tiles, portals, entities, parallax layers, population.
 
-use crate::{CellPos, Grid, IsoProjection, Npc, Population, Spawn, WorldPos};
+use crate::{CellPos, Grid, IsoProjection, Npc, Population, PortalLink, Spawn, WorldPos};
 use schemars::JsonSchema;
 use std::collections::BTreeMap;
 
@@ -65,11 +65,21 @@ impl TileLayer {
     }
 }
 
-/// Exit point on the map; `id` is matched to a destination by the game's data.
+/// Exit point on the map. `to` is where it leads (set in the editor, or from the game's data
+/// for maps that can't hold it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Portal {
     pub cell: CellPos,
     pub id: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<PortalTarget>,
+}
+
+/// Where a portal leads: a cell of a map, by the map's id (the project's map list).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, JsonSchema)]
+pub struct PortalTarget {
+    pub map: u32,
+    pub cell: CellPos,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, JsonSchema)]
@@ -175,12 +185,25 @@ impl Scene {
         Population {
             npcs: self.npcs.clone(),
             spawns: self.spawns.clone(),
+            links: self
+                .portals
+                .iter()
+                .filter_map(|p| p.to.map(|to| PortalLink { portal: p.id, to }))
+                .collect(),
         }
     }
 
+    /// Takes the NPCs, spawn areas and portal destinations of `population`.
     pub fn set_population(&mut self, population: Population) {
         self.npcs = population.npcs;
         self.spawns = population.spawns;
+        for portal in &mut self.portals {
+            portal.to = population
+                .links
+                .iter()
+                .find(|l| l.portal == portal.id)
+                .map(|l| l.to);
+        }
     }
 
     /// World position of an entity.

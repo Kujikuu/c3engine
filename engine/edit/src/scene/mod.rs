@@ -12,7 +12,7 @@ pub use objects::entity_label;
 
 use crate::history::{History, HistoryEntry};
 use crate::{EditError, Outcome};
-use c3_scene::{CellPos, Entity, Npc, Portal, Scene, Spawn};
+use c3_scene::{CellPos, Entity, Npc, Portal, PortalTarget, Scene, Spawn};
 use cells::CellChange;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,8 @@ pub enum SceneCommand {
     MovePortal { id: i32, to: CellPos },
     /// Deletes portal `id`.
     RemovePortal { id: i32 },
+    /// Sets where portal `id` leads (a map id and a cell); `null` leads nowhere.
+    SetPortalTarget { id: i32, to: Option<PortalTarget> },
     /// Places an object (sprite, terrain prefab, sound or effect) at `index` in the entity
     /// list, or at the end.
     AddEntity {
@@ -113,6 +115,7 @@ impl SceneDoc {
             SceneCommand::AddPortal { cell, id } => self.add_portal(*cell, *id)?,
             SceneCommand::MovePortal { id, to } => self.move_portal(*id, *to)?,
             SceneCommand::RemovePortal { id } => self.remove_portal(*id)?,
+            SceneCommand::SetPortalTarget { id, to } => self.set_portal_target(*id, *to)?,
             SceneCommand::AddEntity { entity, index } => self.add_entity(entity, *index)?,
             SceneCommand::MoveEntity { index, to } => self.move_entity(*index, *to)?,
             SceneCommand::SetEntity { index, entity } => self.set_entity(*index, entity)?,

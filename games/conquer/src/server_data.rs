@@ -1,11 +1,12 @@
-//! The server's map population in TQ's database schema (`cq_npc`, `cq_generator`), which Redux
-//! also runs on: read from an SQL dump into engine [`Npc`]s and [`Spawn`]s, and written back
-//! as SQL to load into the server's database.
+//! The server's map population in TQ's database schema (`cq_npc`, `cq_generator`, and the
+//! portals' destinations in `cq_passway` + `cq_portal`), which Redux also runs on: read from an
+//! SQL dump into engine [`Npc`]s, [`Spawn`]s and [`PortalLink`]s, and NPCs and spawns written
+//! back as SQL to load into the server's database.
 //!
 //! Engine fields carry what the editor shows and moves; every other column rides along in
 //! `extra` under its column name, so a row exports as it was imported.
 
-use c3_scene::{Npc, Population, Spawn};
+use c3_scene::{Npc, Population, PortalLink, PortalTarget, Spawn};
 use std::collections::{BTreeMap, HashMap};
 
 /// The table of item types (names, prices, stats).
@@ -58,6 +59,16 @@ const NPC_COLUMNS: [&str; 29] = [
     "itemid",
 ];
 
+const PASSWAY_COLUMNS: [&str; 5] = [
+    "id",
+    "mapid",
+    "passway_idx",
+    "passway_mapid",
+    "passway_mapportal",
+];
+
+const PORTAL_COLUMNS: [&str; 5] = ["id", "mapid", "portal_idx", "portal_x", "portal_y"];
+
 const GENERATOR_COLUMNS: [&str; 14] = [
     "id",
     "mapid",
@@ -105,6 +116,9 @@ impl ServerPopulation {
     pub fn from_sql(sql: &str) -> Self {
         let mut npcs: BTreeMap<u32, Npc> = BTreeMap::new();
         let mut spawns: BTreeMap<u32, Spawn> = BTreeMap::new();
+        // (map, passway) -> (target map, target portal); (map, portal) -> cell.
+        let mut passways: BTreeMap<(u32, i32), (u32, i32)> = BTreeMap::new();
+        let mut portals: HashMap<(u32, i32), (i32, i32)> = HashMap::new();
         let mut skipped = 0;
         for line in sql.lines() {
             if let Some(values) = insert_values(line, "cq_npc") {
@@ -121,6 +135,26 @@ impl ServerPopulation {
                     }
                     None => skipped += 1,
                 }
+            } else if let Some(values) = insert_values(line, "cq_passway") {
+                match Row::new(&PASSWAY_COLUMNS, &values) {
+                    Some(row) => {
+                        passways.insert(
+                            (row.number("mapid"), row.number("passway_idx")),
+                            (row.number("passway_mapid"), row.number("passway_mapportal")),
+                        );
+                    }
+                    None => skipped += 1,
+                }
+            } else if let Some(values) = insert_values(line, "cq_portal") {
+                match Row::new(&PORTAL_COLUMNS, &values) {
+                    Some(row) => {
+                        portals.insert(
+                            (row.number("mapid"), row.number("portal_idx")),
+                            (row.number("portal_x"), row.number("portal_y")),
+                        );
+                    }
+                    None => skipped += 1,
+                }
             }
         }
         let mut maps: HashMap<u32, Population> = HashMap::new();
@@ -133,6 +167,15 @@ impl ServerPopulation {
                 .spawns
                 .push(spawn);
         }
+        // A passway leads to a portal of another map: its cell is in `cq_portal`.
+        for ((map, passway), (to_map, to_portal)) in passways {
+            if let Some(&cell) = portals.get(&(to_map, to_portal)) {
+                maps.entry(map).or_default().links.push(PortalLink {
+                    portal: passway,
+                    to: PortalTarget { map: to_map, cell },
+                });
+            }
+        }
         Self { maps, skipped }
     }
 
@@ -143,6 +186,7 @@ impl ServerPopulation {
             if let Some(p) = self.maps.get(id) {
                 out.npcs.extend(p.npcs.iter().cloned());
                 out.spawns.extend(p.spawns.iter().cloned());
+                out.links.extend(p.links.iter().copied());
             }
         }
         out
@@ -330,6 +374,27 @@ fn replace_statement(table: &str, columns: &[&str], values: &[Value]) -> String 
 mod tests {
     use super::*;
 
+    #[test]
+    fn passways_lead_to_portal_cells() {
+        let dump = "INSERT INTO `cq_passway` VALUES ('0001', '1002', '0003', '1011', '0000');
+                    INSERT INTO `cq_portal` VALUES ('0007', '1011', '0000', '0193', '0266');
+                    INSERT INTO `cq_passway` VALUES ('0002', '1002', '0004', '1999', '0000');";
+        let read = ServerPopulation::from_sql(dump);
+        let links = &read.maps[&1002].links;
+        // The second passway's portal is missing: no link.
+        assert_eq!(
+            links,
+            &[PortalLink {
+                portal: 3,
+                to: PortalTarget {
+                    map: 1011,
+                    cell: (193, 266)
+                }
+            }]
+        );
+        assert_eq!(read.for_maps(&[1002]).links.len(), 1);
+    }
+
     const DUMP: &str = r#"
 INSERT INTO `cq_npc` VALUES ('0008', '0', '0', 'Warehouseman', '0003', '0080', '-1', '1002', '0409', '0351', '8003000', '0000', '0000', '0000', '0000', '0000', '0000', '0000', '0', '0', '0', '0', 'None', '0000', '00', '00', '0000', '01', null);
 INSERT INTO `cq_npc` VALUES ('0009', '0', '0', 'Mr.O\'Neil', '0001', '0036', '-1', '1000', '0511', '0630', '0000', '0000', '0000', '0000', '0000', '0000', '0000', '0000', '0', '0', '0', '0', 'None', '0000', '00', '00', '0000', '00', null);
@@ -400,7 +465,7 @@ INSERT INTO `cq_generator` VALUES ('0002', '1002');
         let sql = population_sql(
             &Population {
                 npcs: vec![fresh],
-                spawns: Vec::new(),
+                ..Population::default()
             },
             1015,
         );

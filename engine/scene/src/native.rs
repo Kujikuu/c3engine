@@ -11,8 +11,8 @@
 //! ```
 
 use crate::{
-    Cell, Entity, Grid, IsoProjection, Npc, ParallaxLayer, Population, Portal, Scene, Spawn,
-    TileLayer, Tileset, WorldPos,
+    Cell, Entity, Grid, IsoProjection, Npc, ParallaxLayer, Population, Portal, PortalLink, Scene,
+    Spawn, TileLayer, Tileset, WorldPos,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -51,6 +51,8 @@ struct PopulationFile {
     npcs: Vec<Npc>,
     #[serde(default)]
     spawns: Vec<Spawn>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    links: Vec<PortalLink>,
 }
 
 /// A ground layer without its tile ids (they are in the `.scene.bin`).
@@ -214,6 +216,7 @@ pub fn save_population(population: &Population, file: &Path) -> Result<()> {
         format: FORMAT_VERSION,
         npcs: population.npcs.clone(),
         spawns: population.spawns.clone(),
+        links: population.links.clone(),
     };
     let ron = ron::ser::to_string_pretty(&text, ron::ser::PrettyConfig::default())
         .map_err(|e| invalid(file, e))?;
@@ -243,6 +246,7 @@ pub fn load_population(file: &Path) -> Result<Population> {
     Ok(Population {
         npcs: parsed.npcs,
         spawns: parsed.spawns,
+        links: parsed.links,
     })
 }
 
@@ -307,6 +311,10 @@ mod tests {
             portals: vec![Portal {
                 cell: (1, 1),
                 id: 4,
+                to: Some(crate::PortalTarget {
+                    map: 2,
+                    cell: (9, 8),
+                }),
             }],
             entities: vec![Entity {
                 placement: Placement::Cell((2, 0)),

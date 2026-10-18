@@ -13,11 +13,11 @@ mod projection;
 mod scene;
 
 pub use grid::{Cell, Grid};
-pub use population::{Npc, Population, Spawn};
+pub use population::{Npc, Population, PortalLink, Spawn};
 pub use projection::IsoProjection;
 pub use scene::{
-    EffectTransform, Entity, EntityKind, LayerItem, ParallaxLayer, Placement, Portal, Scene,
-    TileLayer, Tileset,
+    EffectTransform, Entity, EntityKind, LayerItem, ParallaxLayer, Placement, Portal, PortalTarget,
+    Scene, TileLayer, Tileset,
 };
 
 /// Integer cell coordinate.

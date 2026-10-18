@@ -2,7 +2,7 @@
 
 use super::{Change, Edit, SceneDoc};
 use crate::EditError;
-use c3_scene::{CellPos, Portal};
+use c3_scene::{CellPos, Portal, PortalTarget};
 
 impl SceneDoc {
     /// `cell` is on the map and has no portal yet.
@@ -30,7 +30,7 @@ impl SceneDoc {
             Some(i) => i,
             None => (0..).find(|i| !taken(*i)).unwrap_or(0),
         };
-        let change = self.edit_portals(|ps| ps.push(Portal { cell, id }));
+        let change = self.edit_portals(|ps| ps.push(Portal { cell, id, to: None }));
         Ok((
             format!("Added portal {id} at {}, {}", cell.0, cell.1),
             Some(change),
@@ -51,6 +51,22 @@ impl SceneDoc {
             format!("Moved portal {id} to {}, {}", to.0, to.1),
             Some(change),
         ))
+    }
+
+    pub(super) fn set_portal_target(&mut self, id: i32, to: Option<PortalTarget>) -> Edit {
+        let i = self.portal_index(id)?;
+        if self.scene.portals[i].to == to {
+            return Ok((format!("Portal {id} already leads there"), None));
+        }
+        let change = self.edit_portals(|ps| ps[i].to = to);
+        let summary = match to {
+            Some(t) => format!(
+                "Portal {id} leads to map {} at {}, {}",
+                t.map, t.cell.0, t.cell.1
+            ),
+            None => format!("Portal {id} leads nowhere"),
+        };
+        Ok((summary, Some(change)))
     }
 
     pub(super) fn remove_portal(&mut self, id: i32) -> Edit {
