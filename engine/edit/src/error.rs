@@ -29,6 +29,9 @@ pub enum EditError {
     InvalidSetting(String),
     /// An asset operation that can't be done, or import settings that don't fit.
     InvalidAsset(String),
+    /// A dialogue node that doesn't exist.
+    NoNode(u32),
+    NodeIdTaken(u32),
 }
 
 impl fmt::Display for EditError {
@@ -42,6 +45,8 @@ impl fmt::Display for EditError {
             Self::NoNpc(id) => write!(f, "there is no NPC {id}"),
             Self::NpcIdTaken(id) => write!(f, "NPC id {id} is already used"),
             Self::NoSpawn(id) => write!(f, "there is no spawn area {id}"),
+            Self::NoNode(id) => write!(f, "there is no node {id}"),
+            Self::NodeIdTaken(id) => write!(f, "node id {id} is already used"),
             Self::SpawnIdTaken(id) => write!(f, "spawn area id {id} is already used"),
             Self::NoRow(key) => write!(f, "there is no row {key}"),
             Self::NoColumn(name) => write!(f, "there is no column {name}"),

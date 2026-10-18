@@ -8,6 +8,7 @@ c3-core = { version = "0.1.0", path = "../core" }
 c3-data = { version = "0.1.0", path = "../data" }
 c3-project = { version = "0.1.0", path = "../project" }
 c3-scene = { version = "0.1.0", path = "../scene" }
+c3-script = { version = "0.1.0", path = "../script" }
 schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

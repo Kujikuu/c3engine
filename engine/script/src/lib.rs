@@ -113,8 +113,23 @@ pub const API: &[(&str, &str)] = &[
         "set_flag(name, value)",
         "Sets a variable kept with the player",
     ),
+    ("currency(name)", "How much of a currency the player has"),
+    ("give_currency(name, n)", "Gives the player n of a currency"),
+    (
+        "take_currency(name, n)",
+        "Takes n of a currency if the player has it; true if taken",
+    ),
+    ("knows_skill(skill)", "Whether the player knows a skill"),
+    (
+        "learn_skill(skill)",
+        "Teaches the player a skill; true if it was new",
+    ),
     ("message(text)", "Shows the player a system message"),
     ("teleport(map, x, y)", "Moves the player to a cell of a map"),
+    (
+        "start_timer(name, seconds)",
+        "Runs on_timer(name) of the events script after the seconds",
+    ),
     (
         "lookup(table, key, column)",
         "A value from a game table, or () if no such row",

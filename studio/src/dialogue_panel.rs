@@ -9,25 +9,20 @@ use crate::node_editor::node_editor;
 use crate::script_panel::valid_name;
 use crate::shell::Panel;
 use crate::theme;
+use c3_edit::DialogueDoc;
 use c3_script::quest::QUEST_TABLE;
 use c3_script::{DialogueGraph, GraphProblem, NodeKind, Quest};
 use eframe::egui::{self, RichText};
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-/// Most undo steps kept per dialogue.
-const UNDO_LIMIT: usize = 200;
-
 /// A dialogue open in the editor.
 pub struct OpenDialogue {
     pub name: String,
+    /// The graph as the canvas edits it; committed to `doc` as one undo step at a time.
     pub graph: DialogueGraph,
-    /// The graph as saved on disk.
-    saved: DialogueGraph,
-    /// The graph as of the last undo step.
-    committed: DialogueGraph,
-    undo: Vec<DialogueGraph>,
-    redo: Vec<DialogueGraph>,
+    /// The dialogue as recorded through c3-edit commands (undo, redo, saved state).
+    doc: DialogueDoc,
     canvas: CanvasState,
     problems: Vec<GraphProblem>,
     /// Shows the script the dialogue makes instead of the graph.
@@ -39,11 +34,8 @@ impl OpenDialogue {
         let problems = graph.problems();
         Self {
             name,
-            saved: graph.clone(),
-            committed: graph.clone(),
+            doc: DialogueDoc::new(graph.clone()),
             graph,
-            undo: Vec::new(),
-            redo: Vec::new(),
             canvas: CanvasState::default(),
             problems,
             show_script: false,
@@ -51,35 +43,25 @@ impl OpenDialogue {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.graph != self.saved
+        self.graph != *self.doc.graph() || self.doc.is_dirty()
     }
 
-    /// Records the edits since the last step as one undo step.
+    /// Records the edits since the last step as one undo step (the commands that make them).
     fn commit(&mut self) {
-        if self.graph == self.committed {
-            return;
+        if !self.doc.change_to(&self.graph).is_empty() {
+            self.problems = self.graph.problems();
         }
-        let before = std::mem::replace(&mut self.committed, self.graph.clone());
-        self.undo.push(before);
-        if self.undo.len() > UNDO_LIMIT {
-            self.undo.remove(0);
-        }
-        self.redo.clear();
-        self.problems = self.graph.problems();
     }
 
-    fn step(&mut self, back: bool) -> bool {
+    /// Undoes (`back`) or redoes a step; its name.
+    fn step(&mut self, back: bool) -> Option<String> {
         self.commit();
-        let (from, to) = if back {
-            (&mut self.undo, &mut self.redo)
+        let label = if back {
+            self.doc.undo()
         } else {
-            (&mut self.redo, &mut self.undo)
-        };
-        let Some(graph) = from.pop() else {
-            return false;
-        };
-        to.push(std::mem::replace(&mut self.graph, graph));
-        self.committed = self.graph.clone();
+            self.doc.redo()
+        }?;
+        self.graph = self.doc.graph().clone();
         self.problems = self.graph.problems();
         if self
             .canvas
@@ -88,7 +70,7 @@ impl OpenDialogue {
         {
             self.canvas.selected = None;
         }
-        true
+        Some(label)
     }
 }
 
@@ -142,14 +124,22 @@ impl DialoguePanel {
 
     pub fn undo(&mut self) -> Option<String> {
         let open = self.open.as_mut()?;
-        open.step(true)
-            .then(|| format!("edit of dialogue {}", open.name))
+        let label = open.step(true)?;
+        Some(format!("{label} of dialogue {}", open.name))
     }
 
     pub fn redo(&mut self) -> Option<String> {
         let open = self.open.as_mut()?;
-        open.step(false)
-            .then(|| format!("edit of dialogue {}", open.name))
+        let label = open.step(false)?;
+        Some(format!("{label} of dialogue {}", open.name))
+    }
+
+    /// The open dialogue's undo history, for the Undo History panel.
+    pub fn history(&self) -> Vec<c3_edit::HistoryEntry> {
+        self.open
+            .as_ref()
+            .map(|o| o.doc.history())
+            .unwrap_or_default()
     }
 
     /// Selects node `id` of the open dialogue.
@@ -164,9 +154,10 @@ impl DialoguePanel {
         let Some(open) = &self.open else {
             return (None, None);
         };
-        let label = |n: usize| (n > 0).then(|| format!("edit of dialogue {}", open.name));
-        let pending = usize::from(open.graph != open.committed);
-        (label(open.undo.len() + pending), label(open.redo.len()))
+        let pending =
+            (open.graph != *open.doc.graph()).then(|| format!("Edit of dialogue {}", open.name));
+        let undo = pending.or_else(|| open.doc.undo_label().map(str::to_owned));
+        (undo, open.doc.redo_label().map(str::to_owned))
     }
 }
 
@@ -627,7 +618,8 @@ impl Studio {
             });
         match written {
             Ok(()) => {
-                open.saved = open.graph.clone();
+                open.commit();
+                open.doc.mark_saved();
                 let msg = match open.problems.len() {
                     0 => format!(
                         "Saved dialogue {} (script {})",
@@ -656,13 +648,7 @@ impl Studio {
             if self.dialogues.is_dirty() && !self.save_dialogue() {
                 return false;
             }
-            self.dialogues.open = Some(OpenDialogue {
-                saved: DialogueGraph {
-                    start: 0,
-                    nodes: Vec::new(),
-                },
-                ..OpenDialogue::new(name.to_owned(), graph)
-            });
+            self.dialogues.open = Some(OpenDialogue::new(name.to_owned(), graph));
             if !self.save_dialogue() {
                 self.dialogues.open = None;
                 return false;
@@ -776,12 +762,12 @@ mod tests {
         open.graph.add(NodeKind::say("one"), [0.0, 0.0]);
         open.commit();
         open.graph.add(NodeKind::say("two"), [0.0, 0.0]);
-        assert!(open.step(true), "the pending edit is a step too");
+        assert!(open.step(true).is_some(), "the pending edit is a step too");
         assert_eq!(open.graph.nodes.len(), 2);
-        assert!(open.step(true));
+        assert!(open.step(true).is_some());
         assert_eq!(open.graph.nodes.len(), 1);
-        assert!(!open.step(true));
-        assert!(open.step(false));
+        assert!(open.step(true).is_none());
+        assert!(open.step(false).is_some());
         assert_eq!(open.graph.nodes.len(), 2);
         let mut quest = Quest {
             id: 4,

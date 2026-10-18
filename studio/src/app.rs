@@ -830,7 +830,7 @@ impl Studio {
         let label = match self.focus {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::undo),
             Focus::Data => self.data.undo(),
-            Focus::Script => None,
+            Focus::Script => self.scripts.undo(&self.ctx),
             // A focused text field undoes its own typing.
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.undo(),
@@ -858,7 +858,7 @@ impl Studio {
         let label = match self.focus {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::redo),
             Focus::Data => self.data.redo(),
-            Focus::Script => None,
+            Focus::Script => self.scripts.redo(&self.ctx),
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.redo(),
             Focus::Settings | Focus::Assets => None,
@@ -888,7 +888,7 @@ impl Studio {
                     doc.and_then(|d| d.redo_label()).map(str::to_owned),
                 )
             }
-            Focus::Script => (None, None),
+            Focus::Script => self.scripts.undo_redo_labels(),
             Focus::Dialogue => self.dialogues.undo_redo_labels(),
             Focus::Settings => {
                 let doc = self.settings.as_ref().map(|s| &s.doc);
@@ -904,6 +904,36 @@ impl Studio {
                     doc.and_then(|d| d.redo_label()).map(str::to_owned),
                 )
             }
+        }
+    }
+
+    /// The focused document's name and undo history, for the Undo History panel.
+    pub(crate) fn focused_history(&self) -> Option<(String, Vec<c3_edit::HistoryEntry>)> {
+        match self.focus {
+            Focus::Scene => {
+                let doc = self.doc.as_ref()?;
+                Some((format!("Map {}", doc.name()), doc.history()))
+            }
+            Focus::Data => {
+                let open = self.data.open.as_ref()?;
+                Some((
+                    format!("Table {}", open.doc.table().name),
+                    open.doc.history(),
+                ))
+            }
+            Focus::Script => {
+                let open = self.scripts.open.as_ref()?;
+                Some((format!("Script {}", open.name), self.scripts.history()))
+            }
+            Focus::Dialogue => {
+                let open = self.dialogues.open.as_ref()?;
+                Some((format!("Dialogue {}", open.name), self.dialogues.history()))
+            }
+            Focus::Settings => {
+                let s = self.settings.as_ref()?;
+                Some(("Project Settings".to_owned(), s.doc.history()))
+            }
+            Focus::Assets => Some(("Assets".to_owned(), self.assets.as_ref()?.history())),
         }
     }
 

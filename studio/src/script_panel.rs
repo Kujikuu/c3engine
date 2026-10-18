@@ -6,6 +6,7 @@ use crate::app::{Focus, Pending, Studio};
 use crate::code_view;
 use crate::icons;
 use crate::theme;
+use c3_edit::ScriptDoc;
 use c3_script::{Diagnostic, ScriptHost, Severity};
 use eframe::egui::{self, RichText};
 
@@ -22,15 +23,30 @@ pub fn npc_template(npc_name: &str) -> String {
 /// A script open in the editor.
 pub struct OpenScript {
     pub name: String,
+    /// The editor's text; each change is recorded in `doc`.
     pub text: String,
-    /// The text as saved on disk.
-    saved: String,
+    /// The script as recorded through c3-edit commands (undo, redo, saved state).
+    doc: ScriptDoc,
     pub problems: Vec<Diagnostic>,
 }
 
 impl OpenScript {
+    fn new(name: String, text: String) -> Self {
+        Self {
+            name,
+            doc: ScriptDoc::new(text.clone()),
+            text,
+            problems: Vec::new(),
+        }
+    }
+
     pub fn is_dirty(&self) -> bool {
-        self.text != self.saved
+        self.doc.is_dirty()
+    }
+
+    /// Records the editor's typing; a run of keystrokes is one undo step.
+    fn record_typing(&mut self) {
+        self.doc.type_text(self.text.clone());
     }
 }
 
@@ -51,6 +67,50 @@ pub struct ScriptPanel {
 impl ScriptPanel {
     pub fn is_dirty(&self) -> bool {
         self.open.as_ref().is_some_and(OpenScript::is_dirty)
+    }
+
+    /// Undoes the last step of the open script (outside the editor, which undoes its own
+    /// typing while it has the keyboard).
+    pub fn undo(&mut self, ctx: &egui::Context) -> Option<String> {
+        self.step(ctx, true)
+    }
+
+    pub fn redo(&mut self, ctx: &egui::Context) -> Option<String> {
+        self.step(ctx, false)
+    }
+
+    fn step(&mut self, ctx: &egui::Context, back: bool) -> Option<String> {
+        if ctx.memory(|m| m.has_focus(editor_id())) {
+            return None;
+        }
+        let open = self.open.as_mut()?;
+        let label = if back {
+            open.doc.undo()
+        } else {
+            open.doc.redo()
+        }?;
+        open.text = open.doc.text().to_owned();
+        self.check();
+        Some(format!("{label} in script {}", self.open.as_ref()?.name))
+    }
+
+    /// Labels for the Edit menu.
+    pub fn undo_redo_labels(&self) -> (Option<String>, Option<String>) {
+        let Some(open) = &self.open else {
+            return (None, None);
+        };
+        (
+            open.doc.undo_label().map(str::to_owned),
+            open.doc.redo_label().map(str::to_owned),
+        )
+    }
+
+    /// The open script's undo history, for the Undo History panel.
+    pub fn history(&self) -> Vec<c3_edit::HistoryEntry> {
+        self.open
+            .as_ref()
+            .map(|o| o.doc.history())
+            .unwrap_or_default()
     }
 
     fn check(&mut self) {
@@ -120,7 +180,11 @@ impl Studio {
                 let open = self.scripts.open.as_mut().expect("checked above");
                 let problems = open.problems.clone();
                 if code_view::code_editor(ui, editor_id(), &mut open.text, &problems) {
+                    open.record_typing();
                     self.scripts.check();
+                } else if !ui.ctx().memory(|m| m.has_focus(editor_id())) {
+                    // Leaving the editor ends the run of typing.
+                    open.doc.end_typing();
                 }
             } else {
                 theme::empty_state(
@@ -300,6 +364,8 @@ impl Studio {
                 None => signature.to_owned(),
             };
             code_view::insert_at_cursor(ui.ctx(), editor_id(), &mut open.text, &call);
+            open.doc
+                .set_text(open.text.clone(), &format!("Insert {call}"));
             self.scripts.check();
         }
     }
@@ -324,12 +390,7 @@ impl Studio {
             .join(format!("{name}{}", c3_script::SCRIPT_SUFFIX));
         match std::fs::read_to_string(&file) {
             Ok(text) => {
-                self.scripts.open = Some(OpenScript {
-                    name: name.to_owned(),
-                    saved: text.clone(),
-                    text,
-                    problems: Vec::new(),
-                });
+                self.scripts.open = Some(OpenScript::new(name.to_owned(), text));
                 self.scripts.check();
                 self.focus = Focus::Script;
                 self.show_panel(crate::shell::Panel::Script);
@@ -348,7 +409,7 @@ impl Studio {
             .join(format!("{}{}", open.name, c3_script::SCRIPT_SUFFIX));
         match std::fs::write(&file, &open.text) {
             Ok(()) => {
-                open.saved = open.text.clone();
+                open.doc.mark_saved();
                 let name = open.name.clone();
                 let errors = open.problems.iter().any(|p| p.severity == Severity::Error);
                 self.notify(if errors {

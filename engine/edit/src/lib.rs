@@ -11,16 +11,22 @@
 //! Assistant ───┼─► SceneCommand ─► SceneDoc::execute ─► Scene + History (undo/redo)
 //! MCP agent ───┘        SceneQuery ─► SceneDoc::query ─► QueryResult
 //! ```
+//!
+//! Each kind of document has its doc and commands: scenes, tables (`TableDoc`), settings
+//! (`SettingsDoc`), assets (`AssetDoc`), dialogues (`DialogueDoc`) and scripts (`ScriptDoc`).
 
 mod assets;
+mod dialogue;
 mod error;
 mod history;
 mod query;
 mod scene;
+mod script;
 mod settings;
 mod table;
 
 pub use assets::{AssetCommand, AssetDoc};
+pub use dialogue::{DialogueCommand, DialogueDoc};
 pub use error::EditError;
 pub use history::HistoryEntry;
 pub use query::{
@@ -28,6 +34,7 @@ pub use query::{
     SceneSummary, WalkabilityMap, entity_kind_name,
 };
 pub use scene::{Area, MAX_AREA_CELLS, SceneCommand, SceneDoc, entity_label};
+pub use script::{ScriptCommand, ScriptDoc};
 pub use settings::{SettingsCommand, SettingsDoc};
 pub use table::{TableCommand, TableDoc};
 

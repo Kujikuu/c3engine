@@ -401,16 +401,17 @@ impl Studio {
     // ---- Undo History ----
 
     pub(crate) fn history_panel(&mut self, ui: &mut egui::Ui) {
-        let Some(doc) = &self.doc else {
+        let Some((title, entries)) = self.focused_history() else {
             theme::empty_state(
                 ui,
                 icons::CLOCK_COUNTER_CLOCKWISE,
-                "No map open",
-                "Edits you make to a map are listed here.",
+                "Nothing open",
+                "Edits to the map, table, script, dialogue, settings or assets you work on are                  listed here.",
             );
             return;
         };
-        let entries = doc.history();
+        ui.label(RichText::new(title).strong());
+        ui.separator();
         if entries.is_empty() {
             theme::empty_state(
                 ui,

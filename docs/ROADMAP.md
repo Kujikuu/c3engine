@@ -343,8 +343,14 @@ complete project on that engine, then any game of the kind.
     monster magic, and draws the client's portal effect. Verified on the scratch project and
     the Conquer project, local and online
   - Later: regions (M8) bring `on_region` events; skill levels; professions
-- [ ] (7) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
+- [x] (7) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
       commands; File > Save saves everything dirty
+  - Done: c3-edit gains `DialogueDoc` (add / set / remove nodes, start node; canvas edits
+    become those commands, one step each, named after them) and `ScriptDoc` (set text; a
+    run of typing is one step, an inserted call its own); maps, tables, settings and assets
+    already were. Undo and Redo act on the focused document, and the Undo History panel
+    lists that document's steps (map, table, script, dialogue, settings or assets). File >
+    Save writes every dirty document; settings and assets save as they change
 - [ ] (8) Renderer gaps the settings and UI need: world text drawn by the engine with project
       fonts (names, damage numbers, chat bubbles), custom cursors drawn in the game, a minimap /
       radar, configurable lighting (today one fixed light)
