@@ -36,6 +36,7 @@ pub const CHAT_CIRCLE_DOTS: &str = "\u{E16C}";
 pub const CHAT_TEXT: &str = "\u{E17A}";
 pub const CHECK_CIRCLE: &str = "\u{E184}";
 pub const COINS: &str = "\u{E78E}";
+pub const DIAMOND: &str = "\u{E1EC}";
 pub const DROP: &str = "\u{E210}";
 pub const GIFT: &str = "\u{E276}";
 pub const HEART: &str = "\u{E2A8}";

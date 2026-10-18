@@ -310,6 +310,19 @@ pub struct GameplaySettings {
     pub bag_size: u32,
     /// The money's name, as players see it.
     pub currency: String,
+    /// Other currencies beside the money (gems, honour), by name; items may be priced in them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub currencies: Vec<String>,
+    /// The equipment slots items are worn in; empty: the game's own.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub equipment_slots: Vec<EquipmentSlot>,
+    /// Item qualities from the lowest; each step up adds `quality_bonus_percent` to what an
+    /// item gives.
+    pub qualities: Vec<String>,
+    pub quality_bonus_percent: u32,
+    /// Chance (percent) that a worn item with durability loses a point when its wearer hits
+    /// (weapons) or is hit (armour).
+    pub wear_percent: u32,
     /// The map new characters start on (a project map's name or a content map path); empty:
     /// the game's first map.
     pub start_map: String,
@@ -339,6 +352,13 @@ impl Default for GameplaySettings {
             item_life_seconds: 60.0,
             bag_size: 40,
             currency: "Gold".into(),
+            currencies: Vec::new(),
+            equipment_slots: Vec::new(),
+            qualities: ["Common", "Fine", "Rare", "Epic", "Legendary"]
+                .map(String::from)
+                .to_vec(),
+            quality_bonus_percent: 10,
+            wear_percent: 10,
             start_map: String::new(),
             start_cell: None,
             new_character: NewCharacter::default(),
@@ -348,7 +368,22 @@ impl Default for GameplaySettings {
     }
 }
 
+/// An equipment slot: the number item types name it by, and what players see.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EquipmentSlot {
+    pub id: u8,
+    pub name: String,
+}
+
 impl GameplaySettings {
+    /// The name of quality `step` (the highest named for steps past the list).
+    pub fn quality_name(&self, step: u8) -> &str {
+        self.qualities
+            .get(usize::from(step))
+            .or(self.qualities.last())
+            .map_or("", String::as_str)
+    }
+
     /// Whether `account` may use game-master commands.
     pub fn is_gm(&self, account: &str) -> bool {
         self.gm_everyone

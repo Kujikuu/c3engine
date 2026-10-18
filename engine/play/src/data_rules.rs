@@ -137,6 +137,14 @@ pub fn table_templates() -> Vec<Table> {
         int("slot", "The equipment slot it is worn in; 0: not worn"),
     ];
     items.extend(stat_columns());
+    items.extend([
+        int("stack", "Most one bag slot holds; 0 or 1: one each"),
+        int(
+            "durability",
+            "Durability of a new one; 0: it never wears out",
+        ),
+        text("currency", "The currency it is priced in; empty: the money"),
+    ]);
     let slime = |id, name: &str, level, life| {
         let mut row = vec![
             Value::Int(id),
@@ -153,9 +161,11 @@ pub fn table_templates() -> Vec<Table> {
         row
     };
     let mut potion = vec![Value::Int(1), Value::Text("Healing Potion".into())];
-    potion.extend(ints(&[20, 0, 70, 0, 0, 0, 0, 0, 0]));
+    potion.extend(ints(&[20, 0, 70, 0, 0, 0, 0, 0, 0, 10, 0]));
+    potion.push(Value::Text(String::new()));
     let mut sword = vec![Value::Int(2), Value::Text("Short Sword".into())];
-    sword.extend(ints(&[150, 4, 0, 0, 6, 10, 0, 0, 0]));
+    sword.extend(ints(&[150, 4, 0, 0, 6, 10, 0, 0, 0, 1, 40]));
+    sword.push(Value::Text(String::new()));
     let mut first = ints(&[1, 100]).collect::<Vec<_>>();
     first.extend(ints(&[120, 60, 10, 15, 1, 5, 5]));
     vec![
@@ -386,6 +396,9 @@ impl DataRules {
                 restores_mana,
                 slot,
                 bonus,
+                stack: row.uint("stack"),
+                durability: row.uint("durability"),
+                currency: row.text("currency").to_owned(),
             };
             self.items.insert(id, item);
         }

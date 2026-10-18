@@ -210,6 +210,7 @@ impl ConquerRules {
                         dexterity: uint(v[9]),
                         ..Default::default()
                     },
+                    ..ItemType::default()
                 },
             );
         }

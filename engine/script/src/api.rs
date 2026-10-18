@@ -111,6 +111,36 @@ fn player(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("currency", move |name: &str| {
+        with(&s, |c| c.player.currency(name))
+    });
+    let s = shared.clone();
+    engine.register_fn("give_currency", move |name: &str, amount: i64| {
+        positive(amount, "amount")?;
+        with(&s, |c| {
+            *c.player.wallet.entry(name.to_owned()).or_default() += amount;
+            c.effects.push(Effect::Currency {
+                name: name.to_owned(),
+                amount,
+            });
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("take_currency", move |name: &str, amount: i64| {
+        positive(amount, "amount")?;
+        with(&s, |c| {
+            if c.player.currency(name) < amount {
+                return false;
+            }
+            *c.player.wallet.entry(name.to_owned()).or_default() -= amount;
+            c.effects.push(Effect::Currency {
+                name: name.to_owned(),
+                amount: -amount,
+            });
+            true
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("flag", move |name: &str| with(&s, |c| c.player.flag(name)));
     let s = shared.clone();
     engine.register_fn("set_flag", move |name: &str, value: i64| {

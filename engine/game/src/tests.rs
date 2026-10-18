@@ -6,11 +6,16 @@ const WOLF: u32 = 2;
 const POTION: u32 = 100;
 const SHOP_NPC: u32 = 7;
 const ARMOR: u32 = 200;
+/// Stacks by 50.
+const ARROW: u32 = 300;
+/// Worn, priced in gems.
+const CHARM: u32 = 400;
 
 struct TestRules {
     monsters: Vec<MonsterType>,
     potion: ItemType,
     armor: ItemType,
+    others: Vec<ItemType>,
 }
 
 fn monster(id: u32, life: u32, attack: u32, aggressive: bool) -> MonsterType {
@@ -41,7 +46,7 @@ impl Rules for TestRules {
         match kind {
             POTION => Some(&self.potion),
             ARMOR => Some(&self.armor),
-            _ => None,
+            _ => self.others.iter().find(|t| t.id == kind),
         }
     }
     fn player_stats(&self, level: u32) -> Stats {
@@ -75,7 +80,11 @@ impl Rules for TestRules {
         vec![Drop::Money(5), Drop::Item(POTION)]
     }
     fn shop(&self, npc: u32) -> &[u32] {
-        if npc == SHOP_NPC { &[POTION] } else { &[] }
+        if npc == SHOP_NPC {
+            &[POTION, ARROW, CHARM]
+        } else {
+            &[]
+        }
     }
 }
 
@@ -90,6 +99,7 @@ fn rules() -> Box<dyn Rules> {
             restores_mana: 0,
             slot: None,
             bonus: Stats::default(),
+            ..ItemType::default()
         },
         armor: ItemType {
             id: ARMOR,
@@ -103,7 +113,30 @@ fn rules() -> Box<dyn Rules> {
                 max_life: 20,
                 ..Default::default()
             },
+            durability: 3,
+            ..ItemType::default()
         },
+        others: vec![
+            ItemType {
+                id: ARROW,
+                name: "Arrow".into(),
+                price: 1,
+                stack: 50,
+                ..ItemType::default()
+            },
+            ItemType {
+                id: CHARM,
+                name: "Charm".into(),
+                price: 6,
+                slot: Some(5),
+                bonus: Stats {
+                    defence: 10,
+                    ..Default::default()
+                },
+                currency: "Gems".into(),
+                ..ItemType::default()
+            },
+        ],
     })
 }
 
@@ -255,11 +288,9 @@ fn shops_bags_and_potions() {
     sim.buy(hero, SHOP_NPC, POTION);
     let p = sim.player(hero).unwrap();
     assert_eq!((p.money, p.bag.len()), (10, 2), "the third was too dear");
-    assert!(
-        sim.take_events()
-            .iter()
-            .any(|e| matches!(e, Event::Message { text, .. } if text.contains("money")))
-    );
+    assert!(sim.take_events().iter().any(
+        |e| matches!(e, Event::Message { text, .. } if text == "You don't have enough Gold.")
+    ));
 
     let first = sim.player(hero).unwrap().bag[0].id;
     sim.sell(hero, SHOP_NPC, first);
@@ -556,4 +587,127 @@ fn portals_place_here_and_send_travellers_away() {
     assert!(travelled);
     // The host moves the traveller; until then it stands by the portal.
     assert!(distance(sim.player(hero).unwrap().cell, (10, 3)) <= portals::PORTAL_REACH);
+}
+
+#[test]
+fn items_stack_up_to_their_type() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 6);
+    let hero = sim.add_player("Hero", (3, 3), 1);
+    assert_eq!(sim.give_items(hero, ARROW, 120), 120);
+    let counts = |s: &Sim| -> Vec<u32> {
+        s.player(hero)
+            .unwrap()
+            .bag
+            .iter()
+            .map(|i| i.count)
+            .collect()
+    };
+    assert_eq!(counts(&sim), [50, 50, 20]);
+    assert!(sim.take_items(hero, ARROW, 60));
+    assert_eq!(counts(&sim), [40, 20]);
+    assert!(!sim.take_items(hero, ARROW, 61), "only 60 left");
+    assert_eq!(sim.give_items(hero, ARROW, 15), 15);
+    assert_eq!(counts(&sim), [50, 25], "onto the stacks first");
+    // Sold one at a time; a save keeps the stacks.
+    let first = sim.player(hero).unwrap().bag[0].id;
+    sim.place(hero, (3, 3));
+    let save = sim.save_player(hero).unwrap();
+    assert_eq!(
+        save.bag.iter().map(|i| i.count).collect::<Vec<_>>(),
+        [50, 25]
+    );
+    let mut other = Sim::new(Grid::new(20, 20), vec![shopkeeper()], vec![], rules(), 7);
+    let back = other.add_saved_player(&save);
+    assert_eq!(other.player(back).unwrap().bag.len(), 2);
+    let first_back = other.player(back).unwrap().bag[0].id;
+    other.sell(back, SHOP_NPC, first_back);
+    assert_eq!(other.player(back).unwrap().bag[0].count, 49);
+    let _ = first;
+}
+
+#[test]
+fn worn_items_wear_out_and_quality_adds() {
+    let mut sim = Sim::new(
+        Grid::new(20, 20),
+        vec![],
+        vec![spawn(1, WOLF, (6, 3), (6, 3), 1)],
+        rules(),
+        8,
+    );
+    let mut settings = sim.settings().clone();
+    settings.wear_percent = 100;
+    sim.set_settings(settings);
+    let hero = sim.add_player("Hero", (3, 3), 4);
+    let base = sim.player(hero).unwrap().stats.defence;
+    assert!(sim.equip(hero, ARMOR));
+    assert_eq!(sim.player(hero).unwrap().stats.defence, base + 4);
+    // The wolf's bites wear the armour (3 points) until it breaks and gives nothing.
+    assert!(run_until(&mut sim, 30_000, |s| s
+        .player(hero)
+        .unwrap()
+        .equipment[0]
+        .durability
+        == 0));
+    assert_eq!(sim.player(hero).unwrap().stats.defence, base);
+    assert!(
+        sim.take_events()
+            .iter()
+            .any(|e| matches!(e, Event::Message { text, .. } if text == "Your Armor broke."))
+    );
+    // Each quality step adds 10 % of what an item gives.
+    let mut save = sim.save_player(hero).unwrap();
+    save.equipment = vec![SavedItem {
+        quality: 2,
+        ..CHARM.into()
+    }];
+    let mut other = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 9);
+    let back = other.add_saved_player(&save);
+    assert_eq!(other.player(back).unwrap().stats.defence, base + 12);
+}
+
+#[test]
+fn shops_take_other_currencies() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![shopkeeper()], vec![], rules(), 10);
+    let hero = sim.add_player("Hero", (3, 3), 1);
+    sim.set_money(hero, 1000);
+    sim.buy(hero, SHOP_NPC, CHARM);
+    assert!(
+        sim.player(hero).unwrap().bag.is_empty(),
+        "money doesn't buy it"
+    );
+    assert!(
+        sim.take_events()
+            .iter()
+            .any(|e| matches!(e, Event::Message { text, .. } if text.contains("Gems")))
+    );
+    sim.players
+        .get_mut(&hero)
+        .unwrap()
+        .wallet
+        .insert("Gems".into(), 7);
+    sim.buy(hero, SHOP_NPC, CHARM);
+    let p = sim.player(hero).unwrap();
+    assert_eq!((p.bag.len(), p.wallet["Gems"], p.money), (1, 1, 1000));
+    let charm = p.bag[0].id;
+    sim.sell(hero, SHOP_NPC, charm);
+    assert_eq!(
+        sim.player(hero).unwrap().wallet["Gems"],
+        3,
+        "a third back, in gems"
+    );
+}
+
+#[test]
+fn older_saves_name_items_by_type() {
+    let old = r#"(name: "Old", cell: (3, 3), level: 2, exp: 0, money: 5, life: 0, mana: 0,
+        bag: [100, 300], equipment: [200])"#;
+    let save: PlayerSave = ron::from_str(old).expect("an old save reads");
+    assert_eq!(save.bag, [SavedItem::from(POTION), SavedItem::from(ARROW)]);
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 11);
+    let hero = sim.add_saved_player(&save);
+    let armor = sim.player(hero).unwrap().equipment[0];
+    assert_eq!(armor.durability, 3, "a whole one");
+    let again: PlayerSave =
+        ron::from_str(&ron::to_string(&sim.save_player(hero).unwrap()).unwrap()).unwrap();
+    assert_eq!(again.equipment[0].durability, Some(3));
 }

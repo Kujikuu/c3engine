@@ -12,11 +12,18 @@ pub struct PlayerState {
     pub money: i64,
     /// Item type → how many the player carries.
     pub items: BTreeMap<i64, i64>,
+    /// Other currencies → how much the player has.
+    pub wallet: BTreeMap<String, i64>,
     /// Script variables kept with the player (quest steps, counters); unset reads as 0.
     pub flags: BTreeMap<String, i64>,
 }
 
 impl PlayerState {
+    /// How much of currency `name` the player has.
+    pub fn currency(&self, name: &str) -> i64 {
+        self.wallet.get(name).copied().unwrap_or(0)
+    }
+
     pub fn item_count(&self, item: i64) -> i64 {
         self.items.get(&item).copied().unwrap_or(0)
     }
@@ -83,6 +90,11 @@ pub enum Effect {
     },
     /// Money gained (negative: paid).
     Money(i64),
+    /// Currency `name` changed by `amount`.
+    Currency {
+        name: String,
+        amount: i64,
+    },
     /// Move the player to `cell` of game map `map`.
     Teleport {
         map: i64,

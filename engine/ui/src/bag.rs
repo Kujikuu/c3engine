@@ -65,7 +65,7 @@ pub(crate) fn window(
                         if resp
                             .on_hover_text(format!(
                                 "{}\nClick: take off",
-                                describe(view, item.kind)
+                                describe_item(view, item)
                             ))
                             .clicked()
                         {
@@ -86,11 +86,12 @@ pub(crate) fn window(
                         if let Some(item) = item {
                             let hint = match shop {
                                 Some(_) => format!(
-                                    "{}\nClick: use · Right-click: sell for {} {currency}",
-                                    describe(view, item.kind),
-                                    view.sim.rules().sell_price(item.kind)
+                                    "{}\nClick: use · Right-click: sell one for {} {}",
+                                    describe_item(view, item),
+                                    view.sim.rules().sell_price(item.kind),
+                                    price_currency(view, item.kind)
                                 ),
-                                None => format!("{}\nClick: use", describe(view, item.kind)),
+                                None => format!("{}\nClick: use", describe_item(view, item)),
                             };
                             let resp = resp.on_hover_text(hint);
                             let click = if resp.clicked() {
@@ -114,11 +115,32 @@ pub(crate) fn window(
                     }
                 });
             ui.add_space(4.0);
-            ui.label(
-                RichText::new(format!("{}  {} {currency}", icons::COINS, p.money))
-                    .color(style::MONEY),
-            );
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    RichText::new(format!("{}  {} {currency}", icons::COINS, p.money))
+                        .color(style::MONEY),
+                );
+                for name in &view.sim.settings().currencies {
+                    let amount = p.wallet.get(name).copied().unwrap_or(0);
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new(format!("{}  {amount} {name}", icons::DIAMOND))
+                            .color(style::MONEY),
+                    );
+                }
+            });
         });
+}
+
+/// The currency item `kind` is priced in, as players call it.
+pub(crate) fn price_currency(view: &GameView, kind: u32) -> String {
+    let currency = view
+        .sim
+        .rules()
+        .item(kind)
+        .map(|t| t.currency.clone())
+        .unwrap_or_default();
+    view.sim.currency_name(&currency).to_owned()
 }
 
 /// One slot: the item's icon (or its initials), else an empty square labelled `empty`.
@@ -146,6 +168,33 @@ fn slot_button(
         ),
         egui::StrokeKind::Inside,
     );
+    if let Some(item) = item.filter(|i| i.count > 1) {
+        let at = rect.right_bottom() - egui::vec2(3.0, 1.0);
+        let text = item.count.to_string();
+        let font = fonts::font(11.0);
+        painter.text(
+            at + egui::vec2(1.0, 1.0),
+            egui::Align2::RIGHT_BOTTOM,
+            &text,
+            font.clone(),
+            Color32::BLACK,
+        );
+        painter.text(at, egui::Align2::RIGHT_BOTTOM, text, font, style::TEXT);
+    }
+    let broken = item.is_some_and(|i| {
+        view.sim
+            .rules()
+            .item(i.kind)
+            .is_some_and(|t| i.is_broken(t))
+    });
+    if broken {
+        painter.rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.5, style::BAD),
+            egui::StrokeKind::Inside,
+        );
+    }
     match item {
         Some(item) => match icons.item(ui.ctx(), item.kind) {
             Some(texture) => {
@@ -173,21 +222,55 @@ fn slot_button(
             }
         },
         None if !empty.is_empty() => {
-            painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                empty,
+            // The slot's name, wrapped to fit (`Right hand` on two lines).
+            let galley = painter.layout(
+                empty.to_owned(),
                 fonts::font(9.0),
-                Color32::from_gray(90),
+                Color32::from_gray(110),
+                SLOT - 4.0,
             );
+            let at = rect.center() - galley.size() / 2.0;
+            painter.galley(at, galley, Color32::from_gray(110));
         }
         None => {}
     }
     resp
 }
 
-/// An item's name and what it does, for its tooltip.
-fn describe(view: &GameView, kind: u32) -> String {
+/// A carried item: its type's tooltip with the stack, quality and durability.
+fn describe_item(view: &GameView, item: &Item) -> String {
+    let mut text = describe(view, item.kind);
+    let Some(t) = view.sim.rules().item(item.kind) else {
+        return text;
+    };
+    let settings = view.sim.settings();
+    if item.count > 1 {
+        text.push_str(&format!("\n× {}", item.count));
+    }
+    if item.quality > 0 || t.slot.is_some() {
+        let percent = u32::from(item.quality) * settings.quality_bonus_percent;
+        let name = settings.quality_name(item.quality);
+        if percent > 0 {
+            text.push_str(&format!("\n{name} (+{percent} %)"));
+        } else if !name.is_empty() {
+            text.push_str(&format!("\n{name}"));
+        }
+    }
+    if t.durability > 0 {
+        if item.durability == 0 {
+            text.push_str("\nBroken: it gives nothing until mended");
+        } else {
+            text.push_str(&format!(
+                "\nDurability {}/{}",
+                item.durability, t.durability
+            ));
+        }
+    }
+    text
+}
+
+/// An item type's name and what it does, for its tooltip.
+pub(crate) fn describe(view: &GameView, kind: u32) -> String {
     let Some(t) = view.sim.rules().item(kind) else {
         return format!("item {kind}");
     };

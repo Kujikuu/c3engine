@@ -2,6 +2,15 @@
 //! out each tick.
 
 use crate::entity::{Item, Player, Task};
+
+/// Takes one from the stack at `slot` of `bag` (the slot goes when it was the last).
+fn take_one(bag: &mut Vec<Item>, slot: usize) {
+    if bag[slot].count > 1 {
+        bag[slot].count -= 1;
+    } else {
+        bag.remove(slot);
+    }
+}
 use crate::event::Event;
 use crate::sim::Sim;
 use crate::{EntityId, distance, ms};
@@ -43,6 +52,7 @@ impl Sim {
                 life: stats.max_life,
                 mana: stats.max_mana,
                 money: 0,
+                wallet: Default::default(),
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),
@@ -214,7 +224,7 @@ impl Sim {
         let p = self.players.get_mut(&id).expect("checked above");
         p.life = (p.life + life).min(p.stats.max_life);
         p.mana = (p.mana + mana).min(p.stats.max_mana);
-        p.bag.remove(slot);
+        take_one(&mut p.bag, slot);
         self.events.push(Event::Used { player: id, kind });
     }
 
@@ -223,10 +233,7 @@ impl Sim {
         if self.rules.item(kind).and_then(|t| t.slot).is_none() || !self.players.contains_key(&id) {
             return false;
         }
-        let item = Item {
-            id: self.new_item_id(),
-            kind,
-        };
+        let item = self.new_item(kind);
         self.wear(id, item);
         true
     }
@@ -268,17 +275,23 @@ impl Sim {
         self.events.push(Event::Dressed { player: id });
     }
 
-    /// Recomputes the player's stats from its level and what it wears.
+    /// Recomputes the player's stats from its level and what it wears (broken items give
+    /// nothing; each quality step adds its share).
     pub(crate) fn refresh_stats(&mut self, id: EntityId) {
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
         let base = self.rules.player_stats(p.level);
+        let per_step = self.settings.quality_bonus_percent;
         p.stats = p
             .equipment
             .iter()
-            .filter_map(|e| self.rules.item(e.kind))
-            .fold(base, |stats, t| stats.with_bonus(&t.bonus));
+            .filter_map(|e| Some((e, self.rules.item(e.kind)?)))
+            .filter(|(e, t)| !e.is_broken(t))
+            .fold(base, |stats, (e, t)| {
+                let percent = 100 + u32::from(e.quality) * per_step;
+                stats.with_bonus(&t.bonus.scaled(percent))
+            });
         p.life = p.life.min(p.stats.max_life);
         p.mana = p.mana.min(p.stats.max_mana);
     }
@@ -291,18 +304,24 @@ impl Sim {
         if !self.npc_in_reach(p.cell, npc) || !self.rules.shop(npc).contains(&kind) {
             return;
         }
-        let Some(price) = self.rules.item(kind).map(|t| t.price) else {
+        let Some((price, currency)) = self.rules.item(kind).map(|t| (t.price, t.currency.clone()))
+        else {
             return;
         };
-        if p.money < price {
-            self.message(id, "You don't have enough money.");
+        if self.funds(p, &currency) < price {
+            let name = self.currency_name(&currency).to_owned();
+            self.message(id, format!("You don't have enough {name}."));
             return;
         }
         if !self.give_item(id, kind) {
             return;
         }
         let p = self.players.get_mut(&id).expect("checked above");
-        p.money -= price;
+        if currency.is_empty() {
+            p.money -= price;
+        } else {
+            *p.wallet.entry(currency).or_default() -= price;
+        }
         self.events.push(Event::Bought {
             player: id,
             kind,
@@ -323,9 +342,18 @@ impl Sim {
         };
         let kind = p.bag[slot].kind;
         let price = self.rules.sell_price(kind);
+        let currency = self
+            .rules
+            .item(kind)
+            .map(|t| t.currency.clone())
+            .unwrap_or_default();
         let p = self.players.get_mut(&id).expect("checked above");
-        p.bag.remove(slot);
-        p.money += price;
+        take_one(&mut p.bag, slot);
+        if currency.is_empty() {
+            p.money += price;
+        } else {
+            *p.wallet.entry(currency).or_default() += price;
+        }
         self.events.push(Event::Sold {
             player: id,
             kind,
@@ -335,34 +363,115 @@ impl Sim {
 
     /// Puts a new `kind` in the player's bag; false (and a message) when it is full.
     pub fn give_item(&mut self, id: EntityId, kind: u32) -> bool {
-        let item = self.new_item_id();
-        let bag_size = self.bag_size();
-        let Some(p) = self.players.get_mut(&id) else {
-            return false;
-        };
-        if p.bag.len() >= bag_size {
-            self.message(id, "Your bag is full.");
-            return false;
-        }
-        p.bag.push(Item { id: item, kind });
-        true
+        self.give_items(id, kind, 1) == 1
     }
 
-    /// Takes `count` items of `kind` from the bag, if it holds that many.
-    pub fn take_items(&mut self, id: EntityId, kind: u32, count: usize) -> bool {
+    /// Puts `count` new `kind` in the bag, onto its stacks first; how many fit (a message
+    /// says when the bag is full).
+    pub fn give_items(&mut self, id: EntityId, kind: u32, count: u32) -> u32 {
+        let stack = self.rules.item(kind).map_or(1, |t| t.stack.max(1));
+        let bag_size = self.bag_size();
+        let Some(p) = self.players.get_mut(&id) else {
+            return 0;
+        };
+        let mut left = count;
+        for item in p
+            .bag
+            .iter_mut()
+            .filter(|i| i.kind == kind && i.count < stack)
+        {
+            let added = (stack - item.count).min(left);
+            item.count += added;
+            left -= added;
+        }
+        while left > 0 {
+            if self.players[&id].bag.len() >= bag_size {
+                self.message(id, "Your bag is full.");
+                break;
+            }
+            let mut item = self.new_item(kind);
+            item.count = left.min(stack);
+            left -= item.count;
+            self.players
+                .get_mut(&id)
+                .expect("checked above")
+                .bag
+                .push(item);
+        }
+        count - left
+    }
+
+    /// Takes `count` of `kind` from the bag, if it holds that many.
+    pub fn take_items(&mut self, id: EntityId, kind: u32, count: u32) -> bool {
         let Some(p) = self.players.get_mut(&id) else {
             return false;
         };
-        if p.bag.iter().filter(|i| i.kind == kind).count() < count {
+        let held: u64 = p
+            .bag
+            .iter()
+            .filter(|i| i.kind == kind)
+            .map(|i| u64::from(i.count))
+            .sum();
+        if held < u64::from(count) {
             return false;
         }
         let mut left = count;
-        p.bag.retain(|i| {
-            let take = left > 0 && i.kind == kind;
-            left -= usize::from(take);
-            !take
-        });
+        for item in p.bag.iter_mut().filter(|i| i.kind == kind) {
+            let taken = item.count.min(left);
+            item.count -= taken;
+            left -= taken;
+        }
+        p.bag.retain(|i| i.count > 0);
         true
+    }
+
+    /// How much of `currency` (empty: the money) player `p` has.
+    fn funds(&self, p: &Player, currency: &str) -> u64 {
+        if currency.is_empty() {
+            p.money
+        } else {
+            p.wallet.get(currency).copied().unwrap_or(0)
+        }
+    }
+
+    /// What players call `currency` (empty: the money).
+    pub fn currency_name<'a>(&'a self, currency: &'a str) -> &'a str {
+        if currency.is_empty() {
+            &self.settings.currency
+        } else {
+            currency
+        }
+    }
+
+    /// Wears down player `id`'s worn items that `wears` picks (weapons when it hits, armour
+    /// when it is hit): each may lose a point of durability, and one worn out is said.
+    pub(crate) fn wear_items(&mut self, id: EntityId, wears: fn(&crate::ItemType) -> bool) {
+        let chance = self.settings.wear_percent;
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let mut broke = Vec::new();
+        for item in &mut p.equipment {
+            let Some(t) = self.rules.item(item.kind) else {
+                continue;
+            };
+            if t.durability == 0 || item.durability == 0 || !wears(t) {
+                continue;
+            }
+            if self.rng.chance(chance, 100) {
+                item.durability -= 1;
+                if item.durability == 0 {
+                    broke.push(t.name.clone());
+                }
+            }
+        }
+        if !broke.is_empty() {
+            self.refresh_stats(id);
+            self.events.push(Event::Dressed { player: id });
+            for name in broke {
+                self.message(id, format!("Your {name} broke."));
+            }
+        }
     }
 
     /// Sets the player's money (scripts change it directly).

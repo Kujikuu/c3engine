@@ -66,10 +66,18 @@ pub(crate) fn window(
                                     Color32::WHITE,
                                 );
                             }
+                            let (icon, funds) = if t.currency.is_empty() {
+                                (icons::COINS, p.money)
+                            } else {
+                                let funds = p.wallet.get(&t.currency).copied().unwrap_or(0);
+                                (icons::DIAMOND, funds)
+                            };
+                            let currency = crate::bag::price_currency(view, kind);
                             ui.vertical(|ui| {
-                                ui.label(RichText::new(&t.name).color(style::TEXT));
+                                ui.label(RichText::new(&t.name).color(style::TEXT))
+                                    .on_hover_text(crate::bag::describe(view, kind));
                                 ui.label(
-                                    RichText::new(format!("{}  {}", icons::COINS, t.price))
+                                    RichText::new(format!("{icon}  {} {currency}", t.price))
                                         .color(style::MONEY)
                                         .small(),
                                 );
@@ -77,10 +85,10 @@ pub(crate) fn window(
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    let affordable = p.money >= t.price;
+                                    let affordable = funds >= t.price;
                                     let buy = ui
                                         .add_enabled(affordable, egui::Button::new("Buy"))
-                                        .on_disabled_hover_text("Not enough money");
+                                        .on_disabled_hover_text(format!("Not enough {currency}"));
                                     if buy.clicked() {
                                         actions.push(UiAction::Buy { npc, kind });
                                     }

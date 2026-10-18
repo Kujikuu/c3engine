@@ -6,7 +6,7 @@ use crate::app::{Focus, Studio};
 use crate::icons;
 use crate::theme;
 use c3_core::ProjectSettings;
-use c3_core::settings::{Cursor, FrontSettings, MapEntry};
+use c3_core::settings::{Cursor, EquipmentSlot, FrontSettings, MapEntry};
 use c3_edit::{SettingsCommand, SettingsDoc};
 use c3_play::GameModule;
 use c3_play::map_list::{self, MapInfo, MapList};
@@ -26,6 +26,7 @@ pub enum Section {
     Camera,
     Input,
     Gameplay,
+    Items,
     Maps,
     Graphics,
     Audio,
@@ -34,12 +35,13 @@ pub enum Section {
 }
 
 impl Section {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 11] = [
         Self::Player,
         Self::Cursors,
         Self::Camera,
         Self::Input,
         Self::Gameplay,
+        Self::Items,
         Self::Maps,
         Self::Graphics,
         Self::Audio,
@@ -54,6 +56,7 @@ impl Section {
             Self::Camera => "Camera",
             Self::Input => "Input",
             Self::Gameplay => "Gameplay",
+            Self::Items => "Items",
             Self::Maps => "Maps",
             Self::Graphics => "Graphics",
             Self::Audio => "Audio",
@@ -69,6 +72,7 @@ impl Section {
             Self::Camera => icons::VIDEO_CAMERA,
             Self::Input => icons::GAME_CONTROLLER,
             Self::Gameplay => icons::SWORD,
+            Self::Items => icons::PACKAGE,
             Self::Maps => icons::MAP_TRIFOLD,
             Self::Graphics => icons::PAINT_BRUSH,
             Self::Audio => icons::SPEAKER_HIGH,
@@ -90,8 +94,12 @@ impl Section {
                  PlayStation, Switch and others) and touch screens."
             }
             Self::Gameplay => {
-                "The simulation's numbers: timing, ranges, the bag, where players start and \
-                 what they start with, and who may use game-master commands."
+                "The simulation's numbers: timing, ranges, where players start and what they \
+                 start with, and who may use game-master commands."
+            }
+            Self::Items => {
+                "The bag, the money and other currencies, item qualities and wear, and the \
+                 slots items are worn in."
             }
             Self::Maps => {
                 "The game's maps: the ids portals, scripts and saves name them by, the names \
@@ -350,29 +358,23 @@ impl Fields<'_> {
     }
 
     /// A list of names typed as `a, b`.
+    /// A list of names typed as `a, b, c`; `example` shows while it is empty.
     fn names(
         &mut self,
         ui: &mut egui::Ui,
-        (label, hint): (&str, &str),
+        (label, hint, example): (&str, &str, &str),
         path: &str,
         value: &[String],
     ) {
-        self.list(
-            ui,
-            (label, hint),
-            path,
-            value.join(", "),
-            "e.g. admin, alice",
-            |text| {
-                Some(Value::Array(
-                    text.split(',')
-                        .map(str::trim)
-                        .filter(|t| !t.is_empty())
-                        .map(Value::from)
-                        .collect(),
-                ))
-            },
-        );
+        self.list(ui, (label, hint), path, value.join(", "), example, |text| {
+            Some(Value::Array(
+                text.split(',')
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(Value::from)
+                    .collect(),
+            ))
+        });
     }
 
     fn list(
@@ -1041,24 +1043,6 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                     "",
                 );
             });
-            heading(ui, "Items and money");
-            grid(ui, "gameplay items", |ui| {
-                f.whole(
-                    ui,
-                    ("Bag size", "Items a bag holds"),
-                    "gameplay.bag_size",
-                    i64::from(g.bag_size),
-                    1..=500,
-                    "",
-                );
-                f.text(
-                    ui,
-                    ("Currency", "The money's name, as players see it"),
-                    "gameplay.currency",
-                    &g.currency,
-                    "Gold",
-                );
-            });
             heading(ui, "New characters");
             grid(ui, "gameplay start", |ui| {
                 f.start_map(ui, &g.start_map);
@@ -1105,11 +1089,81 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                 );
                 f.names(
                     ui,
-                    ("Accounts", "Accounts that may use / commands"),
+                    (
+                        "Accounts",
+                        "Accounts that may use / commands",
+                        "e.g. admin, alice",
+                    ),
                     "gameplay.gm_accounts",
                     &g.gm_accounts,
                 );
             });
+        }
+        Section::Items => {
+            let g = &s.gameplay;
+            heading(ui, "Bag and money");
+            grid(ui, "gameplay items", |ui| {
+                f.whole(
+                    ui,
+                    ("Bag size", "Items a bag holds"),
+                    "gameplay.bag_size",
+                    i64::from(g.bag_size),
+                    1..=500,
+                    "",
+                );
+                f.text(
+                    ui,
+                    ("Currency", "The money's name, as players see it"),
+                    "gameplay.currency",
+                    &g.currency,
+                    "Gold",
+                );
+                f.names(
+                    ui,
+                    (
+                        "Other currencies",
+                        "Currencies beside the money (gems, honour); items may be priced in them",
+                        "e.g. Gems, Honour",
+                    ),
+                    "gameplay.currencies",
+                    &g.currencies,
+                );
+                f.names(
+                    ui,
+                    (
+                        "Qualities",
+                        "Item qualities, from the lowest",
+                        "e.g. Normal, Refined, Unique",
+                    ),
+                    "gameplay.qualities",
+                    &g.qualities,
+                );
+                f.whole(
+                    ui,
+                    (
+                        "Quality bonus",
+                        "What each quality step adds to what an item gives",
+                    ),
+                    "gameplay.quality_bonus_percent",
+                    i64::from(g.quality_bonus_percent),
+                    0..=1000,
+                    " %",
+                );
+                f.whole(
+                    ui,
+                    (
+                        "Wear",
+                        "Chance a worn item loses a point of durability when its wearer hits or is hit",
+                    ),
+                    "gameplay.wear_percent",
+                    i64::from(g.wear_percent),
+                    0..=100,
+                    " %",
+                );
+            });
+            heading(ui, "Equipment slots");
+            let game_slots = f.game.map(|g| g.slot_names()).unwrap_or_default();
+            f.equipment_slots(ui, &g.equipment_slots, &game_slots);
         }
         Section::Maps => f.map_entries(ui, &s.maps),
         Section::Graphics => grid(ui, "graphics", |ui| {
@@ -1503,6 +1557,94 @@ impl Fields<'_> {
         }
         if changed {
             self.set("maps", serde_json::to_value(&list).unwrap_or_default());
+        }
+    }
+
+    /// The slots items are worn in: the settings' list, or the game's own until one is made.
+    fn equipment_slots(
+        &mut self,
+        ui: &mut egui::Ui,
+        slots: &[EquipmentSlot],
+        game_slots: &[(u8, String)],
+    ) {
+        let mut list = slots.to_vec();
+        let mut changed = false;
+        let mut remove = None;
+        if list.is_empty() {
+            let names: Vec<&str> = game_slots.iter().map(|(_, n)| n.as_str()).collect();
+            ui.label(
+                RichText::new(format!("The game's own: {}.", names.join(", ")))
+                    .color(theme::TEXT_DIM),
+            );
+            if ui
+                .button(theme::icon_text(
+                    icons::PENCIL_SIMPLE,
+                    "Make them the project's",
+                ))
+                .on_hover_text("Copies the game's slots here to rename, add and remove")
+                .clicked()
+            {
+                list = game_slots
+                    .iter()
+                    .map(|(id, name)| EquipmentSlot {
+                        id: *id,
+                        name: name.clone(),
+                    })
+                    .collect();
+                changed = true;
+            }
+        }
+        egui::Grid::new("equipment slots")
+            .num_columns(3)
+            .spacing([10.0, 6.0])
+            .show(ui, |ui| {
+                for (i, slot) in list.iter_mut().enumerate() {
+                    let id = ui
+                        .add(DragValue::new(&mut slot.id).range(1..=255).prefix("slot "))
+                        .on_hover_text("The number item types name the slot by (items' slot)");
+                    let name = ui.add_sized(
+                        [160.0, 22.0],
+                        egui::TextEdit::singleline(&mut slot.name).hint_text("name"),
+                    );
+                    self.track(&id, "Equipment slots");
+                    self.track(&name, "Equipment slots");
+                    changed |= id.changed() || name.changed();
+                    if ui
+                        .button(icons::TRASH)
+                        .on_hover_text("Remove this slot")
+                        .clicked()
+                    {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(i) = remove {
+            list.remove(i);
+            changed = true;
+        }
+        if !list.is_empty()
+            && ui
+                .button(theme::icon_text(icons::PLUS, "Add a slot"))
+                .clicked()
+        {
+            let id = list
+                .iter()
+                .map(|s| s.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1);
+            list.push(EquipmentSlot {
+                id,
+                name: format!("Slot {id}"),
+            });
+            changed = true;
+        }
+        if changed {
+            self.set(
+                "gameplay.equipment_slots",
+                serde_json::to_value(&list).unwrap_or_default(),
+            );
         }
     }
 

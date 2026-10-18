@@ -7,11 +7,42 @@ use c3_script::Conversation;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
-/// One item someone carries; `id` is unique in the world.
+/// One item someone carries (a stack of them); `id` is unique in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     pub id: u32,
     pub kind: u32,
+    /// How many are stacked here (up to the type's `stack`).
+    #[serde(default = "one")]
+    pub count: u32,
+    /// Durability left, for types that have one; at 0 the item is broken and gives nothing.
+    #[serde(default)]
+    pub durability: u32,
+    /// Its quality step (0: the lowest), each adding to what it gives.
+    #[serde(default)]
+    pub quality: u8,
+}
+
+fn one() -> u32 {
+    1
+}
+
+impl Item {
+    /// One new item `id` of type `kind` (`t`), whole.
+    pub fn new(id: u32, kind: u32, t: Option<&crate::ItemType>) -> Self {
+        Self {
+            id,
+            kind,
+            count: 1,
+            durability: t.map_or(0, |t| t.durability),
+            quality: 0,
+        }
+    }
+
+    /// Whether it is worn out (a type with durability, none left).
+    pub fn is_broken(&self, t: &crate::ItemType) -> bool {
+        t.durability > 0 && self.durability == 0
+    }
 }
 
 /// What a player is doing.
@@ -42,6 +73,9 @@ pub struct Player {
     pub life: u32,
     pub mana: u32,
     pub money: u64,
+    /// Other currencies, by name (see the settings' `currencies`).
+    #[serde(default)]
+    pub wallet: BTreeMap<String, u64>,
     pub stats: Stats,
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.

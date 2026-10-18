@@ -25,6 +25,21 @@ pub struct Stats {
 }
 
 impl Stats {
+    /// These stats at `percent` (an item's bonus at its quality), rounded down.
+    pub fn scaled(self, percent: u32) -> Stats {
+        let at = |v: u32| (u64::from(v) * u64::from(percent) / 100) as u32;
+        Stats {
+            max_life: at(self.max_life),
+            max_mana: at(self.max_mana),
+            attack_min: at(self.attack_min),
+            attack_max: at(self.attack_max),
+            defence: at(self.defence),
+            dodge: at(self.dodge),
+            dexterity: at(self.dexterity),
+            ..self
+        }
+    }
+
     /// These stats with an item's bonus added (life, mana, attack, defence, dodge, accuracy).
     pub fn with_bonus(mut self, bonus: &Stats) -> Stats {
         self.max_life += bonus.max_life;
@@ -61,7 +76,7 @@ pub struct MonsterType {
 }
 
 /// A kind of item.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ItemType {
     pub id: u32,
     pub name: String,
@@ -74,6 +89,12 @@ pub struct ItemType {
     pub slot: Option<u8>,
     /// What wearing it adds (see [`Stats::with_bonus`]).
     pub bonus: Stats,
+    /// Most of it one bag slot holds (0 or 1: one each).
+    pub stack: u32,
+    /// Durability of a new one; 0: it never wears out.
+    pub durability: u32,
+    /// The currency it is priced in (one of the settings' `currencies`); empty: the money.
+    pub currency: String,
 }
 
 /// Something a monster leaves on the ground when it dies.

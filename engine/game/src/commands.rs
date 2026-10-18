@@ -38,12 +38,8 @@ impl Sim {
                     .item(kind)
                     .map(|t| t.name.clone())
                     .ok_or_else(|| format!("There is no item type {kind}."))?;
-                let count = args
-                    .get(1)
-                    .copied()
-                    .unwrap_or(1)
-                    .clamp(1, self.bag_size() as i64);
-                let given = (0..count).take_while(|_| self.give_item(id, kind)).count();
+                let count = args.get(1).copied().unwrap_or(1).clamp(1, 10_000) as u32;
+                let given = self.give_items(id, kind, count);
                 Ok(format!("Gave {given} × {name}."))
             }
             "level" => {

@@ -29,7 +29,7 @@ pub use input::{Input, MAX_CHAT};
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{Drop, Fighter, ItemType, MonsterType, Rules, Stats};
-pub use save::PlayerSave;
+pub use save::{PlayerSave, SavedItem};
 pub use sim::Sim;
 
 use c3_scene::CellPos;

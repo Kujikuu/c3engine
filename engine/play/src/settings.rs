@@ -33,9 +33,19 @@ pub fn new_character(settings: &GameplaySettings, name: &str, cell: CellPos) -> 
     PlayerSave {
         level: start.level.max(1),
         money: start.money,
-        bag: start.bag.clone(),
-        equipment: start.equipment.clone(),
+        bag: start.bag.iter().map(|&k| k.into()).collect(),
+        equipment: start.equipment.iter().map(|&k| k.into()).collect(),
         ..PlayerSave::new(name, cell)
+    }
+}
+
+/// The equipment slots players wear items in: the settings', else the game's own.
+pub fn equipment_slots(settings: &ProjectSettings, game: &dyn GameModule) -> Vec<(u8, String)> {
+    let slots = &settings.gameplay.equipment_slots;
+    if slots.is_empty() {
+        game.slot_names()
+    } else {
+        slots.iter().map(|s| (s.id, s.name.clone())).collect()
     }
 }
 
@@ -117,7 +127,7 @@ mod tests {
         g.new_character.level = 0;
         let save = new_character(&g, "Ann", (3, 4));
         assert_eq!((save.level, save.money), (1, 500));
-        assert_eq!(save.equipment, [410003]);
+        assert_eq!(save.equipment, [410003.into()]);
         assert_eq!(save.cell, (3, 4));
         let scene = crate::basic::blank_scene(40, 20, [64.0, 32.0]);
         assert_eq!(start_cell(&g, &scene), (20, 10));

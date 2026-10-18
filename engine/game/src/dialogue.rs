@@ -145,8 +145,11 @@ impl Sim {
                 let text = format!("You handed over {count} × {}.", name(self, item));
                 notice(self, text);
             }
-            Effect::Money(n) if n >= 0 => notice(self, format!("You received {n} silver.")),
-            Effect::Money(n) => notice(self, format!("You paid {} silver.", -n)),
+            Effect::Money(n) => {
+                let currency = self.settings.currency.clone();
+                notice(self, money_text(n, &currency));
+            }
+            Effect::Currency { name, amount } => notice(self, money_text(amount, &name)),
             Effect::Teleport { map, cell } => {
                 let to = c3_scene::PortalTarget {
                     map: u32::try_from(map).unwrap_or(0),
@@ -189,13 +192,16 @@ impl Sim {
         };
         let mut items = BTreeMap::new();
         for item in &p.bag {
-            *items.entry(i64::from(item.kind)).or_insert(0) += 1;
+            *items.entry(i64::from(item.kind)).or_insert(0) += i64::from(item.count);
         }
         PlayerState {
             name: p.name.clone(),
             level: p.level.into(),
             money: p.money as i64,
             items,
+            wallet: (p.wallet.iter())
+                .map(|(k, &v)| (k.clone(), i64::try_from(v).unwrap_or(i64::MAX)))
+                .collect(),
             flags: p.flags.clone(),
         }
     }
@@ -208,6 +214,10 @@ impl Sim {
         };
         p.money = after.money.max(0) as u64;
         p.flags = after.flags.clone();
+        p.wallet = (after.wallet.iter())
+            .filter(|(_, v)| **v > 0)
+            .map(|(k, &v)| (k.clone(), v as u64))
+            .collect();
         let kinds: BTreeSet<i64> = before
             .items
             .keys()
@@ -217,12 +227,11 @@ impl Sim {
         for kind in kinds {
             let Ok(k) = u32::try_from(kind) else { continue };
             let change = after.item_count(kind) - before.item_count(kind);
+            let count = u32::try_from(change.unsigned_abs()).unwrap_or(u32::MAX);
             if change > 0 {
-                for _ in 0..change {
-                    self.give_item(id, k);
-                }
+                self.give_items(id, k, count);
             } else if change < 0 {
-                self.take_items(id, k, (-change) as usize);
+                self.take_items(id, k, count);
             }
         }
     }
@@ -234,5 +243,14 @@ impl Sim {
             .filter(|&c| c != npc && self.walkable(c))
             .min_by_key(|&c| distance(c, from) * 100 + (c.0 - from.0).abs() + (c.1 - from.1).abs())
             .unwrap_or(npc)
+    }
+}
+
+/// A notice of `amount` of `currency` received (or paid, when negative).
+fn money_text(amount: i64, currency: &str) -> String {
+    if amount >= 0 {
+        format!("You received {amount} {currency}.")
+    } else {
+        format!("You paid {} {currency}.", -amount)
     }
 }

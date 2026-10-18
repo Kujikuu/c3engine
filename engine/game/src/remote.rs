@@ -64,6 +64,7 @@ impl Player {
             path: Default::default(),
             exp: 0,
             money: 0,
+            wallet: Default::default(),
             ..self.clone()
         }
     }

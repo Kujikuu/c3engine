@@ -245,7 +245,7 @@ impl Session {
         }
         let mut audio = GameAudio::new(Rc::clone(&game), map_ids);
         audio.apply(&settings.audio);
-        let slots = game.slot_names();
+        let slots = settings::equipment_slots(&settings, &*game);
         let tilt = settings::tilt_deg(&settings, &*game);
         let mut world = World::new(Rc::clone(&game), map_path, scene, tilt);
         world.background = world::linear_background(settings.graphics.background);
@@ -411,6 +411,7 @@ impl Session {
         self.sim.set_settings(settings.gameplay.clone());
         self.audio.apply(&settings.audio);
         self.world.background = world::linear_background(settings.graphics.background);
+        self.slots = settings::equipment_slots(&settings, &*self.world.game);
         self.settings = settings;
     }
 
