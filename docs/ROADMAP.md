@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M3 step 7: Play mode inside the Studio (walk the open map in the Game view, Stop returns)
+- [ ] M3 step 8: Model / animation / effect viewers (actions, sockets, equipment, timeline)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -116,7 +116,12 @@ Toward the Unity/UE5-style editor, in order:
       and SQL export for Redux (`game_conquer::server_data`). NPC looks: `Npc.ini` →
       `3DSimpleObj.ini` → model + stand-by motion (`game_conquer::npc`); actors moved to
       `game_conquer::actor`, shared by the client (which now shows project NPCs) and the Studio
-- [ ] (7) Play mode (offline): walk the current map inside the Studio, stop to return to editing
+- [x] (7) Play mode in the Game view: Play (Ctrl+P) builds a `game_conquer::world::World` from the
+      open map as it is (unsaved edits, NPCs) with the hero where the Scene view looks; click to
+      walk, R run, Enter attack, Q/E turn, Space follow, wheel zoom; Pause (Ctrl+Shift+P) and Step
+      drive the world's own clock (`World::advance`); Stop drops it so playing never changes the
+      map. "Play in the game window" still runs the saved project in `c3-client`. `World` and the
+      engine `c3_render::camera::Camera2d` are shared by the client and the Studio
 - [ ] (8) Model / animation / effect viewers: actions, sockets, equipment, timeline
 
 ## M5: Gameplay framework (shared by client and server)

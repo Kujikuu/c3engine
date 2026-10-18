@@ -1,18 +1,21 @@
-//! The loaded world: current map scene, drawn by the engine's [`SceneView`] (sky, ground,
-//! objects, map effects), and the actors walking on it.
+//! A map being played: its scene, drawn by the engine's [`SceneView`] (sky, ground, objects,
+//! map effects), and the actors walking on it. The game client and the Studio's Play mode
+//! both run it.
 //!
-//! Each frame: [`World::prepare`] builds the draw lists with the actors posed into them;
-//! [`World::mesh_draws`] + [`World::frame`] then describe it to the renderer.
+//! The host advances the world's clock ([`World::advance`], so it can pause and step), then
+//! each frame [`World::prepare`] builds the draw lists with the actors posed into them and
+//! [`World::mesh_draws`] + [`World::frame`] describe it to the renderer.
 
-use crate::camera::Camera2d;
+use crate::Content;
+use crate::actor::{self, Actor, ActorPart};
+use c3_render::camera::Camera2d;
 use c3_render::effect::camera_eye;
 use c3_render::scene_view::SceneView;
 use c3_render::{Frame, MeshDraw, Renderer, View};
 use c3_scene::Scene;
-use game_conquer::Content;
-use game_conquer::actor::{self, Actor, ActorPart};
 use glam::Vec2;
-use std::time::Instant;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 /// Clear colour (linear) behind the map.
 const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
@@ -21,26 +24,31 @@ const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 const CLICK_EFFECT: &str = "mouse";
 
 pub struct World {
-    pub content: Content,
+    pub content: Rc<Content>,
     pub map_path: String,
     pub scene: Scene,
     pub actors: Vec<Actor>,
     view: SceneView<ActorPart>,
-    /// Clock for sprite and motion animation.
-    started: Instant,
+    /// Game time in milliseconds: the clock for animation and movement.
+    clock_ms: f64,
 }
 
 impl World {
-    pub fn new(content: Content, map_path: String, scene: Scene) -> Self {
-        let view = SceneView::new(&scene, &content, content.oblique_angle(), 0);
+    pub fn new(content: Rc<Content>, map_path: String, scene: Scene) -> Self {
+        let view = SceneView::new(&scene, &*content, content.oblique_angle(), 0);
         Self {
             content,
             map_path,
             scene,
             actors: Vec::new(),
             view,
-            started: Instant::now(),
+            clock_ms: 0.0,
         }
+    }
+
+    /// Moves game time on by `seconds` (the host's frame time; 0 while paused).
+    pub fn advance(&mut self, seconds: f32) {
+        self.clock_ms += f64::from(seconds.max(0.0)) * 1000.0;
     }
 
     /// Places effect `name` on `cell`, playing once or `forever`.
@@ -52,7 +60,7 @@ impl World {
     ) -> Result<(), String> {
         let now_ms = self.now_ms();
         self.view
-            .place_effect(name, cell, forever, &self.scene, &self.content, now_ms)
+            .place_effect(name, cell, forever, &self.scene, &*self.content, now_ms)
     }
 
     /// Plays effect `name` at the hero's feet, once or `forever`.
@@ -61,7 +69,7 @@ impl World {
         let effect = self
             .view
             .library
-            .start(name, &self.content, now_ms)
+            .start(name, &*self.content, now_ms)
             .ok_or_else(|| format!("effect {name} could not be loaded"))?;
         let hero = self.actors.first_mut().ok_or("there is no hero")?;
         hero.add_effect(if forever { effect.endless() } else { effect });
@@ -96,9 +104,9 @@ impl World {
         }
     }
 
-    /// Milliseconds since the world was loaded: the clock for animation and movement.
+    /// Game time in milliseconds: the clock for animation and movement.
     pub fn now_ms(&self) -> u64 {
-        self.started.elapsed().as_millis() as u64
+        self.clock_ms as u64
     }
 
     /// Advances actors (movement, actions) to now and drops finished effects.
@@ -115,7 +123,7 @@ impl World {
 
     /// An actor for each of the scene's NPCs (after the hero), each look loaded once.
     pub fn add_npcs(&mut self) {
-        let mut characters = std::collections::HashMap::new();
+        let mut characters = HashMap::new();
         for npc in &self.scene.npcs {
             let character = characters
                 .entry(npc.look)
@@ -165,7 +173,7 @@ impl World {
         let cells: Vec<_> = (self.actors.iter())
             .map(|a| a.draw_cell(&self.scene, now))
             .collect();
-        let (scene, content, actors) = (&self.scene, &self.content, &mut self.actors);
+        let (scene, content, actors) = (&self.scene, &*self.content, &mut self.actors);
         let tilt_deg = self.view.tilt_deg();
         let eye = camera_eye(view.center);
         self.view

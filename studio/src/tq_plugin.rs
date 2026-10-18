@@ -14,6 +14,7 @@ use c3_scene::{Population, Scene, TileLayer};
 use game_conquer::Content;
 use game_conquer::server_data::{self, ServerPopulation};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 pub use scene_io::Imported;
 
@@ -74,8 +75,9 @@ pub fn c3_summary(bytes: &[u8]) -> String {
 /// A game client folder: loose files plus packed archives.
 pub struct Client {
     pub root: PathBuf,
-    /// The game's own loader: maps' art and effects as the client draws them.
-    content: Content,
+    /// The game's own loader: maps' art and effects as the client draws them (shared with
+    /// Play mode's world).
+    content: Rc<Content>,
     /// `ini/3dobj.ini`: model id → C3 path.
     objects: PathTable,
     /// `ini/3dtexture.ini`: texture id → image path.
@@ -109,7 +111,7 @@ pub fn check_client(root: &Path) -> Result<(), String> {
 
 impl Client {
     pub fn open(root: &str) -> Result<Self, String> {
-        let content = Content::open(root)?;
+        let content = Rc::new(Content::open(root)?);
         let table = |name: &str| {
             content
                 .files()
@@ -133,6 +135,11 @@ impl Client {
     /// The game's content loader (actors, NPC models).
     pub fn content(&self) -> &Content {
         &self.content
+    }
+
+    /// The content loader, shared (a played world keeps it).
+    pub fn shared_content(&self) -> Rc<Content> {
+        Rc::clone(&self.content)
     }
 
     fn fs(&self) -> &ClientFs {

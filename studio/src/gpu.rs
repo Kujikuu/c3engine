@@ -11,6 +11,15 @@ pub struct GpuView {
     texture: Option<egui::TextureId>,
 }
 
+impl Drop for GpuView {
+    /// Unregisters the view's texture from egui (the renderer frees its own resources).
+    fn drop(&mut self) {
+        if let Some(id) = self.texture.take() {
+            self.state.renderer.write().free_texture(&id);
+        }
+    }
+}
+
 impl GpuView {
     pub fn new(state: &egui_wgpu::RenderState) -> Self {
         Self {

@@ -22,6 +22,7 @@ mod maps;
 mod model_view;
 mod models_ws;
 mod panels;
+mod play;
 mod scene_inspector;
 mod selection;
 mod shell;

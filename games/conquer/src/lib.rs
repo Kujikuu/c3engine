@@ -7,6 +7,7 @@ pub mod actor;
 pub mod character;
 pub mod npc;
 pub mod server_data;
+pub mod world;
 
 use c3_anim::Clip;
 use c3_assets::Image;

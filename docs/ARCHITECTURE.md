@@ -58,8 +58,10 @@ Scene + SceneAssets (game's loader) ──► c3_render::scene_view::SceneView::
 ```
 `SceneView` owns the streamed art caches, the map's playing effects and the `EffectLibrary`.
 Actors are game code: the caller passes their cells and poses them in a callback (`Poser`).
-The client's `World` and the Studio's Scene view both draw through it, so the editor shows
-exactly what the game shows.
+The game world (`game_conquer::world::World`: scene view + actors + a clock the host advances)
+runs in the client and in the Studio's Play mode; the Studio's Scene view (`studio/src/
+live_scene.rs`) draws the same `SceneView` with NPC actors, so the editor shows exactly what the
+game shows.
 
 ## Dependency rules
 - `engine/*` may depend only on other `engine/*` crates and third-party crates.

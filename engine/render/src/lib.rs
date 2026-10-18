@@ -7,6 +7,7 @@
 
 pub mod actor;
 mod assets;
+pub mod camera;
 pub mod effect;
 pub mod effect_library;
 pub mod ground;

@@ -9,16 +9,16 @@
 //! or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E turn the hero ·
 //! Esc to quit. `--effect` plays on the hero.
 
-mod camera;
 mod gfx;
-mod world;
 
+use c3_render::camera::Camera2d;
 use c3_scene::path;
-use camera::Camera2d;
 use game_conquer::Content;
 use game_conquer::actor::Actor;
-use game_conquer::character::{Look, action};
+use game_conquer::character::{DEFAULT_HERO, Look, action};
+use game_conquer::world::World;
 use glam::Vec2;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
@@ -26,7 +26,6 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
-use world::World;
 
 const DEFAULT_CLIENT: &str = r"D:\Conquer2\Tools\eosource\client5065";
 /// Twin City.
@@ -35,15 +34,6 @@ const DEFAULT_MAP_ID: u32 = 1002;
 const PAN_SPEED: f32 = 900.0;
 /// Screen pixels the pointer may move before a click becomes a drag.
 const CLICK_SLOP: f32 = 4.0;
-/// Hero when none is given: a newbie with hair, armor and a blade.
-const DEFAULT_HERO: Look = Look {
-    look: 3,
-    hair: 310,
-    armor: 130003,
-    armet: 0,
-    r_weapon: 410003,
-    l_weapon: 0,
-};
 
 struct App {
     world: World,
@@ -110,6 +100,7 @@ impl App {
             self.follow = false;
             self.camera.center += dir.normalize_or_zero() * PAN_SPEED * dt / self.camera.zoom;
         }
+        self.world.advance(dt);
         self.world.tick();
         if self.fit_pending {
             self.camera.fit(self.world.bounds(), self.viewport());
@@ -386,7 +377,7 @@ fn load_world(args: &Args) -> Result<World, String> {
     for w in &imported.warnings {
         eprintln!("warning: {w}");
     }
-    Ok(World::new(content, path, imported.scene))
+    Ok(World::new(Rc::new(content), path, imported.scene))
 }
 
 /// Plays a project map: `--map` names an engine scene or a map file of the project's content
@@ -402,7 +393,7 @@ fn load_project_world(dir: &str, args: &Args) -> Result<World, String> {
     {
         let scene = c3_scene::native::load_scene(&project.map_file(name))
             .map_err(|e| format!("map {name}: {e}"))?;
-        return Ok(World::new(content, name.clone(), scene));
+        return Ok(World::new(Rc::new(content), name.clone(), scene));
     }
     let path = match &args.map {
         Some(path) => path.clone(),
@@ -420,7 +411,7 @@ fn load_project_world(dir: &str, args: &Args) -> Result<World, String> {
     let population = c3_scene::native::load_population(&project.population_file(stem))
         .map_err(|e| e.to_string())?;
     scene.set_population(population);
-    Ok(World::new(content, path, scene))
+    Ok(World::new(Rc::new(content), path, scene))
 }
 
 fn main() {

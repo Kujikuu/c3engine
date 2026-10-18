@@ -60,6 +60,10 @@ pub struct Studio {
     pub(crate) editor: Editor,
     /// Engine renderer; `None` if eframe isn't running on wgpu.
     pub(crate) gpu: Option<GpuView>,
+    /// For renderers of their own (Play mode).
+    pub(crate) render_state: Option<eframe::egui_wgpu::RenderState>,
+    /// The map being played in the Game view.
+    pub(crate) playing: Option<crate::play::PlaySession>,
     /// The open map drawn as the game draws it; needs the project's content.
     pub(crate) live_scene: Option<LiveScene>,
     /// Which parts of the scene the Scene view draws.
@@ -96,8 +100,8 @@ pub struct Studio {
     /// Last error / notice copied into the console.
     pub(crate) logged_error: Option<String>,
     pub(crate) logged_notice: Option<Instant>,
-    /// The game client started by Play.
-    pub(crate) play: Option<std::process::Child>,
+    /// The game client started by "Play in game window".
+    pub(crate) game_window: Option<std::process::Child>,
     pub(crate) started: Instant,
     allow_quit: bool,
     title: String,
@@ -143,6 +147,8 @@ impl Studio {
             },
             editor: Editor::default(),
             gpu: cc.wgpu_render_state.as_ref().map(GpuView::new),
+            render_state: cc.wgpu_render_state.clone(),
+            playing: None,
             live_scene: None,
             layers: Layers::default(),
             animate: true,
@@ -166,7 +172,7 @@ impl Studio {
             console_errors: true,
             logged_error: None,
             logged_notice: None,
-            play: None,
+            game_window: None,
             started: Instant::now(),
             allow_quit: false,
             title: String::new(),
@@ -210,6 +216,9 @@ impl Studio {
         if let (Some(cell), Some(doc)) = (cell, &s.doc) {
             s.fit_pending = false;
             s.cam.center = doc.cell_to_world(cell);
+        }
+        if args.iter().any(|a| a == "--play") {
+            s.toggle_play();
         }
         let pick = flag("--pick").and_then(|c| parse_cell(&c));
         if let (Some(cell), Some(doc)) = (pick, &s.doc) {
@@ -271,6 +280,35 @@ impl Studio {
             old.release(&mut gpu.renderer);
         }
         self.live_scene = live;
+    }
+
+    /// While playing, the keyboard drives the game.
+    fn game_shortcuts(&mut self, ctx: &egui::Context) {
+        let keys = ctx.input(|i| {
+            let mut pan = glam::Vec2::ZERO;
+            for (keys, dir) in [
+                ([Key::A, Key::ArrowLeft], glam::Vec2::NEG_X),
+                ([Key::D, Key::ArrowRight], glam::Vec2::X),
+                ([Key::W, Key::ArrowUp], glam::Vec2::NEG_Y),
+                ([Key::S, Key::ArrowDown], glam::Vec2::Y),
+            ] {
+                if keys.iter().any(|k| i.key_down(*k)) {
+                    pan += dir;
+                }
+            }
+            crate::play::GameKeys {
+                run: i.key_pressed(Key::R),
+                attack: i.key_pressed(Key::Enter),
+                follow: i.key_pressed(Key::Space),
+                fit: i.key_pressed(Key::F),
+                turn: i8::from(i.key_pressed(Key::E)) - i8::from(i.key_pressed(Key::Q)),
+                pan,
+                dt: i.stable_dt.min(0.1),
+            }
+        });
+        if let Some(session) = &mut self.playing {
+            session.keys(&keys);
+        }
     }
 
     /// Deletes what the Scene view has selected.
@@ -509,16 +547,25 @@ impl Studio {
             return;
         }
         // Command shortcuts work even while a text field has focus.
-        let (undo, redo, save, duplicate) = ctx.input(|i| {
+        let (undo, redo, save, duplicate, play, pause) = ctx.input(|i| {
             let cmd = i.modifiers.command;
             let z = cmd && i.key_pressed(Key::Z);
+            let p = cmd && i.key_pressed(Key::P);
             (
                 z && !i.modifiers.shift,
                 (z && i.modifiers.shift) || (cmd && i.key_pressed(Key::Y)),
                 cmd && i.key_pressed(Key::S),
                 cmd && i.key_pressed(Key::D),
+                p && !i.modifiers.shift,
+                p && i.modifiers.shift,
             )
         });
+        if play {
+            self.toggle_play();
+        }
+        if pause && let Some(session) = &mut self.playing {
+            session.paused ^= true;
+        }
         if duplicate && !ctx.egui_wants_keyboard_input() {
             self.duplicate_selection();
         }
@@ -536,6 +583,10 @@ impl Studio {
         }
         if self.workspace == Workspace::Models {
             self.model_shortcuts(ctx);
+            return;
+        }
+        if self.playing.is_some() {
+            self.game_shortcuts(ctx);
             return;
         }
         let (mut delete, mut frame) = (false, false);
@@ -689,7 +740,7 @@ impl eframe::App for Studio {
             egui::CentralPanel::no_frame().show(ui, |ui| self.dock_ui(ui));
         }
         self.unsaved_prompt(&ctx);
-        if self.notice.is_some() || self.play.is_some() {
+        if self.notice.is_some() || self.game_window.is_some() {
             ctx.request_repaint_after(Duration::from_millis(500));
         }
     }

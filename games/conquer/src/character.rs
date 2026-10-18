@@ -36,6 +36,16 @@ pub struct Look {
     pub l_weapon: u32,
 }
 
+/// The hero when none is chosen: a newbie with hair, armor and a blade.
+pub const DEFAULT_HERO: Look = Look {
+    look: 3,
+    hair: 310,
+    armor: 130003,
+    armet: 0,
+    r_weapon: 410003,
+    l_weapon: 0,
+};
+
 /// A model with the texture it is drawn with.
 #[derive(Debug, Clone)]
 pub struct PartModel {

@@ -1,4 +1,5 @@
-//! 2D world camera for isometric maps: a world-pixel centre and a zoom factor.
+//! 2D world camera for isometric maps: a world-pixel centre and a zoom factor, with the
+//! conversions a game view needs (visible rect, screen ↔ world, zoom about a point, fit).
 
 use glam::Vec2;
 

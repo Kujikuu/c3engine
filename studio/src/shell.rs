@@ -232,24 +232,32 @@ impl Studio {
             let middle = ui.available_rect_before_wrap().center().x;
             let width = 3.0 * 30.0;
             ui.add_space((middle - ui.cursor().left() - width / 2.0).max(8.0));
-            let playing = self.play.is_some();
+            let playing = self.playing.is_some();
             let play_hint = if playing {
-                "Stop the game"
+                "Stop playing (Ctrl+P)"
             } else {
-                "Play this map where the Scene view is looking (opens the game window; \
-                 in-editor play comes later)"
+                "Play this map in the Game view, the hero where the Scene view looks (Ctrl+P)"
             };
             let play_icon = if playing { icons::STOP } else { icons::PLAY };
-            ui.add_enabled_ui(self.project.is_some(), |ui| {
+            ui.add_enabled_ui(self.doc.is_some() && self.client.is_some(), |ui| {
                 if theme::icon_toggle(ui, playing, play_icon, play_hint).clicked() {
                     self.toggle_play();
                 }
             });
-            ui.add_enabled_ui(false, |ui| {
-                let later = "Comes with in-editor play mode";
-                theme::icon_toggle(ui, false, icons::PAUSE, later).on_disabled_hover_text(later);
-                theme::icon_toggle(ui, false, icons::SKIP_FORWARD, later)
-                    .on_disabled_hover_text(later);
+            let paused = self.playing.as_ref().is_some_and(|p| p.paused);
+            ui.add_enabled_ui(playing, |ui| {
+                if theme::icon_toggle(ui, paused, icons::PAUSE, "Pause (Ctrl+Shift+P)").clicked()
+                    && let Some(session) = &mut self.playing
+                {
+                    session.paused ^= true;
+                }
+                let step = theme::icon_toggle(ui, false, icons::SKIP_FORWARD, "Step one frame");
+                if step.clicked()
+                    && let Some(session) = &mut self.playing
+                {
+                    session.paused = true;
+                    session.step();
+                }
             });
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -266,11 +274,34 @@ impl Studio {
     // ---- play ----
 
     /// Starts the game client on the open map at the Scene view's centre, or stops it.
+    /// Starts playing the open map in the Game view, or stops.
     pub(crate) fn toggle_play(&mut self) {
-        if let Some(mut child) = self.play.take() {
+        if self.playing.take().is_some() {
+            self.show_panel(Panel::Scene);
+            self.notify("Stopped playing".into());
+            return;
+        }
+        let (Some(client), Some(doc), Some(state)) = (&self.client, &self.doc, &self.render_state)
+        else {
+            return;
+        };
+        let start = doc.world_to_cell(self.cam.center);
+        match crate::play::PlaySession::start(client, doc, start, state) {
+            Ok(session) => {
+                self.playing = Some(session);
+                self.show_panel(Panel::Game);
+                self.notify("Playing: Stop (Ctrl+P) returns to editing".into());
+            }
+            Err(e) => self.error = Some(format!("Can't play this map: {e}")),
+        }
+    }
+
+    /// Plays the saved project in the game client's own window, or closes it.
+    pub(crate) fn toggle_game_window(&mut self) {
+        if let Some(mut child) = self.game_window.take() {
             // The game may already have been closed by the player.
             let _ = child.kill();
-            self.notify("Stopped the game".into());
+            self.notify("Closed the game window".into());
             return;
         }
         let Some(project) = &self.project else { return };
@@ -291,7 +322,7 @@ impl Studio {
         }
         match command.spawn() {
             Ok(child) => {
-                self.play = Some(child);
+                self.game_window = Some(child);
                 self.notify(if unsaved {
                     "Playing the last saved version; save to include your changes".into()
                 } else {
@@ -304,10 +335,10 @@ impl Studio {
 
     /// Notices when the game window was closed.
     pub(crate) fn poll_play(&mut self) {
-        if let Some(child) = &mut self.play
+        if let Some(child) = &mut self.game_window
             && !matches!(child.try_wait(), Ok(None))
         {
-            self.play = None;
+            self.game_window = None;
         }
     }
 

@@ -228,7 +228,12 @@ impl Studio {
     // ---- Game ----
 
     pub(crate) fn game_panel(&mut self, ui: &mut egui::Ui) {
-        let playing = self.play.is_some();
+        if let Some(session) = &mut self.playing {
+            session.ui(ui);
+            return;
+        }
+        let window_open = self.game_window.is_some();
+        let can_play = self.doc.is_some() && self.client.is_some();
         ui.vertical_centered(|ui| {
             ui.add_space((ui.available_height() * 0.3).max(8.0));
             ui.label(
@@ -237,34 +242,39 @@ impl Studio {
                     .color(Color32::from_gray(96)),
             );
             ui.add_space(4.0);
-            if playing {
-                ui.label(RichText::new("The game is running in its own window").size(15.0));
-                ui.label(
-                    RichText::new("Press Stop in the toolbar to end it.").color(theme::TEXT_DIM),
-                );
-            } else {
-                ui.label(RichText::new("Press Play to try your map").size(15.0));
-                ui.label(
-                    RichText::new(
-                        "The hero starts where the Scene view is looking. For now the game opens \
-                         in its own window; playing inside this panel comes later.",
-                    )
-                    .color(theme::TEXT_DIM),
-                );
-            }
+            ui.label(RichText::new("Press Play to try your map here").size(15.0));
+            ui.label(
+                RichText::new(
+                    "The hero starts where the Scene view looks, with your unsaved changes. \
+                     Stop returns to editing; nothing you do while playing changes the map.",
+                )
+                .color(theme::TEXT_DIM),
+            );
             ui.add_space(10.0);
-            let (icon, label) = if playing {
-                (icons::STOP, "Stop")
-            } else {
-                (icons::PLAY, "Play")
-            };
-            let button = egui::Button::new(
-                RichText::new(theme::icon_text(icon, label)).color(Color32::WHITE),
+            let play = egui::Button::new(
+                RichText::new(theme::icon_text(icons::PLAY, "Play")).color(Color32::WHITE),
             )
             .fill(theme::ACCENT)
             .min_size(egui::vec2(120.0, 30.0));
-            if ui.add_enabled(self.project.is_some(), button).clicked() {
+            if ui
+                .add_enabled(can_play, play)
+                .on_hover_text("Ctrl+P")
+                .clicked()
+            {
                 self.toggle_play();
+            }
+            ui.add_space(4.0);
+            let window = if window_open {
+                "Close the game window"
+            } else {
+                "Play in the game window"
+            };
+            if ui
+                .add_enabled(self.project.is_some(), egui::Button::new(window))
+                .on_hover_text("Runs the saved project in the game client's own window")
+                .clicked()
+            {
+                self.toggle_game_window();
             }
         });
     }
@@ -514,6 +524,13 @@ impl Studio {
                 if let Some(m) = &self.model {
                     ui.label(&m.entry.path);
                 }
+            } else if let Some(session) = &self.playing {
+                let (icon, state) = match session.paused {
+                    true => (icons::PAUSE, "Paused"),
+                    false => (icons::PLAY, "Playing"),
+                };
+                ui.colored_label(theme::ACCENT, theme::icon_text(icon, state));
+                ui.label(RichText::new("Stop (Ctrl+P) returns to editing").color(theme::TEXT_DIM));
             } else if let Some(doc) = &self.doc {
                 ui.label(self.save_target().unwrap_or_else(|| doc.name().to_owned()));
                 ui.separator();
@@ -542,6 +559,8 @@ impl Studio {
                 let hint = if self.workspace == Workspace::Models {
                     "Drag to orbit · Scroll zooms · Space play/pause · ← → step · F reset"
                         .to_owned()
+                } else if self.playing.is_some() {
+                    "Drag pans · WASD pans · Space follows the hero · F fits the map".to_owned()
                 } else {
                     format!(
                         "{}  ·  Right-drag pans · Scroll zooms",

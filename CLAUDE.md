@@ -15,7 +15,10 @@ append decisions, document formats as you implement them.
   mutate a document directly from UI code; add a command instead. AI/MCP will use the same commands.
 - Studio UI is Unity-inspired: `shell.rs` (menu bar, toolbar, `Panel` enum, default layout, Play,
   console), `dock.rs` (generic docking), `panels.rs` (one fn per panel), `browser.rs` (Project
-  panel asset browser), `icons.rs` (bundled
+  panel asset browser), `hierarchy.rs` (Hierarchy + Create menu), `selection.rs` (what is
+  selected, picking, move/duplicate/remove commands), `scene_inspector.rs` (selection Inspector,
+  Population import/export), `live_scene.rs` (Scene view drawing: SceneView + NPC actors),
+  `play.rs` (Play mode in the Game view), `icons.rs` (bundled
   Phosphor font; **never emoji as icons**), `theme.rs` (Unity-like dark theme + shared widgets).
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
   `home.rs` (start page, project dialogs, File menu, Project inspector section), `maps.rs` (project
