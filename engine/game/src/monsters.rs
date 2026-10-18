@@ -106,12 +106,13 @@ impl Sim {
         let (cell, home, kind) = (m.cell, m.home, m.kind);
         let view = self.rules.monster(kind).map_or(0, |t| t.view_range) as i32;
         let aggressive = self.rules.monster(kind).is_some_and(|t| t.aggressive);
-        // Drop a target that died, left or led it too far from home.
+        let boss = self.is_boss(id);
+        // Drop a target that died, left or led it too far from home (bosses follow anywhere).
         let target = m.target.filter(|t| {
             self.players.get(t).is_some_and(|p| {
                 p.is_alive()
                     && distance(p.cell, cell) <= view.max(1) * 2
-                    && distance(cell, home) <= leash
+                    && (boss || distance(cell, home) <= leash)
             })
         });
         let target = target.or_else(|| {
@@ -126,6 +127,10 @@ impl Sim {
         });
         self.monsters.get_mut(&id).expect("ticking").target = target;
         match target {
+            Some(t) if self.wants_to_flee(id) => {
+                let from = self.players[&t].cell;
+                self.step_monster(id, Self::away(cell, from));
+            }
             Some(t) => {
                 let goal = self.players[&t].cell;
                 let m = self.monsters.get_mut(&id).expect("ticking");
@@ -133,7 +138,10 @@ impl Sim {
                     if now >= m.next_attack_ms {
                         m.next_attack_ms = now + u64::from(m.stats.attack_ms.max(1));
                         m.direction = path::facing(cell, goal).unwrap_or(m.direction);
-                        self.monster_hits(id, t);
+                        match self.monster_skill_now(id) {
+                            Some(skill) => self.monster_casts(id, &skill, t),
+                            None => self.monster_hits(id, t),
+                        }
                     }
                 } else {
                     self.step_monster(id, goal);
@@ -208,14 +216,15 @@ impl Sim {
             .hit(&attacker, &defender, &mut self.rng)
             .min(m.life);
         m.life -= damage;
-        m.target = Some(id);
+        let dead = m.life == 0;
         self.events.push(Event::Attacked {
             attacker: id,
             target,
             damage,
         });
+        self.rouse(target, id);
         let mut exp = self.rules.hit_exp(level, &defender, damage);
-        if m.life == 0 {
+        if dead {
             exp += self.rules.kill_exp(level, &defender);
             self.kill_monster(target, Some(id));
         }
@@ -225,11 +234,17 @@ impl Sim {
 
     fn monster_hits(&mut self, id: EntityId, target: EntityId) {
         let attacker = self.monsters[&id].fighter();
-        let p = self.players.get_mut(&target).expect("hitting a player");
-        let damage = self
-            .rules
-            .hit(&attacker, &p.fighter(), &mut self.rng)
-            .min(p.life);
+        let defender = self.players[&target].fighter();
+        let damage = self.rules.hit(&attacker, &defender, &mut self.rng);
+        self.monster_hurts(id, target, damage);
+    }
+
+    /// `damage` from monster `id` to player `target`.
+    pub(crate) fn monster_hurts(&mut self, id: EntityId, target: EntityId, damage: u32) {
+        let Some(p) = self.players.get_mut(&target) else {
+            return;
+        };
+        let damage = damage.min(p.life);
         p.life -= damage;
         let dead = p.life == 0;
         self.events.push(Event::Attacked {

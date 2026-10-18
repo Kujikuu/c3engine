@@ -11,6 +11,7 @@ mod entity;
 mod event;
 mod index;
 mod input;
+mod monster_ai;
 mod monsters;
 mod players;
 mod portals;

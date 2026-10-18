@@ -61,7 +61,7 @@ pub struct Fighter {
 }
 
 /// A kind of monster.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MonsterType {
     pub id: u32,
     pub name: String,
@@ -73,6 +73,15 @@ pub struct MonsterType {
     pub view_range: u32,
     /// Attacks players on sight (otherwise only when attacked).
     pub aggressive: bool,
+    /// Hit, it calls the idle monsters of its kind around to join in.
+    pub assist: bool,
+    /// Below this percent of its life it runs from its foe; 0: never.
+    pub flee_percent: u32,
+    /// Never gives up a chase and is never stunned.
+    pub boss: bool,
+    /// A skill it casts instead of hitting, `skill_percent` of the time; 0: none.
+    pub skill: u32,
+    pub skill_percent: u32,
 }
 
 /// A kind of item.

@@ -23,6 +23,8 @@ const LIFE_POTION_CHANCE: u32 = 8;
 const MANA_POTION_CHANCE: u32 = 4;
 /// `cq_magictype.sort` of healing magic (`MAGICSORT_RECRUIT`).
 const SORT_HEAL: i64 = 2;
+/// Where `read_monsters` finds `magic_type` (then `magic_hitrate`, `escape_life`).
+const MONSTER_MAGIC: usize = 18;
 /// `cq_magictype.sort` of magic that puts a status on (`MAGICSORT_ATTACHSTATUS`).
 const SORT_STATUS: i64 = 6;
 /// `cq_magictype.status` flags (TQ's `KEEPEFFECT_*`) and the stat each raises.
@@ -61,6 +63,8 @@ pub struct ConquerRules {
     shops: HashMap<u32, Vec<u32>>,
     skills: HashMap<u32, SkillType>,
     statuses: HashMap<u32, StatusType>,
+    /// `cq_magictype.id` (a magic at a level) → its type.
+    magic_types: HashMap<u32, u32>,
 }
 
 /// A table's rows read by column name.
@@ -114,17 +118,18 @@ impl ConquerRules {
                 problems.push(e);
             }
         };
-        load("cq_monstertype", &mut |t| rules.read_monsters(t));
-        load(crate::server_data::ITEM_TABLE, &mut |t| rules.read_items(t));
-        load("cq_levexp", &mut |t| rules.read_levels(t));
-        load("cq_point_allot", &mut |t| rules.read_points(t));
-        load("cq_goods", &mut |t| rules.read_shops(t));
+        // Monsters name their magic, so magic first.
         if dir
             .join(format!("cq_magictype{}", c3_data::TABLE_SUFFIX))
             .exists()
         {
             load("cq_magictype", &mut |t| rules.read_magic(t));
         }
+        load("cq_monstertype", &mut |t| rules.read_monsters(t));
+        load(crate::server_data::ITEM_TABLE, &mut |t| rules.read_items(t));
+        load("cq_levexp", &mut |t| rules.read_levels(t));
+        load("cq_point_allot", &mut |t| rules.read_points(t));
+        load("cq_goods", &mut |t| rules.read_shops(t));
         (rules, problems)
     }
 
@@ -147,8 +152,12 @@ impl ConquerRules {
                 "need_level",
                 "status",
                 "step_secs",
+                "id",
             ],
         )?;
+        for v in rows.each() {
+            self.magic_types.insert(uint(v[14]), uint(v[0]));
+        }
         for v in rows.each().filter(|v| int(v[3]) == 0) {
             let id = uint(v[0]);
             let kind = match int(v[1]) {
@@ -234,6 +243,9 @@ impl ConquerRules {
                 "drop_money",
                 "drop_hp",
                 "drop_mp",
+                "magic_type",
+                "magic_hitrate",
+                "escape_life",
             ],
         )?;
         for v in rows.each() {
@@ -259,6 +271,17 @@ impl ConquerRules {
                     },
                     view_range: uint(v[11]),
                     aggressive: int(v[14]) & ACTIVE != 0,
+                    // `magic_type` names a magic level (`cq_magictype.id`); skills go by type.
+                    skill: self
+                        .magic_types
+                        .get(&uint(v[MONSTER_MAGIC]))
+                        .copied()
+                        .unwrap_or(0),
+                    skill_percent: uint(v[MONSTER_MAGIC + 1]).min(100),
+                    flee_percent: (u64::from(uint(v[MONSTER_MAGIC + 2])) * 100
+                        / u64::from(uint(v[4]).max(1)))
+                    .min(100) as u32,
+                    ..MonsterType::default()
                 },
             );
             self.drops.insert(
@@ -524,5 +547,107 @@ impl Rules for ConquerRules {
 
     fn shop(&self, npc: u32) -> &[u32] {
         self.shops.get(&npc).map_or(&[], Vec::as_slice)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use c3_data::{Column, ColumnKind};
+
+    /// A table of int columns (`name` is text) with `rows` in column order.
+    fn table(name: &str, columns: &[&str], rows: Vec<Vec<i64>>) -> Table {
+        let kind = |c: &str| {
+            if c == "name" {
+                ColumnKind::Text
+            } else {
+                ColumnKind::Int
+            }
+        };
+        let mut t = Table::new(
+            name,
+            columns.iter().map(|c| Column::new(*c, kind(c))).collect(),
+        );
+        for row in rows {
+            let value = |(c, v): (&&str, i64)| {
+                if *c == "name" {
+                    Value::Text(format!("n{v}"))
+                } else {
+                    Value::Int(v)
+                }
+            };
+            t.rows.push(columns.iter().zip(row).map(value).collect());
+        }
+        t
+    }
+
+    #[test]
+    fn monsters_cast_their_magic_type_and_statuses_come_from_attach_magic() {
+        let mut rules = ConquerRules::default();
+        let magic = [
+            "id",
+            "type",
+            "sort",
+            "name",
+            "level",
+            "use_mp",
+            "power",
+            "distance",
+            "range",
+            "multi",
+            "ground",
+            "delay_ms",
+            "need_level",
+            "status",
+            "step_secs",
+        ];
+        rules
+            .read_magic(&table(
+                "cq_magictype",
+                &magic,
+                vec![
+                    vec![1000, 1000, 1, 0, 0, 1, 7, 9, 0, 0, 0, 0, 0, 0, 0],
+                    vec![1001, 1000, 1, 0, 1, 6, 16, 9, 0, 0, 0, 0, 10, 0, 0],
+                    vec![1027, 1020, 6, 0, 0, 0, 30300, 0, 0, 0, 0, 0, 15, 0x40, 120],
+                ],
+            ))
+            .unwrap();
+        let monster = [
+            "id",
+            "name",
+            "lookface",
+            "level",
+            "life",
+            "attack_min",
+            "attack_max",
+            "defence",
+            "dodge",
+            "dexterity",
+            "attack_range",
+            "view_range",
+            "attack_speed",
+            "move_speed",
+            "attack_user",
+            "drop_money",
+            "drop_hp",
+            "drop_mp",
+            "magic_type",
+            "magic_hitrate",
+            "escape_life",
+        ];
+        rules
+            .read_monsters(&table(
+                "cq_monstertype",
+                &monster,
+                vec![vec![
+                    30, 0, 1, 50, 200, 5, 9, 1, 1, 1, 9, 9, 1000, 500, 3, 0, 0, 0, 1001, 40, 50,
+                ]],
+            ))
+            .unwrap();
+        let m = rules.monster(30).unwrap();
+        assert_eq!((m.skill, m.skill_percent, m.flee_percent), (1000, 40, 25));
+        let shield = rules.status(1020).expect("Shield's status");
+        assert_eq!((shield.defence_percent, shield.duration_ms), (200, 120_000));
+        assert_eq!(rules.skill(1020).unwrap().status, 1020);
     }
 }

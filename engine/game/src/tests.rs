@@ -44,6 +44,7 @@ fn monster(id: u32, life: u32, attack: u32, aggressive: bool) -> MonsterType {
         },
         view_range: 6,
         aggressive,
+        ..MonsterType::default()
     }
 }
 
@@ -105,7 +106,11 @@ impl Rules for TestRules {
 }
 
 fn rules() -> Box<dyn Rules> {
-    Box::new(TestRules {
+    Box::new(test_rules())
+}
+
+fn test_rules() -> TestRules {
+    TestRules {
         monsters: vec![monster(SLIME, 30, 5, false), monster(WOLF, 500, 40, true)],
         potion: ItemType {
             id: POTION,
@@ -206,7 +211,7 @@ fn rules() -> Box<dyn Rules> {
                 ..ItemType::default()
             },
         ],
-    })
+    }
 }
 
 fn spawn(id: u32, monster: u32, min: (i32, i32), max: (i32, i32), alive: u32) -> Spawn {
@@ -904,4 +909,73 @@ fn players_fight_players_only_on_pk_maps() {
         sim.save_player(a).unwrap().pk_kills == 1,
         "kept in the save"
     );
+}
+
+#[test]
+fn monsters_assist_flee_cast_and_bosses_hold_on() {
+    let mut r = test_rules();
+    let pack = MonsterType {
+        assist: true,
+        flee_percent: 80,
+        ..monster(SLIME, 100, 0, false)
+    };
+    r.monsters = vec![pack];
+    let mut sim = Sim::new(
+        Grid::new(40, 40),
+        vec![],
+        vec![Spawn {
+            per_wave: 3,
+            ..spawn(1, SLIME, (10, 5), (12, 5), 3)
+        }],
+        Box::new(r),
+        5,
+    );
+    let mut settings = sim.settings().clone();
+    settings.monster_wander = 0;
+    sim.set_settings(settings);
+    sim.advance(50);
+    let hero = sim.add_player("Hero", (5, 5), 1);
+    let first = sim.monsters().next().unwrap().id;
+    sim.learn_skill(hero, FIRE);
+    let before = distance(sim.monster(first).unwrap().cell, (5, 5));
+    sim.cast(hero, FIRE, CastAt::Entity(first));
+    sim.advance(1500);
+    assert_eq!(sim.monsters().count(), 3);
+    // Hit, it calls its kind: every slime is after the hero now.
+    assert!(sim.monsters().all(|m| m.target == Some(hero)));
+    // Down to 75 of 100 life, under its 80%: it runs.
+    sim.advance(3000);
+    let hit = sim.monster(first).unwrap();
+    assert_eq!(hit.life, 75);
+    assert!(distance(hit.cell, (5, 5)) > before, "it ran");
+}
+
+#[test]
+fn monster_skills_and_bosses() {
+    let mut r = test_rules();
+    r.monsters = vec![MonsterType {
+        boss: true,
+        skill: FIRE,
+        skill_percent: 100,
+        ..monster(WOLF, 500, 5, true)
+    }];
+    let mut sim = Sim::new(
+        Grid::new(40, 40),
+        vec![],
+        vec![spawn(1, WOLF, (6, 5), (6, 5), 1)],
+        Box::new(r),
+        5,
+    );
+    sim.advance(50);
+    let hero = sim.add_player("Hero", (5, 5), 1);
+    let wolf = sim.monsters().next().unwrap().id;
+    assert!(sim.add_status(wolf, STUN, None), "it bears it");
+    sim.advance(1100);
+    let events = sim.take_events();
+    // Stuns don't hold a boss; its skill replaces its hits.
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::Cast { caster, skill: FIRE, .. } if *caster == wolf
+    )));
+    assert!(sim.player(hero).unwrap().life < sim.player(hero).unwrap().stats.max_life);
 }

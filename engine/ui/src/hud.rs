@@ -108,8 +108,19 @@ impl Overlay {
 fn fight_plate(view: &GameView, id: EntityId) -> Option<(String, u32, u32)> {
     if let Some(m) = view.sim.monster(id).filter(|m| m.is_alive()) {
         let rules = view.sim.rules();
-        let name = rules.monster(m.kind).map_or("?", |t| t.name.as_str());
-        return Some((format!("{name}  Lv {}", m.level), m.life, m.stats.max_life));
+        let t = rules.monster(m.kind);
+        let name = t.map_or("?", |t| t.name.as_str());
+        // Bosses wear a star.
+        let mark = if t.is_some_and(|t| t.boss) {
+            format!("{}  ", icons::STAR)
+        } else {
+            String::new()
+        };
+        return Some((
+            format!("{mark}{name}  Lv {}", m.level),
+            m.life,
+            m.stats.max_life,
+        ));
     }
     let p = view
         .sim

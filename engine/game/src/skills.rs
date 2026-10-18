@@ -216,14 +216,15 @@ impl Sim {
             .skill_hit(&attacker, &defender, t, &mut self.rng)
             .min(m.life);
         m.life -= damage;
-        m.target = Some(id);
+        let dead = m.life == 0;
         self.events.push(Event::Attacked {
             attacker: id,
             target,
             damage,
         });
+        self.rouse(target, id);
         let mut exp = self.rules.hit_exp(level, &defender, damage);
-        if m.life == 0 {
+        if dead {
             exp += self.rules.kill_exp(level, &defender);
             self.kill_monster(target, Some(id));
         }

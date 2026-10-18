@@ -74,6 +74,9 @@ impl Sim {
 
     /// Whether `id` bears a status that keeps it from acting.
     pub(crate) fn is_stunned(&self, id: EntityId) -> bool {
+        if self.is_boss(id) {
+            return false;
+        }
         let statuses = match self.players.get(&id) {
             Some(p) => &p.statuses,
             None => match self.monsters.get(&id) {

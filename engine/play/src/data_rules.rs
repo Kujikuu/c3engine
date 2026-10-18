@@ -144,6 +144,20 @@ pub fn table_templates() -> Vec<Table> {
             "drops",
             "Items it may drop: `item:percent, ...` (e.g. `1:30, 2:5`)",
         ),
+        Column {
+            doc: "Hit, it calls the idle monsters of its kind around".into(),
+            ..Column::new("assist", ColumnKind::Bool)
+        },
+        int(
+            "flee_percent",
+            "Below this percent of its life it runs; 0: never",
+        ),
+        Column {
+            doc: "Never gives up a chase and is never stunned".into(),
+            ..Column::new("boss", ColumnKind::Bool)
+        },
+        int("skill", "A skill it casts instead of hitting; 0: none"),
+        int("skill_percent", "How often it casts its skill, in percent"),
     ]);
     let mut items = vec![
         int("id", "The item type"),
@@ -175,6 +189,11 @@ pub fn table_templates() -> Vec<Table> {
             Value::Bool(false),
             Value::Int(20),
             Value::Text("1:25".into()),
+            Value::Bool(true),
+            Value::Int(0),
+            Value::Bool(false),
+            Value::Int(0),
+            Value::Int(0),
         ]);
         row
     };
@@ -363,6 +382,11 @@ impl Row<'_> {
         self.value(column).and_then(Value::as_int).unwrap_or(0)
     }
 
+    /// A yes/no column (a bool, or 1).
+    fn flag(&self, column: &str) -> bool {
+        self.value(column).and_then(Value::as_int) == Some(1)
+    }
+
     fn uint(&self, column: &str) -> u32 {
         u32::try_from(self.int(column).max(0)).unwrap_or(u32::MAX)
     }
@@ -487,7 +511,12 @@ impl DataRules {
                 level: row.uint("level").max(1),
                 stats,
                 view_range: row.uint("view_range"),
-                aggressive: row.value("aggressive").and_then(Value::as_int) == Some(1),
+                aggressive: row.flag("aggressive"),
+                assist: row.flag("assist"),
+                flee_percent: row.uint("flee_percent").min(100),
+                boss: row.flag("boss"),
+                skill: row.uint("skill"),
+                skill_percent: row.uint("skill_percent").min(100),
             };
             let items = parse_drops(row.text("drops")).unwrap_or_else(|e| {
                 problems.push(format!("monster {id}'s drops: {e}"));

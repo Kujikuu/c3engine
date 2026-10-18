@@ -67,6 +67,7 @@ fn rules() -> Box<dyn Rules> {
             },
             view_range: 3,
             aggressive: false,
+            ..MonsterType::default()
         },
     })
 }
