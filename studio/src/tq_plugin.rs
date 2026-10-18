@@ -11,6 +11,60 @@ use std::path::{Path, PathBuf};
 
 pub use scene_io::Imported;
 
+/// Kinds of TQ files, by extension (lowercase, without the dot), for the asset browser.
+pub fn tq_kind(ext: &str) -> Option<crate::browser::AssetKind> {
+    use crate::browser::AssetKind;
+    Some(match ext {
+        "dmap" => AssetKind::Map,
+        "c3" => AssetKind::Model,
+        "ani" => AssetKind::Sprites,
+        "pul" => AssetKind::Puzzle,
+        "wdf" | "dnp" => AssetKind::Package,
+        "scene" | "part" => AssetKind::Terrain,
+        "dat" | "ini" | "msk" | "tme" | "rgn" => AssetKind::Data,
+        _ => return None,
+    })
+}
+
+/// Decodes a DDS or TGA image file's bytes.
+pub fn decode_tq_image(bytes: &[u8]) -> Option<Image> {
+    texture::decode_image(bytes).ok()
+}
+
+/// One line describing a C3 file's contents, e.g. `2 meshes · 2 motions · 1 trail`.
+pub fn c3_summary(bytes: &[u8]) -> String {
+    use c3_formats_tq::c3::ChunkKind;
+    let Ok(file) = C3File::parse(bytes) else {
+        return "Not a readable C3 file".to_owned();
+    };
+    // (singular, plural, count)
+    let mut counts: Vec<(&str, &str, usize)> = Vec::new();
+    for chunk in &file.chunks {
+        let (one, many) = match chunk.kind() {
+            ChunkKind::Phy(_) => ("mesh", "meshes"),
+            ChunkKind::Motion => ("motion", "motions"),
+            ChunkKind::Shape => ("trail", "trails"),
+            ChunkKind::Particles | ChunkKind::ParticlesExtended => {
+                ("particle system", "particle systems")
+            }
+            ChunkKind::Camera => ("camera path", "camera paths"),
+            ChunkKind::ShapeMotion | ChunkKind::Unknown => continue,
+        };
+        match counts.iter_mut().find(|(o, _, _)| *o == one) {
+            Some((_, _, n)) => *n += 1,
+            None => counts.push((one, many, 1)),
+        }
+    }
+    if counts.is_empty() {
+        return "Empty C3 file".to_owned();
+    }
+    counts
+        .iter()
+        .map(|(one, many, n)| format!("{n} {}", if *n == 1 { one } else { many }))
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
 /// A game client folder: loose files plus packed archives.
 pub struct Client {
     pub root: PathBuf,
@@ -106,6 +160,54 @@ impl Client {
 
     pub fn import_map(&self, path: &str) -> Result<Imported, String> {
         scene_io::import_map(&self.fs, path).map_err(|e| format!("{path}: {e}"))
+    }
+
+    /// Bytes of `path` (loose or packed).
+    pub fn read(&self, path: &str) -> Option<Vec<u8>> {
+        self.fs.read(path).map(|b| b.into_owned())
+    }
+
+    /// Files inside the client's packages whose names are known, with their sizes, and the
+    /// number of packed entries in all. WDF packages store hashed names only, so names come
+    /// from what the client refers to: the ANI frame lists and the ini path tables.
+    pub fn packed_files(&self) -> (Vec<(String, u64)>, usize) {
+        let mut names: Vec<String> = Vec::new();
+        let listed = |dir: &str, ext: &str| -> Vec<PathBuf> {
+            std::fs::read_dir(self.root.join(dir))
+                .map(|rd| {
+                    rd.flatten()
+                        .map(|e| e.path())
+                        .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case(ext)))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        for ani in listed("ani", "ani") {
+            if let Ok(ani) = c3_formats_tq::ani::Ani::open(&ani) {
+                for section in &ani.sections {
+                    names.extend((0..section.frames.len()).filter_map(|i| section.frame_str(i)));
+                }
+            }
+        }
+        for ini in listed("ini", "ini") {
+            if let Ok(bytes) = std::fs::read(&ini) {
+                names.extend(PathTable::parse(&bytes).paths.into_values());
+            }
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut files = Vec::new();
+        for name in names {
+            let rel = name.trim().replace('\\', "/");
+            if !rel.contains('.') || !seen.insert(rel.to_ascii_lowercase()) {
+                continue;
+            }
+            if let Some(size) = self.fs.packed_size(&rel)
+                && !self.root.join(&rel).is_file()
+            {
+                files.push((rel, u64::from(size)));
+            }
+        }
+        (files, self.fs.packed_count())
     }
 
     /// Decodes an image asset (DDS/TGA).

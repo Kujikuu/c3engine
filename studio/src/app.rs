@@ -1,5 +1,6 @@
 //! Studio application state: client/map loading, editing commands, shortcuts, and panel layout.
 
+use crate::browser::Browser;
 use crate::doc::MapDoc;
 use crate::dock::Dock;
 use crate::editor::{Editor, Tool};
@@ -67,6 +68,12 @@ pub struct Studio {
     pub(crate) fit_pending: bool,
     /// The docking layout of the panels.
     pub(crate) dock: Dock<Panel>,
+    /// The Project panel's asset browser.
+    pub(crate) browser: Browser,
+    /// For uploading textures outside of a frame (start-up options).
+    pub(crate) ctx: egui::Context,
+    /// The Inspector shows the browser's selection (else the open map or model).
+    pub(crate) inspect_asset: bool,
     /// Console messages, oldest first.
     pub(crate) log: Vec<LogEntry>,
     pub(crate) console_infos: bool,
@@ -126,6 +133,9 @@ impl Studio {
             pending: None,
             fit_pending: false,
             dock: shell::load_layout(),
+            browser: Browser::default(),
+            ctx: cc.egui_ctx.clone(),
+            inspect_asset: false,
             log: Vec::new(),
             console_infos: true,
             console_errors: true,
@@ -147,6 +157,12 @@ impl Studio {
         }
         if let Some(m) = flag("--map") {
             s.load_map(&MapRef::parse(&m));
+        }
+        if let Some(folder) = flag("--browse") {
+            s.browse_to(&folder, false);
+        }
+        if let Some(file) = flag("--select") {
+            s.browse_to(&file, true);
         }
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
@@ -183,6 +199,7 @@ impl Studio {
             }
         }
         self.refresh_maps();
+        self.refresh_assets();
     }
 
     /// Re-lists the maps.
@@ -235,6 +252,7 @@ impl Studio {
         };
         match loaded {
             Ok((scene, warnings)) => {
+                self.inspect_asset = false;
                 let doc = MapDoc::new(map.clone(), scene, warnings);
                 self.cam.center = doc.bounds().center();
                 self.doc = Some(doc);

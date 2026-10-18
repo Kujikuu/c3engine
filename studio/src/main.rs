@@ -2,11 +2,13 @@
 //! Usage: c3-studio [project folder] [--map <project map | map/map/xxx.DMap>] [--zoom 0.5]
 //!                  [--model <3dobj id>]
 //!                  [--new | --import <Conquer 5065 client folder>] [--exec <commands.json>]
+//!                  [--browse <content folder>] [--select <content file>]
 //! Without a project it opens on the start page (new, open, import, recent); `--new` and
 //! `--import` open those dialogs. `--exec` runs a JSON list of `c3_edit` scene commands on the
 //! `--map` as one undo step.
 
 mod app;
+mod browser;
 mod doc;
 mod dock;
 mod editor;

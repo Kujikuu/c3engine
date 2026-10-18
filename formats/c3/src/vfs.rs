@@ -53,6 +53,22 @@ impl ClientFs {
     }
 }
 
+impl ClientFs {
+    /// Size of `path` inside a package, if it is packed (loose files are not looked at).
+    pub fn packed_size(&self, path: &str) -> Option<u32> {
+        let id = legacy_string_id(&normalize_path(path));
+        self.archives
+            .iter()
+            .find_map(|(_, a)| a.find_uid(id))
+            .map(|e| e.size)
+    }
+
+    /// Entries in all packages.
+    pub fn packed_count(&self) -> usize {
+        self.archives.iter().map(|(_, a)| a.entries.len()).sum()
+    }
+}
+
 impl c3_assets::AssetSource for ClientFs {
     fn read(&self, path: &str) -> Option<Cow<'_, [u8]>> {
         ClientFs::read(self, path)

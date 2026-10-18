@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 4b: Project panel as a full asset browser (folder tree, thumbnails, previews)
+- [ ] M3 step 5: Scene view draws maps like the client (objects, parallax, effects, actors)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -93,8 +93,11 @@ Toward the Unity/UE5-style editor, in order:
       Help), toolbar (tools, Play/Pause/Step, Layout); Play launches the game client on the open
       map where the Scene view looks (Stop ends it); Unity-like dark theme; bundled Phosphor icon
       font replaces every emoji. (egui_dock/egui_tiles/egui-phosphor don't support egui 0.37 yet)
-- [ ] (4b) Project panel (asset browser): folder tree, search, thumbnails, live preview of models,
-      effects, sprites, maps
+- [x] (4b) Project panel (`studio/src/browser.rs`): folder tree + grid/list (size slider), breadcrumb,
+      search, lazy thumbnails for textures (DDS/TGA/PNG/JPG), type icons, packed WDF files shown in
+      their folders with a badge (names from ANI frames + ini tables: 23,655 of 25,013 named, 0.6 s),
+      double-click opens maps/models, context menu (Open, Show in Explorer, Copy Path), Inspector
+      shows the selected asset (size, storage, texture preview, C3 contents); `--browse`, `--select`
 - [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
       as the client does
 - [ ] (6) Scene editor: place/move/delete objects, effects, NPCs, monster spawns and portals;

@@ -26,7 +26,19 @@ pub fn install(ctx: &egui::Context) {
 }
 
 // Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses.
+pub const ARROW_CLOCKWISE: &str = "\u{E036}";
+pub const CARET_RIGHT: &str = "\u{E13A}";
 pub const CHECK_CIRCLE: &str = "\u{E184}";
+pub const COPY: &str = "\u{E1CA}";
+pub const FILE_AUDIO: &str = "\u{EA20}";
+pub const FILE_TEXT: &str = "\u{E23A}";
+pub const FILM_STRIP: &str = "\u{E792}";
+pub const FOLDER: &str = "\u{E24A}";
+pub const IMAGE: &str = "\u{E2CA}";
+pub const LIST_BULLETS: &str = "\u{E2F2}";
+pub const PACKAGE: &str = "\u{E390}";
+pub const PUZZLE_PIECE: &str = "\u{E596}";
+pub const SQUARES_FOUR: &str = "\u{E464}";
 pub const CIRCLE: &str = "\u{E18A}";
 pub const CLOCK_COUNTER_CLOCKWISE: &str = "\u{E1A0}";
 pub const CORNERS_OUT: &str = "\u{E1D0}";

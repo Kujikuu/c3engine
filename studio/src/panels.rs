@@ -270,6 +270,12 @@ impl Studio {
     // ---- Inspector ----
 
     pub(crate) fn inspector_panel(&mut self, ui: &mut egui::Ui) {
+        if self.inspect_asset && self.browser.selected.is_some() {
+            egui::ScrollArea::vertical()
+                .auto_shrink(false)
+                .show(ui, |ui| self.asset_inspector(ui));
+            return;
+        }
         if self.workspace == Workspace::Models && self.model.is_some() {
             self.model_inspector(ui);
             return;
@@ -412,102 +418,6 @@ impl Studio {
         }
         for _ in 0..(-steps).max(0) {
             self.redo();
-        }
-    }
-
-    // ---- Project ----
-
-    pub(crate) fn project_panel(&mut self, ui: &mut egui::Ui) {
-        let search = ui.add(
-            egui::TextEdit::singleline(&mut self.filter)
-                .hint_text(format!(
-                    "{}  Search maps and models  (Ctrl+F)",
-                    icons::MAGNIFYING_GLASS
-                ))
-                .desired_width(f32::INFINITY),
-        );
-        if ui.input(|i| i.modifiers.command && i.key_pressed(Key::F)) {
-            search.request_focus();
-        }
-        let maps = self.filtered_maps();
-        let models = self.filtered_models();
-        if search.has_focus()
-            && ui.input(|i| i.key_pressed(Key::Enter))
-            && let Some(first) = maps.first()
-        {
-            self.open_map(first);
-        }
-        ui.add_space(4.0);
-        let mut open_map = None;
-        let mut open_model = None;
-        egui::ScrollArea::vertical()
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    let title =
-                        theme::icon_text(icons::MAP_TRIFOLD, &format!("Maps ({})", maps.len()));
-                    egui::CollapsingHeader::new(RichText::new(title).strong())
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            if maps.is_empty() {
-                                let hint = if self.maps.is_empty() {
-                                    "This project has no maps yet."
-                                } else {
-                                    "No maps match the search."
-                                };
-                                ui.label(RichText::new(hint).color(theme::TEXT_DIM));
-                            }
-                            for m in &maps {
-                                let doc = self.doc.as_ref().filter(|d| &d.map == m);
-                                let name = match doc {
-                                    Some(d) if d.is_dirty() => format!("{}*", m.name()),
-                                    _ => m.name().to_owned(),
-                                };
-                                let icon = if m.is_project() {
-                                    icons::MOUNTAINS
-                                } else {
-                                    icons::FILE
-                                };
-                                let r = ui.add(egui::Button::selectable(
-                                    doc.is_some(),
-                                    theme::icon_text(icon, &name),
-                                ));
-                                if doc.is_some() && self.fit_pending {
-                                    r.scroll_to_me(Some(egui::Align::Center));
-                                }
-                                if r.clicked() {
-                                    open_map = Some(m.clone());
-                                }
-                            }
-                        });
-                    let title =
-                        theme::icon_text(icons::CUBE, &format!("Models ({})", models.len()));
-                    egui::CollapsingHeader::new(RichText::new(title).strong())
-                        .default_open(false)
-                        .show(ui, |ui| {
-                            for e in &models {
-                                let selected = self.model.as_ref().is_some_and(|m| m.entry == *e);
-                                let name = e.path.rsplit('/').next().unwrap_or(&e.path);
-                                let label =
-                                    theme::icon_text(icons::CUBE, &format!("{}  {name}", e.id));
-                                if ui
-                                    .add(egui::Button::selectable(selected, label))
-                                    .on_hover_text(&e.path)
-                                    .clicked()
-                                {
-                                    open_model = Some(e.clone());
-                                }
-                            }
-                        });
-                });
-            });
-        if let Some(m) = open_map {
-            self.workspace = Workspace::Maps;
-            self.open_map(&m);
-        }
-        if let Some(e) = open_model {
-            self.workspace = Workspace::Models;
-            self.open_model(&e);
         }
     }
 

@@ -31,10 +31,6 @@ impl MapRef {
             Self::Client(path) => client_map_name(path),
         }
     }
-
-    pub fn is_project(&self) -> bool {
-        matches!(self, Self::Project(_))
-    }
 }
 
 /// `map/map/newplain.DMap` → `newplain`.
