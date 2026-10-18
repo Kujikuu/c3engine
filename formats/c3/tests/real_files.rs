@@ -656,3 +656,24 @@ fn masks_tme_and_regions_round_trip() {
         failed.join("\n")
     );
 }
+
+/// Text tables: Play.dat is +6 obfuscated ini; the others are plain ini.
+#[test]
+fn text_dat_tables_parse_as_ini() {
+    use c3_formats_tq::{ini::Ini, textdat};
+    let Some(dir) = client_dir() else { return };
+    let play = std::fs::read(dir.join("ini/Play.dat")).unwrap();
+    let plain = textdat::decode(&play, textdat::PLAY_DAT_SHIFT);
+    assert_eq!(textdat::encode(&plain, textdat::PLAY_DAT_SHIFT), play);
+    let ini = Ini::parse(&plain);
+    assert!(
+        ini.section("Start").is_some(),
+        "Play.dat sections: {:?}",
+        ini.sections.iter().map(|s| &s.name).collect::<Vec<_>>()
+    );
+    for name in ["ini/Shop.dat", "Server.dat"] {
+        let ini = Ini::parse(&std::fs::read(dir.join(name)).unwrap());
+        assert!(ini.section("Header").is_some(), "{name} has no [Header]");
+        eprintln!("{name}: {} sections", ini.sections.len());
+    }
+}
