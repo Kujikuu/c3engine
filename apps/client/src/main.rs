@@ -1,5 +1,6 @@
 //! C3 Client: the game runtime window.
-//! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002] [--cell x,y] [--zoom 1.0]
+//! Usage: c3-client [client_dir | --project <folder>] [--map map/map/xxx.DMap | <project map>
+//!                   | --map-id 1002] [--cell x,y] [--zoom 1.0]
 //!                   [--actor <3dobj id> | --player look,hair,armor,armet,rweapon,lweapon]
 //!                   [--action 100] [--dir 0-7] [--effect <3DEffect.ini name>] [--walk-to x,y] [--run]
 //!
@@ -292,6 +293,8 @@ impl ApplicationHandler for App {
 
 struct Args {
     client: String,
+    /// Game project to play: its maps, with art from its Conquer client source.
+    project: Option<String>,
     map: Option<String>,
     map_id: Option<u32>,
     /// Start centred on this cell instead of fitting the whole map.
@@ -327,6 +330,7 @@ fn parse_args() -> Args {
             .unwrap_or_else(|| DEFAULT_CLIENT.to_owned()),
         map: flag("--map"),
         map_id: flag("--map-id").and_then(|v| v.parse().ok()),
+        project: flag("--project"),
         cell: flag("--cell").and_then(|v| parse_cell(&v)),
         zoom: flag("--zoom").and_then(|v| v.parse().ok()),
         actor: flag("--actor").and_then(|v| v.parse().ok()),
@@ -365,6 +369,9 @@ fn parse_look(v: &str) -> Option<Look> {
 }
 
 fn load_world(args: &Args) -> Result<World, String> {
+    if let Some(dir) = &args.project {
+        return load_project_world(dir, args);
+    }
     let content = Content::open(&args.client)?;
     let path = match &args.map {
         Some(p) => p.clone(),
@@ -380,6 +387,26 @@ fn load_world(args: &Args) -> Result<World, String> {
         eprintln!("warning: {w}");
     }
     Ok(World::new(content, path, imported.scene))
+}
+
+/// Plays project map `--map` (default: the project's first map).
+fn load_project_world(dir: &str, args: &Args) -> Result<World, String> {
+    let project = c3_project::Project::open(dir).map_err(|e| e.to_string())?;
+    let (_, client) = project
+        .tq_client()
+        .ok_or("the project has no Conquer client to take art from")?;
+    let content = Content::open(client)?;
+    let name = match &args.map {
+        Some(name) => name.clone(),
+        None => project
+            .map_names()
+            .into_iter()
+            .next()
+            .ok_or("the project has no maps yet; save one in the Studio first")?,
+    };
+    let scene = c3_scene::native::load_scene(&project.map_file(&name))
+        .map_err(|e| format!("map {name}: {e}"))?;
+    Ok(World::new(content, name, scene))
 }
 
 fn main() {

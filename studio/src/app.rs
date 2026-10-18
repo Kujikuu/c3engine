@@ -5,9 +5,10 @@ use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
 use crate::home::ProjectDialog;
 use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
+use crate::maps::{self, MapRef};
 use crate::model_view::{ModelDoc, OrbitCamera};
 use crate::theme;
-use crate::tq_plugin::{Client, ModelEntry};
+use crate::tq_plugin::{Client, META_SOURCE_MAP, ModelEntry};
 use c3_project::{Project, RecentProjects};
 use c3_render::ground::GroundCache;
 use c3_scene::CellPos;
@@ -27,7 +28,7 @@ pub(crate) enum Workspace {
 /// Something waiting on the "unsaved changes" prompt.
 #[derive(Clone)]
 pub(crate) enum Pending {
-    OpenMap(String),
+    OpenMap(MapRef),
     OpenProject(PathBuf),
     CloseProject,
     Quit,
@@ -41,7 +42,8 @@ pub struct Studio {
     /// The project's TQ client source, if it has one.
     pub(crate) client: Option<Client>,
     pub(crate) workspace: Workspace,
-    pub(crate) maps: Vec<String>,
+    /// Project maps, then client maps not imported yet.
+    pub(crate) maps: Vec<MapRef>,
     pub(crate) models: Vec<ModelEntry>,
     pub(crate) model: Option<ModelDoc>,
     pub(crate) orbit: OrbitCamera,
@@ -119,7 +121,7 @@ impl Studio {
             s.show_import_conquer(flag("--import").as_deref());
         }
         if let Some(m) = flag("--map") {
-            s.load_map(&m);
+            s.load_map(&MapRef::parse(&m));
         }
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
@@ -140,22 +142,30 @@ impl Studio {
 
     // ---- documents ----
 
-    /// Opens the project's TQ client source (maps and models come from it for now).
+    /// Opens the project's TQ client source (models and not-yet-imported maps come from it),
+    /// then lists the maps.
     pub(crate) fn open_client(&mut self) {
         self.client = None;
         self.maps.clear();
         self.models.clear();
-        let Some((_, dir)) = self.project.as_ref().and_then(Project::tq_client) else {
-            return;
-        };
-        match Client::open(&dir.display().to_string()) {
-            Ok(client) => {
-                self.maps = client.list_maps();
-                self.models = client.list_models();
-                self.client = Some(client);
+        if let Some((_, dir)) = self.project.as_ref().and_then(Project::tq_client) {
+            match Client::open(&dir.display().to_string()) {
+                Ok(client) => {
+                    self.models = client.list_models();
+                    self.client = Some(client);
+                }
+                Err(e) => self.error = Some(format!("Can't open the project's client folder: {e}")),
             }
-            Err(e) => self.error = Some(format!("Can't open the project's client folder: {e}")),
         }
+        self.refresh_maps();
+    }
+
+    /// Re-lists the project's maps and the client maps not imported yet.
+    pub(crate) fn refresh_maps(&mut self) {
+        self.maps = match &self.project {
+            Some(project) => maps::list_maps(project, self.client.as_ref()),
+            None => Vec::new(),
+        };
     }
 
     /// Closes the open map and model (without asking).
@@ -172,28 +182,41 @@ impl Studio {
     }
 
     /// Opens a map, asking first if the current one has unsaved changes.
-    pub(crate) fn open_map(&mut self, path: &str) {
-        if self.doc.as_ref().is_some_and(|d| d.path == path) {
+    pub(crate) fn open_map(&mut self, map: &MapRef) {
+        if self.doc.as_ref().is_some_and(|d| &d.map == map) {
             return;
         }
         if self.is_dirty() {
-            self.pending = Some(Pending::OpenMap(path.to_owned()));
+            self.pending = Some(Pending::OpenMap(map.clone()));
         } else {
-            self.load_map(path);
+            self.load_map(map);
         }
     }
 
-    fn load_map(&mut self, path: &str) {
-        let Some(client) = &self.client else { return };
-        match client.import_map(path) {
-            Ok(imported) => {
-                let doc = MapDoc::new(path, imported.scene, imported.warnings);
+    fn load_map(&mut self, map: &MapRef) {
+        let loaded = match map {
+            MapRef::Project(name) => match &self.project {
+                Some(project) => c3_scene::native::load_scene(&project.map_file(name))
+                    .map(|scene| (scene, Vec::new()))
+                    .map_err(|e| e.to_string()),
+                None => return,
+            },
+            MapRef::Client(path) => match &self.client {
+                Some(client) => client
+                    .import_map(path)
+                    .map(|imported| (imported.scene, imported.warnings)),
+                None => return,
+            },
+        };
+        match loaded {
+            Ok((scene, warnings)) => {
+                let doc = MapDoc::new(map.clone(), scene, warnings);
                 self.cam.center = doc.bounds().center();
                 self.doc = Some(doc);
                 self.fit_pending = true;
                 self.error = None;
             }
-            Err(e) => self.error = Some(e),
+            Err(e) => self.error = Some(format!("Can't open {}: {e}", map.name())),
         }
     }
 
@@ -229,21 +252,57 @@ impl Studio {
         }
     }
 
+    /// Saves the open map into the project (a client map becomes a project map).
     pub(crate) fn save(&mut self) -> bool {
-        let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
+        let (Some(project), Some(doc)) = (&self.project, &mut self.doc) else {
             return false;
         };
         doc.end_group();
-        match client.save_map(doc.scene(), &doc.path) {
-            Ok(path) => {
+        let name = doc.name().to_owned();
+        let file = project.map_file(&name);
+        match c3_scene::native::save_scene(doc.scene(), &file) {
+            Ok(()) => {
                 doc.mark_saved();
-                self.notify(format!("Saved {}", path.display()));
+                let imported = !doc.map.is_project();
+                doc.map = MapRef::Project(name.clone());
+                if imported {
+                    self.refresh_maps();
+                    self.notify(format!(
+                        "Saved {name} into the project (maps/{name}.scene.ron)"
+                    ));
+                } else {
+                    self.notify(format!("Saved {name}"));
+                }
                 true
             }
             Err(e) => {
-                self.error = Some(e);
+                self.error = Some(format!("Can't save {name}: {e}"));
                 false
             }
+        }
+    }
+
+    /// The client map the open map can be exported to, if any.
+    pub(crate) fn export_target(&self) -> Option<&str> {
+        self.client.as_ref()?;
+        let doc = self.doc.as_ref()?;
+        match &doc.map {
+            MapRef::Client(path) => Some(path),
+            MapRef::Project(_) => doc.scene().meta.get(META_SOURCE_MAP).map(String::as_str),
+        }
+    }
+
+    /// Writes the open map back to the Conquer client folder as a DMap.
+    pub(crate) fn export_to_client(&mut self) {
+        let Some(target) = self.export_target().map(str::to_owned) else {
+            return;
+        };
+        let (Some(client), Some(doc)) = (&self.client, &self.doc) else {
+            return;
+        };
+        match client.save_map(doc.scene(), &target) {
+            Ok(file) => self.notify(format!("Exported to the client: {}", file.display())),
+            Err(e) => self.error = Some(format!("Can't export to the client: {e}")),
         }
     }
 
@@ -254,7 +313,7 @@ impl Studio {
             return; // keep the user's work if saving failed
         }
         match p {
-            Pending::OpenMap(path) => self.load_map(&path),
+            Pending::OpenMap(map) => self.load_map(&map),
             Pending::OpenProject(path) => self.open_project(&path),
             Pending::CloseProject => self.close_project(),
             Pending::Quit => {
@@ -288,11 +347,11 @@ impl Studio {
             .map(|(m, _)| m.as_str())
     }
 
-    pub(crate) fn filtered_maps(&self) -> Vec<String> {
-        let f = self.filter.to_ascii_lowercase();
+    pub(crate) fn filtered_maps(&self) -> Vec<MapRef> {
+        let f = self.filter.to_lowercase();
         self.maps
             .iter()
-            .filter(|m| m.to_ascii_lowercase().contains(&f))
+            .filter(|m| m.name().to_lowercase().contains(&f))
             .cloned()
             .collect()
     }
@@ -392,7 +451,7 @@ impl Studio {
                 let cur = self
                     .doc
                     .as_ref()
-                    .and_then(|d| list.iter().position(|m| *m == d.path));
+                    .and_then(|d| list.iter().position(|m| *m == d.map));
                 let next = cur.map_or(0, |c| {
                     (c as i32 + step).rem_euclid(list.len() as i32) as usize
                 });

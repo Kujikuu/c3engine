@@ -40,6 +40,19 @@ path = 'D:\Conquer2\Tools\eosource\client5065'
 ```
 Recent projects: `<config dir>/C3Engine/recent.toml`, `[[project]]` entries (name, path, opened).
 
+### Scenes (`maps/<name>.scene.ron` + `.scene.bin`)
+`c3_scene::native`. The `.scene.ron` is RON text: `format`, `grid: (w, h)`, `projection`,
+`ground` (source, tile size, size, origin, scroll, tileset id → image path), `portals`,
+`entities`, `layers`, `meta` (e.g. `tq.source_map`, DMap header values for export). The
+`.scene.bin` holds the big grids, little-endian:
+```text
+magic "C3SCENE\0" · version u32 · width u32 · height u32 ·
+width×height × { flags u16, surface u16, height i16 } ·
+tiles u32 · tiles × tile id u16 (0xFFFF = empty)
+```
+Both are written to a temporary file first, then renamed. Asset paths inside (images, ANI, PUL)
+still resolve through the project's content sources until those assets are imported too.
+
 ### Editor commands and queries (c3-edit JSON)
 The AI assistant, MCP agents and `c3-studio --exec` use this JSON (schemas:
 `c3_edit::scene_command_schema()` / `scene_query_schema()`). Cells are `[x, y]`.

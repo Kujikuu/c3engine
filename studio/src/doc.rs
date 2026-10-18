@@ -1,29 +1,30 @@
 //! An open map document: a `c3_edit::SceneDoc` (scene + command history) plus where it came
-//! from. Every change goes through commands. Loading and saving go through `tq_plugin`.
+//! from. Every change goes through commands.
 
+use crate::maps::MapRef;
 use c3_edit::{EditError, HistoryEntry, Outcome, SceneCommand, SceneDoc};
 use c3_scene::{Cell, CellPos, Scene};
 use eframe::egui::{Pos2, Rect, Vec2};
 
 pub struct MapDoc {
-    /// Asset path the scene was opened from (and is saved to).
-    pub path: String,
+    /// Where the map lives; a client map becomes a project map when first saved.
+    pub map: MapRef,
     /// Non-fatal load problems, shown in the inspector.
     pub warnings: Vec<String>,
     edit: SceneDoc,
 }
 
 impl MapDoc {
-    pub fn new(path: &str, scene: Scene, warnings: Vec<String>) -> Self {
+    pub fn new(map: MapRef, scene: Scene, warnings: Vec<String>) -> Self {
         Self {
-            path: path.to_owned(),
+            map,
             warnings,
             edit: SceneDoc::new(scene),
         }
     }
 
     pub fn name(&self) -> &str {
-        self.path.rsplit('/').next().unwrap_or(&self.path)
+        self.map.name()
     }
 
     pub fn scene(&self) -> &Scene {

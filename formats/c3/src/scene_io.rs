@@ -18,6 +18,9 @@ use std::collections::BTreeMap;
 pub const CELL_W: f32 = 64.0;
 pub const CELL_H: f32 = 32.0;
 
+/// Scene meta key recording the client map a scene was imported from (`map/map/x.DMap`),
+/// so it can be exported back there.
+pub const META_SOURCE_MAP: &str = "tq.source_map";
 const META_VERSION: &str = "tq.dmap.version";
 const META_DATA: &str = "tq.dmap.data";
 
@@ -43,10 +46,11 @@ pub fn import_map(source: &dyn AssetSource, dmap_path: &str) -> Result<Imported>
             TileLayer::missing(&pul_path)
         }
     };
-    Ok(Imported {
-        scene: scene_from_dmap(&dmap, ground),
-        warnings,
-    })
+    let mut scene = scene_from_dmap(&dmap, ground);
+    scene
+        .meta
+        .insert(META_SOURCE_MAP.to_owned(), dmap_path.to_owned());
+    Ok(Imported { scene, warnings })
 }
 
 fn load_ground(source: &dyn AssetSource, dmap: &DMap, pul_path: &str) -> Result<TileLayer> {

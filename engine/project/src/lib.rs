@@ -27,6 +27,9 @@ pub const MANIFEST: &str = "c3project.toml";
 /// Folders every project has, created with it.
 pub const FOLDERS: [&str; 4] = ["assets", "maps", "tables", "scripts"];
 
+/// File name ending of a map (the engine's native scene format).
+pub const MAP_SUFFIX: &str = c3_scene::native::SCENE_SUFFIX;
+
 /// Engine version written into new manifests.
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -140,6 +143,30 @@ impl Project {
         &self.manifest.name
     }
 
+    /// Folder holding the project's maps.
+    pub fn maps_dir(&self) -> PathBuf {
+        self.root.join("maps")
+    }
+
+    /// File of map `name` (`maps/<name>.scene.ron`).
+    pub fn map_file(&self, name: &str) -> PathBuf {
+        self.maps_dir().join(format!("{name}{MAP_SUFFIX}"))
+    }
+
+    /// Names of the project's maps, sorted case-insensitively.
+    pub fn map_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(self.maps_dir())
+            .map(|dir| {
+                dir.flatten()
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .filter_map(|n| n.strip_suffix(MAP_SUFFIX).map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        names.sort_by_key(|n| n.to_lowercase());
+        names
+    }
+
     /// The first TQ client the project reads, as `(game, folder)`.
     pub fn tq_client(&self) -> Option<(&str, &Path)> {
         self.manifest
@@ -210,6 +237,9 @@ mod tests {
             Some(("conquer-5065", Path::new(r"D:\client5065")))
         );
         assert!(Project::is_project(&dir));
+        std::fs::write(opened.map_file("Twin City"), "").unwrap();
+        std::fs::write(opened.maps_dir().join("notes.txt"), "").unwrap();
+        assert_eq!(opened.map_names(), ["Twin City"]);
         assert!(matches!(
             Project::create(&dir, Manifest::new("x")),
             Err(Error::NotEmpty(_))

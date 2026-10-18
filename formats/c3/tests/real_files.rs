@@ -286,11 +286,15 @@ fn canonical(mut d: DMap) -> DMap {
     d
 }
 
+/// Every map imports to an engine scene, survives the native scene format unchanged, and
+/// exports back to the original DMap bytes.
 #[test]
 fn every_map_imports_to_scene_and_exports_back() {
     use c3_formats_tq::{scene_io, vfs::ClientFs};
+    use c3_scene::native;
     let Some(dir) = client_dir() else { return };
     let fs = ClientFs::open(&dir).unwrap();
+    let native_dir = std::env::temp_dir().join(format!("c3-native-maps-{}", std::process::id()));
     let (mut ok, mut failed) = (0, Vec::new());
     for entry in std::fs::read_dir(dir.join("map").join("map"))
         .unwrap()
@@ -313,13 +317,21 @@ fn every_map_imports_to_scene_and_exports_back() {
                 continue;
             }
         };
+        let file = native_dir.join(format!("{name}.scene.ron"));
+        native::save_scene(&scene, &file).unwrap();
+        let reloaded = native::load_scene(&file).unwrap();
+        if reloaded != scene {
+            failed.push(format!("{name}: native scene differs"));
+            continue;
+        }
         let original = canonical(DMap::parse(&std::fs::read(entry.path()).unwrap()).unwrap());
-        if scene_io::export_dmap(&scene).to_bytes() == original.to_bytes() {
+        if scene_io::export_dmap(&reloaded).to_bytes() == original.to_bytes() {
             ok += 1;
         } else {
             failed.push(format!("{name}: export differs"));
         }
     }
+    let _ = std::fs::remove_dir_all(&native_dir);
     eprintln!("scene round-trips: {ok}");
     assert!(
         failed.is_empty(),

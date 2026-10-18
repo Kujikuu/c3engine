@@ -6,6 +6,7 @@
 
 pub mod draw_order;
 mod grid;
+pub mod native;
 pub mod path;
 mod projection;
 mod scene;

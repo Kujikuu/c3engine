@@ -1,5 +1,6 @@
 //! C3 Studio: the engine's editor.
-//! Usage: c3-studio [project folder] [--map map/map/xxx.DMap] [--zoom 0.5] [--model <3dobj id>]
+//! Usage: c3-studio [project folder] [--map <project map | map/map/xxx.DMap>] [--zoom 0.5]
+//!                  [--model <3dobj id>]
 //!                  [--new | --import <Conquer 5065 client folder>] [--exec <commands.json>]
 //! Without a project it opens on the start page (new, open, import, recent); `--new` and
 //! `--import` open those dialogs. `--exec` runs a JSON list of `c3_edit` scene commands on the
@@ -11,6 +12,7 @@ mod editor;
 mod gpu;
 mod home;
 mod map_view;
+mod maps;
 mod model_view;
 mod models_ws;
 mod panels;

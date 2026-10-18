@@ -28,6 +28,9 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · **AI integration = Studio assistant + MCP** (user choice): a Claude chat panel that edits projects, and an MCP server so external agents (Claude Code) can drive the Studio. Both go through one command layer (`engine/edit`): every edit is a typed, serializable, undoable command. Game AI (behaviour trees, LLM NPCs) and AI asset generation are not planned for now.
 - 2026-10-18 · **The engine has its own game server** (user choice), built from the same project as the client. Redux stays usable for Conquer 5065 meanwhile.
 
+- 2026-10-18 · **Saving writes into the project, never the client.** A client map opened in the Studio becomes a project map (`maps/<name>.scene.ron`) on first save; writing back to the 5065 client is an explicit Export (keeps `.bak`). Assets resolve project-first, then the project's content sources, so maps can move into the project before their art does · protects the original client and makes the project the source of truth.
+- 2026-10-18 · Native scenes are **RON text + a binary grid sidecar**: readable and diff-able where it matters (objects, portals, layers), compact for the ~1M-cell grids (same 6 bytes/cell as DMap) · a pure-text grid would be tens of MB per map.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

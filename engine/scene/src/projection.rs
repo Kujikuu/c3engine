@@ -3,7 +3,7 @@
 use crate::CellPos;
 
 /// Cell (x, y) centre = (cell_w*(x-y)/2 + origin_x, cell_h*(x+y)/2 + origin_y).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct IsoProjection {
     pub cell_w: f32,
     pub cell_h: f32,

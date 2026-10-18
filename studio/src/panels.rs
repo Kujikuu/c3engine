@@ -3,6 +3,7 @@
 use crate::app::{Pending, Studio, Workspace};
 use crate::editor::{MAX_BRUSH, Tool};
 use crate::map_view::colors;
+use crate::maps::MapRef;
 use crate::theme;
 use eframe::egui::{self, Color32, Key, RichText};
 
@@ -90,10 +91,12 @@ impl Studio {
             } else {
                 Color32::TRANSPARENT
             });
-            let hint = if dirty {
-                "Save map to the client folder (Ctrl+S)"
-            } else {
-                "No unsaved changes"
+            let hint = match &self.doc {
+                Some(d) if dirty && !d.map.is_project() => {
+                    "Save this map into the project (Ctrl+S); the client folder isn't changed"
+                }
+                _ if dirty => "Save map (Ctrl+S)",
+                _ => "No unsaved changes",
             };
             if ui
                 .add_enabled(has_doc && dirty, save)
@@ -102,6 +105,24 @@ impl Studio {
                 .clicked()
             {
                 self.save();
+            }
+            let export_hint = match self.export_target() {
+                Some(path) => format!(
+                    "Write this map to the Conquer client as {path} (the original is kept as .bak)"
+                ),
+                None => "Only maps that came from the project's Conquer client can be exported"
+                    .to_owned(),
+            };
+            if ui
+                .add_enabled(
+                    self.export_target().is_some(),
+                    egui::Button::new("⤴ Export"),
+                )
+                .on_hover_text(&export_hint)
+                .on_disabled_hover_text(&export_hint)
+                .clicked()
+            {
+                self.export_to_client();
             }
 
             ui.separator();
@@ -201,14 +222,22 @@ impl Studio {
             self.open_map(first);
         }
         ui.add_space(4.0);
-        if self.client.is_none() {
-            ui.label(RichText::new("This project has no maps yet. Its content source is shown under Project in the inspector.").weak());
+        if self.maps.is_empty() {
+            ui.label(
+                RichText::new(
+                    "This project has no maps yet. Projects imported from a Conquer client \
+                     list the client's maps here.",
+                )
+                .weak(),
+            );
             return;
         }
         if list.is_empty() {
             ui.label(RichText::new(format!("No maps match “{}”", self.filter)).weak());
             return;
         }
+        let (project_maps, client_maps): (Vec<_>, Vec<_>) =
+            list.into_iter().partition(MapRef::is_project);
         let mut open = None;
         let footer = 22.0;
         egui::ScrollArea::vertical()
@@ -216,27 +245,16 @@ impl Studio {
             .max_height(ui.available_height() - footer)
             .show(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    for m in &list {
-                        let doc = self.doc.as_ref().filter(|d| &d.path == m);
-                        let name = m.rsplit('/').next().unwrap_or(m);
-                        let name = name
-                            .strip_suffix(".DMap")
-                            .or_else(|| name.strip_suffix(".dmap"))
-                            .unwrap_or(name);
-                        let label = match doc {
-                            Some(d) if d.is_dirty() => format!("● {name}"),
-                            _ => name.to_owned(),
-                        };
-                        let r = ui.add(
-                            egui::Button::selectable(doc.is_some(), label)
-                                .min_size(egui::vec2(0.0, 22.0)),
+                    if !project_maps.is_empty() {
+                        list_heading(ui, "In this project", project_maps.len());
+                        self.map_rows(ui, &project_maps, &mut open);
+                    }
+                    if !client_maps.is_empty() {
+                        list_heading(ui, "From the client", client_maps.len()).on_hover_text(
+                            "Not in the project yet. They open from the Conquer client; \
+                                 saving one copies it into the project.",
                         );
-                        if doc.is_some() && self.fit_pending {
-                            r.scroll_to_me(Some(egui::Align::Center));
-                        }
-                        if r.clicked() {
-                            open = Some(m.clone());
-                        }
+                        self.map_rows(ui, &client_maps, &mut open);
                     }
                 });
             });
@@ -248,6 +266,27 @@ impl Studio {
                 .weak()
                 .small(),
         );
+    }
+
+    fn map_rows(&self, ui: &mut egui::Ui, maps: &[MapRef], open: &mut Option<MapRef>) {
+        for m in maps {
+            let doc = self.doc.as_ref().filter(|d| &d.map == m);
+            let name = m.name();
+            let label = match doc {
+                Some(d) if d.is_dirty() => RichText::new(format!("● {name}")),
+                _ if !m.is_project() => RichText::new(name).color(Color32::from_gray(150)),
+                _ => RichText::new(name),
+            };
+            let r = ui.add(
+                egui::Button::selectable(doc.is_some(), label).min_size(egui::vec2(0.0, 22.0)),
+            );
+            if doc.is_some() && self.fit_pending {
+                r.scroll_to_me(Some(egui::Align::Center));
+            }
+            if r.clicked() {
+                *open = Some(m.clone());
+            }
+        }
     }
 
     pub(crate) fn inspector(&mut self, ui: &mut egui::Ui) {
@@ -450,7 +489,12 @@ impl Studio {
                 });
                 return;
             } else if let Some(doc) = &self.doc {
-                ui.label(&doc.path);
+                let origin = if doc.map.is_project() {
+                    format!("maps/{}.scene.ron", doc.name())
+                } else {
+                    format!("{} (client, not in the project yet)", doc.name())
+                };
+                ui.label(origin);
                 ui.separator();
                 if self.streaming {
                     ui.add(egui::Spinner::new().size(12.0));
@@ -512,7 +556,7 @@ impl Studio {
             ui.add_space(4.0);
             ui.label(format!("Save changes to {name} before {action}?"));
             ui.label(
-                RichText::new("A backup of the original is kept as .bak on first save.")
+                RichText::new("Saving writes the map into the project; the Conquer client folder is not changed.")
                     .weak()
                     .small(),
             );
@@ -540,4 +584,17 @@ impl Studio {
             None => {}
         }
     }
+}
+
+/// A small section heading inside a list, with a count.
+fn list_heading(ui: &mut egui::Ui, title: &str, count: usize) -> egui::Response {
+    ui.add_space(4.0);
+    let r = ui.label(
+        RichText::new(format!("{title}  ·  {count}"))
+            .small()
+            .strong()
+            .color(Color32::from_gray(140)),
+    );
+    ui.add_space(2.0);
+    r
 }

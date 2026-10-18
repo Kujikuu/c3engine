@@ -9,7 +9,7 @@ use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs
 use c3_scene::Scene;
 use std::path::{Path, PathBuf};
 
-pub use scene_io::Imported;
+pub use scene_io::{Imported, META_SOURCE_MAP};
 
 /// A game client folder: loose files plus packed archives.
 pub struct Client {

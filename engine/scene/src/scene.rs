@@ -4,7 +4,7 @@ use crate::{CellPos, Grid, IsoProjection, WorldPos};
 use std::collections::BTreeMap;
 
 /// Maps tile ids to image asset paths.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Tileset {
     /// Asset this tileset was loaded from (for export / display).
     pub source: String,
@@ -65,26 +65,26 @@ impl TileLayer {
 }
 
 /// Exit point on the map; `id` is matched to a destination by the game's data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Portal {
     pub cell: CellPos,
     pub id: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Placement {
     Cell(CellPos),
     World(WorldPos),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EffectTransform {
     /// Rotation angles in degrees (pitch, pitch_alt, yaw); kept verbatim from sources.
     pub angles: [f32; 3],
     pub scale: [f32; 3],
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum EntityKind {
     /// Animated sprite that occludes the cells it stands on (trees, buildings).
     Sprite {
@@ -111,13 +111,13 @@ pub enum EntityKind {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Entity {
     pub placement: Placement,
     pub kind: EntityKind,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum LayerItem {
     Sprite {
         asset: String,
@@ -134,7 +134,7 @@ pub enum LayerItem {
 }
 
 /// Background/foreground layer drawn with its own scroll rate.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ParallaxLayer {
     /// Draw order slot among all layers.
     pub order: i32,

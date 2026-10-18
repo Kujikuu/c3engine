@@ -14,7 +14,8 @@ append decisions, document formats as you implement them.
 - **Every project edit goes through `c3-edit` commands** (typed, serializable, undoable). Never
   mutate a document directly from UI code; add a command instead. AI/MCP will use the same commands.
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
-  `home.rs` (start page, project dialogs, File menu, Project inspector section), `gpu.rs` (engine
+  `home.rs` (start page, project dialogs, File menu, Project inspector section), `maps.rs` (project
+  vs client maps, `MapRef`), `gpu.rs` (engine
   renderer → egui texture), `model_view.rs` + `models_ws.rs` (Models workspace). The Studio always
   works on an open `c3_project::Project`; its TQ client source is opened through `tq_plugin`.
 - Rendering goes through `c3-render` only (never egui painter for world content). The Studio shows the
