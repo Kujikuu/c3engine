@@ -597,6 +597,8 @@ name = "c3-client"
 version = "0.1.0"
 dependencies = [
  "c3-assets",
+ "c3-games",
+ "c3-play",
  "c3-project",
  "c3-render",
  "c3-scene",
@@ -604,7 +606,6 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
- "game-conquer",
  "glam",
  "pollster 1.0.1",
  "wgpu",
@@ -658,6 +659,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "c3-games"
+version = "0.1.0"
+dependencies = [
+ "c3-online",
+ "c3-play",
+ "c3-project",
+ "c3-scene",
+ "game-conquer",
+]
+
+[[package]]
 name = "c3-net"
 version = "0.1.0"
 dependencies = [
@@ -675,6 +687,26 @@ dependencies = [
  "ron",
  "serde",
  "sha2",
+]
+
+[[package]]
+name = "c3-play"
+version = "0.1.0"
+dependencies = [
+ "c3-anim",
+ "c3-assets",
+ "c3-audio",
+ "c3-data",
+ "c3-game",
+ "c3-online",
+ "c3-project",
+ "c3-render",
+ "c3-scene",
+ "c3-script",
+ "c3-ui",
+ "egui",
+ "glam",
+ "image",
 ]
 
 [[package]]
@@ -726,9 +758,10 @@ dependencies = [
 name = "c3-server"
 version = "0.1.0"
 dependencies = [
+ "c3-games",
+ "c3-play",
  "c3-project",
  "c3-scene",
- "game-conquer",
 ]
 
 [[package]]
@@ -739,6 +772,7 @@ dependencies = [
  "c3-data",
  "c3-edit",
  "c3-formats-tq",
+ "c3-play",
  "c3-project",
  "c3-render",
  "c3-scene",
@@ -1709,6 +1743,7 @@ dependencies = [
  "c3-game",
  "c3-net",
  "c3-online",
+ "c3-play",
  "c3-project",
  "c3-render",
  "c3-scene",

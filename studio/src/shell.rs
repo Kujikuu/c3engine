@@ -264,7 +264,7 @@ impl Studio {
                 "Play this map in the Game view, the hero where the Scene view looks (Ctrl+P)"
             };
             let play_icon = if playing { icons::STOP } else { icons::PLAY };
-            ui.add_enabled_ui(self.doc.is_some() && self.client.is_some(), |ui| {
+            ui.add_enabled_ui(self.doc.is_some() && self.game.is_some(), |ui| {
                 if theme::icon_toggle(ui, playing, play_icon, play_hint).clicked() {
                     self.toggle_play();
                 }
@@ -323,7 +323,7 @@ impl Studio {
             self.notify("Stopped playing".into());
             return;
         }
-        let (Some(client), Some(doc), Some(state)) = (&self.client, &self.doc, &self.render_state)
+        let (Some(game), Some(doc), Some(state)) = (&self.game, &self.doc, &self.render_state)
         else {
             return;
         };
@@ -331,13 +331,10 @@ impl Studio {
         let setup = crate::play::PlaySetup {
             scripts: self.project.as_ref().map(|p| p.scripts_dir()),
             tables: self.project.as_ref().map(|p| p.tables_dir()),
-            map_ids: match &doc.map {
-                MapRef::Client(path) => client.map_ids(path),
-                MapRef::Project(_) => Vec::new(),
-            },
+            map_ids: game.map_ids(doc.name()),
             online: self.play_online,
         };
-        match crate::play::PlaySession::start(client, doc, start, state, setup) {
+        match crate::play::PlaySession::start(std::rc::Rc::clone(game), doc, start, state, setup) {
             Ok(session) => {
                 self.playing = Some(session);
                 if self.scripts.is_dirty() {

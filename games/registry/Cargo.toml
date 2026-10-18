@@ -1,0 +1,11 @@
+[package]
+name = "c3-games"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+c3-online = { version = "0.1.0", path = "../../engine/online" }
+c3-play = { version = "0.1.0", path = "../../engine/play" }
+c3-project = { version = "0.1.0", path = "../../engine/project" }
+c3-scene = { version = "0.1.0", path = "../../engine/scene" }
+game-conquer = { version = "0.1.0", path = "../conquer" }

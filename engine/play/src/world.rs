@@ -1,13 +1,13 @@
 //! A map being played: its scene, drawn by the engine's [`SceneView`] (sky, ground, objects,
-//! map effects), and the actors walking on it. The game client and the Studio's Play mode
-//! both run it.
+//! map effects), and the actors walking on it, as the game ([`GameModule`]) dresses them. The
+//! game client and the Studio's Play mode both run it.
 //!
 //! The host advances the world's clock ([`World::advance`], so it can pause and step), then
 //! each frame [`World::prepare`] builds the draw lists with the actors posed into them and
 //! [`World::mesh_draws`] + [`World::frame`] describe it to the renderer.
 
-use crate::Content;
 use crate::actor::{self, Actor, ActorPart};
+use crate::module::GameModule;
 use c3_render::camera::Camera2d;
 use c3_render::effect::camera_eye;
 use c3_render::scene_view::SceneView;
@@ -24,11 +24,8 @@ const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 const NPC_PICK_HALF_WIDTH: f32 = 32.0;
 const NPC_PICK_HEIGHT: f32 = 110.0;
 
-/// Effect marking where the player clicked to walk.
-const CLICK_EFFECT: &str = "mouse";
-
 pub struct World {
-    pub content: Rc<Content>,
+    pub game: Rc<dyn GameModule>,
     pub map_path: String,
     pub scene: Scene,
     pub actors: Vec<Actor>,
@@ -40,10 +37,10 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(content: Rc<Content>, map_path: String, scene: Scene) -> Self {
-        let view = SceneView::new(&scene, &*content, content.oblique_angle(), 0);
+    pub fn new(game: Rc<dyn GameModule>, map_path: String, scene: Scene) -> Self {
+        let view = SceneView::new(&scene, game.assets(), game.tilt_deg(), 0);
         Self {
-            content,
+            game,
             map_path,
             scene,
             actors: Vec::new(),
@@ -67,7 +64,7 @@ impl World {
     ) -> Result<(), String> {
         let now_ms = self.now_ms();
         self.view
-            .place_effect(name, cell, forever, &self.scene, &*self.content, now_ms)
+            .place_effect(name, cell, forever, &self.scene, self.game.assets(), now_ms)
     }
 
     /// Plays effect `name` at the hero's feet, once or `forever`.
@@ -76,7 +73,7 @@ impl World {
         let effect = self
             .view
             .library
-            .start(name, &*self.content, now_ms)
+            .start(name, self.game.assets(), now_ms)
             .ok_or_else(|| format!("effect {name} could not be loaded"))?;
         let hero = self.actors.first_mut().ok_or("there is no hero")?;
         hero.add_effect(if forever { effect.endless() } else { effect });
@@ -95,9 +92,9 @@ impl World {
             return;
         };
         if once {
-            actor.perform(act, now_ms, &self.content, &mut self.view.library);
+            actor.perform(act, now_ms, &*self.game, &mut self.view.library);
         } else {
-            actor.play(act, now_ms, &self.content, &mut self.view.library);
+            actor.play(act, now_ms, &*self.game, &mut self.view.library);
         }
     }
 
@@ -105,7 +102,7 @@ impl World {
     pub fn actor_hold(&mut self, index: usize, act: u32) {
         let now_ms = self.now_ms();
         if let Some(actor) = self.actors.get_mut(index) {
-            actor.play_and_hold(act, now_ms, &self.content, &mut self.view.library);
+            actor.play_and_hold(act, now_ms, &*self.game, &mut self.view.library);
         }
     }
 
@@ -147,7 +144,7 @@ impl World {
     pub fn tick(&mut self) {
         let now = self.now_ms();
         for actor in &mut self.actors {
-            actor.update(now, &self.scene, &self.content, &mut self.view.library);
+            actor.update(now, &self.scene, &*self.game, &mut self.view.library);
         }
         self.view.tick(now);
         for error in self.view.library.take_errors() {
@@ -157,16 +154,22 @@ impl World {
 
     /// An actor for each of the scene's NPCs (after the hero), each look loaded once.
     pub fn add_npcs(&mut self) {
+        let looks = self.game.looks();
+        let stand = looks.action(crate::Act::Stand);
         let mut characters = HashMap::new();
         for npc in &self.scene.npcs {
+            let look = looks.npc(npc);
             let character = characters
                 .entry(npc.look)
-                .or_insert_with(|| self.content.npc_character(npc.look));
+                .or_insert_with(|| looks.character(&look, stand));
             match character {
-                Ok(c) => {
-                    self.actors
-                        .push(Actor::from_character(c.clone(), npc.cell, npc.direction))
-                }
+                Ok(c) => self.actors.push(Actor::new(
+                    &*self.game,
+                    c.clone(),
+                    look,
+                    npc.cell,
+                    npc.direction,
+                )),
                 Err(e) => eprintln!("warning: NPC {} ({}): {e}", npc.name, npc.id),
             }
         }
@@ -212,16 +215,23 @@ impl World {
     }
 
     /// Sends the hero towards world point `target`, marking a walkable target cell with the
-    /// click effect (`CMyShellDlg::SetMouseMove`).
+    /// game's click effect.
     pub fn walk_hero_to(&mut self, target: Vec2) {
         let cell = self.scene.world_to_cell((target.x, target.y));
         let Some(hero) = self.actors.first_mut() else {
             return;
         };
         hero.walk_to(cell, &self.scene);
-        if self.scene.grid.get(cell).is_some_and(|c| !c.is_blocked()) {
-            // The marker is decoration: a client without it still walks.
-            let _ = self.place_effect(CLICK_EFFECT, cell, false);
+        self.mark_click(cell);
+    }
+
+    /// Marks walkable `cell` with the game's click effect (decoration: a game without one
+    /// still walks).
+    pub fn mark_click(&mut self, cell: c3_scene::CellPos) {
+        if self.scene.grid.get(cell).is_some_and(|c| !c.is_blocked())
+            && let Some(effect) = self.game.click_effect()
+        {
+            let _ = self.place_effect(&effect, cell, false);
         }
     }
 
@@ -240,12 +250,12 @@ impl World {
         let cells: Vec<_> = (self.actors.iter())
             .map(|a| a.draw_cell(&self.scene, now))
             .collect();
-        let (scene, content, actors) = (&self.scene, &*self.content, &mut self.actors);
+        let (scene, game, actors) = (&self.scene, &*self.game, &mut self.actors);
         let tilt_deg = self.view.tilt_deg();
         let eye = camera_eye(view.center);
         self.view
-            .prepare(scene, content, renderer, &view, &cells, |a, poser| {
-                actor::pose_actor(actors, a, poser, scene, content, tilt_deg, now, eye);
+            .prepare(scene, game.assets(), renderer, &view, &cells, |a, poser| {
+                actor::pose_actor(actors, a, poser, scene, game, tilt_deg, now, eye);
             });
     }
 

@@ -9,10 +9,11 @@ use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_assets::{Image, model::Model};
 use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs::ClientFs};
+use c3_play::GameModule;
 use c3_render::SceneAssets;
 use c3_scene::{Population, Scene, TileLayer};
-use game_conquer::Content;
 use game_conquer::server_data::{self, ServerPopulation};
+use game_conquer::{ConquerModule, Content};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -132,38 +133,19 @@ impl Client {
         self.content.npc_type(look).map(|t| t.name.as_str())
     }
 
-    /// The game's content loader (actors, NPC models).
-    pub fn content(&self) -> &Content {
-        &self.content
-    }
-
-    /// The content loader, shared (a played world keeps it).
-    pub fn shared_content(&self) -> Rc<Content> {
-        Rc::clone(&self.content)
+    /// The game this client's content plays: the Scene view, Play and the Preview go
+    /// through it.
+    pub fn game(&self) -> Rc<dyn GameModule> {
+        Rc::new(ConquerModule::new(Rc::clone(&self.content)))
     }
 
     fn fs(&self) -> &ClientFs {
         self.content.files()
     }
 
-    /// Camera tilt of 3D models and effects on maps, in degrees.
-    pub fn tilt_deg(&self) -> f32 {
-        self.content.oblique_angle()
-    }
-
     /// Map files found in the client, as asset paths.
     pub fn list_maps(&self) -> Vec<String> {
-        let mut maps: Vec<String> = std::fs::read_dir(self.root.join("map").join("map"))
-            .map(|rd| {
-                rd.flatten()
-                    .filter_map(|e| e.file_name().into_string().ok())
-                    .filter(|n| n.to_ascii_lowercase().ends_with(".dmap"))
-                    .map(|n| format!("map/map/{n}"))
-                    .collect()
-            })
-            .unwrap_or_default();
-        maps.sort_by_key(|m| m.to_ascii_lowercase());
-        maps
+        self.content.list_maps()
     }
 
     /// Game map ids (`GameMap.dat`) whose map file is `path`; several maps can share one.

@@ -1,13 +1,14 @@
 //! 3D characters on the map: a body model plus parts attached to its sockets, playing an
-//! action and walking cell to cell (`CRole::Walk`/`Step`: one cell per walk or run action,
-//! position eased linearly over the action's length).
+//! action and walking cell to cell (one cell per walk or run action, position eased linearly
+//! over the action's length, as the classic `CRole::Walk`/`Step`). The game decides how they
+//! look and move ([`crate::Looks`]).
 //!
 //! Effects ride along: each part starts its action effects when an action begins (weapon
 //! trails on attacks, `C3DRolePart::Set3DEffect`) and draws them in its own space; role
 //! effects (level-up, hits) stand at the actor's feet (`CRole::Show`, `m_objEffect`).
 
-use crate::Content;
-use crate::character::{Character, CharacterMotions, Look, PartModel, action};
+use crate::character::{Character, CharacterMotions, Look, PartModel};
+use crate::module::{Act, GameModule};
 use c3_assets::effect::Effect;
 use c3_render::actor::{self, ActorPose};
 use c3_render::effect::{self as effects_render, EffectMesh};
@@ -22,8 +23,6 @@ use std::rc::Rc;
 
 /// Classic `CRole::s_fBaseScale`.
 const BASE_SCALE: f32 = 0.75;
-/// Frame length for actors without action timing (NPCs, monsters).
-const DEFAULT_FRAME_MS: u32 = 33;
 
 /// Addresses one drawable mesh of an actor.
 #[derive(Debug, Clone, Copy)]
@@ -66,13 +65,12 @@ pub struct Actor {
     pub cell: CellPos,
     /// 0..8, clockwise; the classic facing is `-45 · dir - 45` degrees.
     pub direction: u8,
-    /// Monster.dat-style zoom percentage.
+    /// Drawing size in percent.
     pub zoom_percent: f32,
     /// Runs instead of walking (the client's Run toggle).
     pub running: bool,
     character: Character,
-    /// Players switch motions per action; single models keep their own.
-    look: Option<Look>,
+    look: Look,
     /// Per model (body, then attachments): `None` = not uploaded yet.
     textures: Vec<Option<Option<TextureId>>>,
     motions: HashMap<u32, CharacterMotions>,
@@ -86,30 +84,18 @@ pub struct Actor {
 }
 
 impl Actor {
-    /// A single-model actor (NPCs, monsters) from a `3dobj.ini` id.
-    pub fn from_model(
-        content: &Content,
-        model_id: u64,
+    /// An actor of `look` already built (NPCs share one character per look), standing.
+    pub fn new(
+        game: &dyn GameModule,
+        character: Character,
+        look: Look,
         cell: CellPos,
         direction: u8,
-    ) -> Result<Self, String> {
-        let (model, texture) = content.load_model(model_id)?;
-        let character = Character {
-            body: PartModel {
-                model,
-                texture,
-                type_id: None,
-            },
-            attachments: Vec::new(),
-            motion_id: None,
-        };
-        Ok(Self::new(character, None, action::STANDBY, cell, direction))
-    }
-
-    /// An actor standing in `character`'s current motion (NPCs: see
-    /// [`Content::npc_character`]).
-    pub fn from_character(character: Character, cell: CellPos, direction: u8) -> Self {
-        Self::new(character, None, action::STANDBY, cell, direction)
+    ) -> Self {
+        let looks = game.looks();
+        let act = looks.action(Act::Stand);
+        let frame_ms = looks.frame_ms(&look, act);
+        Self::build(character, look, act, frame_ms, cell, direction)
     }
 
     /// Frees the textures this actor uploaded.
@@ -121,31 +107,39 @@ impl Actor {
         }
     }
 
-    /// A player-style character assembled from look + equipment in action `act`.
+    /// An actor of `look` in action `act`, its models built by the game.
     pub fn from_look(
-        content: &Content,
+        game: &dyn GameModule,
         look: &Look,
         act: u32,
         cell: CellPos,
         direction: u8,
     ) -> Result<Self, String> {
-        let character = content.assemble_character(look, act)?;
-        let mut actor = Self::new(character, Some(*look), act, cell, direction);
-        actor.playing.frame_ms = content.frame_interval(look, act);
-        Ok(actor)
+        let looks = game.looks();
+        let character = looks.character(look, act)?;
+        let frame_ms = looks.frame_ms(look, act);
+        Ok(Self::build(
+            character,
+            look.clone(),
+            act,
+            frame_ms,
+            cell,
+            direction,
+        ))
     }
 
-    fn new(
+    fn build(
         character: Character,
-        look: Option<Look>,
+        look: Look,
         act: u32,
+        frame_ms: u32,
         cell: CellPos,
         direction: u8,
     ) -> Self {
         Self {
             cell,
             direction: direction % 8,
-            zoom_percent: 100.0,
+            zoom_percent: look.zoom_percent,
             running: false,
             textures: vec![None; 1 + character.attachments.len()],
             part_effects: (0..=character.attachments.len())
@@ -158,13 +152,23 @@ impl Actor {
             playing: Playing {
                 action: act,
                 started_ms: 0,
-                frame_ms: DEFAULT_FRAME_MS,
+                frame_ms,
                 once: false,
                 hold: false,
             },
             step: None,
             path: VecDeque::new(),
         }
+    }
+
+    /// What the actor looks like.
+    pub fn look(&self) -> &Look {
+        &self.look
+    }
+
+    /// The models the actor is drawn with.
+    pub fn character(&self) -> &Character {
+        &self.character
     }
 
     pub fn turn(&mut self, steps: i8) {
@@ -214,7 +218,7 @@ impl Actor {
         &mut self,
         now_ms: u64,
         scene: &Scene,
-        content: &Content,
+        game: &dyn GameModule,
         library: &mut EffectLibrary,
     ) {
         for effects in self.part_effects.iter_mut().chain([&mut self.role_effects]) {
@@ -233,8 +237,8 @@ impl Actor {
             // The map may have changed under a planned path: stop at a blocked step.
             Some(next) if path::can_step(&scene.grid, self.cell, next, &PathRules::default()) => {
                 self.direction = path::direction(self.cell, next).unwrap_or(self.direction);
-                let act = self.next_move_action();
-                self.play(act, now_ms, content, library);
+                let act = self.next_move_action(game);
+                self.play(act, now_ms, game, library);
                 self.step = Some(Step {
                     from: self.cell,
                     to: next,
@@ -248,22 +252,24 @@ impl Actor {
         let run_through = now_ms >= self.playing.started_ms + self.action_ms();
         if self.step.is_none() && !self.playing.hold {
             if stepped || (self.playing.once && run_through) {
-                self.play(action::STANDBY, now_ms, content, library);
+                let stand = game.looks().action(Act::Stand);
+                self.play(stand, now_ms, game, library);
             } else if run_through {
-                // Each run through restarts the action, as repeated actions do in the client
-                // (an attack's weapon trail swings again).
-                self.play(self.playing.action, now_ms, content, library);
+                // Each run through restarts the action, as repeated actions do in the classic
+                // client (an attack's weapon trail swings again).
+                self.play(self.playing.action, now_ms, game, library);
             }
         }
     }
 
-    /// Walking always uses the left-foot walk; running alternates feet (`CRole::Step`,
-    /// `RunForward`).
-    fn next_move_action(&self) -> u32 {
+    /// Walking always uses the one walk; running alternates feet (`CRole::Step`, `RunForward`).
+    fn next_move_action(&self, game: &dyn GameModule) -> u32 {
+        let looks = game.looks();
+        let run = looks.action(Act::Run);
         match (self.running, self.playing.action) {
-            (false, _) => action::WALK_L,
-            (true, action::RUN_L) => action::RUN_R,
-            (true, _) => action::RUN_L,
+            (false, _) => looks.action(Act::Walk),
+            (true, a) if a == run => looks.action(Act::RunAlt),
+            (true, _) => run,
         }
     }
 
@@ -277,11 +283,11 @@ impl Actor {
         &mut self,
         act: u32,
         now_ms: u64,
-        content: &Content,
+        game: &dyn GameModule,
         library: &mut EffectLibrary,
     ) {
         if self.step.is_none() {
-            self.play(act, now_ms, content, library);
+            self.play(act, now_ms, game, library);
             self.playing.once = true;
         }
     }
@@ -291,38 +297,44 @@ impl Actor {
         &mut self,
         act: u32,
         now_ms: u64,
-        content: &Content,
+        game: &dyn GameModule,
         library: &mut EffectLibrary,
     ) {
-        self.play(act, now_ms, content, library);
+        self.play(act, now_ms, game, library);
         self.playing.hold = true;
     }
 
     /// Starts action `act` from its first frame (looping), with its part effects.
-    pub fn play(&mut self, act: u32, now_ms: u64, content: &Content, library: &mut EffectLibrary) {
-        if let Some(look) = &self.look {
-            let motions = self
-                .motions
-                .entry(act)
-                .or_insert_with(|| content.character_motions(&self.character, look, act));
-            self.character.apply_motions(motions);
-            self.playing.frame_ms = content.frame_interval(look, act);
-        }
+    pub fn play(
+        &mut self,
+        act: u32,
+        now_ms: u64,
+        game: &dyn GameModule,
+        library: &mut EffectLibrary,
+    ) {
+        let looks = game.looks();
+        let motions = self
+            .motions
+            .entry(act)
+            .or_insert_with(|| looks.motions(&self.character, &self.look, act));
+        self.character.apply_motions(motions);
+        self.playing.frame_ms = looks.frame_ms(&self.look, act);
         self.playing.action = act;
         self.playing.started_ms = now_ms;
         self.playing.once = false;
         self.playing.hold = false;
         for group in 0..self.part_effects.len() {
-            let Some(type_id) = self.model(group).type_id else {
+            let Some(key) = self.model(group).effect_key else {
                 continue;
             };
-            // Like 5065: an effect keeps playing until it ends, "none" stops them all.
-            for name in content.part_action_effects(type_id, act) {
+            // As in the classic client: an effect keeps playing until it ends, "none" stops
+            // them all.
+            for name in looks.part_effects(key, act) {
                 let effects = &mut self.part_effects[group];
                 if name.eq_ignore_ascii_case(STOP_EFFECTS) {
                     effects.clear();
                 } else if !effects.iter().any(|e| e.name() == name) {
-                    effects.extend(library.start(&name, content, now_ms));
+                    effects.extend(library.start(&name, game.assets(), now_ms));
                 }
             }
         }
@@ -457,7 +469,7 @@ impl Actor {
         if r.group == 0 {
             return role;
         }
-        let socket = self.character.attachments[r.group - 1].socket;
+        let socket = &self.character.attachments[r.group - 1].socket;
         let bone = self
             .character
             .body
@@ -472,13 +484,13 @@ impl Actor {
         &mut self,
         r: PartRef,
         renderer: &mut Renderer,
-        content: &Content,
+        game: &dyn GameModule,
     ) -> Option<TextureId> {
         if let Some(texture) = self.textures[r.group] {
             return texture;
         }
         let texture = (self.model(r.group).texture.as_deref())
-            .and_then(|p| content.load_image(p))
+            .and_then(|p| game.assets().image(p))
             .map(|img| renderer.upload_texture(&img));
         self.textures[r.group] = Some(texture);
         texture
@@ -507,7 +519,7 @@ pub fn pose_actor(
     a: usize,
     poser: &mut Poser<ActorPart>,
     scene: &Scene,
-    content: &Content,
+    game: &dyn GameModule,
     tilt_deg: f32,
     now_ms: u64,
     eye: glam::Vec3,
@@ -515,7 +527,7 @@ pub fn pose_actor(
     let role = actors[a].pose(scene, tilt_deg, now_ms).transform();
     for part in actors[a].drawables() {
         let actor = &mut actors[a];
-        let texture = actor.texture(part, poser.renderer(), content);
+        let texture = actor.texture(part, poser.renderer(), game);
         poser.solid(
             actor.posed(part, now_ms),
             PosedIndices::External(ActorPart { actor: a, part }),

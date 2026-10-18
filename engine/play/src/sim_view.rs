@@ -3,36 +3,14 @@
 //! items are left to the UI's overlay. The game client and the Studio's Play mode use it.
 
 use crate::actor::Actor;
-use crate::character::{DEFAULT_HERO, Look, action};
-use crate::rules::slot;
+use crate::module::Act;
 use crate::world::World;
-use c3_game::{EntityId, Event, Player, Sim};
+use c3_game::{EntityId, Event, Sim};
 use glam::Vec2;
 use std::collections::HashMap;
-
-/// Action of a dying role (`_ACTION_DIE`).
-const DIE: u32 = 330;
 /// Clickable box of a role around its feet, in world pixels.
 const PICK_HALF_WIDTH: f32 = 32.0;
 const PICK_HEIGHT: f32 = 100.0;
-
-/// What a player looks like in what it wears (the default hero's body and hair).
-pub fn player_look(p: &Player) -> Look {
-    let worn = |s: u8| {
-        p.equipment
-            .iter()
-            .map(|e| e.kind)
-            .find(|&k| slot(k) == Some(s))
-            .unwrap_or(0)
-    };
-    Look {
-        armor: worn(slot::ARMOR),
-        armet: worn(slot::HELMET),
-        r_weapon: worn(slot::RIGHT_HAND),
-        l_weapon: worn(slot::LEFT_HAND),
-        ..DEFAULT_HERO
-    }
-}
 
 #[derive(Default)]
 pub struct SimView {
@@ -48,8 +26,9 @@ impl SimView {
         let p = sim
             .player(hero)
             .ok_or("the hero is not in the simulation")?;
-        let hero_actor =
-            Actor::from_look(&world.content, &player_look(p), action::STANDBY, p.cell, 0)?;
+        let looks = world.game.looks();
+        let stand = looks.action(Act::Stand);
+        let hero_actor = Actor::from_look(&*world.game, &looks.player(p), stand, p.cell, 0)?;
         world.actors.clear();
         world.actors.push(hero_actor);
         view.actors.insert(hero, 0);
@@ -93,17 +72,20 @@ impl SimView {
                     let goal = sim.cell_of(target);
                     if let (Some(i), Some(goal)) = (self.actor(attacker), goal) {
                         world.actors[i].face(goal);
-                        world.actor_action(i, action::ATTACK_0, true);
+                        let attack = world.game.looks().action(Act::Attack);
+                        world.actor_action(i, attack, true);
                     }
                 }
                 Event::Died { id, .. } => {
                     if let Some(i) = self.actor(id) {
-                        world.actor_hold(i, DIE);
+                        let die = world.game.looks().action(Act::Die);
+                        world.actor_hold(i, die);
                     }
                 }
                 Event::Revived(id) => {
                     if let Some(i) = self.actor(id) {
-                        world.actor_action(i, action::STANDBY, false);
+                        let stand = world.game.looks().action(Act::Stand);
+                        world.actor_action(i, stand, false);
                     }
                 }
                 Event::Dressed { player } => self.dress(sim, player, world),
@@ -119,13 +101,9 @@ impl SimView {
         };
         let a = &world.actors[i];
         let (cell, direction) = (a.cell, a.direction);
-        match Actor::from_look(
-            &world.content,
-            &player_look(p),
-            action::STANDBY,
-            cell,
-            direction,
-        ) {
+        let looks = world.game.looks();
+        let stand = looks.action(Act::Stand);
+        match Actor::from_look(&*world.game, &looks.player(p), stand, cell, direction) {
             Ok(actor) => world.replace_actor(i, actor),
             Err(e) => eprintln!("warning: can't dress {id:?}: {e}"),
         }
@@ -135,28 +113,16 @@ impl SimView {
         if self.actors.contains_key(&id) {
             return;
         }
+        let looks = world.game.looks();
+        let stand = looks.action(Act::Stand);
         let made = if let Some(m) = sim.monster(id) {
-            let Some(kind) = sim.rules().monster(m.kind) else {
+            if sim.rules().monster(m.kind).is_none() {
                 return;
-            };
-            let look = Look {
-                look: kind.look % 1000,
-                ..Default::default()
-            };
-            Actor::from_look(&world.content, &look, action::STANDBY, m.cell, m.direction).map(
-                |mut actor| {
-                    actor.zoom_percent = world.content.monster_zoom(m.kind);
-                    actor
-                },
-            )
+            }
+            let look = looks.monster(m.kind, sim.rules());
+            Actor::from_look(&*world.game, &look, stand, m.cell, m.direction)
         } else if let Some(p) = sim.player(id) {
-            Actor::from_look(
-                &world.content,
-                &player_look(p),
-                action::STANDBY,
-                p.cell,
-                p.direction,
-            )
+            Actor::from_look(&*world.game, &looks.player(p), stand, p.cell, p.direction)
         } else {
             return; // ground items are drawn by the UI
         };

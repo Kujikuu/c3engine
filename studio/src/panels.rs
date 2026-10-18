@@ -149,15 +149,14 @@ impl Studio {
             );
             return;
         };
-        let (Some(client), Some(doc), Some(live)) =
-            (&self.client, &mut self.doc, &mut self.live_scene)
+        let (Some(game), Some(doc), Some(live)) = (&self.game, &mut self.doc, &mut self.live_scene)
         else {
             if self.maps.is_empty() {
                 theme::empty_state(
                     ui,
                     icons::MAP_TRIFOLD,
                     "No maps in this project yet",
-                    "Projects imported from a Conquer client list its maps in the Project panel.",
+                    "Make one with File > New Map, or import a Conquer client's maps.",
                 );
             } else {
                 theme::empty_state(
@@ -192,7 +191,7 @@ impl Studio {
         live.view.layers = self.layers;
         let r = map_view::show(
             ui,
-            client,
+            &**game,
             gpu,
             live,
             doc,
@@ -239,7 +238,7 @@ impl Studio {
             return;
         }
         let window_open = self.game_window.is_some();
-        let can_play = self.doc.is_some() && self.client.is_some();
+        let can_play = self.doc.is_some() && self.game.is_some();
         ui.vertical_centered(|ui| {
             ui.add_space((ui.available_height() * 0.3).max(8.0));
             ui.label(

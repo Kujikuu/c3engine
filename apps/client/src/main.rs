@@ -1,13 +1,13 @@
 //! C3 Client: the game runtime window.
 //!
 //! Playing a game project: `c3-client --project <folder> [--map <project map> |
-//! map/map/xxx.DMap | --map-id 1002] [--cell x,y]` runs the project's game (monsters, NPCs,
+//! map/map/xxx.DMap] [--cell x,y]` runs the project's game (monsters, NPCs,
 //! scripts, in-game UI) on this machine; with `--server host:port --account <name>
 //! [--password <pw>]` it plays on that game server instead (see `game.rs`).
 //!
 //! Viewing a Conquer client's maps: `c3-client [client_dir] [--map map/map/xxx.DMap |
 //! --map-id 1002] [--cell x,y] [--zoom 1.0] [--actor <3dobj id> | --player
-//! look,hair,armor,armet,rweapon,lweapon] [--action 100] [--dir 0-7] [--effect <name>]
+//! look,hair,item,item...] [--action 100] [--dir 0-7] [--effect <name>]
 //! [--walk-to x,y] [--run]`. A hero (the `--player`/`--actor`, else a default player) stands on
 //! the start cell. Controls: click to walk there · R toggles run · Enter attacks · Space follows
 //! the hero · drag or WASD/arrows to pan · wheel to zoom · F to fit the map · 1 for 100% · Q/E
@@ -17,14 +17,12 @@ mod game;
 mod gfx;
 mod ui_layer;
 
+use c3_play::actor::Actor;
+use c3_play::world::World;
+use c3_play::{Act, Look, LookKind};
 use c3_render::camera::Camera2d;
 use c3_scene::path;
-use game_conquer::Content;
-use game_conquer::actor::Actor;
-use game_conquer::character::{DEFAULT_HERO, Look, action};
-use game_conquer::world::World;
 use glam::Vec2;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
@@ -34,8 +32,6 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 const DEFAULT_CLIENT: &str = r"D:\Conquer2\Tools\eosource\client5065";
-/// Twin City.
-const DEFAULT_MAP_ID: u32 = 1002;
 /// World pixels per second when panning with the keyboard, at zoom 1.
 const PAN_SPEED: f32 = 900.0;
 /// Screen pixels the pointer may move before a click becomes a drag.
@@ -173,7 +169,10 @@ impl App {
                 KeyCode::KeyF => self.fit_pending = true,
                 KeyCode::Digit1 => self.camera.zoom = 1.0,
                 KeyCode::Space => self.follow = self.world.hero().is_some(),
-                KeyCode::Enter => self.world.hero_action(action::ATTACK_0, true),
+                KeyCode::Enter => {
+                    let attack = self.world.game.looks().action(Act::Attack);
+                    self.world.hero_action(attack, true);
+                }
                 KeyCode::KeyR => {
                     if let Some(hero) = self.world.hero_mut() {
                         hero.running = !hero.running;
@@ -301,11 +300,12 @@ struct Args {
     /// Start centred on this cell instead of fitting the whole map.
     cell: Option<(i32, i32)>,
     zoom: Option<f32>,
-    /// Model id (3dobj.ini) of an actor to place at the start cell.
-    actor: Option<u64>,
+    /// The game's model id of an actor to place at the start cell.
+    actor: Option<u32>,
     /// Player look + equipment to assemble at the start cell.
     player: Option<Look>,
-    action: u32,
+    /// The game's action id (its stand-by when not given).
+    action: Option<u32>,
     direction: u8,
     /// Effect to play at the start cell.
     effect: Option<String>,
@@ -339,9 +339,7 @@ fn parse_args() -> Args {
         zoom: flag("--zoom").and_then(|v| v.parse().ok()),
         actor: flag("--actor").and_then(|v| v.parse().ok()),
         player: flag("--player").and_then(|v| parse_look(&v)),
-        action: flag("--action")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(action::STANDBY),
+        action: flag("--action").and_then(|v| v.parse().ok()),
         direction: flag("--dir").and_then(|v| v.parse().ok()).unwrap_or(0),
         effect: flag("--effect"),
         walk_to: flag("--walk-to").and_then(|v| parse_cell(&v)),
@@ -355,7 +353,8 @@ fn parse_cell(v: &str) -> Option<(i32, i32)> {
     Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
 }
 
-/// `look,hair,armor,armet,rweapon,lweapon` (trailing fields may be omitted).
+/// `body,hair,item,item...`: a body, its hair and the item types worn (trailing fields may
+/// be omitted; 0 is nothing).
 fn parse_look(v: &str) -> Option<Look> {
     let n: Vec<u32> = v
         .split(',')
@@ -363,31 +362,23 @@ fn parse_look(v: &str) -> Option<Look> {
         .collect::<Option<_>>()?;
     let at = |i: usize| n.get(i).copied().unwrap_or(0);
     Some(Look {
-        look: at(0),
+        body: at(0),
         hair: at(1),
-        armor: at(2),
-        armet: at(3),
-        r_weapon: at(4),
-        l_weapon: at(5),
+        worn: n.iter().skip(2).copied().filter(|&k| k != 0).collect(),
+        ..Look::default()
     })
 }
 
 fn load_world(args: &Args) -> Result<World, String> {
-    let content = Content::open(&args.client)?;
-    let path = match &args.map {
-        Some(p) => p.clone(),
-        None => {
-            let id = args.map_id.unwrap_or(DEFAULT_MAP_ID);
-            content
-                .map_path(id)
-                .ok_or(format!("map {id} is not in GameMap.dat"))?
-        }
-    };
-    let imported = content.load_map(&path)?;
-    for w in &imported.warnings {
+    let map = c3_games::open_client_map(
+        std::path::Path::new(&args.client),
+        args.map.as_deref(),
+        args.map_id,
+    )?;
+    for w in &map.warnings {
         eprintln!("warning: {w}");
     }
-    Ok(World::new(Rc::new(content), path, imported.scene))
+    Ok(World::new(map.game, map.path, map.scene))
 }
 
 fn main() {
@@ -401,7 +392,6 @@ fn main() {
         let game = game::GameArgs {
             project,
             map: args.map,
-            map_id: args.map_id,
             cell: args.cell,
             online,
         };
@@ -421,16 +411,18 @@ fn main() {
         .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
     // The hero stands on the walkable cell nearest the start.
     let hero_cell = path::nearest_walkable(&world.scene.grid, cell, 50).unwrap_or(cell);
-    let hero = match (&args.player, args.actor) {
-        (None, Some(id)) => Actor::from_model(&world.content, id, hero_cell, args.direction),
-        (look, _) => Actor::from_look(
-            &world.content,
-            look.as_ref().unwrap_or(&DEFAULT_HERO),
-            args.action,
-            hero_cell,
-            args.direction,
-        ),
+    let looks = world.game.looks();
+    let act = args.action.unwrap_or_else(|| looks.action(Act::Stand));
+    let look = match (&args.player, args.actor) {
+        (None, Some(id)) => Look {
+            kind: LookKind::Model,
+            body: id,
+            ..Look::default()
+        },
+        (Some(look), _) => look.clone(),
+        (None, None) => looks.default_player(),
     };
+    let hero = Actor::from_look(&*world.game, &look, act, hero_cell, args.direction);
     match hero {
         Ok(mut a) => {
             a.running = args.run;
@@ -443,7 +435,7 @@ fn main() {
     }
     world.add_npcs();
     // Starts the hero's action properly, with its part effects.
-    world.hero_action(args.action, false);
+    world.hero_action(act, false);
     if let Some(name) = &args.effect
         && let Err(e) = world.hero_effect(name, true)
     {

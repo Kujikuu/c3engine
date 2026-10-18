@@ -6,8 +6,9 @@
 //! attach to the body's socket parts (`v_armet`, `v_r_weapon`, `v_l_weapon`).
 
 use crate::Content;
-use c3_anim::Clip;
-use c3_assets::model::Model;
+use crate::rules::slot;
+use c3_game::Player;
+use c3_play::{Attachment, Character, CharacterMotions, Look, LookKind, PartModel};
 use std::collections::HashMap;
 
 /// Action ids (3DBaseCode/BaseFunc.h).
@@ -65,9 +66,10 @@ pub mod action {
     }
 }
 
-/// What a role looks like: model look plus equipped item type ids (0 = none).
+/// What a Conquer role looks like: model look plus equipped item type ids (0 = none). The
+/// engine's [`Look`] carries the same as a body, hair and the items worn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Look {
+pub struct RoleLook {
     /// Body look (`lookface % 1000`): 1–4 for players, monster looks otherwise.
     pub look: u32,
     /// Hair as sent by the server: style `% 1000`, colour `/ 1000`.
@@ -79,7 +81,7 @@ pub struct Look {
 }
 
 /// The hero when none is chosen: a newbie with hair, armor and a blade.
-pub const DEFAULT_HERO: Look = Look {
+pub const DEFAULT_HERO: RoleLook = RoleLook {
     look: 3,
     hair: 310,
     armor: 130003,
@@ -88,44 +90,57 @@ pub const DEFAULT_HERO: Look = Look {
     l_weapon: 0,
 };
 
-/// A model with the texture it is drawn with.
-#[derive(Debug, Clone)]
-pub struct PartModel {
-    pub model: Model,
-    pub texture: Option<String>,
-    /// Part type id (`C3DRolePart::m_idType`, look·10⁶ + part·10³ + variant), which selects
-    /// the part's action effects; `None` for plain models.
-    pub type_id: Option<u64>,
+impl RoleLook {
+    /// The engine's look of this role.
+    pub fn to_look(&self, kind: LookKind) -> Look {
+        Look {
+            kind,
+            body: self.look,
+            hair: self.hair,
+            worn: [self.armor, self.armet, self.r_weapon, self.l_weapon]
+                .into_iter()
+                .filter(|&k| k != 0)
+                .collect(),
+            ..Look::default()
+        }
+    }
+
+    /// The role of the engine's `look`: its worn items go to the slots Conquer wears them in.
+    pub fn from_look(look: &Look) -> Self {
+        let worn = |s: u8| {
+            look.worn
+                .iter()
+                .copied()
+                .find(|&k| slot(k) == Some(s))
+                .unwrap_or(0)
+        };
+        Self {
+            look: look.body,
+            hair: look.hair,
+            armor: worn(slot::ARMOR),
+            armet: worn(slot::HELMET),
+            r_weapon: worn(slot::RIGHT_HAND),
+            l_weapon: worn(slot::LEFT_HAND),
+        }
+    }
 }
 
-/// A part attached to a body socket.
-#[derive(Debug, Clone)]
-pub struct Attachment {
-    /// Socket part name in the body (e.g. `v_r_weapon`).
-    pub socket: &'static str,
-    pub part: PartModel,
-    /// Weapon item id; weapons have their own motion per action.
-    pub weapon: Option<u32>,
-}
-
-/// Clips for one model (one per part), from a motion file.
-pub type Motion = Vec<Clip>;
-
-/// A character's motions for one action.
-#[derive(Debug, Clone, Default)]
-pub struct CharacterMotions {
-    /// Body motion id (3dmotion.ini), for display.
-    pub body_id: Option<u64>,
-    /// One per model: body first, then attachments (`None` = no motion of its own).
-    pub models: Vec<Option<Motion>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Character {
-    pub body: PartModel,
-    pub attachments: Vec<Attachment>,
-    /// Body motion id used (3dmotion.ini), for display.
-    pub motion_id: Option<u64>,
+/// What a player looks like in what it wears (the default hero's body and hair).
+pub fn player_look(p: &Player) -> RoleLook {
+    let worn = |s: u8| {
+        p.equipment
+            .iter()
+            .map(|e| e.kind)
+            .find(|&k| slot(k) == Some(s))
+            .unwrap_or(0)
+    };
+    RoleLook {
+        armor: worn(slot::ARMOR),
+        armet: worn(slot::HELMET),
+        r_weapon: worn(slot::RIGHT_HAND),
+        l_weapon: worn(slot::LEFT_HAND),
+        ..DEFAULT_HERO
+    }
 }
 
 /// `Action3DEffect.ini` wildcards for look, action, part and variant.
@@ -215,7 +230,7 @@ pub fn weapon_motion_ids(look: u32, weapon: u32, act: u32) -> [u64; 4] {
 
 impl Content {
     /// Builds a character in action `act`.
-    pub fn assemble_character(&self, look: &Look, act: u32) -> Result<Character, String> {
+    pub fn assemble_character(&self, look: &RoleLook, act: u32) -> Result<Character, String> {
         let unit = look.look as u64 * LOOK_UNIT;
         // Body: armor model for this look (quality digit dropped), else the bare body.
         let armor_key = unit + (look.armor as u64 % LOOK_UNIT) / 10 * 10;
@@ -250,9 +265,9 @@ impl Content {
         };
         if let Some(part) = armet_key.and_then(|k| self.part_model(&self.tables.armet, k).ok()) {
             attachments.push(Attachment {
-                socket: "v_armet",
+                socket: "v_armet".into(),
                 part,
-                weapon: None,
+                item: None,
             });
         }
         // Weapons: bows are held in the left hand socket; arrows are not drawn at rest.
@@ -270,9 +285,9 @@ impl Content {
                 default_socket
             };
             attachments.push(Attachment {
-                socket,
+                socket: socket.into(),
                 part,
-                weapon: Some(item),
+                item: Some(item),
             });
         }
         let mut character = Character {
@@ -289,7 +304,7 @@ impl Content {
     pub fn character_motions(
         &self,
         character: &Character,
-        look: &Look,
+        look: &RoleLook,
         act: u32,
     ) -> CharacterMotions {
         let family = weapon_family(look.l_weapon, look.r_weapon);
@@ -300,7 +315,7 @@ impl Content {
             .and_then(|id| self.tables.motions.get(id))
             .and_then(|p| self.load_motion(p));
         let attachments = character.attachments.iter().map(|a| {
-            weapon_motion_ids(look.look, a.weapon?, act)
+            weapon_motion_ids(look.look, a.item?, act)
                 .into_iter()
                 .find_map(|id| self.tables.weapon_motions.get(id))
                 .and_then(|p| self.load_motion(p))
@@ -339,7 +354,7 @@ impl Content {
 
     /// Milliseconds per animation frame of action `act` (`C3DRoleData::GetActionTimeInterval`:
     /// exact key, then any look, then any weapon, then both; else 33).
-    pub fn frame_interval(&self, look: &Look, act: u32) -> u32 {
+    pub fn frame_interval(&self, look: &RoleLook, act: u32) -> u32 {
         let family = weapon_family(look.l_weapon, look.r_weapon);
         let key = |look: u32, family: u32| look * 1_000_000 + family * 1000 + act;
         [
@@ -371,22 +386,8 @@ impl Content {
         Ok(PartModel {
             model: self.load_model_path(path)?,
             texture: self.tables.textures.get(part.texture).map(str::to_owned),
-            type_id: Some(key),
+            effect_key: Some(key),
         })
-    }
-}
-
-impl Character {
-    /// Switches to `motions` (from [`Content::character_motions`]).
-    pub fn apply_motions(&mut self, motions: &CharacterMotions) {
-        let models = std::iter::once(&mut self.body.model)
-            .chain(self.attachments.iter_mut().map(|a| &mut a.part.model));
-        for (model, motion) in models.zip(&motions.models) {
-            if let Some(clips) = motion {
-                model.apply_motion(clips);
-            }
-        }
-        self.motion_id = motions.body_id;
     }
 }
 

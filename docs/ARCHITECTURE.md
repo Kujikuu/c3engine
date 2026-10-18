@@ -6,7 +6,7 @@ review in ROADMAP.md).
 ```
 c3engine/
   engine/            game-agnostic engine crates (c3-*)
-    core/      empty stub (planned: the game-module seam, settings, shared services)
+    core/      empty stub (planned: settings, shared services)
     assets/    decoded asset types (image, model, sprite set, prefab, effect) and the
                `AssetSource` read trait (planned: asset database, ids, import settings, hot
                reload, packaging, plain PNG/glTF/OGG/TTF)
@@ -34,6 +34,11 @@ c3engine/
                players, monsters and drops in fixed ticks (movement, spawns, monster AI,
                melee combat, exp/levels, bag, equipment, shops, jump); a game's `Rules` (Rust)
                decide numbers (planned: multi-map transfers, data/script rules, skills)
+    play/      c3-play: playing a game, shared by the client, the server and the Studio's Scene,
+               Play and Preview: the game-module seam (`GameModule`: content, `Looks`,
+               `GameRules`, sounds, maps), world, actor, screen, session, sim view, game audio,
+               server thread; `basic::BasicGame`, the engine's own game for projects made from
+               scratch (placeholder figures, a built-in ground, `blank_scene` for new maps)
     edit/      c3-edit: headless editing API. Typed serializable
                commands with undo/redo, queries and their schemas. Used by the Studio UI,
                the AI assistant and the MCP server alike
@@ -42,23 +47,21 @@ c3engine/
   formats/
     c3/        c3-formats-tq: TQ format plugins (read + write)
   games/
-    conquer/   game-conquer: rules, content, session (local or joined), `game.rs` (maps,
-               simulations and new characters for every host), `serve.rs` (a server thread),
-               `protocol/` (the 5065 client's front: ciphers, framing, packets, per-client
-               translation of world updates into packets and requests into `Input`s). Also
-               holds generic parts (world, actor, screen, session, sim view, serve) that move
-               into the engine with M7 step 1
+    conquer/   game-conquer: `ConquerModule` (the `GameModule` of Conquer 5065), rules,
+               content, role looks, sound tables, `protocol/` (the 5065 client's front:
+               ciphers, framing, packets, per-client translation of world updates into packets
+               and requests into `Input`s)
+    registry/  c3-games: picks the game that plays a project (Conquer when it has a TQ client,
+               else `BasicGame`); the apps reach game code only through it
   studio/      c3-studio: egui editor: maps (cells, portals, objects, effects, sounds, NPCs,
                spawns), models (view), preview stage, tables (spreadsheet), scripts, dialogue
                graphs + quests, Play (planned: settings, effect/animation/UI editors, form
                editors, build, assistant)
   apps/
-    client/    c3-client: plays a game project (`game.rs`: GameScreen + egui-winit/egui-wgpu
-               UI layer) or views a Conquer client's maps (`main.rs` viewer). Needs Conquer
-               content today (M7 step 1)
-    server/    c3-server: serves a game project's maps to clients (engine protocol, optional
-               Conquer 5065 front; accounts and characters in `<project>/server/accounts`).
-               Needs Conquer content today (M7 step 1)
+    client/    c3-client: plays any game project (`game.rs`: GameScreen + egui-winit/egui-wgpu
+               UI layer) or views a Conquer client's maps (`main.rs` viewer)
+    server/    c3-server: serves any game project's maps to clients (engine protocol, optional
+               Conquer 5065 front; accounts and characters in `<project>/server/accounts`)
     mcp/       (planned) c3-mcp: MCP server exposing c3-edit to external AI agents
   docs/        this documentation (source of truth for context)
 ```
@@ -87,20 +90,21 @@ Scene + SceneAssets (game's loader) ──► c3_render::scene_view::SceneView::
                                      └─► mesh_draws + frame ─► Renderer (window or offscreen)
 ```
 `SceneView` owns the streamed art caches, the map's playing effects and the `EffectLibrary`.
-Actors are game code: the caller passes their cells and poses them in a callback (`Poser`).
-The game world (`game_conquer::world::World`: scene view + actors + a clock the host advances)
-runs in the client and in the Studio's Play mode; the Studio's Scene view (`studio/src/
+Actors are the caller's: it passes their cells and poses them in a callback (`Poser`).
+The game world (`c3_play::world::World`: scene view + actors + a clock the host advances) runs
+in the client and in the Studio's Play mode; the Studio's Scene view (`studio/src/
 live_scene.rs`) draws the same `SceneView` with NPC actors, so the editor shows exactly what the
-game shows.
+game shows. Both dress actors through the project's `GameModule` (`Looks` turns a role into an
+engine `Look`, then a `Character` of models).
 
 ## Dependency rules
 - `engine/*` may depend only on other `engine/*` crates and third-party crates.
 - `formats/*` depends on `engine/assets` (and `engine/scene` / `engine/anim` for conversion).
 - `games/*` depends on engine + formats. **Engine never depends on games.**
 - `studio` depends on engine + formats; game-specific code is reached only through its plugin
-  module (`studio/src/tq_plugin.rs`, which uses `game-conquer`'s content loader). **Currently
-  broken** by `play.rs`, `live_scene.rs` and `stage.rs`, which use `game-conquer` directly;
-  M7 step 1 restores it through the game-module seam.
+  module (`studio/src/tq_plugin.rs`, which hands out Conquer's `GameModule`); everything else
+  in the Studio goes through `c3_play::GameModule`.
+- `apps/*` reach games only through `games/registry` (`c3-games`).
 - Editing goes through `engine/edit`; no editor (UI, assistant, MCP) mutates projects directly.
 - The server and client share `engine/game`; neither depends on the Studio.
 

@@ -3,28 +3,25 @@
 //! `c3-server <project> [--map <key>]... [--cell x,y] [--port 7101] [--listen 0.0.0.0]
 //! [--conquer <public ip>]`
 //! serves each `--map` (a project scene's name or a content map path such as
-//! `map/map/newplain.DMap`; Twin City when none is named), with the project's NPCs, spawns,
-//! rules, scripts and quests. New characters start on the first map, at `--cell` (else its
+//! `map/map/newplain.DMap`; the game's first map when none is named, Twin City for Conquer),
+//! with the project's NPCs, spawns, rules, scripts and quests. Any project serves: the game
+//! that plays it comes from `c3-games`. New characters start on the first map, at `--cell` (else its
 //! middle). Accounts and characters are kept in `<project>/server/accounts`; an unknown
 //! account name logs in by making the account.
 //!
 //! `--conquer` also serves the original Conquer 5065 client: an account server on port 9958
 //! and a game server on 5816, to which logged-in clients are sent at `<public ip>`.
 //!
-//! Type `online` to see who is playing, `quit` to stop (characters are saved).
+//! Type `quit` to stop (characters are saved).
 
+use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
 use c3_scene::CellPos;
-use game_conquer::Content;
-use game_conquer::protocol::ConquerSetup;
-use game_conquer::serve::{ServeSetup, ServedMap, ServerHandle};
 use std::io::BufRead;
 use std::sync::mpsc;
 use std::time::Duration;
 
 /// The engine protocol's port.
 const DEFAULT_PORT: u16 = 7101;
-/// Twin City.
-const DEFAULT_MAP_ID: u32 = 1002;
 
 struct Args {
     project: String,
@@ -74,21 +71,18 @@ fn parse_args() -> Result<Args, String> {
 
 fn start(args: &Args) -> Result<ServerHandle, String> {
     let project = c3_project::Project::open(&args.project).map_err(|e| e.to_string())?;
-    let (_, content_dir) = project
-        .tq_client()
-        .ok_or("the project has no Conquer content to serve")?;
-    let content = Content::open(content_dir)?;
+    let game = c3_games::open_project(&project)?;
+    println!("Game: {}", game.name());
     let mut keys = args.maps.clone();
     if keys.is_empty() {
         keys.push(
-            content
-                .map_path(DEFAULT_MAP_ID)
-                .ok_or(format!("map {DEFAULT_MAP_ID} is not in GameMap.dat"))?,
+            game.default_map(&project)
+                .ok_or("the project has no map to serve; make one in the Studio")?,
         );
     }
     let mut maps = Vec::new();
     for (i, key) in keys.into_iter().enumerate() {
-        let scene = game_conquer::game::load_map(&project, &content, &key)?;
+        let scene = game.load_map(&project, &key)?;
         let middle = (scene.grid.width as i32 / 2, scene.grid.height as i32 / 2);
         let start = if i == 0 {
             args.cell.unwrap_or(middle)
@@ -101,7 +95,7 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
             scene.spawns.len()
         );
         maps.push(ServedMap {
-            map_ids: content.map_ids_for_path(&key),
+            map_ids: game.map_ids(&key),
             key,
             scene,
             start,
@@ -114,10 +108,11 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
             scripts: Some(project.scripts_dir()),
             tables: Some(project.tables_dir()),
             accounts: project.server_dir().join("accounts"),
-            conquer: args
-                .conquer
-                .as_deref()
-                .map(|ip| ConquerSetup::on(&args.listen, ip)),
+            rules: game.rules(),
+            fronts: match &args.conquer {
+                Some(ip) => vec![c3_games::conquer_front(&args.listen, ip)?],
+                None => Vec::new(),
+            },
         },
     )
 }

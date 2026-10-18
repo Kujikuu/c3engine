@@ -2,24 +2,26 @@
 //! is built from the map as it is now (unsaved edits included) and Stop drops it, so playing
 //! never changes the map. Pause freezes game time; Step runs one frame.
 //!
-//! The game is `game_conquer::screen::GameScreen` (simulation, scripts, world, in-game UI,
-//! camera and controls), the same the client runs; Play mode gives it a renderer and pausing.
+//! The game is `c3_play::screen::GameScreen` (simulation, scripts, world, in-game UI, camera
+//! and controls) with the project's game module, the same the client runs; Play mode gives it
+//! a renderer and pausing.
 //! Played *online*, a local game server runs the map on its own thread and the Game view is
 //! its client, as players will play it.
 
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
 use crate::theme;
-use crate::tq_plugin::Client;
+use c3_play::GameModule;
+use c3_play::screen::{GameScreen, MAX_FRAME_SECONDS};
+use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
+use c3_play::session::{Session, SessionSetup};
 use c3_scene::CellPos;
 use c3_ui::LogLine;
 use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::egui_wgpu;
-use game_conquer::screen::{GameScreen, MAX_FRAME_SECONDS};
-use game_conquer::serve::{ServeSetup, ServedMap, ServerHandle};
-use game_conquer::session::{Session, SessionSetup};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// Game time one Step runs.
 const STEP_SECONDS: f32 = 1.0 / 30.0;
@@ -52,21 +54,18 @@ pub struct PlaySession {
 impl PlaySession {
     /// Starts playing `doc` as it is now, the hero on the walkable cell nearest `start`.
     pub fn start(
-        client: &Client,
+        game: Rc<dyn GameModule>,
         doc: &MapDoc,
         start: CellPos,
         render_state: &egui_wgpu::RenderState,
         setup: PlaySetup,
     ) -> Result<Self, String> {
         let (session, server) = if setup.online {
-            let (session, server) = Self::join_local_server(client, doc, start, setup)?;
+            let (session, server) = Self::join_local_server(game, doc, start, setup)?;
             (session, Some(server))
         } else {
-            let seed = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(1, |d| d.as_secs());
             let session = Session::start(
-                client.shared_content(),
+                game,
                 doc.name().to_owned(),
                 doc.scene().clone(),
                 SessionSetup {
@@ -74,7 +73,7 @@ impl PlaySession {
                     tables: setup.tables,
                     map_ids: setup.map_ids,
                     start,
-                    seed,
+                    seed: c3_play::game::time_seed(),
                 },
             )?;
             (session, None)
@@ -90,7 +89,7 @@ impl PlaySession {
 
     /// Starts a local server on `doc` (a fresh account folder each time) and joins it.
     fn join_local_server(
-        client: &Client,
+        game: Rc<dyn GameModule>,
         doc: &MapDoc,
         start: CellPos,
         setup: PlaySetup,
@@ -109,11 +108,12 @@ impl PlaySession {
                 scripts: setup.scripts,
                 tables: setup.tables.clone(),
                 accounts,
-                conquer: None,
+                rules: game.rules(),
+                fronts: Vec::new(),
             },
         )?;
         let session = Session::join_scene(
-            client.shared_content(),
+            game,
             doc.scene().clone(),
             setup.tables,
             &server.addr().to_string(),

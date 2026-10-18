@@ -25,6 +25,7 @@ mod map_view;
 mod maps;
 mod model_view;
 mod models_ws;
+mod new_map;
 mod node_editor;
 mod panels;
 mod play;

@@ -1,14 +1,14 @@
 //! Prints a character's parts, clips and socket transforms, to debug attachments.
 //! Usage: char_debug [look] [armor] [r_weapon]
 use game_conquer::Content;
-use game_conquer::character::{Look, action};
+use game_conquer::character::{RoleLook, action};
 
 fn main() {
     let a: Vec<u32> = std::env::args()
         .skip(1)
         .filter_map(|v| v.parse().ok())
         .collect();
-    let look = Look {
+    let look = RoleLook {
         look: *a.first().unwrap_or(&3),
         hair: 310,
         armor: *a.get(1).unwrap_or(&130003),

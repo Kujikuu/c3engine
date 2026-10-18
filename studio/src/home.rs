@@ -252,6 +252,16 @@ impl Studio {
                 self.browse_open_project();
             }
             if ui
+                .add_enabled(
+                    self.project.is_some(),
+                    egui::Button::new(theme::icon_text(icons::MAP_TRIFOLD, "New Map…")),
+                )
+                .on_disabled_hover_text("Open a project first")
+                .clicked()
+            {
+                self.show_new_map(None);
+            }
+            if ui
                 .button(theme::icon_text(
                     icons::DOWNLOAD_SIMPLE,
                     "Import Conquer 5065 Client…",

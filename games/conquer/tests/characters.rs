@@ -1,7 +1,7 @@
 //! Character assembly against the real 5065 client. Skipped when the client is absent.
 
 use game_conquer::Content;
-use game_conquer::character::{Look, action};
+use game_conquer::character::{RoleLook, action};
 
 fn content() -> Option<Content> {
     let dir = std::env::var("C3_CLIENT_DIR")
@@ -12,7 +12,7 @@ fn content() -> Option<Content> {
 #[test]
 fn newbie_with_hair_uses_base_body_and_stand_motion() {
     let Some(c) = content() else { return };
-    let look = Look {
+    let look = RoleLook {
         look: 3,
         hair: 310,
         ..Default::default()
@@ -29,7 +29,10 @@ fn newbie_with_hair_uses_base_body_and_stand_motion() {
     );
     // Hair hangs on the helmet socket, which the body motion animates.
     assert_eq!(
-        ch.attachments.iter().map(|a| a.socket).collect::<Vec<_>>(),
+        ch.attachments
+            .iter()
+            .map(|a| a.socket.as_str())
+            .collect::<Vec<_>>(),
         ["v_armet"]
     );
     assert!(ch.body.model.socket_transform("v_armet", 0.0).is_some());
@@ -42,7 +45,7 @@ fn newbie_with_hair_uses_base_body_and_stand_motion() {
 #[test]
 fn armor_and_blade_use_weapon_family_motion() {
     let Some(c) = content() else { return };
-    let look = Look {
+    let look = RoleLook {
         look: 3,
         hair: 310,
         armor: 130_003,
@@ -59,7 +62,7 @@ fn armor_and_blade_use_weapon_family_motion() {
         "{:?}",
         ch.body.texture
     );
-    let sockets: Vec<_> = ch.attachments.iter().map(|a| a.socket).collect();
+    let sockets: Vec<_> = ch.attachments.iter().map(|a| a.socket.as_str()).collect();
     assert_eq!(sockets, ["v_armet", "v_r_weapon"]);
     assert!(ch.body.model.socket_transform("v_r_weapon", 3.0).is_some());
 }
@@ -67,7 +70,7 @@ fn armor_and_blade_use_weapon_family_motion() {
 #[test]
 fn bow_is_held_in_left_socket_with_weapon_motion() {
     let Some(c) = content() else { return };
-    let look = Look {
+    let look = RoleLook {
         look: 3,
         r_weapon: 500_003,
         ..Default::default()
@@ -75,7 +78,10 @@ fn bow_is_held_in_left_socket_with_weapon_motion() {
     let ch = c.assemble_character(&look, action::STANDBY).unwrap();
     assert_eq!(ch.motion_id, Some(3_500_100));
     assert_eq!(
-        ch.attachments.iter().map(|a| a.socket).collect::<Vec<_>>(),
+        ch.attachments
+            .iter()
+            .map(|a| a.socket.as_str())
+            .collect::<Vec<_>>(),
         ["v_l_weapon"]
     );
 }
@@ -83,7 +89,7 @@ fn bow_is_held_in_left_socket_with_weapon_motion() {
 #[test]
 fn walk_and_run_have_motions_and_timing() {
     let Some(c) = content() else { return };
-    let look = Look {
+    let look = RoleLook {
         look: 3,
         hair: 310,
         armor: 130003,
@@ -116,7 +122,7 @@ fn walk_and_run_have_motions_and_timing() {
 #[test]
 fn blade_attack_plays_its_weapon_trail() {
     let Some(c) = content() else { return };
-    let look = Look {
+    let look = RoleLook {
         look: 3,
         hair: 310,
         armor: 130003,
@@ -124,8 +130,8 @@ fn blade_attack_plays_its_weapon_trail() {
         ..Default::default()
     };
     let ch = c.assemble_character(&look, action::STANDBY).unwrap();
-    let blade = ch.attachments.iter().find(|a| a.weapon.is_some()).unwrap();
-    assert_eq!(blade.part.type_id, Some(410006));
+    let blade = ch.attachments.iter().find(|a| a.item.is_some()).unwrap();
+    assert_eq!(blade.item, Some(410006));
     assert_eq!(
         c.part_action_effects(410006, action::ATTACK_0),
         vec!["Flash4101".to_owned()]

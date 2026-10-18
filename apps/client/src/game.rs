@@ -1,13 +1,14 @@
 //! Playing a game project: the project's map with its NPCs and monsters, its rules and
 //! scripts, and the in-game UI — the same game the Studio's Play mode runs, in its own window,
-//! simulated here or played on a game server.
+//! simulated here or played on a game server. Any project plays: the game comes from
+//! `c3-games`.
 
 use crate::gfx::Gfx;
 use crate::ui_layer::UiLayer;
+use c3_play::GameModule;
+use c3_play::screen::{GameScreen, MAX_FRAME_SECONDS};
+use c3_play::session::{Session, SessionSetup};
 use c3_scene::CellPos;
-use game_conquer::Content;
-use game_conquer::screen::{GameScreen, MAX_FRAME_SECONDS};
-use game_conquer::session::{Session, SessionSetup};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
@@ -15,9 +16,6 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
-
-/// Twin City.
-const DEFAULT_MAP_ID: u32 = 1002;
 
 /// A game server to play on.
 pub struct Online {
@@ -32,7 +30,6 @@ pub struct GameArgs {
     pub project: String,
     /// An engine scene of the project, or a map file of its content.
     pub map: Option<String>,
-    pub map_id: Option<u32>,
     pub cell: Option<CellPos>,
     /// Play on a server (which picks the map) instead of here.
     pub online: Option<Online>,
@@ -41,13 +38,10 @@ pub struct GameArgs {
 /// Opens the game window and plays until it is closed.
 pub fn run(args: GameArgs) -> Result<(), String> {
     let project = c3_project::Project::open(&args.project).map_err(|e| e.to_string())?;
-    let (_, content_dir) = project
-        .tq_client()
-        .ok_or("the project has no Conquer content to play")?;
-    let content = Rc::new(Content::open(content_dir)?);
+    let game = c3_games::open_project(&project)?;
     let session = match &args.online {
-        Some(o) => Session::join(content, &project, &o.server, &o.account, &o.password)?,
-        None => local_session(&project, content, &args)?,
+        Some(o) => Session::join(game, &project, &o.server, &o.account, &o.password)?,
+        None => local_session(&project, game, &args)?,
     };
     let mut app = GameApp {
         screen: GameScreen::new(session),
@@ -61,32 +55,26 @@ pub fn run(args: GameArgs) -> Result<(), String> {
 }
 
 /// A game simulated here on the map `--map` names (an engine scene or a content map file),
-/// else `--map-id` (default Twin City) from the content's catalog.
+/// else the game's first map.
 fn local_session(
     project: &c3_project::Project,
-    content: Rc<Content>,
+    game: Rc<dyn GameModule>,
     args: &GameArgs,
 ) -> Result<Session, String> {
     let key = match &args.map {
         Some(map) => map.clone(),
-        None => {
-            let id = args.map_id.unwrap_or(DEFAULT_MAP_ID);
-            content
-                .map_path(id)
-                .ok_or(format!("map {id} is not in GameMap.dat"))?
-        }
+        None => game
+            .default_map(project)
+            .ok_or("the project has no map to play; make one in the Studio")?,
     };
-    let scene = game_conquer::game::load_map(project, &content, &key)?;
+    let scene = game.load_map(project, &key)?;
     let g = &scene.grid;
     let start = args
         .cell
         .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
-    let seed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(1, |d| d.as_secs());
-    let map_ids = content.map_ids_for_path(&key);
+    let map_ids = game.map_ids(&key);
     Session::start(
-        content,
+        game,
         key,
         scene,
         SessionSetup {
@@ -94,7 +82,7 @@ fn local_session(
             tables: Some(project.tables_dir()),
             map_ids,
             start,
-            seed,
+            seed: c3_play::game::time_seed(),
         },
     )
 }

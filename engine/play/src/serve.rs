@@ -1,10 +1,12 @@
-//! Running a Conquer game server on a thread of its own: the maps (as scenes) become
-//! simulations there, players log in to the accounts in a folder, and the host reads its log
-//! and stops it. The `c3-server` app and the Studio's Play mode (through a local server)
-//! both start one.
+//! Running a game server on a thread of its own: the maps (as scenes) become simulations
+//! there, players log in to the accounts in a folder, and the host reads its log and stops
+//! it. The `c3-server` app and the Studio's Play mode (through a local server) both start one.
+//!
+//! The server speaks the engine's protocol; a game may add fronts for other clients (a game's
+//! original protocol), all serving the same worlds.
 
 use crate::game::{self, GameSetup};
-use crate::protocol::{ConquerFront, ConquerSetup};
+use crate::module::GameRules;
 use c3_online::{EngineFront, Front, GameServer, MapWorld, ServerConfig};
 use c3_scene::{CellPos, Scene, path};
 use std::net::SocketAddr;
@@ -36,15 +38,15 @@ pub struct ServeSetup {
     pub tables: Option<PathBuf>,
     /// Folder of the account files.
     pub accounts: PathBuf,
-    /// Also serve Conquer 5065 clients (account and game servers), when set.
-    pub conquer: Option<ConquerSetup>,
+    /// The game's rules and new characters.
+    pub rules: Arc<dyn GameRules>,
+    /// Fronts for other clients beside the engine's own, already listening.
+    pub fronts: Vec<Box<dyn Front + Send>>,
 }
 
 /// A running server.
 pub struct ServerHandle {
     addr: SocketAddr,
-    /// The Conquer account and game servers' addresses, when serving Conquer clients.
-    conquer: Option<(SocketAddr, SocketAddr)>,
     stop: Arc<AtomicBool>,
     log: Arc<Mutex<Vec<String>>>,
     thread: Option<JoinHandle<()>>,
@@ -59,18 +61,16 @@ impl ServerHandle {
         let front = EngineFront::bind(setup.listen.as_str())
             .map_err(|e| format!("can't listen on {}: {e}", setup.listen))?;
         let addr = front.local_addr();
+        let ServeSetup {
+            scripts,
+            tables,
+            accounts,
+            rules,
+            fronts: extra,
+            ..
+        } = setup;
         let mut fronts: Vec<Box<dyn Front + Send>> = vec![Box::new(front)];
-        let mut conquer = None;
-        if let Some(c) = &setup.conquer {
-            let front = ConquerFront::bind(c).map_err(|e| {
-                format!(
-                    "can't listen on {} and {}: {e}",
-                    c.account_listen, c.game_listen
-                )
-            })?;
-            conquer = Some((front.account_addr(), front.local_addr()));
-            fronts.push(Box::new(front));
-        }
+        fronts.extend(extra);
         let stop = Arc::new(AtomicBool::new(false));
         let log: Arc<Mutex<Vec<String>>> = Arc::default();
         let (stopping, sink) = (stop.clone(), log.clone());
@@ -78,19 +78,17 @@ impl ServerHandle {
             .name("c3 game server".into())
             .spawn(move || {
                 let say = |line: String| sink.lock().expect("server log").push(line);
-                let seed = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_or(1, |d| d.as_secs());
+                let seed = game::time_seed();
                 let worlds = maps
                     .into_iter()
                     .map(|m| {
-                        let game = GameSetup {
-                            scripts: setup.scripts.clone(),
-                            tables: setup.tables.clone(),
+                        let setup = GameSetup {
+                            scripts: scripts.clone(),
+                            tables: tables.clone(),
                             map_ids: m.map_ids.clone(),
                             seed,
                         };
-                        let (sim, problems) = game::new_sim(&m.scene, &game);
+                        let (sim, problems) = game::new_sim(&m.scene, &setup, &*rules);
                         problems.into_iter().for_each(&say);
                         let start = path::nearest_walkable(&m.scene.grid, m.start, START_SEARCH)
                             .unwrap_or(m.start);
@@ -103,14 +101,13 @@ impl ServerHandle {
                     })
                     .collect::<Vec<_>>();
                 say(format!("Serving {} map(s) on {addr}", worlds.len()));
-                if let Some((account, game)) = conquer {
-                    say(format!(
-                        "Conquer clients: account server {account}, game server {game}"
-                    ));
+                for front in fronts.iter().skip(1) {
+                    say(format!("Also serving clients on {}", front.local_addr()));
                 }
+                let make = Arc::clone(&rules);
                 let config = ServerConfig {
-                    accounts: setup.accounts,
-                    new_character: Box::new(game::new_character),
+                    accounts,
+                    new_character: Box::new(move |name, cell| make.new_character(name, cell)),
                     save_every_ms: SAVE_EVERY_MS,
                 };
                 let fronts = fronts.into_iter().map(|f| f as Box<dyn Front>).collect();
@@ -121,21 +118,15 @@ impl ServerHandle {
             .map_err(|e| e.to_string())?;
         Ok(Self {
             addr,
-            conquer,
             stop,
             log,
             thread: Some(thread),
         })
     }
 
-    /// The address clients connect to.
+    /// The address clients of the engine's protocol connect to.
     pub fn addr(&self) -> SocketAddr {
         self.addr
-    }
-
-    /// The Conquer account and game servers' addresses, when serving Conquer clients.
-    pub fn conquer_addrs(&self) -> Option<(SocketAddr, SocketAddr)> {
-        self.conquer
     }
 
     /// What the server said since the last call.

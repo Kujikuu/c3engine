@@ -1,14 +1,13 @@
-//! A Conquer game being played: the engine's simulation with Conquer's rules and the
-//! project's scripts, shown in a [`World`] with the in-game UI. The simulation runs here
+//! A game being played: the engine's simulation with the game's rules and the project's
+//! scripts, shown in a [`World`] with the in-game UI. The simulation runs here
 //! ([`Session::start`]) or on a game server this session mirrors ([`Session::join`]); either
 //! way the view and UI read the same `Sim`. The Studio's Play mode and the client host it;
 //! they own the window, camera and renderer and pass input in.
 
-use crate::Content;
+use crate::audio::GameAudio;
 use crate::game::{self, GameSetup};
-use crate::rules::SLOT_NAMES;
+use crate::module::GameModule;
 use crate::sim_view::SimView;
-use crate::sound::GameAudio;
 use crate::world::World;
 use c3_game::{EntityId, Event, Input, Sim, WorldUpdate};
 use c3_online::{Connection, RemoteEvent, Welcome};
@@ -28,10 +27,6 @@ const ATTACK_SEARCH: i32 = 10;
 const START_SEARCH: i32 = 50;
 /// World pixels above an actor's feet where its name and numbers go.
 const HEAD_HEIGHT: f32 = 110.0;
-/// Effect marking where the player clicked to walk.
-const CLICK_EFFECT: &str = "mouse";
-/// Effect played on the hero when it rises a level.
-const LEVEL_UP: &str = "LevelUp";
 /// How long joining a server may take.
 const JOIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
@@ -92,31 +87,34 @@ pub struct Session {
     view: SimView,
     ui: GameUi,
     icons: ItemIcons,
+    /// The game's equipment slots and their names.
+    slots: Vec<(u8, String)>,
     audio: GameAudio,
     log: Vec<LogLine>,
     link: Link,
 }
 
 impl Session {
-    /// Starts a game on `scene` (map `map_path` of `content`), simulated here.
+    /// Starts a game on `scene` (map `map_path` of `game`), simulated here.
     pub fn start(
-        content: Rc<Content>,
+        game: Rc<dyn GameModule>,
         map_path: String,
         scene: Scene,
         setup: SessionSetup,
     ) -> Result<Self, String> {
         let start = path::nearest_walkable(&scene.grid, setup.start, START_SEARCH)
             .ok_or("there is no walkable cell near the start")?;
-        let game = GameSetup {
+        let game_setup = GameSetup {
             scripts: setup.scripts,
             tables: setup.tables,
             map_ids: setup.map_ids.clone(),
             seed: setup.seed,
         };
-        let (mut sim, problems) = game::new_sim(&scene, &game);
-        let hero = sim.add_saved_player(&game::new_character("Hero", start));
+        let rules = game.rules();
+        let (mut sim, problems) = game::new_sim(&scene, &game_setup, &*rules);
+        let hero = sim.add_saved_player(&rules.new_character("Hero", start));
         Self::open(
-            content,
+            game,
             Opening {
                 map_path,
                 scene,
@@ -132,16 +130,16 @@ impl Session {
     /// Joins the game server at `addr` as `account` (a new name makes the account), showing
     /// the map of `project` it puts the player on.
     pub fn join(
-        content: Rc<Content>,
+        game: Rc<dyn GameModule>,
         project: &Project,
         addr: &str,
         account: &str,
         password: &str,
     ) -> Result<Self, String> {
         let (conn, welcome, updates) = Connection::join(addr, account, password, JOIN_TIMEOUT)?;
-        let scene = game::load_map(project, &content, &welcome.map)?;
+        let scene = game.load_map(project, &welcome.map)?;
         Self::joined(
-            content,
+            game,
             scene,
             Some(project.tables_dir()),
             (conn, welcome, updates),
@@ -151,7 +149,7 @@ impl Session {
     /// Joins the game server at `addr`, which serves `scene` (the Studio's local server
     /// plays the map as it is being edited); `tables` are the project's.
     pub fn join_scene(
-        content: Rc<Content>,
+        game: Rc<dyn GameModule>,
         scene: Scene,
         tables: Option<PathBuf>,
         addr: &str,
@@ -159,21 +157,21 @@ impl Session {
         password: &str,
     ) -> Result<Self, String> {
         let joined = Connection::join(addr, account, password, JOIN_TIMEOUT)?;
-        Self::joined(content, scene, tables, joined)
+        Self::joined(game, scene, tables, joined)
     }
 
     fn joined(
-        content: Rc<Content>,
+        game: Rc<dyn GameModule>,
         scene: Scene,
         tables: Option<PathBuf>,
         (conn, welcome, updates): (Connection, Welcome, Vec<WorldUpdate>),
     ) -> Result<Self, String> {
-        let (mut sim, problems) = game::mirror_sim(&scene, tables.as_ref());
+        let (mut sim, problems) = game::mirror_sim(&scene, tables.as_ref(), &*game.rules());
         for update in updates {
             sim.apply_update(update);
         }
         Self::open(
-            content,
+            game,
             Opening {
                 map_path: welcome.map,
                 scene,
@@ -186,7 +184,7 @@ impl Session {
         )
     }
 
-    fn open(content: Rc<Content>, o: Opening) -> Result<Self, String> {
+    fn open(game: Rc<dyn GameModule>, o: Opening) -> Result<Self, String> {
         let Opening {
             map_path,
             scene,
@@ -203,8 +201,9 @@ impl Session {
                 log.push(LogLine::Error(text));
             }
         }
-        let audio = GameAudio::new(content.clone(), map_ids);
-        let mut world = World::new(content.clone(), map_path, scene);
+        let audio = GameAudio::new(Rc::clone(&game), map_ids);
+        let slots = game.slot_names();
+        let mut world = World::new(Rc::clone(&game), map_path, scene);
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.system(
@@ -220,7 +219,8 @@ impl Session {
             world,
             view,
             ui,
-            icons: ItemIcons::new(content),
+            icons: ItemIcons::new(game),
+            slots,
             audio,
             log,
             link,
@@ -312,16 +312,7 @@ impl Session {
         } else {
             let cell = self.world.scene.world_to_cell((point.x, point.y));
             self.input(Input::Walk(cell));
-            if self
-                .world
-                .scene
-                .grid
-                .get(cell)
-                .is_some_and(|c| !c.is_blocked())
-            {
-                // The marker is decoration: a client without it still walks.
-                let _ = self.world.place_effect(CLICK_EFFECT, cell, false);
-            }
+            self.world.mark_click(cell);
         }
     }
 
@@ -358,9 +349,11 @@ impl Session {
         for event in events {
             let effect = match *event {
                 Event::Used { player, kind } if player == self.hero => {
-                    self.world.content.item_use_media(kind).0.map(str::to_owned)
+                    self.world.game.item_use(kind).0
                 }
-                Event::LeveledUp { player, .. } if player == self.hero => Some(LEVEL_UP.to_owned()),
+                Event::LeveledUp { player, .. } if player == self.hero => {
+                    self.world.game.level_up_effect()
+                }
                 _ => None,
             };
             // Decoration: a client without the effect still plays.
@@ -380,6 +373,7 @@ impl Session {
         let npc_head = |c: CellPos| {
             screen.to_screen(Vec2::from(self.world.scene.cell_to_world(c)) - Vec2::Y * HEAD_HEIGHT)
         };
+        let slots: Vec<(u8, &str)> = self.slots.iter().map(|(s, n)| (*s, n.as_str())).collect();
         let view = GameView {
             sim: &self.sim,
             hero: self.hero,
@@ -388,7 +382,7 @@ impl Session {
             cell: &cell,
             npc_head: &npc_head,
             hovered,
-            slots: SLOT_NAMES,
+            slots: &slots,
             sound: self.audio.muted().map(|m| !m),
         };
         let actions = self.ui.show(ui, &view, &mut self.icons);
@@ -413,16 +407,16 @@ impl Session {
     }
 }
 
-/// Item icons from the client's `data/ItemMinIcon`, loaded once each.
+/// Item icons as the game draws them, loaded once each.
 struct ItemIcons {
-    content: Rc<Content>,
+    game: Rc<dyn GameModule>,
     cache: HashMap<u32, Option<TextureHandle>>,
 }
 
 impl ItemIcons {
-    fn new(content: Rc<Content>) -> Self {
+    fn new(game: Rc<dyn GameModule>) -> Self {
         Self {
-            content,
+            game,
             cache: HashMap::new(),
         }
     }
@@ -430,14 +424,11 @@ impl ItemIcons {
 
 impl Icons for ItemIcons {
     fn item(&mut self, ctx: &egui::Context, kind: u32) -> Option<TextureId> {
-        let content = &self.content;
+        let game = &self.game;
         self.cache
             .entry(kind)
             .or_insert_with(|| {
-                // Icons are drawn for one quality digit (5 for weapons, 0 for most).
-                let image = [kind, kind / 10 * 10 + 5, kind / 10 * 10]
-                    .iter()
-                    .find_map(|k| content.load_image(&format!("data/ItemMinIcon/{k}.dds")))?;
+                let image = game.item_icon(kind)?;
                 let color = egui::ColorImage::from_rgba_unmultiplied(
                     [image.width as usize, image.height as usize],
                     &image.rgba,

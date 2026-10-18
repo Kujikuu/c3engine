@@ -3,8 +3,8 @@
 //! motion (`3dmotion.ini`); look mod 10 is the facing.
 
 use crate::Content;
-use crate::character::{Character, CharacterMotions, PartModel};
 use c3_formats_tq::ini::Ini;
+use c3_play::{Character, CharacterMotions, PartModel};
 use std::collections::HashMap;
 
 /// One `[NpcTypeN]` of `Npc.ini`.
@@ -105,11 +105,10 @@ impl Content {
             .get(part.mesh)
             .ok_or_else(|| format!("mesh {} is not in 3dobj.ini", part.mesh))?;
         let mut character = Character {
-            body: PartModel {
-                model: self.load_model_path(path)?,
-                texture: self.tables.textures.get(part.texture).map(str::to_owned),
-                type_id: None,
-            },
+            body: PartModel::plain(
+                self.load_model_path(path)?,
+                self.tables.textures.get(part.texture).map(str::to_owned),
+            ),
             attachments: Vec::new(),
             motion_id: None,
         };

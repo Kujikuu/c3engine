@@ -1,14 +1,13 @@
 //! The open map as the game draws it: the engine's scene view plus an actor (3D model) per
-//! NPC. Moving an NPC moves its actor; adding, removing or changing the look of one rebuilds
-//! the actors, with each look's model loaded once.
+//! NPC, dressed by the project's game. Moving an NPC moves its actor; adding, removing or
+//! changing the look of one rebuilds the actors, with each look's model loaded once.
 
-use crate::tq_plugin::Client;
+use c3_play::actor::{self, Actor, ActorPart};
+use c3_play::{Act, Character, GameModule};
 use c3_render::effect::camera_eye;
 use c3_render::scene_view::SceneView;
 use c3_render::{Frame, MeshDraw, Renderer, View};
 use c3_scene::{Npc, Scene};
-use game_conquer::actor::{self, Actor, ActorPart};
-use game_conquer::character::Character;
 use std::collections::{HashMap, HashSet};
 
 /// Background behind the map (linear).
@@ -34,9 +33,9 @@ struct NpcActors {
 }
 
 impl LiveScene {
-    pub fn new(scene: &Scene, client: &Client, now_ms: u64) -> Self {
+    pub fn new(scene: &Scene, game: &dyn GameModule, now_ms: u64) -> Self {
         Self {
-            view: SceneView::new(scene, client, client.tilt_deg(), now_ms),
+            view: SceneView::new(scene, game.assets(), game.tilt_deg(), now_ms),
             npcs: NpcActors::default(),
         }
     }
@@ -65,21 +64,21 @@ impl LiveScene {
     pub fn prepare(
         &mut self,
         scene: &Scene,
-        client: &Client,
+        game: &dyn GameModule,
         renderer: &mut Renderer,
         view: &View,
     ) {
-        self.npcs.sync(&scene.npcs, client, renderer);
+        self.npcs.sync(&scene.npcs, game, renderer);
         let now = view.time_ms;
         let cells: Vec<_> = (self.npcs.actors.iter())
             .map(|a| a.draw_cell(scene, now))
             .collect();
-        let (actors, content) = (&mut self.npcs.actors, client.content());
+        let actors = &mut self.npcs.actors;
         let tilt = self.view.tilt_deg();
         let eye = camera_eye(view.center);
         self.view
-            .prepare(scene, client, renderer, view, &cells, |a, poser| {
-                actor::pose_actor(actors, a, poser, scene, content, tilt, now, eye);
+            .prepare(scene, game.assets(), renderer, view, &cells, |a, poser| {
+                actor::pose_actor(actors, a, poser, scene, game, tilt, now, eye);
             });
     }
 
@@ -96,10 +95,10 @@ impl LiveScene {
 impl NpcActors {
     /// Matches the actors to `npcs`: moves them, or rebuilds them when NPCs were added,
     /// removed or changed look.
-    fn sync(&mut self, npcs: &[Npc], client: &Client, renderer: &mut Renderer) {
+    fn sync(&mut self, npcs: &[Npc], game: &dyn GameModule, renderer: &mut Renderer) {
         let wanted: Vec<(u32, u32)> = npcs.iter().map(|n| (n.id, n.look)).collect();
         if wanted != self.built_for {
-            self.rebuild(npcs, client, renderer);
+            self.rebuild(npcs, game, renderer);
             self.built_for = wanted;
         }
         let by_id: HashMap<u32, &Npc> = npcs.iter().map(|n| (n.id, n)).collect();
@@ -111,15 +110,18 @@ impl NpcActors {
         }
     }
 
-    fn rebuild(&mut self, npcs: &[Npc], client: &Client, renderer: &mut Renderer) {
+    fn rebuild(&mut self, npcs: &[Npc], game: &dyn GameModule, renderer: &mut Renderer) {
         for a in &mut self.actors {
             a.release_textures(renderer);
         }
         self.actors.clear();
         self.ids.clear();
+        let looks = game.looks();
+        let stand = looks.action(Act::Stand);
         for npc in npcs {
+            let look = looks.npc(npc);
             let character = self.characters.entry(npc.look).or_insert_with(|| {
-                match client.content().npc_character(npc.look) {
+                match looks.character(&look, stand) {
                     Ok(c) => Some(c),
                     Err(e) => {
                         self.errors
@@ -129,8 +131,10 @@ impl NpcActors {
                 }
             });
             if let Some(character) = character {
-                self.actors.push(Actor::from_character(
+                self.actors.push(Actor::new(
+                    game,
                     character.clone(),
+                    look,
                     npc.cell,
                     npc.direction,
                 ));

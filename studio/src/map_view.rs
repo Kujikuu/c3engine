@@ -7,7 +7,7 @@ use crate::gpu::GpuView;
 use crate::icons;
 use crate::live_scene::LiveScene;
 use crate::selection::Selection;
-use crate::tq_plugin::Client;
+use c3_play::GameModule;
 use c3_render::View;
 use c3_scene::{CellPos, EntityKind};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
@@ -117,7 +117,7 @@ pub struct ViewResult {
 #[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
-    client: &Client,
+    game: &dyn GameModule,
     gpu: &mut GpuView,
     live: &mut LiveScene,
     doc: &mut MapDoc,
@@ -174,7 +174,7 @@ pub fn show(
         ui,
         &painter,
         rect,
-        client,
+        game,
         gpu,
         live,
         doc,
@@ -279,13 +279,13 @@ fn draw_scene(
     ui: &egui::Ui,
     painter: &egui::Painter,
     rect: Rect,
-    client: &Client,
+    game: &dyn GameModule,
     gpu: &mut GpuView,
     live: &mut LiveScene,
     doc: &MapDoc,
     view: View,
 ) -> bool {
-    live.prepare(doc.scene(), client, &mut gpu.renderer, &view);
+    live.prepare(doc.scene(), game, &mut gpu.renderer, &view);
     let meshes = live.mesh_draws();
     let frame = live.frame(&meshes, view.rect);
     let ppp = ui.ctx().pixels_per_point();

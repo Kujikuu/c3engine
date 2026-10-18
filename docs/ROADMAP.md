@@ -37,7 +37,8 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 Order set by the user (2026-10-18): a complete engine that can truly create Conquer Online or
 an Eudemons-like game (or any of the kind) from the Studio, with everything, Unity-style and
 easy for indies. The foundation (M7) comes first, because every later step needs it.
-- [ ] M7 step 1: the game-module seam
+- [x] M7 step 1: the game-module seam (done 2026-10-18)
+- [ ] M7 step 2: Project Settings
 
 Why this order: see "Review (2026-10-18)" below.
 
@@ -212,12 +213,19 @@ engine protocol. The milestones below build the engine on them first, then Conqu
 complete project on that engine, then any game of the kind.
 
 ## M7: Engine foundation (make it an engine, not a Conquer tool)
-- [ ] (1) Game-module seam: a `GameModule` interface the client, the server and the Studio
+- [x] (1) Game-module seam: a `GameModule` interface the client, the server and the Studio
       (Scene, Play, Preview) go through: content and asset loading, rules, character looks,
       sound mapping, UI hooks. The generic parts stuck in `games/conquer` (world, actor, screen,
       session, sim view, serve, event sounds) move into the engine; the Studio stops using
       `game-conquer` outside its plugin. A built-in data-driven module runs projects with no TQ
       content, so the apps open any project
+  - Done 2026-10-18: `engine/play` (c3-play) holds the seam and the runtime;
+    `ConquerModule` implements it; `games/registry` (c3-games) picks the game per project.
+    `BasicGame` plays projects without TQ content with placeholder figures and a built-in
+    ground (its rules are still Rust; data-driven rules are step 5). File > New Map makes a
+    blank walkable map. Verified with screenshots on a from-scratch project (New Map, Scene
+    with NPCs, Play local and through a local server, Preview, `c3-server` + `c3-client`) and
+    on the Conquer project (Scene with NPC models, Play, Preview unchanged)
 - [ ] (2) Project Settings, Unity-style: a settings file in the project and an Edit > Project
       Settings window, applied live in Play mode and read by the built client and server.
       Every hard-coded value found in the review moves there:

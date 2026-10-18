@@ -1,20 +1,14 @@
 //! Conquer's sound: action sounds (`ActionSound.ini`: `look.weapon.action=file`, 999 for
-//! any weapon), item-use sounds and effects (`MediaEffect.ini`), music regions
-//! (`MusicRegion.ini`), and [`GameAudio`], which plays them for what happens in a game.
+//! any weapon), item-use sounds and effects (`MediaEffect.ini`) and music regions
+//! (`MusicRegion.ini`). The engine plays them ([`crate::module::ConquerModule`] answers).
 
 use crate::Content;
-use crate::character::{action, weapon_family};
-use crate::sim_view::player_look;
-use c3_audio::{Audio, MusicDirector, MusicRegion, Track};
+use c3_audio::{MusicRegion, Track};
 use c3_formats_tq::ini::Ini;
-use c3_game::{EntityId, Event, Sim, distance};
 use std::collections::HashMap;
-use std::rc::Rc;
 
 /// Weapon family meaning "any weapon" in `ActionSound.ini`.
 const ANY_WEAPON: u32 = 999;
-/// Action of a dying role (`_ACTION_DIE`).
-const DIE: u32 = 330;
 
 /// Key of an action sound.
 fn key(look: u32, weapon: u32, act: u32) -> u64 {
@@ -113,100 +107,6 @@ impl Content {
     pub fn music_regions(&self) -> &[MusicRegion] {
         &self.tables.sounds.music
     }
-}
-
-/// Sound for a game: what entities do, items used, and the music of where the hero is.
-pub struct GameAudio {
-    audio: Audio,
-    music: MusicDirector,
-    map_ids: Vec<u32>,
-    content: Rc<Content>,
-}
-
-impl GameAudio {
-    pub fn new(content: Rc<Content>, map_ids: Vec<u32>) -> Self {
-        let files = content.clone();
-        let audio = Audio::new(Box::new(move |path| {
-            files.files().read(path).map(|b| b.into_owned())
-        }));
-        Self {
-            audio,
-            music: MusicDirector::new(content.music_regions().to_vec()),
-            map_ids,
-            content,
-        }
-    }
-
-    /// `None` without a sound device, else whether sound is muted.
-    pub fn muted(&self) -> Option<bool> {
-        self.audio.has_device().then(|| self.audio.muted())
-    }
-
-    pub fn toggle_muted(&mut self) {
-        let muted = self.audio.muted();
-        self.audio.set_muted(!muted);
-    }
-
-    /// Plays what `events` sound like, heard from the hero.
-    pub fn events(&mut self, events: &[Event], sim: &Sim, hero: EntityId) {
-        let Some(here) = sim.player(hero).map(|p| p.cell) else {
-            return;
-        };
-        for event in events {
-            let (who, act) = match *event {
-                Event::Moved { id, running, .. } if id == hero => (
-                    id,
-                    if running {
-                        action::RUN_L
-                    } else {
-                        action::WALK_L
-                    },
-                ),
-                Event::Attacked { attacker, .. } => (attacker, action::ATTACK_0),
-                Event::Died { id, .. } => (id, DIE),
-                Event::Used { player, kind } if player == hero => {
-                    if let (_, Some(sound)) = self.content.item_use_media(kind) {
-                        let sound = sound.to_owned();
-                        self.audio.play(&sound, 1.0);
-                    }
-                    continue;
-                }
-                _ => continue,
-            };
-            let Some((look, weapon, cell)) = role(sim, who) else {
-                continue;
-            };
-            if let Some(sound) = self.content.action_sound(look, weapon, act) {
-                let sound = sound.to_owned();
-                self.audio.play_at(&sound, distance(here, cell) as f32);
-            }
-        }
-    }
-
-    /// Music for where the hero stands (`now` in seconds).
-    pub fn update(&mut self, sim: &Sim, hero: EntityId, now: f64) {
-        let Some(cell) = sim.player(hero).map(|p| p.cell) else {
-            return;
-        };
-        if let Some(track) = self.music.update(&self.map_ids, cell, now) {
-            self.audio.set_music(track.as_deref());
-        }
-    }
-}
-
-/// The look, weapon family and cell of a player or monster.
-fn role(sim: &Sim, id: EntityId) -> Option<(u32, u32, c3_scene::CellPos)> {
-    if let Some(p) = sim.player(id) {
-        let look = player_look(p);
-        return Some((
-            look.look,
-            weapon_family(look.l_weapon, look.r_weapon),
-            p.cell,
-        ));
-    }
-    let m = sim.monster(id)?;
-    let look = sim.rules().monster(m.kind)?.look % 1000;
-    Some((look, ANY_WEAPON, m.cell))
 }
 
 #[cfg(test)]

@@ -1,14 +1,16 @@
 //! A Conquer client's login and first steps against a running server, through both ciphers.
 
-use super::ConquerSetup;
 use super::crypto::{ClientCipher, SERVER_PAD, TqClient};
 use super::packets::{self as pk, Request, action};
-use crate::serve::{ServeSetup, ServedMap, ServerHandle};
+use super::{ConquerFront, ConquerSetup};
+use crate::ConquerGameRules;
 use c3_net::packet::{Reader, Writer, packet_type};
+use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
 use c3_scene::{Grid, IsoProjection, Npc, Scene};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const MAP_ID: u32 = 1002;
@@ -43,8 +45,17 @@ fn scene() -> Scene {
     }
 }
 
-fn server(accounts: &std::path::Path) -> ServerHandle {
-    ServerHandle::spawn(
+/// A server with a Conquer front, and the front's account server address.
+fn server(accounts: &std::path::Path) -> (ServerHandle, SocketAddr) {
+    let front = ConquerFront::bind(&ConquerSetup {
+        account_listen: "127.0.0.1:0".into(),
+        game_listen: "127.0.0.1:0".into(),
+        public_ip: "127.0.0.1".into(),
+        public_port: 0,
+    })
+    .expect("Conquer front listens");
+    let account = front.account_addr();
+    let server = ServerHandle::spawn(
         vec![ServedMap {
             key: "test".into(),
             scene: scene(),
@@ -56,15 +67,12 @@ fn server(accounts: &std::path::Path) -> ServerHandle {
             scripts: None,
             tables: None,
             accounts: accounts.to_owned(),
-            conquer: Some(ConquerSetup {
-                account_listen: "127.0.0.1:0".into(),
-                game_listen: "127.0.0.1:0".into(),
-                public_ip: "127.0.0.1".into(),
-                public_port: 0,
-            }),
+            rules: Arc::new(ConquerGameRules),
+            fronts: vec![Box::new(front)],
         },
     )
-    .expect("server starts")
+    .expect("server starts");
+    (server, account)
 }
 
 fn connect(addr: SocketAddr) -> TcpStream {
@@ -185,7 +193,7 @@ fn conquer_clients_log_in_walk_and_meet() {
     let accounts = std::env::temp_dir().join(format!("c3-conquer-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&accounts);
     let server = server(&accounts);
-    let (account_addr, _) = server.conquer_addrs().expect("serving Conquer clients");
+    let (server, account_addr) = server;
 
     let (mut game, hero) = enter(account_addr, "tester");
     let npc = game.wait_for(pk::NPC_INFO, |_| true);

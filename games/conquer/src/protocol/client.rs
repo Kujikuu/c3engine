@@ -2,8 +2,8 @@
 //! Conquer's packets, and what its requests ask of the engine.
 
 use super::packets::{self as pk, Request, Spawn, action, attr, channel, interact, item};
+use crate::character::player_look;
 use crate::rules::{ConquerRules, Points};
-use crate::sim_view::player_look;
 use c3_game::{EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
 use c3_online::Welcome;
 use c3_scene::{CellPos, Npc, path};

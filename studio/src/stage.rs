@@ -1,20 +1,21 @@
 //! The Preview panel: a small stage that shows characters, actions and effects exactly as the
-//! game draws them. Pick a look and equipment, an action and a facing, then play effects on
-//! the character or the ground; pause, step and slow down to study them frame by frame.
+//! project's game draws them. Pick a body, hair and worn items, an action and a facing, then
+//! play effects on the character or the ground; pause, step and slow down to study them frame
+//! by frame.
 
 use crate::app::Studio;
 use crate::gpu::GpuView;
 use crate::icons;
 use crate::theme;
-use crate::tq_plugin::Client;
+use c3_play::actor::Actor;
+use c3_play::world::World;
+use c3_play::{Act, GameModule, Look};
 use c3_render::camera::Camera2d;
 use c3_scene::{CellPos, Grid, IsoProjection, Scene};
 use eframe::egui::{self, Color32, DragValue, Pos2, Rect, RichText, Sense, Stroke};
 use eframe::egui_wgpu;
-use game_conquer::actor::Actor;
-use game_conquer::character::{self, DEFAULT_HERO, Look, action};
-use game_conquer::world::World;
 use glam::Vec2;
+use std::rc::Rc;
 
 /// Cells along each side of the stage floor.
 const STAGE_CELLS: u32 = 21;
@@ -38,6 +39,8 @@ pub struct Stage {
     gpu: GpuView,
     pub look: Look,
     pub action: u32,
+    /// The game's named actions, for the action list.
+    actions: Vec<(u32, String)>,
     /// The action plays once, then the character stands.
     pub once: bool,
     pub direction: u8,
@@ -52,7 +55,7 @@ pub struct Stage {
 }
 
 impl Stage {
-    pub fn new(client: &Client, render_state: &egui_wgpu::RenderState) -> Self {
+    pub fn new(game: Rc<dyn GameModule>, render_state: &egui_wgpu::RenderState) -> Self {
         let side = STAGE_CELLS;
         let scene = Scene {
             grid: Grid::new(side, side),
@@ -66,12 +69,19 @@ impl Stage {
             meta: Default::default(),
         };
         let center = Vec2::from(scene.cell_to_world(Self::center()));
+        let looks = game.looks();
+        let (look, action, actions) = (
+            looks.default_player(),
+            looks.action(Act::Stand),
+            looks.action_names(),
+        );
         let mut stage = Self {
-            world: World::new(client.shared_content(), "Preview".into(), scene),
+            world: World::new(game, "Preview".into(), scene),
             camera: Camera2d { center, zoom: 1.5 },
             gpu: GpuView::new(render_state),
-            look: DEFAULT_HERO,
-            action: action::STANDBY,
+            look,
+            action,
+            actions,
             once: false,
             direction: 1,
             effect: String::new(),
@@ -97,7 +107,7 @@ impl Stage {
             old.release_textures(&mut self.gpu.renderer);
         }
         match Actor::from_look(
-            &self.world.content,
+            &*self.world.game,
             &self.look,
             self.action,
             Self::center(),
@@ -228,6 +238,38 @@ impl Stage {
     }
 }
 
+/// The worn item types, each editable and removable, with a button to add one.
+fn worn_items(ui: &mut egui::Ui, worn: &mut Vec<u32>) -> bool {
+    let mut changed = false;
+    let mut remove = None;
+    for (i, item) in worn.iter_mut().enumerate() {
+        ui.label(RichText::new(format!("Item {}", i + 1)).color(theme::TEXT_DIM));
+        ui.horizontal(|ui| {
+            changed |= ui
+                .add(DragValue::new(item).speed(1.0))
+                .on_hover_text("The game's item type")
+                .changed();
+            if theme::icon_toggle(ui, false, icons::X, "Take it off").clicked() {
+                remove = Some(i);
+            }
+        });
+        ui.end_row();
+    }
+    if let Some(i) = remove {
+        worn.remove(i);
+        changed = true;
+    }
+    ui.label("");
+    if ui
+        .button(theme::icon_text(icons::PLUS, "Wear an item"))
+        .clicked()
+    {
+        worn.push(0);
+    }
+    ui.end_row();
+    changed
+}
+
 /// An item id field with a label.
 fn item_field(ui: &mut egui::Ui, label: &str, value: &mut u32, hint: &str) -> bool {
     ui.label(RichText::new(label).color(theme::TEXT_DIM));
@@ -241,16 +283,16 @@ fn item_field(ui: &mut egui::Ui, label: &str, value: &mut u32, hint: &str) -> bo
 
 impl Studio {
     pub(crate) fn preview_panel(&mut self, ui: &mut egui::Ui) {
-        let (Some(client), Some(state)) = (&self.client, &self.render_state) else {
+        let (Some(game), Some(state)) = (&self.game, &self.render_state) else {
             theme::empty_state(
                 ui,
                 icons::PERSON_SIMPLE,
                 "Nothing to preview",
-                "Open a project with game content to preview characters and effects.",
+                "Open a project to preview its characters and effects.",
             );
             return;
         };
-        let stage = self.stage.get_or_insert_with(|| Stage::new(client, state));
+        let stage = (self.stage).get_or_insert_with(|| Stage::new(Rc::clone(game), state));
         let mut play_effect = false;
         let mut pick_effect = None;
         egui::Panel::left("stage controls")
@@ -319,12 +361,9 @@ fn stage_controls(ui: &mut egui::Ui, stage: &mut Stage, play_effect: &mut bool) 
             .spacing([10.0, 6.0])
             .show(ui, |ui| {
                 let look = &mut stage.look;
-                rebuild |= item_field(ui, "Body", &mut look.look, "Body look, 1–4");
-                rebuild |= item_field(ui, "Hair", &mut look.hair, "Colour × 1000 + style");
-                rebuild |= item_field(ui, "Armor", &mut look.armor, "Armor item id (0 = none)");
-                rebuild |= item_field(ui, "Helmet", &mut look.armet, "Helmet item id (0 = hair)");
-                rebuild |= item_field(ui, "Right hand", &mut look.r_weapon, "Weapon item id");
-                rebuild |= item_field(ui, "Left hand", &mut look.l_weapon, "Weapon or shield id");
+                rebuild |= item_field(ui, "Body", &mut look.body, "The game's body id");
+                rebuild |= item_field(ui, "Hair", &mut look.hair, "The game's hair id");
+                rebuild |= worn_items(ui, &mut look.worn);
             });
         if ui
             .button(theme::icon_text(
@@ -333,7 +372,7 @@ fn stage_controls(ui: &mut egui::Ui, stage: &mut Stage, play_effect: &mut bool) 
             ))
             .clicked()
         {
-            stage.look = DEFAULT_HERO;
+            stage.look = stage.world.game.looks().default_player();
             rebuild = true;
         }
         if rebuild {
@@ -341,13 +380,16 @@ fn stage_controls(ui: &mut egui::Ui, stage: &mut Stage, play_effect: &mut bool) 
         }
     });
     theme::section(ui, "Action", |ui| {
-        let current = character::action::name(stage.action).unwrap_or("Other");
+        let current = (stage.actions.iter())
+            .find(|(id, _)| *id == stage.action)
+            .map_or("Other", |(_, name)| name.as_str());
         let mut chosen = None;
         egui::ComboBox::from_id_salt("stage action")
             .selected_text(format!("{current}  ({})", stage.action))
             .width(CONTROLS_WIDTH - 30.0)
             .show_ui(ui, |ui| {
-                for &(id, name) in character::action::NAMED {
+                for (id, name) in &stage.actions {
+                    let id = *id;
                     if ui
                         .selectable_label(stage.action == id, format!("{name}  ({id})"))
                         .clicked()

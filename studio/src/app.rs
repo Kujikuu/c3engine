@@ -60,6 +60,9 @@ pub struct Studio {
     pub(crate) import_job: Option<ImportJob>,
     /// The project's TQ client source, if it has one.
     pub(crate) client: Option<Client>,
+    /// The game that plays the project: Conquer's when it has a Conquer client, else the
+    /// engine's own. The Scene view, Play and the Preview go through it.
+    pub(crate) game: Option<std::rc::Rc<dyn c3_play::GameModule>>,
     pub(crate) workspace: Workspace,
     /// The content's map files, then engine-format scenes.
     pub(crate) maps: Vec<MapRef>,
@@ -79,6 +82,8 @@ pub struct Studio {
     pub(crate) playing: Option<crate::play::PlaySession>,
     /// The Preview panel's stage, made when first shown.
     pub(crate) stage: Option<crate::stage::Stage>,
+    /// The New Map dialog, while it is open.
+    pub(crate) new_map: Option<crate::new_map::NewMapForm>,
     /// The Data panel: tables and the one open.
     pub(crate) data: crate::data_panel::DataPanel,
     /// The Script panel: scripts and the one being edited.
@@ -147,6 +152,8 @@ impl Studio {
             recent: RecentProjects::load_default(),
             dialog: None,
             import_job: None,
+            game: None,
+            new_map: None,
             client: None,
             workspace: Workspace::Maps,
             maps: Vec::new(),
@@ -218,6 +225,17 @@ impl Studio {
         }
         if let Some(m) = flag("--map") {
             s.load_map(&MapRef::parse(&m));
+        }
+        if args.iter().any(|a| a == "--new-map") {
+            s.show_new_map(
+                flag("--new-map")
+                    .filter(|n| !n.starts_with("--"))
+                    .as_deref(),
+            );
+        }
+        if let Some(name) = flag("--make-map") {
+            let form = crate::new_map::NewMapForm::default();
+            s.create_map(&name, form.width, form.height);
         }
         if let Some(folder) = flag("--browse") {
             s.browse_to(&folder, false);
@@ -319,6 +337,8 @@ impl Studio {
     /// then lists the maps.
     pub(crate) fn open_client(&mut self) {
         self.client = None;
+        self.game = None;
+        self.stage = None;
         self.maps.clear();
         self.models.clear();
         if let Some((_, dir)) = self.project.as_ref().and_then(Project::tq_client) {
@@ -331,6 +351,13 @@ impl Studio {
                 Err(e) => self.error = Some(format!("Can't open the project's client folder: {e}")),
             }
         }
+        self.game = match (&self.client, &self.project) {
+            (Some(client), _) => Some(client.game()),
+            (None, Some(project)) => {
+                Some(std::rc::Rc::new(c3_play::basic::BasicGame::new(project)))
+            }
+            (None, None) => None,
+        };
         self.refresh_maps();
         self.refresh_assets();
         self.refresh_tables();
@@ -481,8 +508,8 @@ impl Studio {
                 self.inspect_asset = false;
                 let doc = MapDoc::new(map.clone(), scene, warnings);
                 self.cam.center = doc.bounds().center();
-                let live = (self.client.as_ref())
-                    .map(|client| LiveScene::new(doc.scene(), client, self.scene_ms as u64));
+                let live = (self.game.as_ref())
+                    .map(|game| LiveScene::new(doc.scene(), &**game, self.scene_ms as u64));
                 self.set_live_scene(live);
                 self.doc = Some(doc);
                 self.fit_pending = true;
@@ -887,6 +914,7 @@ impl eframe::App for Studio {
             .frame(bar)
             .show(ui, |ui| self.status_bar(ui));
         self.project_dialog(&ctx);
+        self.new_map_dialog(&ctx);
         self.import_progress(&ctx);
         if self.project.is_none() {
             egui::CentralPanel::default().show(ui, |ui| self.home(ui));

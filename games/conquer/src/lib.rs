@@ -3,19 +3,16 @@
 //!
 //! [`Content`] opens a 5065 client folder and hands out engine types (scenes, models, images).
 
-pub mod actor;
 pub mod character;
 pub mod game;
+pub mod module;
 pub mod npc;
 pub mod protocol;
 pub mod rules;
-pub mod screen;
-pub mod serve;
 pub mod server_data;
-pub mod session;
-pub mod sim_view;
 pub mod sound;
-pub mod world;
+
+pub use module::{ConquerGameRules, ConquerModule};
 
 use c3_anim::Clip;
 use c3_assets::Image;
@@ -184,6 +181,21 @@ impl Content {
             .collect()
     }
 
+    /// Map files of the client (`map/map/*.DMap`), as asset paths, sorted.
+    pub fn list_maps(&self) -> Vec<String> {
+        let mut maps: Vec<String> = std::fs::read_dir(self.root.join("map").join("map"))
+            .map(|rd| {
+                rd.flatten()
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .filter(|n| n.to_ascii_lowercase().ends_with(".dmap"))
+                    .map(|n| format!("map/map/{n}"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        maps.sort_by_key(|m| m.to_ascii_lowercase());
+        maps
+    }
+
     /// Map ids in the catalog.
     pub fn map_ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.catalog.entries.iter().map(|e| e.id)
@@ -332,7 +344,7 @@ impl c3_render::SceneAssets for Content {
     }
 
     fn image(&self, path: &str) -> Option<Image> {
-        self.load_image(path)
+        c3_play::builtin::image(path).or_else(|| self.load_image(path))
     }
 
     fn effect(&self, name: &str) -> Result<Effect, String> {

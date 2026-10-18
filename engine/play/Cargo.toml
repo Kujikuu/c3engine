@@ -1,0 +1,20 @@
+[package]
+name = "c3-play"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+c3-anim = { version = "0.1.0", path = "../anim" }
+c3-assets = { version = "0.1.0", path = "../assets" }
+c3-audio = { version = "0.1.0", path = "../audio" }
+c3-data = { version = "0.1.0", path = "../data" }
+c3-game = { version = "0.1.0", path = "../game" }
+c3-online = { version = "0.1.0", path = "../online" }
+c3-project = { version = "0.1.0", path = "../project" }
+c3-render = { version = "0.1.0", path = "../render" }
+c3-scene = { version = "0.1.0", path = "../scene" }
+c3-script = { version = "0.1.0", path = "../script" }
+c3-ui = { version = "0.1.0", path = "../ui" }
+egui = "0.37.0"
+glam = "0.34.1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp", "tga"] }
