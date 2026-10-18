@@ -24,6 +24,7 @@ pub struct ProjectSettings {
     pub network: NetworkSettings,
     pub localization: LocalizationSettings,
     pub ui: UiSettings,
+    pub characters: CharacterSettings,
 }
 
 impl ProjectSettings {
@@ -495,6 +496,34 @@ pub struct LocalizationSettings {
     /// Font files of the project (TTF/OTF) the game's text is drawn with, in order: the first
     /// draws what it can, the next ones the characters it lacks (e.g. Chinese).
     pub fonts: Vec<String>,
+}
+
+/// Players' characters: how many an account has and the looks a new one picks from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CharacterSettings {
+    /// Characters one account may have.
+    pub per_account: u32,
+    /// The looks character creation offers, in order (none: the game's default look).
+    pub looks: Vec<CreationLook>,
+}
+
+impl Default for CharacterSettings {
+    fn default() -> Self {
+        Self {
+            per_account: 3,
+            looks: Vec::new(),
+        }
+    }
+}
+
+/// A look character creation offers: its name and the game's body and hair.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CreationLook {
+    pub name: String,
+    pub body: u32,
+    pub hair: u32,
 }
 
 /// The game UI drawn from data (TQ's model: a layout, a skin and the controls file); with no

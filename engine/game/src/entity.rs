@@ -67,6 +67,13 @@ pub enum Task {
     },
 }
 
+/// A player's own look: the body and hair chosen when the character was made.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayerLook {
+    pub body: u32,
+    pub hair: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub id: EntityId,
@@ -103,6 +110,10 @@ pub struct Player {
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.
     pub equipment: Vec<Item>,
+    /// The look chosen when it was made: body and hair, as the game numbers them (0: the
+    /// game's default).
+    #[serde(default)]
+    pub look: PlayerLook,
     pub running: bool,
     pub task: Task,
     /// The dialogue the player is in, if any.

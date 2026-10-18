@@ -62,6 +62,7 @@ impl Sim {
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),
+                look: Default::default(),
                 running: false,
                 task: Task::Idle,
                 dialogue: None,

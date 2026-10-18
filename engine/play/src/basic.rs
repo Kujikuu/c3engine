@@ -98,8 +98,15 @@ impl GameModule for BasicGame {
 }
 
 impl Looks for BasicGame {
-    fn player(&self, _p: &Player) -> Look {
-        self.default_player()
+    /// The body and hair the player chose, else the default's.
+    fn player(&self, p: &Player) -> Look {
+        let default = self.default_player();
+        let chosen = |v: u32, d: u32| if v == 0 { d } else { v };
+        Look {
+            body: chosen(p.look.body, default.body),
+            hair: chosen(p.look.hair, default.hair),
+            ..default
+        }
     }
 
     fn monster(&self, kind: u32, _rules: &dyn Rules) -> Look {

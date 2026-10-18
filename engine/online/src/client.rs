@@ -1,6 +1,7 @@
 //! A client's connection to a game server.
 
-use crate::msg::{ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
+use crate::accounts::Enter;
+use crate::msg::{CharacterSummary, ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
 use c3_game::{Input, WorldUpdate};
 use c3_net::{Client, ClientEvent, Wire};
 use std::io;
@@ -10,6 +11,8 @@ use std::time::{Duration, Instant};
 /// What the server said.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RemoteEvent {
+    /// The account's characters, to choose from.
+    Characters(Vec<CharacterSummary>),
     Welcome(Welcome),
     Update(WorldUpdate),
     /// The login failed.
@@ -23,15 +26,37 @@ pub struct Connection {
 }
 
 impl Connection {
-    /// Connects to `addr` and logs in to `account`.
+    /// Connects to `addr` (then ask for characters, or log in).
+    pub fn open(addr: impl ToSocketAddrs) -> io::Result<Self> {
+        Ok(Self {
+            client: Client::connect(addr, Wire::plain())?,
+        })
+    }
+
+    /// Connects to `addr` and logs in to `account`, playing its first character.
     pub fn connect(addr: impl ToSocketAddrs, account: &str, password: &str) -> io::Result<Self> {
-        let client = Client::connect(addr, Wire::plain())?;
-        client.send(encode(&ClientMsg::Login {
+        let conn = Self::open(addr)?;
+        conn.login(account, password, Enter::First);
+        Ok(conn)
+    }
+
+    /// Asks for `account`'s characters (answered by [`RemoteEvent::Characters`]).
+    pub fn ask_characters(&self, account: &str, password: &str) {
+        self.client.send(encode(&ClientMsg::Characters {
             protocol: PROTOCOL,
             account: account.to_owned(),
             password: password.to_owned(),
         }));
-        Ok(Self { client })
+    }
+
+    /// Logs in to `account` playing the character `enter` names.
+    pub fn login(&self, account: &str, password: &str, enter: Enter) {
+        self.client.send(encode(&ClientMsg::Login {
+            protocol: PROTOCOL,
+            account: account.to_owned(),
+            password: password.to_owned(),
+            enter,
+        }));
     }
 
     /// Connects, logs in and waits up to `timeout` to be let in; the welcome and any updates
@@ -53,6 +78,7 @@ impl Connection {
                     RemoteEvent::Welcome(w) => welcome = Some(w),
                     RemoteEvent::Update(u) => updates.push(u),
                     RemoteEvent::Refused(why) => return Err(why),
+                    RemoteEvent::Characters(_) => {}
                     RemoteEvent::Closed(why) => {
                         return Err(
                             why.unwrap_or_else(|| "The server closed the connection.".into())
@@ -78,6 +104,7 @@ impl Connection {
             .into_iter()
             .map(|event| match event {
                 ClientEvent::Received(bytes) => match decode::<ServerMsg>(&bytes) {
+                    Ok(ServerMsg::Characters(list)) => RemoteEvent::Characters(list),
                     Ok(ServerMsg::Welcome(w)) => RemoteEvent::Welcome(w),
                     Ok(ServerMsg::Update(u)) => RemoteEvent::Update(u),
                     Ok(ServerMsg::Refused(why)) => RemoteEvent::Refused(why),

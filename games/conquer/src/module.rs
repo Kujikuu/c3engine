@@ -109,6 +109,20 @@ pub fn conquer_settings() -> ProjectSettings {
     s.ui.layout = "ini/GUI.ini".into();
     s.ui.skin = "ani/Control.Ani".into();
     s.ui.controls = UI_CONTROLS.into();
+    // One character per account; the four bodies of character creation (lookface % 1000).
+    s.characters.per_account = 1;
+    s.characters.looks = [
+        ("Small male", 3, 310),
+        ("Large male", 4, 310),
+        ("Small female", 1, 310),
+        ("Large female", 2, 310),
+    ]
+    .map(|(name, body, hair)| c3_core::settings::CreationLook {
+        name: name.into(),
+        body,
+        hair,
+    })
+    .to_vec();
     s
 }
 

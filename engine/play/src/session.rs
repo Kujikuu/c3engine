@@ -783,7 +783,7 @@ impl Session {
                         RemoteEvent::Welcome(welcome) => {
                             self.map_change = Some(MapChange::Remote(welcome, Vec::new()));
                         }
-                        RemoteEvent::Refused(_) => {}
+                        RemoteEvent::Refused(_) | RemoteEvent::Characters(_) => {}
                     }
                 }
             }

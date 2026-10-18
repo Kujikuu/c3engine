@@ -134,12 +134,14 @@ pub fn player_look(p: &Player) -> RoleLook {
             .find(|&k| slot(k) == Some(s))
             .unwrap_or(0)
     };
+    let chosen = |v: u32, default: u32| if v == 0 { default } else { v };
     RoleLook {
+        look: chosen(p.look.body, DEFAULT_HERO.look),
+        hair: chosen(p.look.hair, DEFAULT_HERO.hair),
         armor: worn(slot::ARMOR),
         armet: worn(slot::HELMET),
         r_weapon: worn(slot::RIGHT_HAND),
         l_weapon: worn(slot::LEFT_HAND),
-        ..DEFAULT_HERO
     }
 }
 

@@ -29,7 +29,7 @@ mod statuses;
 
 pub use c3_core::settings::GameplaySettings;
 pub use commands::HELP as COMMAND_HELP;
-pub use entity::{GroundItem, Item, Monster, Player, Task};
+pub use entity::{GroundItem, Item, Monster, Player, PlayerLook, Task};
 pub use event::Event;
 pub use input::{Input, MAX_CHAT};
 pub use remote::{EntityState, Viewer, WorldUpdate};

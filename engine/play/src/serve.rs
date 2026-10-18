@@ -194,6 +194,7 @@ impl ServerHandle {
                     new_character: Box::new(move |name, cell| {
                         crate::settings::new_character(&gameplay, name, cell)
                     }),
+                    characters_per_account: settings.characters.per_account as usize,
                     save_every_ms: seconds_to_ms(settings.network.save_interval_seconds),
                     tick_ms: settings.gameplay.tick_ms,
                     load_map,

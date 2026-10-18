@@ -13,10 +13,10 @@ mod front;
 mod msg;
 mod server;
 
-pub use accounts::{AccountError, Accounts};
+pub use accounts::{AccountError, Accounts, Enter};
 pub use client::{Connection, RemoteEvent};
 pub use front::{EngineFront, Front, FrontEvent};
-pub use msg::{ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
+pub use msg::{CharacterSummary, ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
 pub use server::{GameServer, MapKey, MapLoader, MapWorld, NewCharacter, ServerConfig};
 
 #[cfg(test)]

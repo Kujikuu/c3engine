@@ -1,8 +1,8 @@
 //! The game server: maps, logged-in players and the tick loop that serves them.
 
-use crate::accounts::Accounts;
+use crate::accounts::{Accounts, Enter};
 use crate::front::{Front, FrontEvent};
-use crate::msg::{ClientMsg, Welcome};
+use crate::msg::{CharacterSummary, ClientMsg, Welcome};
 use c3_game::{EntityId, PlayerSave, Sim, Viewer};
 use c3_net::ConnId;
 use c3_scene::CellPos;
@@ -45,6 +45,8 @@ pub struct ServerConfig {
     pub accounts: PathBuf,
     /// A new account's character (its name, at the first map's start).
     pub new_character: NewCharacter,
+    /// Characters one account may have.
+    pub characters_per_account: usize,
     /// How often logged-in characters are saved (ms of game time).
     pub save_every_ms: u64,
     /// Game time per tick (ms), the pace the server runs at.
@@ -203,9 +205,15 @@ impl GameServer {
 
     fn received(&mut self, client: Client, msg: ClientMsg) {
         match msg {
-            ClientMsg::Login {
+            ClientMsg::Characters {
                 account, password, ..
-            } => self.login(client, &account, &password),
+            } => self.list_characters(client, &account, &password),
+            ClientMsg::Login {
+                account,
+                password,
+                enter,
+                ..
+            } => self.login(client, &account, &password, &enter),
             ClientMsg::Input(input) => {
                 if let Some(p) = self.online.get(&client) {
                     self.maps[p.map].sim.input(p.hero, input);
@@ -218,7 +226,26 @@ impl GameServer {
         }
     }
 
-    fn login(&mut self, client: Client, account: &str, password: &str) {
+    /// Tells `client` the characters of `account`.
+    fn list_characters(&mut self, client: Client, account: &str, password: &str) {
+        let front = &mut self.fronts[client.front];
+        match self.accounts.characters(account, password) {
+            Ok(saves) => {
+                let list: Vec<CharacterSummary> = (saves.into_iter())
+                    .map(|s| CharacterSummary {
+                        name: s.name,
+                        level: s.level,
+                        look: s.look,
+                        map: s.map,
+                    })
+                    .collect();
+                front.characters(client.conn, &list);
+            }
+            Err(e) => front.refuse(client.conn, &e.to_string()),
+        }
+    }
+
+    fn login(&mut self, client: Client, account: &str, password: &str, enter: &Enter) {
         if self.online.contains_key(&client) {
             return;
         }
@@ -244,7 +271,11 @@ impl GameServer {
             save.map = first_key.clone();
             save
         };
-        let mut save = match self.accounts.login(account, password, new_character) {
+        let most = self.config.characters_per_account;
+        let mut save = match self
+            .accounts
+            .login(account, password, enter, most, new_character)
+        {
             Ok(save) => save,
             Err(e) => return front.refuse(client.conn, &e.to_string()),
         };

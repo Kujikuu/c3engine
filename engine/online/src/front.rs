@@ -3,7 +3,7 @@
 //! words. The engine's protocol is [`EngineFront`]; a game can add its own (Conquer's, for
 //! its original client), and one server serves them all at once.
 
-use crate::msg::{ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
+use crate::msg::{CharacterSummary, ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
 use crate::server::MapWorld;
 use c3_game::{EntityId, WorldUpdate};
 use c3_net::{ConnId, NetEvent, Server, Wire};
@@ -34,6 +34,11 @@ pub trait Front {
     }
     /// Shows `conn` (playing `hero` on `world`) what changed around it.
     fn update(&mut self, conn: ConnId, update: &WorldUpdate, world: &MapWorld, hero: EntityId);
+    /// Tells `conn` its account's characters (the connection stays open for the login).
+    fn characters(&mut self, conn: ConnId, list: &[CharacterSummary]) {
+        let _ = list;
+        self.refuse(conn, "This client can't choose characters.");
+    }
     /// Tells `conn` its login failed, and closes it.
     fn refuse(&mut self, conn: ConnId, why: &str);
     /// Tells `conn` why it is being disconnected, and closes it.
@@ -68,7 +73,9 @@ impl Front for EngineFront {
                 NetEvent::Connected { .. } => {}
                 NetEvent::Closed { id, .. } => out.push(FrontEvent::Closed(id)),
                 NetEvent::Received { id, packet } => match decode::<ClientMsg>(&packet) {
-                    Ok(ClientMsg::Login { protocol, .. }) if protocol != PROTOCOL => {
+                    Ok(
+                        ClientMsg::Login { protocol, .. } | ClientMsg::Characters { protocol, .. },
+                    ) if protocol != PROTOCOL => {
                         let why = format!(
                             "This server speaks protocol {PROTOCOL}; the client speaks {protocol}."
                         );
@@ -90,6 +97,11 @@ impl Front for EngineFront {
     fn welcome(&mut self, conn: ConnId, welcome: &Welcome, _world: &MapWorld) {
         self.net
             .send(conn, encode(&ServerMsg::Welcome(welcome.clone())));
+    }
+
+    fn characters(&mut self, conn: ConnId, list: &[CharacterSummary]) {
+        self.net
+            .send(conn, encode(&ServerMsg::Characters(list.to_vec())));
     }
 
     fn update(&mut self, conn: ConnId, update: &WorldUpdate, _world: &MapWorld, _hero: EntityId) {

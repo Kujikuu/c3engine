@@ -37,6 +37,13 @@ pub struct PlayerSave {
     pub pk_kills: u32,
     #[serde(default)]
     pub flags: BTreeMap<String, i64>,
+    /// Body and hair chosen when it was made.
+    #[serde(default, skip_serializing_if = "is_default_look")]
+    pub look: crate::PlayerLook,
+}
+
+fn is_default_look(look: &crate::PlayerLook) -> bool {
+    *look == crate::PlayerLook::default()
 }
 
 /// An item as stored. Older saves name just the type (`410003`), which reads as one whole
@@ -120,6 +127,7 @@ impl PlayerSave {
             skills: Vec::new(),
             pk_kills: 0,
             flags: BTreeMap::new(),
+            look: Default::default(),
         }
     }
 }
@@ -147,6 +155,7 @@ impl Sim {
         p.bag = bag;
         p.equipment = worn;
         p.flags = save.flags.clone();
+        p.look = save.look;
         self.refresh_stats(id);
         let p = self.players.get_mut(&id).expect("just added");
         // A save without life (a new character) starts full.
@@ -180,6 +189,7 @@ impl Sim {
             skills: p.skills.clone(),
             pk_kills: p.pk_kills,
             flags: p.flags.clone(),
+            look: p.look,
         })
     }
 

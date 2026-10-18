@@ -107,6 +107,7 @@ fn server_in(dir: &std::path::Path, plain: Sim, load_map: Option<MapLoader>) -> 
             money: 100,
             ..PlayerSave::new(name, cell)
         }),
+        characters_per_account: 3,
         save_every_ms: 60_000,
         tick_ms: 50,
         load_map,

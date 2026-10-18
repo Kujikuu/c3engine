@@ -144,6 +144,7 @@ impl Front for ConquerFront {
                                 protocol: PROTOCOL,
                                 account: p.account,
                                 password: p.password,
+                                enter: c3_online::Enter::First,
                             },
                         )),
                         None => self.refuse(id, "Your login has expired. Please log in again."),
