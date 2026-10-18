@@ -101,6 +101,16 @@ Sim: walk into a portal ──► same map: placed │ other map: Event::Travel
    server: GameServer::travel ──► MapWorld (loaded by MapLoader if new) ──► Front::moved
 ```
 
+## Gameplay data
+```
+tables/*.table.ron + scripts/rules.rhai ──► c3_play::data_rules::DataRules (impl Rules)
+   levels, monsters (assist, flee, boss, skill), items (stack, durability, slot, currency),
+   shops, skills (target, kind, range, area, cooldown, mana, power, status), statuses
+Sim: skills.rs (cast task), statuses.rs, pvp.rs, monster_ai.rs, script_events.rs
+   ──► Event::Cast / Healed / StatusStarted / StatusEnded ──► SimView effects, HUD, audio
+scripts/events.rhai: on_login, on_enter(map), on_kill(monster), on_use(item), on_timer(name)
+```
+
 ## Drawing a scene: one path for the game and the editor
 ```
 Scene + SceneAssets (game's loader) ──► c3_render::scene_view::SceneView::prepare

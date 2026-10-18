@@ -325,12 +325,24 @@ complete project on that engine, then any game of the kind.
   - Later: two-way links and a World view (M8); weather, light and safe zones per map (M8
     regions); the original Conquer client walking through a portal is covered by a protocol
     test, not yet by a session with the real client
-- [ ] (6) Data-driven gameplay core: attributes and stats defined in data; formulas as scripts
+- [x] (6) Data-driven gameplay core: attributes and stats defined in data; formulas as scripts
       (rules from tables + scripts, so a game needs no Rust); items with stacks, durability and
       quality; equipment slots defined in data; currencies; skills and magic (targeting, area,
       cooldowns, costs, effects); status effects and buffs; PvP and PK; monster behaviour from
       data (passive, aggressive, ranged, boss); script events beyond talking (kill, use item,
       enter region, timers, login)
+  - Done: `c3_play::data_rules` reads the tables levels, monsters, items, shops, skills and
+    statuses (Data panel > New makes each with an example row) and `scripts/rules.rhai`
+    formulas (hit, experience, levels, player stats, skill damage and heals); items stack,
+    wear and have qualities; equipment slots and currencies are settings; skills are cast
+    from a HUD bar (keys 1–8) at the target, the pointer or oneself, cost mana, rest, reach
+    an area and show effects; statuses change stats, tick life or stun, shown on the HUD;
+    PvP on maps marked `pk` (or `/pk`), killers marked red; monsters assist, flee, cast and
+    bosses hold on; `scripts/events.rhai` hears login, map entry, kills, item use and timers.
+    Conquer reads cq_magictype (skills, statuses), MagicType.dat (skill effects and sounds),
+    monster magic, and draws the client's portal effect. Verified on the scratch project and
+    the Conquer project, local and online
+  - Later: regions (M8) bring `on_region` events; skill levels; professions
 - [ ] (7) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
       commands; File > Save saves everything dirty
 - [ ] (8) Renderer gaps the settings and UI need: world text drawn by the engine with project
