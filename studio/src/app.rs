@@ -70,6 +70,8 @@ pub struct Studio {
     pub(crate) workspace: Workspace,
     /// The content's map files, then engine-format scenes.
     pub(crate) maps: Vec<MapRef>,
+    /// The game's maps by id (what portals lead to), from the maps and the settings.
+    pub(crate) map_list: c3_play::map_list::MapList,
     pub(crate) models: Vec<ModelEntry>,
     pub(crate) model: Option<ModelDoc>,
     pub(crate) orbit: OrbitCamera,
@@ -188,6 +190,7 @@ impl Studio {
             client: None,
             workspace: Workspace::Maps,
             maps: Vec::new(),
+            map_list: Default::default(),
             models: Vec::new(),
             model: None,
             orbit: OrbitCamera::default(),
@@ -473,6 +476,7 @@ impl Studio {
         self.settings = Some(editor);
         self.applied_settings = Some(settings);
         self.fonts_dirty = true;
+        self.refresh_map_list();
     }
 
     /// Re-lists the maps.
@@ -480,6 +484,19 @@ impl Studio {
         self.maps = match &self.project {
             Some(project) => maps::list_maps(project, self.client.as_ref()),
             None => Vec::new(),
+        };
+        self.refresh_map_list();
+    }
+
+    /// Re-reads the game's map list (ids, names, music) from the maps and the settings.
+    pub(crate) fn refresh_map_list(&mut self) {
+        self.map_list = match (&self.project, &self.game) {
+            (Some(project), Some(game)) => {
+                let settings =
+                    (self.applied_settings.clone()).unwrap_or_else(|| game.default_settings());
+                c3_play::map_list::MapList::new(project, &**game, &settings)
+            }
+            _ => Default::default(),
         };
     }
 

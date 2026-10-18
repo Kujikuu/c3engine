@@ -6,9 +6,10 @@ use crate::app::{Focus, Studio};
 use crate::icons;
 use crate::theme;
 use c3_core::ProjectSettings;
-use c3_core::settings::{Cursor, FrontSettings};
+use c3_core::settings::{Cursor, FrontSettings, MapEntry};
 use c3_edit::{SettingsCommand, SettingsDoc};
 use c3_play::GameModule;
+use c3_play::map_list::{self, MapInfo, MapList};
 use eframe::egui::{self, DragValue, RichText, TextureHandle};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -25,6 +26,7 @@ pub enum Section {
     Camera,
     Input,
     Gameplay,
+    Maps,
     Graphics,
     Audio,
     Network,
@@ -32,12 +34,13 @@ pub enum Section {
 }
 
 impl Section {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
         Self::Player,
         Self::Cursors,
         Self::Camera,
         Self::Input,
         Self::Gameplay,
+        Self::Maps,
         Self::Graphics,
         Self::Audio,
         Self::Network,
@@ -51,6 +54,7 @@ impl Section {
             Self::Camera => "Camera",
             Self::Input => "Input",
             Self::Gameplay => "Gameplay",
+            Self::Maps => "Maps",
             Self::Graphics => "Graphics",
             Self::Audio => "Audio",
             Self::Network => "Network",
@@ -65,6 +69,7 @@ impl Section {
             Self::Camera => icons::VIDEO_CAMERA,
             Self::Input => icons::GAME_CONTROLLER,
             Self::Gameplay => icons::SWORD,
+            Self::Maps => icons::MAP_TRIFOLD,
             Self::Graphics => icons::PAINT_BRUSH,
             Self::Audio => icons::SPEAKER_HIGH,
             Self::Network => icons::GLOBE_SIMPLE,
@@ -87,6 +92,11 @@ impl Section {
             Self::Gameplay => {
                 "The simulation's numbers: timing, ranges, the bag, where players start and \
                  what they start with, and who may use game-master commands."
+            }
+            Self::Maps => {
+                "The game's maps: the ids portals, scripts and saves name them by, the names \
+                 players see, their music, and where players may fight each other. Maps not \
+                 listed play too, with ids the engine gives them."
             }
             Self::Graphics => "How the client draws.",
             Self::Audio => "Volumes and how far sounds carry.",
@@ -733,7 +743,11 @@ impl Studio {
         }
         let tilt_changed = self.applied_settings.as_ref().map(|s| s.camera.tilt_deg)
             != Some(settings.camera.tilt_deg);
+        let maps_changed = self.applied_settings.as_ref().map(|s| &s.maps) != Some(&settings.maps);
         self.applied_settings = Some(settings);
+        if maps_changed {
+            self.refresh_map_list();
+        }
         if tilt_changed {
             self.stage = None;
             self.rebuild_live_scene();
@@ -1097,6 +1111,7 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                 );
             });
         }
+        Section::Maps => f.map_entries(ui, &s.maps),
         Section::Graphics => grid(ui, "graphics", |ui| {
             let g = &s.graphics;
             f.check(
@@ -1359,6 +1374,135 @@ impl Fields<'_> {
                 "network.front",
                 serde_json::to_value(&list).unwrap_or_default(),
             );
+        }
+    }
+
+    fn map_entries(&mut self, ui: &mut egui::Ui, entries: &[MapEntry]) {
+        let mut list = entries.to_vec();
+        let mut changed = false;
+        let mut remove = None;
+        // Every map with the ids it plays with now (unlisted maps keep theirs when listed).
+        let game_maps = self
+            .maps
+            .iter()
+            .map(|k| (k.clone(), self.game.map_or_else(Vec::new, |g| g.map_ids(k))))
+            .collect();
+        let all = MapList::from_parts(entries, game_maps);
+        if list.is_empty() {
+            ui.label(
+                RichText::new("No map is listed yet: add the maps portals lead to.")
+                    .color(theme::TEXT_DIM),
+            );
+        }
+        egui::Grid::new("maps")
+            .num_columns(6)
+            .spacing([10.0, 6.0])
+            .striped(true)
+            .show(ui, |ui| {
+                if !list.is_empty() {
+                    for title in ["Map", "Id", "Name", "Music", "PvP", ""] {
+                        ui.label(RichText::new(title).color(theme::TEXT_DIM).small());
+                    }
+                    ui.end_row();
+                }
+                for (i, entry) in list.iter_mut().enumerate() {
+                    let mut key = None;
+                    egui::ComboBox::from_id_salt(("map key", i))
+                        .selected_text(map_list::short_name(&entry.key))
+                        .width(150.0)
+                        .show_ui(ui, |ui| {
+                            for m in self.maps {
+                                let label = map_list::short_name(m);
+                                if ui.selectable_label(*m == entry.key, label).clicked() {
+                                    key = Some(m.clone());
+                                }
+                            }
+                        })
+                        .response
+                        .on_hover_text(&entry.key);
+                    if let Some(key) = key {
+                        entry.key = key;
+                        changed = true;
+                    }
+                    let id = ui
+                        .add(DragValue::new(&mut entry.id).range(1..=u32::MAX).speed(0.2))
+                        .on_hover_text("What portals, scripts and saves call the map");
+                    self.track(&id, "Map id");
+                    let name = ui.add_sized(
+                        [140.0, 22.0],
+                        egui::TextEdit::singleline(&mut entry.name)
+                            .hint_text(map_list::short_name(&entry.key)),
+                    );
+                    self.track(&name, "Map name");
+                    changed |= id.changed() || name.changed();
+                    ui.horizontal(|ui| {
+                        let kinds = ["ogg", "wav", "mp3"];
+                        if let Some(music) = self.file_field(ui, "Music", &entry.music, &kinds) {
+                            entry.music = music;
+                            changed = true;
+                        }
+                    });
+                    changed |= ui
+                        .checkbox(&mut entry.pk, "")
+                        .on_hover_text("Players may attack each other here")
+                        .changed();
+                    if ui
+                        .button(icons::TRASH)
+                        .on_hover_text("Take the map off the list")
+                        .clicked()
+                    {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(i) = remove {
+            list.remove(i);
+            changed = true;
+        }
+        let unlisted: Vec<&MapInfo> = all
+            .iter()
+            .filter(|m| !entries.iter().any(|e| e.key == m.key))
+            .collect();
+        ui.add_space(4.0);
+        let add = ui
+            .add_enabled(
+                !unlisted.is_empty(),
+                egui::Button::new(theme::icon_text(icons::PLUS, "Add a map")),
+            )
+            .on_hover_text("Lists the next map, with the id it plays with now");
+        if add.clicked()
+            && let Some(m) = unlisted.first()
+        {
+            list.push(MapEntry {
+                key: m.key.clone(),
+                id: m.id(),
+                name: String::new(),
+                music: String::new(),
+                pk: false,
+            });
+            changed = true;
+        }
+        if !unlisted.is_empty() {
+            ui.add_space(6.0);
+            egui::CollapsingHeader::new(format!("Maps not listed ({})", unlisted.len()))
+                .id_salt("unlisted maps")
+                .show(ui, |ui| {
+                    egui::Grid::new("unlisted maps")
+                        .num_columns(2)
+                        .spacing([16.0, 2.0])
+                        .show(ui, |ui| {
+                            for m in &unlisted {
+                                ui.label(&m.name).on_hover_text(&m.key);
+                                let ids: Vec<String> = m.ids.iter().map(u32::to_string).collect();
+                                ui.label(RichText::new(ids.join(", ")).color(theme::TEXT_DIM));
+                                ui.end_row();
+                            }
+                        });
+                });
+        }
+        if changed {
+            self.set("maps", serde_json::to_value(&list).unwrap_or_default());
         }
     }
 

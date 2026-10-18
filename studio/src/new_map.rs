@@ -64,10 +64,38 @@ impl Studio {
         match written {
             Ok(()) => {
                 self.refresh_maps();
+                self.list_map(name);
                 self.refresh_assets();
                 self.open_map(&MapRef::Project(name.to_owned()));
             }
             Err(e) => self.error = Some(format!("Can't create the map: {e}")),
+        }
+    }
+
+    /// Adds map `key` to Project Settings > Maps with the id it plays with now, so that id
+    /// stays its own (portals to it keep working whatever maps come later).
+    fn list_map(&mut self, key: &str) {
+        let (Some(editor), Some(info)) = (&mut self.settings, self.map_list.by_key(key)) else {
+            return;
+        };
+        let mut maps = editor.settings().maps.clone();
+        if maps.iter().any(|m| m.key == key) {
+            return;
+        }
+        maps.push(c3_core::settings::MapEntry {
+            key: key.to_owned(),
+            id: info.id(),
+            name: String::new(),
+            music: String::new(),
+            pk: false,
+        });
+        let command = c3_edit::SettingsCommand::Set {
+            path: "maps".into(),
+            value: serde_json::to_value(&maps).unwrap_or_default(),
+        };
+        match editor.doc.execute(&command) {
+            Ok(_) => self.settings_changed(),
+            Err(e) => self.error = Some(format!("Can't list the new map: {e}")),
         }
     }
 

@@ -64,7 +64,11 @@ impl Studio {
                     .portals
                     .iter()
                     .map(|p| {
-                        let label = format!("Portal {}   {}, {}", p.id, p.cell.0, p.cell.1);
+                        let mut label = format!("Portal {}   {}, {}", p.id, p.cell.0, p.cell.1);
+                        if let Some(to) = p.to {
+                            let map = self.map_list.describe(to.map);
+                            label.push_str(&format!("   {}  {map}", icons::ARROW_RIGHT));
+                        }
                         (label, Selection::Portal(p.id))
                     })
                     .collect();
@@ -342,7 +346,10 @@ impl Tree {
                     for (label, selection) in rows {
                         let on = Some(*selection) == self.selected;
                         let row = ui
-                            .add(egui::Button::selectable(on, label))
+                            .add(
+                                egui::Button::selectable(on, label)
+                                    .wrap_mode(egui::TextWrapMode::Truncate),
+                            )
                             .on_hover_text("Click to select it and show it in the Scene");
                         if Some(*selection) == self.reveal {
                             row.scroll_to_me(Some(egui::Align::Center));

@@ -7,7 +7,8 @@ use crate::icons;
 use crate::selection::Selection;
 use crate::theme;
 use c3_edit::SceneCommand;
-use c3_scene::{CellPos, Entity, EntityKind, Npc, Placement, Spawn};
+use c3_play::map_list::MapList;
+use c3_scene::{CellPos, Entity, EntityKind, Npc, Placement, PortalTarget, Spawn};
 use eframe::egui::{self, DragValue, RichText};
 use std::collections::BTreeMap;
 
@@ -40,6 +41,44 @@ fn grid(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
         .num_columns(2)
         .spacing([10.0, 6.0])
         .show(ui, body);
+}
+
+/// Where a portal on `cell` leads: nowhere, or one of the game's maps (the arrival cell
+/// kept; a new destination arrives on `cell` until moved).
+fn destination_field(
+    ui: &mut egui::Ui,
+    it: &mut Interaction,
+    maps: &MapList,
+    (cell, to): (CellPos, &mut Option<PortalTarget>),
+) {
+    let shown = to.map_or_else(|| "Nowhere".to_owned(), |t| maps.describe(t.map));
+    let mut picked = None;
+    egui::ComboBox::from_id_salt("portal destination")
+        .selected_text(shown)
+        .width(170.0)
+        .show_ui(ui, |ui| {
+            if ui.selectable_label(to.is_none(), "Nowhere").clicked() {
+                picked = Some(None);
+            }
+            for m in maps.iter() {
+                let here = to.is_some_and(|t| m.ids.contains(&t.map));
+                let label = format!("{}   {}", m.name, m.id());
+                if ui
+                    .selectable_label(here, label)
+                    .on_hover_text(&m.key)
+                    .clicked()
+                {
+                    picked = Some(Some(m.id()));
+                }
+            }
+        });
+    if let Some(map) = picked {
+        *to = map.map(|map| PortalTarget {
+            map,
+            cell: to.map_or(cell, |t| t.cell),
+        });
+        it.changed = true;
+    }
 }
 
 /// Two drag fields for a cell.
@@ -153,15 +192,58 @@ impl Studio {
         id: i32,
     ) -> Option<SceneCommand> {
         let doc = self.doc.as_ref()?;
-        let mut cell = doc.scene().portals.iter().find(|p| p.id == id)?.cell;
+        let portal = doc.scene().portals.iter().find(|p| p.id == id)?;
+        let (mut cell, mut to) = (portal.cell, portal.to);
+        let mut go = false;
         grid(ui, "portal", |ui| {
             row(ui, "Id", |ui| {
                 ui.label(id.to_string())
-                    .on_hover_text("The game's data links this id to a destination");
+                    .on_hover_text("The game's data may link this id to a destination");
             });
             row(ui, "Cell", |ui| cell_field(ui, it, &mut cell));
+            row(ui, "Leads to", |ui| {
+                ui.horizontal(|ui| {
+                    destination_field(ui, it, &self.map_list, (cell, &mut to));
+                    go = to.is_some()
+                        && ui
+                            .button(icons::ARROW_SQUARE_OUT)
+                            .on_hover_text("Open that map at the arrival")
+                            .clicked();
+                });
+            });
+            if let Some(target) = &mut to {
+                row(ui, "Arrive at", |ui| cell_field(ui, it, &mut target.cell));
+            }
         });
-        Some(SceneCommand::MovePortal { id, to: cell })
+        if go && let Some(target) = to {
+            self.go_to_portal_target(target);
+            return None;
+        }
+        if to != portal.to {
+            Some(SceneCommand::SetPortalTarget { id, to })
+        } else {
+            Some(SceneCommand::MovePortal { id, to: cell })
+        }
+    }
+
+    /// Opens the map a portal leads to, the view on where travellers arrive.
+    fn go_to_portal_target(&mut self, to: PortalTarget) {
+        let Some(info) = self.map_list.by_id(to.map) else {
+            self.error = Some(format!("There is no map {} to open", to.map));
+            return;
+        };
+        let map = crate::maps::MapRef::parse(&info.key);
+        self.open_map(&map);
+        if let Some(doc) = self.doc.as_ref().filter(|d| d.map == map) {
+            self.fit_pending = false;
+            self.cam.center = doc.cell_to_world(to.cell);
+            self.editor.selected = doc
+                .scene()
+                .portals
+                .iter()
+                .find(|p| p.cell == to.cell)
+                .map(|p| Selection::Portal(p.id));
+        }
     }
 
     fn entity_fields(

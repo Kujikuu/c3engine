@@ -31,7 +31,7 @@ pub struct MapList {
 }
 
 /// The file name of `key` without folders or extensions.
-fn short_name(key: &str) -> &str {
+pub fn short_name(key: &str) -> &str {
     let name = key.rsplit(['/', '\\']).next().unwrap_or(key);
     name.split('.').next().unwrap_or(name)
 }
@@ -109,6 +109,14 @@ impl MapList {
 
     pub fn by_key(&self, key: &str) -> Option<&MapInfo> {
         self.maps.iter().find(|m| m.key == key)
+    }
+
+    /// What portals call map `id`: its name, or that no map has it.
+    pub fn describe(&self, id: u32) -> String {
+        self.by_id(id).map_or_else(
+            || format!("map {id} (not a map of the game)"),
+            |m| m.name.clone(),
+        )
     }
 }
 
