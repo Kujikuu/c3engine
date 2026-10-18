@@ -450,8 +450,17 @@ PUL for the classic client).
     model: each action's animation, frame time and sound, and models held at its parts (a
     sword in the hand); it opens on the Preview stage with the same editor column. Native
     parts draw in their material colour
-- [ ] Data-driven game UI: windows, HUD and dialogs as layout files (images, text, bars, grids,
+- [x] Data-driven game UI: windows, HUD and dialogs as layout files (images, text, bars, grids,
       buttons, data bindings), skins from images; a Studio UI editor with live preview
+  - Done 2026-10-18, in TQ's model as decided by the user: a GUI.ini-form layout
+    ([dialog-control] x/y/w/h), an Ani-form skin (FrameAmount/FrameN images) and a controls file
+    in the same INI form for what TQ's client says in code (kind: dialog, image, button,
+    check, progress, text, grid; skin section, frame or piece; binding like hero.life; action
+    like bag or toggle:<dialog>). Settings [ui] names the files; without them the engine's own
+    UI shows. Conquer draws its 5065 main bar and bag from the client's own GUI.ini and
+    Control.Ani. The Studio's Game UI panel draws the dialogs as the game does, with sample
+    values: select, drag (one undo step), edit every field; files are patched byte for byte
+    and written into the project's assets, so a client used in place is never written
 - [ ] Client front end from data: login and server list, character creation and selection,
       loading screens, settings menu (keys, video, audio); the game UI's minimap / radar
 
