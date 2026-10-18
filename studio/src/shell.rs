@@ -32,14 +32,17 @@ pub(crate) enum Panel {
     Dialogue,
     /// Every map and the portals between them.
     World,
+    /// The game's dialogs (its UI from data).
+    GameUi,
 }
 
 impl Panel {
-    pub const ALL: [Panel; 12] = [
+    pub const ALL: [Panel; 13] = [
         Panel::Scene,
         Panel::World,
         Panel::Game,
         Panel::Preview,
+        Panel::GameUi,
         Panel::Script,
         Panel::Dialogue,
         Panel::Hierarchy,
@@ -64,6 +67,7 @@ impl Panel {
             Panel::Script => icons::FILE_CODE,
             Panel::Dialogue => icons::CHATS,
             Panel::World => icons::GLOBE_SIMPLE,
+            Panel::GameUi => icons::APP_WINDOW,
         }
     }
 
@@ -81,6 +85,7 @@ impl Panel {
             Panel::Script => "Script",
             Panel::Dialogue => "Dialogue",
             Panel::World => "World",
+            Panel::GameUi => "Game UI",
         }
     }
 
@@ -91,12 +96,14 @@ impl Panel {
             | Panel::World
             | Panel::Game
             | Panel::Preview
+            | Panel::GameUi
             | Panel::Script
             | Panel::Dialogue => &[
                 Panel::Scene,
                 Panel::World,
                 Panel::Game,
                 Panel::Preview,
+                Panel::GameUi,
                 Panel::Script,
                 Panel::Dialogue,
             ],
@@ -119,6 +126,7 @@ pub(crate) fn default_layout() -> Dock<Panel> {
             Panel::World,
             Panel::Game,
             Panel::Preview,
+            Panel::GameUi,
             Panel::Script,
             Panel::Dialogue,
         ]);
@@ -544,6 +552,7 @@ impl TabViewer<Panel> for Studio {
             Panel::Script => self.script_panel(ui),
             Panel::Dialogue => self.dialogue_panel(ui),
             Panel::World => self.world_panel(ui),
+            Panel::GameUi => self.ui_panel(ui),
         }
     }
 }

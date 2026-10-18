@@ -45,6 +45,8 @@ pub(crate) enum Focus {
     Effect,
     /// The animation set being edited in the Preview panel.
     Character,
+    /// The game UI in the Game UI panel.
+    Ui,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -151,6 +153,7 @@ pub struct Studio {
     /// The project effect open in the Preview panel's editor.
     pub(crate) effect_editor: Option<crate::effect_editor::EffectEditor>,
     pub(crate) character_editor: Option<crate::character_editor::CharacterEditor>,
+    pub(crate) ui_editor: Option<crate::ui_editor::UiEditor>,
     /// Panels asked to the front while the dock was drawing.
     pub(crate) panel_requests: Vec<crate::shell::Panel>,
     pub(crate) drawing_dock: bool,
@@ -262,6 +265,7 @@ impl Studio {
             world: Default::default(),
             effect_editor: None,
             character_editor: None,
+            ui_editor: None,
             panel_requests: Vec::new(),
             drawing_dock: false,
             hover: None,
@@ -991,6 +995,7 @@ impl Studio {
             Focus::Settings | Focus::Assets => None,
             Focus::Effect => self.effect_step(false),
             Focus::Character => self.character_step(false),
+            Focus::Ui => self.ui_step(false),
         };
         if let Some(doc) = &self.doc {
             self.editor.forget_missing(doc.scene());
@@ -1023,6 +1028,7 @@ impl Studio {
             Focus::Settings | Focus::Assets => None,
             Focus::Effect => self.effect_step(true),
             Focus::Character => self.character_step(true),
+            Focus::Ui => self.ui_step(true),
         };
         if let Some(doc) = &self.doc {
             self.editor.forget_missing(doc.scene());
@@ -1070,6 +1076,7 @@ impl Studio {
             }
             Focus::Effect => self.effect_labels(),
             Focus::Character => self.character_labels(),
+            Focus::Ui => self.ui_labels(),
         }
     }
 
@@ -1102,6 +1109,7 @@ impl Studio {
             Focus::Assets => Some(("Assets".to_owned(), self.assets.as_ref()?.history())),
             Focus::Effect => self.effect_history(),
             Focus::Character => self.character_history(),
+            Focus::Ui => self.ui_history(),
         }
     }
 
@@ -1210,7 +1218,7 @@ impl Studio {
                     self.save_dialogue();
                 }
                 // Settings, assets and effects are saved as they change.
-                Focus::Settings | Focus::Assets | Focus::Effect | Focus::Character => {}
+                Focus::Settings | Focus::Assets | Focus::Effect | Focus::Character | Focus::Ui => {}
             }
         }
         if ctx.egui_wants_keyboard_input() {

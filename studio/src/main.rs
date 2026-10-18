@@ -50,6 +50,7 @@ mod stage;
 mod table_schema;
 mod theme;
 mod tq_plugin;
+mod ui_editor;
 mod value_form;
 mod world_view;
 

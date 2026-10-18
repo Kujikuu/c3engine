@@ -26,10 +26,10 @@
 //! TQ's controls fall back to their dialog template. Pieces of a skin image are drawn with
 //! `src=left,top,right,bottom`; controls draw in file order.
 
-mod ini;
+pub mod ini;
 mod screen;
 
-pub use screen::{GuiData, GuiEvent, GuiImages, Textures};
+pub use screen::{GuiData, GuiEvent, GuiImages, Place, Textures};
 
 use std::collections::{BTreeSet, HashMap};
 

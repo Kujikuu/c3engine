@@ -34,6 +34,7 @@ pub mod session;
 pub mod settings;
 pub mod sim_view;
 pub mod touch;
+pub mod ui_textures;
 pub mod weather;
 pub mod world;
 

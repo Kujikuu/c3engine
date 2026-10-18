@@ -38,12 +38,19 @@ pub enum GuiEvent {
     Item { list: String, index: usize },
 }
 
-/// How layout pixels sit on the screen.
-#[derive(Clone, Copy)]
-struct Place {
-    scale: f32,
+/// How a dialog's layout pixels sit on the screen.
+#[derive(Debug, Clone, Copy)]
+pub struct Place {
+    pub scale: f32,
     /// Screen point of the dialog's layout origin.
-    origin: Pos2,
+    pub origin: Pos2,
+}
+
+impl Place {
+    /// The screen point of layout point `x`, `y` in the dialog.
+    pub fn screen(&self, x: f32, y: f32) -> Pos2 {
+        self.origin + Vec2::new(x, y) * self.scale
+    }
 }
 
 impl Gui {
@@ -55,37 +62,91 @@ impl Gui {
         data: &dyn GuiData,
         textures: &mut dyn Textures,
     ) -> Vec<GuiEvent> {
-        let [bw, bh] = self.layout.base().map(|v| v as f32);
-        let scale = (area.width() / bw).min(area.height() / bh);
         let mut events = Vec::new();
         for dialog in self.dialogs().filter(|d| self.is_open(d)) {
+            let place = self.place(dialog, area);
             let r = self.rect(dialog);
-            let place = Place {
-                scale,
-                origin: anchored(area, [bw, bh], scale, r),
-            };
-            let size = Vec2::new(r.w.max(0) as f32, r.h.max(0) as f32) * scale;
+            let size = Vec2::new(r.w.max(0) as f32, r.h.max(0) as f32) * place.scale;
             egui::Area::new(egui::Id::unique(("gui dialog", dialog.id)))
                 .fixed_pos(place.origin)
                 .order(egui::Order::Middle)
                 .show(ctx, |ui| {
                     // The dialog takes the pointer, so clicks on it don't reach the world.
                     ui.allocate_exact_size(size, egui::Sense::click());
-                    let mut painter = Painter {
-                        ui,
-                        textures: &mut *textures,
-                        skin: &self.skin,
-                        place,
-                    };
-                    painter.picture(dialog, Pos2::ZERO);
-                    let controls = (self.controls.iter()).filter(|c| c.parent == dialog.id);
-                    for control in controls {
-                        let at = self.rect(control);
-                        painter.control(control, at, data, &mut events);
-                    }
+                    events.extend(self.paint_dialog(ui, dialog, place, data, textures, true));
                 });
         }
         events
+    }
+
+    /// Where `dialog` sits when the UI is drawn over `area`.
+    pub fn place(&self, dialog: &Control, area: Rect) -> Place {
+        let [bw, bh] = self.layout.base().map(|v| v as f32);
+        let scale = (area.width() / bw).min(area.height() / bh);
+        Place {
+            scale,
+            origin: anchored(area, [bw, bh], scale, self.rect(dialog)),
+        }
+    }
+
+    /// Draws `dialog` and its controls into `ui`; `live` controls answer the pointer (the
+    /// game), others are only drawn (an editor). Returns what was clicked.
+    pub fn paint_dialog(
+        &self,
+        ui: &mut egui::Ui,
+        dialog: &Control,
+        place: Place,
+        data: &dyn GuiData,
+        textures: &mut dyn Textures,
+        live: bool,
+    ) -> Vec<GuiEvent> {
+        let mut events = Vec::new();
+        let mut painter = Painter {
+            ui,
+            textures,
+            skin: &self.skin,
+            place,
+            live,
+        };
+        painter.picture(dialog, Pos2::ZERO);
+        for control in (self.controls.iter()).filter(|c| c.parent == dialog.id) {
+            painter.control(control, self.rect(control), data, &mut events);
+        }
+        events
+    }
+
+    /// The screen rectangle `control` covers in a dialog placed at `place`: its layout size,
+    /// else its picture's.
+    pub fn bounds(
+        &self,
+        ctx: &egui::Context,
+        control: &Control,
+        place: Place,
+        textures: &mut dyn Textures,
+    ) -> Rect {
+        let r = if control.parent == 0 {
+            GuiRect {
+                x: 0,
+                y: 0,
+                ..self.rect(control)
+            }
+        } else {
+            self.rect(control)
+        };
+        let mut picture = || {
+            if let Some([l, t, r, b]) = control.src {
+                return Some(Vec2::new((r - l) as f32, (b - t) as f32));
+            }
+            let frames = self.skin.frames(&control.ani);
+            let path = frames.get(control.frame).or(frames.first())?;
+            textures.image(ctx, path).map(|(_, size)| size)
+        };
+        let size = if r.w > 0 && r.h > 0 {
+            Vec2::new(r.w as f32, r.h as f32)
+        } else {
+            picture().unwrap_or(Vec2::splat(12.0))
+        };
+        Rect::from_min_size(place.screen(r.x as f32, r.y as f32), size * place.scale)
     }
 }
 
@@ -115,11 +176,13 @@ struct Painter<'a, 'u> {
     textures: &'a mut dyn Textures,
     skin: &'a Skin,
     place: Place,
+    /// Controls answer the pointer.
+    live: bool,
 }
 
 impl Painter<'_, '_> {
     fn screen(&self, x: f32, y: f32) -> Pos2 {
-        self.place.origin + Vec2::new(x, y) * self.place.scale
+        self.place.screen(x, y)
     }
 
     /// `frame` of a skin section's frames (its first when it has fewer): texture and size.
@@ -182,12 +245,17 @@ impl Painter<'_, '_> {
                     .ui
                     .scope_id()
                     .with(("gui control", control.parent, control.id));
-                let response = self.ui.interact(rect, id, egui::Sense::click());
+                let sense = if self.live {
+                    egui::Sense::click()
+                } else {
+                    egui::Sense::hover()
+                };
+                let response = self.ui.interact(rect, id, sense);
                 let frame = if control.kind == ControlKind::Check {
                     usize::from(data.number(&control.value).is_some_and(|v| v != 0.0))
                 } else if response.is_pointer_button_down_on() {
                     1
-                } else if response.hovered() && frames.len() > 2 {
+                } else if self.live && response.hovered() && frames.len() > 2 {
                     2
                 } else {
                     0
@@ -261,7 +329,12 @@ impl Painter<'_, '_> {
                         self.ui
                             .scope_id()
                             .with(("gui slot", control.parent, control.id, index));
-                    let response = self.ui.interact(slot, id, egui::Sense::click());
+                    let sense = if self.live {
+                        egui::Sense::click()
+                    } else {
+                        egui::Sense::hover()
+                    };
+                    let response = self.ui.interact(slot, id, sense);
                     let Some(&kind) = items.get(index) else {
                         continue;
                     };

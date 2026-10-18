@@ -31,11 +31,12 @@ pub enum Section {
     Graphics,
     Audio,
     Network,
+    GameUi,
     Localization,
 }
 
 impl Section {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
         Self::Player,
         Self::Cursors,
         Self::Camera,
@@ -46,6 +47,7 @@ impl Section {
         Self::Graphics,
         Self::Audio,
         Self::Network,
+        Self::GameUi,
         Self::Localization,
     ];
 
@@ -61,6 +63,7 @@ impl Section {
             Self::Graphics => "Graphics",
             Self::Audio => "Audio",
             Self::Network => "Network",
+            Self::GameUi => "Game UI",
             Self::Localization => "Localization",
         }
     }
@@ -77,6 +80,7 @@ impl Section {
             Self::Graphics => icons::PAINT_BRUSH,
             Self::Audio => icons::SPEAKER_HIGH,
             Self::Network => icons::GLOBE_SIMPLE,
+            Self::GameUi => icons::APP_WINDOW,
             Self::Localization => icons::TRANSLATE,
         }
     }
@@ -109,6 +113,9 @@ impl Section {
             Self::Graphics => "How the client draws.",
             Self::Audio => "Volumes and how far sounds carry.",
             Self::Network => "The game server: its port, saving, and fronts for other clients.",
+            Self::GameUi => {
+                "The game's dialogs from data, in TQ's model: a layout placing them (GUI.ini form), a skin of their images (Ani form) and the controls file saying what each control is, shows and does. Empty: the engine's own UI. Edit them in the Game UI panel."
+            }
             Self::Localization => {
                 "The fonts the game's text is drawn with, in order: each next font draws the \
                  characters the ones before lack (e.g. Chinese)."
@@ -1279,6 +1286,36 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
             heading(ui, "Fronts for other clients");
             f.fronts(ui, &n.fronts);
         }
+        Section::GameUi => grid(ui, "game ui", |ui| {
+            let u = &s.ui;
+            f.text(
+                ui,
+                (
+                    "Layout",
+                    "Where dialogs and controls sit: [dialog-control] x, y, w, h",
+                ),
+                "ui.layout",
+                &u.layout,
+                "ui/gui.ini",
+            );
+            f.text(
+                ui,
+                (
+                    "Skin",
+                    "The images controls show: [Section] FrameAmount, Frame0...",
+                ),
+                "ui.skin",
+                &u.skin,
+                "ui/skin.ani",
+            );
+            f.text(
+                ui,
+                ("Controls", "Each control's kind, image, binding and action"),
+                "ui.controls",
+                &u.controls,
+                "ui/controls.ini",
+            );
+        }),
         Section::Localization => {
             heading(ui, "Fonts");
             f.fonts(ui, &s.localization.fonts);

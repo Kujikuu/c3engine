@@ -11,16 +11,16 @@ use crate::map_list::{MapInfo, MapList};
 use crate::module::GameModule;
 use crate::settings;
 use crate::sim_view::SimView;
+use crate::ui_textures::GameTextures;
 use crate::world::{self, World};
 use c3_game::{CastAt, EntityId, Event, Input, Sim, SkillTarget, WorldUpdate};
 use c3_online::{Connection, RemoteEvent, Welcome};
 use c3_project::{Project, ProjectSettings};
 use c3_render::camera::Camera2d;
 use c3_scene::{CellPos, Scene, path};
-use c3_ui::{ControlsView, GameUi, GameView, Icons, LogLine, UiAction, style};
-use egui::{Pos2, Rect, TextureHandle, TextureId};
+use c3_ui::{ControlsView, GameUi, GameView, LogLine, UiAction, style};
+use egui::{Pos2, Rect};
 use glam::Vec2;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -98,7 +98,7 @@ pub struct Session {
     pub world: World,
     view: SimView,
     ui: GameUi,
-    icons: UiTextures,
+    icons: GameTextures,
     /// The game's equipment slots and their names.
     slots: Vec<(u8, String)>,
     audio: GameAudio,
@@ -309,7 +309,7 @@ impl Session {
             world,
             view,
             ui,
-            icons: UiTextures::new(game),
+            icons: GameTextures::new(game),
             slots,
             audio,
             log,
@@ -908,61 +908,6 @@ impl Session {
             UiAction::Rebind(_) | UiAction::ResetControls | UiAction::Leave => return,
         };
         self.input(input);
-    }
-}
-
-/// Item icons and the UI's images as the game draws them, loaded once each.
-struct UiTextures {
-    game: Rc<dyn GameModule>,
-    cache: HashMap<u32, Option<TextureHandle>>,
-    images: HashMap<String, Option<(TextureHandle, egui::Vec2)>>,
-}
-
-impl UiTextures {
-    fn new(game: Rc<dyn GameModule>) -> Self {
-        Self {
-            game,
-            cache: HashMap::new(),
-            images: HashMap::new(),
-        }
-    }
-}
-
-impl Icons for UiTextures {
-    fn item(&mut self, ctx: &egui::Context, kind: u32) -> Option<TextureId> {
-        let game = &self.game;
-        self.cache
-            .entry(kind)
-            .or_insert_with(|| {
-                let image = game.item_icon(kind)?;
-                let color = egui::ColorImage::from_rgba_unmultiplied(
-                    [image.width as usize, image.height as usize],
-                    &image.rgba,
-                );
-                Some(ctx.load_texture(format!("item {kind}"), color, egui::TextureOptions::LINEAR))
-            })
-            .as_ref()
-            .map(TextureHandle::id)
-    }
-}
-
-impl c3_ui::gui::GuiImages for UiTextures {
-    fn image(&mut self, ctx: &egui::Context, path: &str) -> Option<(TextureId, egui::Vec2)> {
-        let game = &self.game;
-        self.images
-            .entry(path.to_owned())
-            .or_insert_with(|| {
-                let image = game.assets().image(path)?;
-                let size = egui::vec2(image.width as f32, image.height as f32);
-                let color = egui::ColorImage::from_rgba_unmultiplied(
-                    [image.width as usize, image.height as usize],
-                    &image.rgba,
-                );
-                let texture = ctx.load_texture(path, color, egui::TextureOptions::LINEAR);
-                Some((texture, size))
-            })
-            .as_ref()
-            .map(|(t, size)| (t.id(), *size))
     }
 }
 
