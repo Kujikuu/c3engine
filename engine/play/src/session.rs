@@ -142,6 +142,7 @@ impl Session {
             "Hero",
             start,
         ));
+        sim.logged_in(hero);
         Self::open(
             game,
             Opening {
@@ -240,10 +241,16 @@ impl Session {
             setup,
         } = o;
         let mut log: Vec<LogLine> = problems.into_iter().map(LogLine::Error).collect();
-        // What happened while setting up is shown by attaching the view; keep the warnings.
+        // What happened while setting up is shown by attaching the view; keep the warnings,
+        // and what scripts said (the events script's `on_login`) for the chat.
+        let mut said = Vec::new();
         for event in sim.take_events() {
-            if let Event::Warning(text) = event {
-                log.push(LogLine::Error(text));
+            match event {
+                Event::Warning(text) => log.push(LogLine::Error(text)),
+                e @ (Event::Notice { .. } | Event::Message { .. } | Event::ScriptLog(_)) => {
+                    said.push(e)
+                }
+                _ => {}
             }
         }
         let mut audio = GameAudio::new(Rc::clone(&game), map_ids);
@@ -261,6 +268,7 @@ impl Session {
         if matches!(link, Link::Remote(_)) {
             ui.system("Connected to the server.", style::GOOD);
         }
+        ui.events(&said, &sim, hero, 0.0);
         Ok(Self {
             sim,
             hero,

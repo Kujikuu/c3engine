@@ -93,6 +93,9 @@ pub struct Player {
     /// Players it killed on PK maps.
     #[serde(default)]
     pub pk_kills: u32,
+    /// The events script's timers: name, and when (game ms) it runs out.
+    #[serde(skip)]
+    pub(crate) timers: Vec<(String, u64)>,
     pub stats: Stats,
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.

@@ -21,6 +21,7 @@ mod remote;
 mod rng;
 mod rules;
 mod save;
+mod script_events;
 mod sim;
 mod skills;
 mod statuses;

@@ -268,6 +268,7 @@ impl Sim {
         self.events.push(Event::Died { id, killer });
         if let Some(player) = killer {
             self.count_kill(player, kind);
+            self.script_event(player, "on_kill", vec![i64::from(kind).into()]);
         }
         let drops = self.rules.drops(kind, &mut self.rng);
         for drop in drops {

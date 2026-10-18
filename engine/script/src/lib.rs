@@ -38,9 +38,10 @@ pub use graph::{
     Action, Case, Choice, Condition, DIALOGUE_SUFFIX, DialogueGraph, GENERATED_DIR, GraphProblem,
     Node, NodeKind, PLACEHOLDERS, dialogue_names, generated_script, load_dialogue, save_dialogue,
 };
-pub use host::{ScriptError, ScriptHost, TALK, script_names};
+pub use host::{EVENTS_SCRIPT, ScriptError, ScriptHost, TALK, script_names};
 pub use quest::{Goal, Quest};
 pub use rhai;
+pub use rhai::Dynamic;
 
 /// File extension of script files.
 pub const SCRIPT_SUFFIX: &str = ".rhai";

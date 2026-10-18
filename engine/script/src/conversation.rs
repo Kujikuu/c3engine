@@ -2,7 +2,7 @@
 //! client, the server, the Studio's Play mode) keep one per player talking to an NPC.
 
 use crate::dialog::{DialogPage, Effect, NpcInfo, PlayerState};
-use crate::host::{ScriptError, ScriptHost, TALK};
+use crate::host::{EVENTS_SCRIPT, ScriptError, ScriptHost, TALK};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Conversation {
@@ -37,6 +37,24 @@ impl Conversation {
             Some(next) => Self::step(host, &self.script, next, self.npc, player),
             None => Ok((None, Vec::new())),
         }
+    }
+
+    /// Runs event `function(args...)` of the events script for `player`; a page it builds
+    /// opens as a dialogue (`npc` names who speaks).
+    pub fn event(
+        host: &mut ScriptHost,
+        function: &str,
+        args: Vec<rhai::Dynamic>,
+        npc: NpcInfo,
+        player: &mut PlayerState,
+    ) -> Result<Step, ScriptError> {
+        let reply = host.run_with(EVENTS_SCRIPT, function, args, &npc, player)?;
+        let next = (!reply.page.is_empty()).then(|| Conversation {
+            script: EVENTS_SCRIPT.to_owned(),
+            npc,
+            page: reply.page,
+        });
+        Ok((next, reply.effects))
     }
 
     fn step(

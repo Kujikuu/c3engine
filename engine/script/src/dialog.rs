@@ -120,6 +120,11 @@ pub enum Effect {
     },
     /// `print` output, for the console.
     Log(String),
+    /// Run `on_timer(name)` of the events script after `seconds`.
+    StartTimer {
+        name: String,
+        seconds: f64,
+    },
 }
 
 /// The result of running a dialogue step.

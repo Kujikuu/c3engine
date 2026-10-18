@@ -134,6 +134,7 @@ impl Sim {
 
     fn tick(&mut self) {
         self.tick_statuses();
+        self.tick_timers();
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {
             self.tick_player(id);

@@ -16,6 +16,10 @@ use std::time::SystemTime;
 /// The function run when the player talks to an NPC.
 pub const TALK: &str = "talk";
 
+/// The project's script for what happens to players beyond talking (`scripts/events.rhai`):
+/// `on_login()`, `on_enter(map)`, `on_kill(monster)`, `on_use(item)`, `on_timer(name)`.
+pub const EVENTS_SCRIPT: &str = "events";
+
 /// Most steps one call may run (stops endless loops).
 const MAX_OPERATIONS: u64 = 500_000;
 const MAX_CALL_DEPTH: usize = 32;
@@ -124,15 +128,41 @@ impl ScriptHost {
         npc: &NpcInfo,
         player: &mut PlayerState,
     ) -> Result<Reply, ScriptError> {
+        self.run_with(script, function, Vec::new(), npc, player)
+    }
+
+    /// Whether `script` exists and defines `function` taking `arity` arguments (an event
+    /// the project may leave out). A script that fails to compile counts as defining it, so
+    /// running it reports the error.
+    pub fn defines(&mut self, script: &str, function: &str, arity: usize) -> bool {
+        if !self.script_file(script).is_file() {
+            return false;
+        }
+        match self.load(script) {
+            Ok(()) => defines_with(&self.compiled[script].ast, function, arity),
+            Err(_) => true,
+        }
+    }
+
+    /// Runs `function(args...)` of `script`, as [`Self::run`] does.
+    pub fn run_with(
+        &mut self,
+        script: &str,
+        function: &str,
+        args: Vec<rhai::Dynamic>,
+        npc: &NpcInfo,
+        player: &mut PlayerState,
+    ) -> Result<Reply, ScriptError> {
         let error = |diagnostic| ScriptError {
             script: script.to_owned(),
             diagnostic,
         };
         self.load(script).map_err(error)?;
         let ast = &self.compiled[script].ast;
-        if !defines(ast, function) {
+        if !defines_with(ast, function, args.len()) {
             return Err(error(Diagnostic::error(format!(
-                "no `fn {function}()` in this script"
+                "no `fn {function}()` taking {} values in this script",
+                args.len()
             ))));
         }
         *self.call.borrow_mut() = Some(Call {
@@ -143,7 +173,7 @@ impl ScriptHost {
         });
         let result = self
             .engine
-            .call_fn::<rhai::Dynamic>(&mut Scope::new(), ast, function, ());
+            .call_fn::<rhai::Dynamic>(&mut Scope::new(), ast, function, args);
         let call = self.call.borrow_mut().take().expect("call set above");
         *player = call.player;
         // What the function returns is unused.
@@ -197,8 +227,12 @@ pub(crate) fn sandboxed_engine() -> Engine {
 }
 
 fn defines(ast: &AST, name: &str) -> bool {
+    defines_with(ast, name, 0)
+}
+
+fn defines_with(ast: &AST, name: &str, arity: usize) -> bool {
     ast.iter_functions()
-        .any(|f| f.name == name && f.params.is_empty())
+        .any(|f| f.name == name && f.params.len() == arity)
 }
 
 fn at(pos: Position) -> (usize, usize) {

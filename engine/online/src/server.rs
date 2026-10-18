@@ -264,6 +264,7 @@ impl GameServer {
         self.next_player += 1;
         let world = &mut self.maps[map];
         world.sim.add_saved_player_as(&save, hero);
+        world.sim.logged_in(hero);
         let front = &mut self.fronts[client.front];
         let welcome = Welcome {
             hero,

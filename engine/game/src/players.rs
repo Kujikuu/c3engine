@@ -57,6 +57,7 @@ impl Sim {
                 cooldowns: Default::default(),
                 statuses: Vec::new(),
                 pk_kills: 0,
+                timers: Vec::new(),
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),
@@ -230,6 +231,7 @@ impl Sim {
         p.mana = (p.mana + mana).min(p.stats.max_mana);
         take_one(&mut p.bag, slot);
         self.events.push(Event::Used { player: id, kind });
+        self.script_event(id, "on_use", vec![i64::from(kind).into()]);
     }
 
     /// Dresses the player in a new item of `kind` (starting gear); false if it isn't worn.

@@ -157,6 +157,8 @@ impl Sim {
             p.life = save.life.min(p.stats.max_life);
             p.mana = save.mana.min(p.stats.max_mana);
         }
+        let map = self.map_ids.first().copied().unwrap_or(0);
+        self.script_event(id, "on_enter", vec![i64::from(map).into()]);
     }
 
     /// Player `id` as stored.

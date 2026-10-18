@@ -979,3 +979,63 @@ fn monster_skills_and_bosses() {
     )));
     assert!(sim.player(hero).unwrap().life < sim.player(hero).unwrap().stats.max_life);
 }
+
+const EVENTS: &str = r#"
+fn on_login() {
+    message("Welcome back, " + player_name() + "!");
+    start_timer("bonus", 2);
+}
+
+fn on_enter(map) {
+    set_flag("map", map);
+}
+
+fn on_kill(monster) {
+    set_flag("kills", flag("kills") + 1);
+    set_flag("last", monster);
+}
+
+fn on_use(item) {
+    set_flag("used", item);
+}
+
+fn on_timer(name) {
+    if name == "bonus" { give_money(7); }
+}
+"#;
+
+#[test]
+fn the_events_script_hears_login_maps_kills_uses_and_timers() {
+    let dir = std::env::temp_dir().join(format!("c3-game-events-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("events.rhai"), EVENTS).unwrap();
+    let mut sim = Sim::new(
+        Grid::new(30, 30),
+        vec![],
+        vec![spawn(1, SLIME, (6, 5), (6, 5), 1)],
+        rules(),
+        7,
+    );
+    sim.set_map_ids(vec![4]);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![4]);
+    sim.advance(50);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    sim.logged_in(hero);
+    assert_eq!(sim.player(hero).unwrap().flags["map"], 4, "on_enter");
+    assert!(
+        sim.take_events()
+            .iter()
+            .any(|e| matches!(e, Event::Notice { text, .. } if text == "Welcome back, Hero!"))
+    );
+    let slime = sim.monsters().next().unwrap().id;
+    sim.attack(hero, slime);
+    sim.advance(10_000);
+    let p = sim.player(hero).unwrap();
+    assert_eq!((p.flags["kills"], p.flags["last"]), (1, i64::from(SLIME)));
+    assert_eq!(p.money, 7, "the timer ran out");
+    sim.give_items(hero, POTION, 1);
+    let item = sim.player(hero).unwrap().bag[0].id;
+    sim.use_item(hero, item);
+    assert_eq!(sim.player(hero).unwrap().flags["used"], i64::from(POTION));
+    std::fs::remove_dir_all(dir).ok();
+}

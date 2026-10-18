@@ -216,6 +216,24 @@ fn world(engine: &mut Engine, shared: &Shared) {
             c.effects.push(Effect::Teleport { map, cell: (x, y) })
         })
     });
+    let s = shared.clone();
+    engine.register_fn("start_timer", move |name: &str, seconds: f64| {
+        with(&s, |c| {
+            c.effects.push(Effect::StartTimer {
+                name: name.to_owned(),
+                seconds,
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("start_timer", move |name: &str, seconds: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::StartTimer {
+                name: name.to_owned(),
+                seconds: seconds as f64,
+            })
+        })
+    });
 }
 
 fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {

@@ -100,7 +100,7 @@ impl Sim {
 
     /// Carries out a dialogue step: the player takes the script's changes, its effects
     /// become events, and the next page (if any) opens.
-    fn after_step(
+    pub(crate) fn after_step(
         &mut self,
         id: EntityId,
         npc: u32,
@@ -189,11 +189,12 @@ impl Sim {
             Effect::QuestTaken { name, .. } => notice(self, format!("Quest taken: {name}")),
             Effect::QuestDone { name, .. } => notice(self, format!("Quest complete: {name}")),
             Effect::Log(text) => self.events.push(Event::ScriptLog(text)),
+            Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
         }
     }
 
     /// The player as scripts see it.
-    fn player_state(&self, id: EntityId) -> PlayerState {
+    pub(crate) fn player_state(&self, id: EntityId) -> PlayerState {
         let Some(p) = self.players.get(&id) else {
             return PlayerState::default();
         };
