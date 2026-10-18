@@ -42,7 +42,10 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] Puzzle ground + map layers (classic iso): cover sprites + terrain prefabs from ANI with the
       classic footprint draw order (`c3_scene::draw_order`), frame animation, parallax sky/water layers
       with scroll; engine `SpriteSet`/`Prefab` assets, `c3_render::{objects, parallax}` behind `SceneAssets`
-- [ ] Skinned C3 meshes with armor/weapon/mount layering
+- [x] Skinned C3 meshes with armor/weapon layering: actors in the 2D world (classic role transform +
+      ortho camera, painter's order with map objects via depth slices); Conquer character assembly
+      (`games/conquer::character`: armor/armet(hair)/weapon tables, weapon family, body + weapon
+      motions with fallbacks, socket attachment `Role·Bone0`). Mounts: Mount.ini is a stub in 5065
 - [ ] Effects / particles
 - [ ] Map + character viewer app
 

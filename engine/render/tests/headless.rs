@@ -87,6 +87,7 @@ fn draws_textured_sprite_and_lit_mesh() {
         texture: None,
         transform: Mat4::IDENTITY,
         tint: [1.0; 4],
+        group: None,
     }];
 
     let mut target = None;
@@ -140,6 +141,7 @@ fn painter_order_beats_depth_between_meshes() {
         texture: Some(t),
         transform: Mat4::IDENTITY,
         tint: [1.0; 4],
+        group: None,
     };
     let meshes = [mesh(&near, red), mesh(&far, green)];
     let mut target = None;
@@ -161,5 +163,56 @@ fn painter_order_beats_depth_between_meshes() {
     assert!(
         c[1] > 200 && c[0] == 0,
         "expected the lit green mesh in front, got {c:?}"
+    );
+}
+
+/// Meshes of one group (e.g. a body and its weapon) occlude each other by real depth.
+#[test]
+fn same_group_meshes_use_real_depth() {
+    use c3_render::DrawCmd;
+    let Some(mut r) = renderer() else {
+        eprintln!("no GPU adapter, skipping");
+        return;
+    };
+    let queue = r.queue().clone();
+    let red = r.upload_texture(&Image::new(1, 1, vec![255, 0, 0, 255]));
+    let green = r.upload_texture(&Image::new(1, 1, vec![0, 255, 0, 255]));
+    let quad = |z: f32| {
+        [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[x, y]| MeshVertex {
+            position: [x, y, z],
+            normal: [0.0, 0.0, -1.0],
+            uv: [0.0, 0.0],
+        })
+    };
+    let (near, far) = (quad(0.2), quad(0.8));
+    let idx = [0u32, 1, 2, 0, 2, 3];
+    let mesh = |v, t| MeshDraw {
+        vertices: v,
+        indices: &idx,
+        texture: Some(t),
+        transform: Mat4::IDENTITY,
+        tint: [1.0; 4],
+        group: Some(7),
+    };
+    let meshes = [mesh(&near, red), mesh(&far, green)];
+    let mut target = None;
+    r.ensure_target(&mut target, [8, 8]);
+    let target = target.unwrap();
+    // Far green is drawn last but shares the group, so the near red one stays in front.
+    let order = [DrawCmd::Mesh(0), DrawCmd::Mesh(1)];
+    r.render(
+        &target,
+        &Frame {
+            clear: [0.0; 4],
+            meshes: &meshes,
+            order: &order,
+            ..Default::default()
+        },
+    );
+    let px = read_pixels(&r, &target, &queue);
+    let c = &px[(4 * 8 + 4) * 4..][..4];
+    assert!(
+        c[0] > 200 && c[1] == 0,
+        "expected the near red mesh in front, got {c:?}"
     );
 }

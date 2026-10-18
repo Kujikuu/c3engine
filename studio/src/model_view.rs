@@ -160,6 +160,7 @@ pub fn show(
             texture,
             transform: Mat4::IDENTITY,
             tint: [1.0; 4],
+            group: Some(0),
         })
         .collect();
 

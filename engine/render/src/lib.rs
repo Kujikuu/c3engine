@@ -161,13 +161,19 @@ impl Renderer {
         } else {
             frame.order
         };
-        // The k-th mesh in painter's order gets depth slice k of n; later = nearer.
+        // The k-th mesh (or run of same-group meshes) in painter's order gets depth slice k
+        // of n; later = nearer.
         let mut rank = vec![0usize; frame.meshes.len()];
         let mut n = 0;
+        let mut previous_group = None;
         for cmd in order {
             if let DrawCmd::Mesh(i) = cmd {
-                rank[*i as usize] = n;
-                n += 1;
+                let group = frame.meshes[*i as usize].group;
+                if group.is_none() || group != previous_group {
+                    n += 1;
+                }
+                previous_group = group;
+                rank[*i as usize] = n - 1;
             }
         }
         let slice = 1.0 / n.max(1) as f32;

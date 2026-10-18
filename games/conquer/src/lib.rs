@@ -3,12 +3,21 @@
 //!
 //! [`Content`] opens a 5065 client folder and hands out engine types (scenes, models, images).
 
+pub mod character;
+
+use c3_anim::Clip;
 use c3_assets::Image;
 use c3_assets::model::Model;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_formats_tq::{
-    ani::Ani, c3::C3File, gamemap::GameMapCatalog, ini::PathTable, model_io, scene::TerrainObject,
-    scene_io, sprite_io, texture, vfs::ClientFs,
+    ani::Ani,
+    c3::C3File,
+    gamemap::GameMapCatalog,
+    ini::{Ini, PartTable, PathTable},
+    model_io,
+    scene::TerrainObject,
+    scene_io, sprite_io, texture,
+    vfs::ClientFs,
 };
 use c3_scene::Scene;
 use std::path::{Path, PathBuf};
@@ -20,10 +29,55 @@ pub struct Content {
     pub root: PathBuf,
     fs: ClientFs,
     catalog: GameMapCatalog,
-    /// `ini/3dobj.ini`: model id → C3 path.
+    tables: Tables,
+}
+
+/// Lookup tables from `ini/`.
+#[derive(Default)]
+struct Tables {
+    /// `3dobj.ini`: model id → C3 path.
     objects: PathTable,
-    /// `ini/3dtexture.ini`: texture id → image path.
+    /// `3dtexture.ini`: texture id → image path.
     textures: PathTable,
+    /// `3dmotion.ini`: body motion id → C3 path.
+    motions: PathTable,
+    /// `WeaponMotion.ini`: weapon motion id → C3 path.
+    weapon_motions: PathTable,
+    armor: PartTable,
+    armet: PartTable,
+    weapon: PartTable,
+    /// Socket part names (`RolePart.ini [Dumy]`), never drawn.
+    sockets: Vec<String>,
+}
+
+impl Tables {
+    fn load(fs: &ClientFs) -> Self {
+        let bytes = |name: &str| {
+            fs.read(&format!("ini/{name}"))
+                .map(|b| b.into_owned())
+                .unwrap_or_default()
+        };
+        let sockets = Ini::parse(&bytes("RolePart.ini"))
+            .section("Dumy")
+            .map(|s| {
+                s.entries
+                    .iter()
+                    .filter(|(k, _)| k.starts_with("Dumy"))
+                    .map(|(_, v)| v.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self {
+            objects: PathTable::parse(&bytes("3dobj.ini")),
+            textures: PathTable::parse(&bytes("3dtexture.ini")),
+            motions: PathTable::parse(&bytes("3dmotion.ini")),
+            weapon_motions: PathTable::parse(&bytes("WeaponMotion.ini")),
+            armor: PartTable::parse(&bytes("armor.ini")),
+            armet: PartTable::parse(&bytes("armet.ini")),
+            weapon: PartTable::parse(&bytes("weapon.ini")),
+            sockets,
+        }
+    }
 }
 
 impl Content {
@@ -36,18 +90,12 @@ impl Content {
             .transpose()
             .map_err(|e| format!("ini/GameMap.dat: {e}"))?
             .unwrap_or_default();
-        let table = |name: &str| {
-            fs.read(&format!("ini/{name}"))
-                .map(|b| PathTable::parse(&b))
-                .unwrap_or_default()
-        };
-        let (objects, textures) = (table("3dobj.ini"), table("3dtexture.ini"));
+        let tables = Tables::load(&fs);
         Ok(Self {
             root,
             fs,
             catalog,
-            objects,
-            textures,
+            tables,
         })
     }
 
@@ -79,16 +127,35 @@ impl Content {
     /// `3dtexture.ini` (true for NPCs and monsters; equipment uses the part tables).
     pub fn load_model(&self, id: u64) -> Result<(Model, Option<String>), String> {
         let path = self
+            .tables
             .objects
             .get(id)
             .ok_or_else(|| format!("model {id} is not in 3dobj.ini"))?;
+        let mut model = self.load_model_path(path)?;
+        model.mark_sockets(
+            &self
+                .tables
+                .sockets
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+        );
+        Ok((model, self.tables.textures.get(id).map(str::to_owned)))
+    }
+
+    /// Loads a C3 model file (its embedded motion becomes the default animation).
+    pub fn load_model_path(&self, path: &str) -> Result<Model, String> {
         let bytes = self
             .fs
             .read(path)
             .ok_or_else(|| format!("file not found: {path}"))?;
         let file = C3File::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
-        let model = model_io::import_model(&file).map_err(|e| format!("{path}: {e}"))?;
-        Ok((model, self.textures.get(id).map(str::to_owned)))
+        model_io::import_model(&file).map_err(|e| format!("{path}: {e}"))
+    }
+
+    /// Loads a motion file's clips (one per model part, by index).
+    pub fn load_motion(&self, path: &str) -> Option<Vec<Clip>> {
+        model_io::import_motion(&C3File::parse(&self.fs.read(path)?).ok()?).ok()
     }
 
     /// Camera tilt for 3D actors in degrees: the 7th field of `ini/graphic.ini`

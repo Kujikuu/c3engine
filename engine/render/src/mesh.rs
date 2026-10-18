@@ -22,6 +22,9 @@ pub struct MeshDraw<'a> {
     /// Model → world transform.
     pub transform: Mat4,
     pub tint: [f32; 4],
+    /// Meshes with the same group that are consecutive in painter's order share one depth
+    /// slice, so they occlude each other by real depth (e.g. a body and its weapon).
+    pub group: Option<u32>,
 }
 
 #[repr(C)]

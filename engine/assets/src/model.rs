@@ -59,11 +59,55 @@ pub struct SkinnedMesh {
 pub struct ModelPart {
     pub mesh: SkinnedMesh,
     pub clip: Option<Clip>,
+    /// False for socket ("dummy") parts: animated attachment points that are never drawn.
+    pub visible: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Model {
     pub parts: Vec<ModelPart>,
+}
+
+impl Model {
+    pub fn part(&self, name: &str) -> Option<&ModelPart> {
+        self.parts
+            .iter()
+            .find(|p| p.mesh.name.eq_ignore_ascii_case(name))
+    }
+
+    /// Replaces part clips with `clips`, matched by part index (a motion file holds one
+    /// clip per part). Parts beyond `clips` keep their clip.
+    pub fn apply_motion(&mut self, clips: &[Clip]) {
+        for (part, clip) in self.parts.iter_mut().zip(clips) {
+            part.clip = Some(clip.clone());
+        }
+    }
+
+    /// Hides parts whose names are in `sockets` (case-insensitive).
+    pub fn mark_sockets(&mut self, sockets: &[&str]) {
+        for p in &mut self.parts {
+            if sockets.iter().any(|s| s.eq_ignore_ascii_case(&p.mesh.name)) {
+                p.visible = false;
+            }
+        }
+    }
+
+    /// Longest clip length in frames (0 if static).
+    pub fn frame_count(&self) -> u32 {
+        self.parts
+            .iter()
+            .filter_map(|p| p.clip.as_ref())
+            .map(|c| c.frame_count)
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Model-space transform of socket `name` at `frame`: bone 0 of its clip
+    /// (C3 `GetVirtualMotion` + `SetVirtualMotion`). Attach a child with `parent * socket`.
+    pub fn socket_transform(&self, name: &str, frame: f32) -> Option<Mat4> {
+        let clip = self.part(name)?.clip.as_ref()?;
+        Some(clip.sample_bone(0, frame))
+    }
 }
 
 impl SkinnedMesh {

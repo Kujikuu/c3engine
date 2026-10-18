@@ -1,6 +1,7 @@
 //! C3 Client: the game runtime window.
 //! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002] [--cell x,y] [--zoom 1.0]
-//!                   [--actor <3dobj id> [--dir 0-7]]
+//!                   [--actor <3dobj id> | --player look,hair,armor,armet,rweapon,lweapon]
+//!                   [--action 100] [--dir 0-7]
 //!
 //! Controls: drag or WASD/arrows to pan · wheel to zoom · F to fit · 1 for 100% · Q/E turn the actor ·
 //! Esc to quit.
@@ -12,6 +13,7 @@ mod world;
 
 use camera::Camera2d;
 use game_conquer::Content;
+use game_conquer::character::{Look, action};
 use glam::Vec2;
 use std::sync::Arc;
 use std::time::Instant;
@@ -216,6 +218,9 @@ struct Args {
     zoom: Option<f32>,
     /// Model id (3dobj.ini) of an actor to place at the start cell.
     actor: Option<u64>,
+    /// Player look + equipment to assemble at the start cell.
+    player: Option<Look>,
+    action: u32,
     direction: u8,
 }
 
@@ -241,8 +246,29 @@ fn parse_args() -> Args {
         }),
         zoom: flag("--zoom").and_then(|v| v.parse().ok()),
         actor: flag("--actor").and_then(|v| v.parse().ok()),
+        player: flag("--player").and_then(|v| parse_look(&v)),
+        action: flag("--action")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(action::STANDBY),
         direction: flag("--dir").and_then(|v| v.parse().ok()).unwrap_or(0),
     }
+}
+
+/// `look,hair,armor,armet,rweapon,lweapon` (trailing fields may be omitted).
+fn parse_look(v: &str) -> Option<Look> {
+    let n: Vec<u32> = v
+        .split(',')
+        .map(|f| f.trim().parse().ok())
+        .collect::<Option<_>>()?;
+    let at = |i: usize| n.get(i).copied().unwrap_or(0);
+    Some(Look {
+        look: at(0),
+        hair: at(1),
+        armor: at(2),
+        armet: at(3),
+        r_weapon: at(4),
+        l_weapon: at(5),
+    })
 }
 
 fn load_world(args: &Args) -> Result<World, String> {
@@ -265,20 +291,34 @@ fn load_world(args: &Args) -> Result<World, String> {
 
 fn main() {
     let args = parse_args();
-    let world = load_world(&args).unwrap_or_else(|e| {
+    let mut world = load_world(&args).unwrap_or_else(|e| {
         eprintln!("error: {e}");
         std::process::exit(1);
     });
-    let mut world = world;
-    if let Some(id) = args.actor {
-        let g = &world.scene.grid;
-        let cell = args
-            .cell
-            .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
-        match actors::Actor::load(&world.content, id, cell, args.direction) {
-            Ok(a) => world.actors.push(a),
-            Err(e) => eprintln!("warning: actor {id}: {e}"),
-        }
+    let g = &world.scene.grid;
+    let cell = args
+        .cell
+        .unwrap_or((g.width as i32 / 2, g.height as i32 / 2));
+    let actor = match (&args.player, args.actor) {
+        (Some(look), _) => Some(actors::Actor::from_look(
+            &world.content,
+            look,
+            args.action,
+            cell,
+            args.direction,
+        )),
+        (None, Some(id)) => Some(actors::Actor::from_model(
+            &world.content,
+            id,
+            cell,
+            args.direction,
+        )),
+        (None, None) => None,
+    };
+    match actor {
+        Some(Ok(a)) => world.actors.push(a),
+        Some(Err(e)) => eprintln!("warning: actor: {e}"),
+        None => {}
     }
     let start = args.cell.map(|c| Vec2::from(world.scene.cell_to_world(c)));
     let event_loop = EventLoop::new().expect("event loop");

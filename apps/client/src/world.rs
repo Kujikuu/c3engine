@@ -3,7 +3,7 @@
 //! Each frame: [`World::prepare`] builds sprites, posed actor meshes and the painter's
 //! order; [`World::mesh_draws`] + [`World::frame`] then describe it to the renderer.
 
-use crate::actors::Actor;
+use crate::actors::{Actor, PartRef};
 use crate::camera::Camera2d;
 use c3_render::actor::actor_view;
 use c3_render::ground::{self, GroundCache};
@@ -24,7 +24,7 @@ const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 /// One posed actor part for this frame.
 struct PosedMesh {
     actor: usize,
-    part: usize,
+    part: PartRef,
     vertices: Vec<MeshVertex>,
     texture: Option<TextureId>,
     transform: Mat4,
@@ -146,11 +146,13 @@ impl World {
                 },
                 ObjectDraw::Actor(a) => {
                     let a = a as usize;
-                    let transform = self.actors[a].pose(&self.scene, self.tilt_deg).transform();
-                    let texture = self.actors[a].texture(renderer, &self.content);
-                    for part in 0..self.actors[a].part_count() {
+                    let role = self.actors[a].pose(&self.scene, self.tilt_deg).transform();
+                    for part in self.actors[a].drawables() {
                         self.order.push(DrawCmd::Mesh(self.posed.len() as u32));
-                        let vertices = self.actors[a].posed_part(part, secs);
+                        let actor = &mut self.actors[a];
+                        let texture = actor.texture(part, renderer, &self.content);
+                        let vertices = actor.posed(part, secs);
+                        let transform = actor.transform(part, role, secs);
                         self.posed.push(PosedMesh {
                             actor: a,
                             part,
@@ -175,6 +177,7 @@ impl World {
                 texture: p.texture,
                 transform: p.transform,
                 tint: [1.0; 4],
+                group: Some(p.actor as u32),
             })
             .collect()
     }

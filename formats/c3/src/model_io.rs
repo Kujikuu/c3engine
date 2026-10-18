@@ -19,9 +19,16 @@ pub fn import_model(file: &C3File) -> Result<Model> {
         .map(|m| ModelPart {
             mesh: mesh_from_phy(m),
             clip: motions.next().as_ref().map(clip_from_motion),
+            visible: true,
         })
         .collect();
     Ok(Model { parts })
+}
+
+/// Every motion in a C3 file as clips, in part order (a motion file drives the parts of
+/// a model by index).
+pub fn import_motion(file: &C3File) -> Result<Vec<Clip>> {
+    Ok(file.motions()?.iter().map(clip_from_motion).collect())
 }
 
 pub fn clip_from_motion(m: &Motion) -> Clip {
