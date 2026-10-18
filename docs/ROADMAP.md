@@ -32,11 +32,9 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] Draw map scene objects (cover/scene sprites from ANI) so maps look complete
-- [ ] Character assembly in `games/conquer` (look + armor/armet/weapon parts + 3dmotion), previewed in Studio
-- [ ] Game client app (`apps/client`): winit window presenting `c3-render`, map + walking hero
+- [ ] M3 step 1: project system (create/open a game project; import Conquer 5065 into one)
 
-## M2: Renderer
+## M2: Renderer [~] (one item left)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
       content via `games/conquer::Content`; shared `c3_render::ground` streaming (180 fps on Twin City)
 - [x] Puzzle ground + map layers (classic iso): cover sprites + terrain prefabs from ANI with the
@@ -49,25 +47,36 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] Effects: engine `Effect` asset (layers of keyed meshes, baked particles, ribbon trails;
       per-layer texture + blend; delay/loop clock), TQ importer (`3DEffect.ini` + `3DEffectObj.ini`),
       `c3_render::effect` playback (billboards, camera-facing particles, 30 ms trail steps), blend-mode
-      pipelines; map effect entities play in the client, `--effect NAME` previews any effect.
-      Next: effects bound to actors (level-up, weapon trails on sockets) sharing the actor's depth
+      pipelines; map effect entities play in the client, `--effect NAME` previews any effect
 - [x] Map + character viewer app: `apps/client` hero (default player or `--player`/`--actor`)
       walks where you click: `c3_scene::path` A* (8 directions, blocked cells, climb ≤ 25,
       nearest-cell fallback), one cell per walk/run action eased over frames × `Action.dat`
       interval (walk 500 ms, run 200 ms per cell), R toggles run, camera follows (Space)
+- [ ] Effects bound to actors (level-up on the body, weapon trails on sockets), sharing the actor's
+      depth so they wrap around it
 
-## M3: Studio v1
+## M3: Studio, Unity-style editor (see VISION.md)
+Done so far:
 - [x] Studio shell (eframe/egui): toolbar, map list, inspector, status bar, theme, shortcuts
 - [x] Map viewer: streamed ground tiles at client-exact placement, cell grid, blocked cells,
       portals (jump-to), objects, hover inspector, fit/zoom/pan
 - [x] Map editing: Block / Walkable brush (1–21 cells), portal add/move/delete, undo/redo
       (strokes merge into one step), Save (Ctrl+S) with atomic write + first-save `.bak`,
       unsaved-changes guard on map switch and quit
-- [ ] Draw scene objects (cover/scene ANI sprites) so maps look complete
-- [ ] Project system (open/save game project)
-- [ ] Asset browser (packages, textures, models)
-- [ ] Map editor (cells, objects, portals, export DMap + Redux tinymap/SQL)
-- [ ] Model / animation viewer
+- [x] Models workspace: skinned model preview through `c3-render`
+
+Toward the Unity-style editor, in order:
+- [ ] (1) Project system: create/open a game project folder (manifest, asset folders, recent
+      projects, welcome screen); "Import from Conquer 5065 client" creates a Conquer project
+- [ ] (2) Native asset formats the project stores (scene, model, effect, sprite set; unencrypted,
+      readable), with the TQ importers/exporters as converters
+- [ ] (3) Asset browser: folders, search, thumbnails, live preview of models, effects, sprites, maps
+- [ ] (4) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
+      as the client does
+- [ ] (5) Scene editor: place/move/delete objects, effects, NPCs, monsters and portals; inspector for
+      the selection; undo/redo; export DMap + Redux data
+- [ ] (6) Play mode: run the game inside the Studio from the current map, stop to return to editing
+- [ ] (7) Model / animation / effect viewers: actions, sockets, equipment, timeline
 
 ## M4: Conquer game module
 - [ ] 5065 cipher + packet framework
@@ -81,5 +90,6 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [ ] Prove generality: a tiny second sample game
 
 ## M6: Ship
-- [ ] Asset packaging, client build, launcher/patcher
+- [ ] Build from the Studio: package a playable client (and server data) from a project
+- [ ] Launcher/patcher
 - [ ] glTF import/export (Blender pipeline) for models + animations
