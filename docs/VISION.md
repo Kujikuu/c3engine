@@ -22,6 +22,8 @@ characters, effects, cell-based movement, client/server play). Full 3D is not a 
 - **Ship:** build the client and server from the project in one step.
 
 ## The Studio, Unity/UE5-style
+Native (egui), laid out and styled like Unity's editor: dockable Hierarchy, Scene, Game,
+Inspector, Project and Console panels, a menu bar and a Play/Pause/Step toolbar.
 - **Projects:** each game is a project folder with its own assets, tables and scripts. Like
   Unity, files put in `assets/` are used as they are (importers per file type, no conversion);
   Conquer is imported by copying the 5065 client's content files into one.

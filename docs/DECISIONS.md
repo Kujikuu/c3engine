@@ -33,6 +33,8 @@ Append-only. Format: date · decision · why.
 
 - 2026-10-18 · **Assets the Unity way (user):** source files placed in the project's `assets/` folder are used as they are, by importers per file type; nothing is converted. Imported Conquer content is the client's own files (DMap, PUL, ANI, C3, DDS, WDF, ini/dat), and the Studio saves maps straight back to their DMap. This replaces the earlier "save client maps as native scenes in the project" behaviour; the native scene format remains for maps made in the engine.
 
+- 2026-10-18 · **Studio UI stays native egui, styled and laid out like Unity** (user choice over rebuilding it as a Leptos/rust-ui web app): docking panels (Hierarchy, Scene, Game, Inspector, Project, Console) via `egui_dock`, menu bar, Play/Pause/Step toolbar, crafted dark theme, icon set, polished widgets. rust-ui is Leptos (web) only, so it can't render inside egui; its clean look may inspire the theme · keeps the engine viewports native and fast.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

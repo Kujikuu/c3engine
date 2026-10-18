@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 4: asset browser over the project's `assets/` folder
+- [ ] M3 step 4: Unity-style editor shell (docking, menus, toolbar, theme, icons), then the Project panel
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -85,7 +85,10 @@ Toward the Unity/UE5-style editor, in order:
       saved straight to their DMap (`.bak` only for content used in place). The engine's own
       scene format (`c3_scene::native`, `.scene.ron` + `.scene.bin`, all 144 maps lossless) is for
       maps made in the engine. `c3-client --project <folder>` plays a project
-- [ ] (4) Asset browser: folders, search, thumbnails, live preview of models, effects, sprites, maps
+- [ ] (4) Unity-style editor shell: dockable panels (Hierarchy, Scene, Game, Inspector, Project,
+      Console) with saved layouts, menu bar, Play/Pause/Step toolbar, crafted dark theme, icons
+- [ ] (4b) Project panel (asset browser): folder tree, search, thumbnails, live preview of models,
+      effects, sprites, maps
 - [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
       as the client does
 - [ ] (6) Scene editor: place/move/delete objects, effects, NPCs, monster spawns and portals;
