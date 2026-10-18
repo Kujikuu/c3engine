@@ -4,7 +4,7 @@
 
 use crate::icons;
 use crate::style;
-use crate::{GameView, item_name};
+use crate::{GameView, UiAction, item_name};
 use c3_game::{EntityId, Event, Player, Task};
 use egui::{Color32, FontId, Pos2, Rect};
 
@@ -154,7 +154,13 @@ fn labelled_meter(
 }
 
 /// The bottom bar: level, life, mana, experience, money and the bag button.
-pub(crate) fn bar(ui: &mut egui::Ui, view: &GameView, p: &Player, bag_open: &mut bool) {
+pub(crate) fn bar(
+    ui: &mut egui::Ui,
+    view: &GameView,
+    p: &Player,
+    bag_open: &mut bool,
+    actions: &mut Vec<UiAction>,
+) {
     let rect = view.rect;
     let area = Rect::from_center_size(
         egui::pos2(rect.center().x, rect.bottom() - 34.0),
@@ -252,6 +258,22 @@ pub(crate) fn bar(ui: &mut egui::Ui, view: &GameView, p: &Player, bag_open: &mut
         .clicked()
     {
         *bag_open ^= true;
+    }
+    // The sound toggle, when there is sound.
+    if let Some(on) = view.sound {
+        let at = Rect::from_min_size(
+            egui::pos2(area.right() - 30.0, area.top() + 4.0),
+            egui::vec2(22.0, 18.0),
+        );
+        let (icon, hint) = if on {
+            (icons::SPEAKER_HIGH, "Sound on (click to mute)")
+        } else {
+            (icons::SPEAKER_X, "Sound muted (click to unmute)")
+        };
+        let button = egui::Button::new(egui::RichText::new(icon).size(13.0)).frame(false);
+        if ui.put(at, button).on_hover_text(hint).clicked() {
+            actions.push(UiAction::ToggleSound);
+        }
     }
 }
 

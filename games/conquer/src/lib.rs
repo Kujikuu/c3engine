@@ -11,6 +11,7 @@ pub mod screen;
 pub mod server_data;
 pub mod session;
 pub mod sim_view;
+pub mod sound;
 pub mod world;
 
 use c3_anim::Clip;
@@ -72,6 +73,7 @@ struct Tables {
     action_effects: [HashMap<u64, String>; 3],
     /// `Monster.dat` (encrypted): monster type id → drawing size in percent.
     monster_zoom: HashMap<u32, u32>,
+    sounds: sound::SoundTables,
 }
 
 impl Tables {
@@ -112,6 +114,11 @@ impl Tables {
             ]
             .map(|name| character::parse_action_effects(&bytes(name))),
             monster_zoom: monster_zoom(&bytes("Monster.dat")),
+            sounds: sound::SoundTables::parse(
+                &bytes("ActionSound.ini"),
+                &bytes("MediaEffect.ini"),
+                &bytes("MusicRegion.ini"),
+            ),
         }
     }
 }

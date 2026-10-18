@@ -7,6 +7,7 @@ use crate::Content;
 use crate::character::DEFAULT_HERO;
 use crate::rules::{ConquerRules, SLOT_NAMES};
 use crate::sim_view::SimView;
+use crate::sound::GameAudio;
 use crate::world::World;
 use c3_game::{EntityId, Event, Rules, Sim};
 use c3_render::camera::Camera2d;
@@ -29,6 +30,8 @@ const START_SEARCH: i32 = 50;
 const HEAD_HEIGHT: f32 = 110.0;
 /// Effect marking where the player clicked to walk.
 const CLICK_EFFECT: &str = "mouse";
+/// Effect played on the hero when it rises a level.
+const LEVEL_UP: &str = "LevelUp";
 
 /// Where a session finds the project's game and where the hero starts.
 pub struct SessionSetup {
@@ -69,6 +72,7 @@ pub struct Session {
     view: SimView,
     ui: GameUi,
     icons: ItemIcons,
+    audio: GameAudio,
     log: Vec<LogLine>,
 }
 
@@ -103,7 +107,7 @@ impl Session {
             setup.seed,
         );
         if let Some(dir) = setup.scripts {
-            sim.set_scripts(ScriptHost::new(dir, setup.tables), setup.map_ids);
+            sim.set_scripts(ScriptHost::new(dir, setup.tables), setup.map_ids.clone());
         }
         let hero = sim.add_player("Hero", start, 1);
         sim.set_money(hero, START_MONEY);
@@ -122,6 +126,7 @@ impl Session {
                 log.push(LogLine::Error(text));
             }
         }
+        let audio = GameAudio::new(content.clone(), setup.map_ids.clone());
         let mut world = World::new(content.clone(), map_path, scene);
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
@@ -136,6 +141,7 @@ impl Session {
             view,
             ui,
             icons: ItemIcons::new(content),
+            audio,
             log,
         })
     }
@@ -218,8 +224,28 @@ impl Session {
         let events = self.sim.take_events();
         self.view.apply(&events, &self.sim, &mut self.world);
         self.ui.events(&events, &self.sim, self.hero, now);
+        self.audio.events(&events, &self.sim, self.hero);
+        self.audio.update(&self.sim, self.hero, now);
+        self.hero_effects(&events);
         self.world.advance(seconds);
         self.world.tick();
+    }
+
+    /// Effects on the hero for what happened to it: a potion's glow, a level up.
+    fn hero_effects(&mut self, events: &[Event]) {
+        for event in events {
+            let effect = match *event {
+                Event::Used { player, kind } if player == self.hero => {
+                    self.world.content.item_use_media(kind).0.map(str::to_owned)
+                }
+                Event::LeveledUp { player, .. } if player == self.hero => Some(LEVEL_UP.to_owned()),
+                _ => None,
+            };
+            // Decoration: a client without the effect still plays.
+            if let Some(name) = effect {
+                let _ = self.world.hero_effect(&name, false);
+            }
+        }
     }
 
     /// Draws the in-game UI over the game view and carries out what the player asks.
@@ -237,6 +263,7 @@ impl Session {
             cell: &cell,
             hovered,
             slots: SLOT_NAMES,
+            sound: self.audio.muted().map(|m| !m),
         };
         let actions = self.ui.show(ui, &view, &mut self.icons);
         for action in actions {
@@ -254,6 +281,7 @@ impl Session {
             UiAction::CloseShop => self.sim.close_shop(hero),
             UiAction::Use(item) => self.sim.use_item(hero, item),
             UiAction::Unequip(item) => self.sim.unequip(hero, item),
+            UiAction::ToggleSound => self.audio.toggle_muted(),
             UiAction::Say(text) if text.starts_with('/') => match self.sim.command(hero, &text) {
                 Ok(answer) => self.ui.system(answer, style::GOOD),
                 Err(why) => self.ui.system(why, style::WARN),

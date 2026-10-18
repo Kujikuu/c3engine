@@ -11,7 +11,7 @@ c3engine/
     net/       transport (tokio), packet codec framework, cipher trait, prediction
     ui/        c3-ui: in-game UI on egui (HUD, chat, bag + equipment, shop, NPC dialogue,
                world overlays); returns UiActions; owns the shared icon font
-    audio/     sound/music playback
+    audio/     c3-audio (rodio): one-shot sounds with distance falloff, music, music regions
     script/    Rhai script host: sandboxed, hot reload, NPC dialogue API, editor diagnostics
     project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
                sources, recent projects)

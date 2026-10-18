@@ -40,6 +40,8 @@ pub enum UiAction {
     Unequip(u32),
     /// A chat line (commands start with `/`).
     Say(String),
+    /// Mute or unmute the game's sound.
+    ToggleSound,
 }
 
 /// A line for the host's console (script output, data problems).
@@ -69,6 +71,8 @@ pub struct GameView<'a> {
     pub hovered: Option<EntityId>,
     /// The game's equipment slots and their names, in display order.
     pub slots: &'a [(u8, &'a str)],
+    /// Whether sound is on; `None` when there is no sound device.
+    pub sound: Option<bool>,
 }
 
 impl GameView<'_> {
@@ -153,7 +157,7 @@ impl GameUi {
         if bag_key && free_keys {
             self.bag_open ^= true;
         }
-        hud::bar(ui, view, player, &mut self.bag_open);
+        hud::bar(ui, view, player, &mut self.bag_open, &mut actions);
         self.chat.show(ui, view.rect, &mut actions);
         let shop = player.shop;
         if let Some(npc) = shop {

@@ -34,7 +34,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 ## Next
 Order set by the user (2026-10-18): finish M3, then M5 and M6; AI integration (was M4) moves to
 the end as M8.
-- [ ] M5 step 5: audio (see M5 below)
+- [ ] M5 step 6: quest and dialogue editor (see M5 below)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -144,7 +144,7 @@ In order; each step is playable in the Studio's Play mode:
       `games/conquer` (TQ formulas); Play mode becomes a view of the simulation
 - [x] (4) Game UI: `engine/ui` HUD (HP/MP/exp), inventory, NPC dialogue, shop, chat windows in
       the client and the Game view
-- [ ] (5) Audio: `engine/audio` music regions, action and effect sounds
+- [x] (5) Audio: `engine/audio` music regions, action and effect sounds
 - [ ] (6) Quest and dialogue editor: visual dialogue graphs, quest table, scripts generated
 
 ## M6: Networking + engine server

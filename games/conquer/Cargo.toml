@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 c3-anim = { version = "0.1.0", path = "../../engine/anim" }
 c3-assets = { version = "0.1.0", path = "../../engine/assets" }
+c3-audio = { version = "0.1.0", path = "../../engine/audio" }
 c3-data = { version = "0.1.0", path = "../../engine/data" }
 c3-formats-tq = { version = "0.1.0", path = "../../formats/c3" }
 c3-game = { version = "0.1.0", path = "../../engine/game" }
