@@ -18,6 +18,8 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · Engine animation sampling defaults to the **classic C3 behaviour** (linear matrix blend, matching the original look). SRT/slerp sampling (the client's Enhanced mode) comes later as an option.
 - 2026-10-18 · Imported mesh positions are stored **already bound** (bind matrix applied, as the client does). `bind_pose` is kept for a future exporter.
 
+- 2026-10-18 · **The engine never encrypts or obfuscates its own files** (user decision). TQ ciphers (XorRot, the +6 shift, the LevelExp XOR) live only in `formats/c3`: decrypt on import, encrypt only when exporting back to the original 5065 client.
+
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.
 - Scripting: Rhai (pure Rust) vs Lua (`mlua`).

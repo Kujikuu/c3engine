@@ -677,3 +677,123 @@ fn text_dat_tables_parse_as_ini() {
         eprintln!("{name}: {} sections", ini.sections.len());
     }
 }
+
+/// Encrypted tables decrypt to clean text, re-encrypt byte-exact, and parse.
+#[test]
+fn encrypted_dat_tables_decrypt_and_parse() {
+    use c3_formats_tq::{cipher, dat, ini::Ini};
+    let Some(dir) = client_dir() else { return };
+    let read = |n: &str| std::fs::read(dir.join("ini").join(n)).unwrap();
+    for (name, seed) in [
+        ("itemtype.dat", cipher::SEED_DATA),
+        ("Monster.dat", cipher::SEED_DATA),
+        ("MapDestination.dat", cipher::SEED_DATA),
+        ("UserHelpInfo.dat", cipher::SEED_DATA),
+        ("UserHelpInfo.ini.dat", cipher::SEED_DATA),
+        ("levexp.dat", cipher::SEED_LEVEXP),
+    ] {
+        let raw = read(name);
+        let plain = cipher::decrypt(&raw, seed);
+        assert!(!plain.contains(&0), "{name}: decrypted text contains NUL");
+        assert_eq!(
+            cipher::encrypt(&plain, seed),
+            raw,
+            "{name}: re-encrypt differs"
+        );
+    }
+    let items =
+        dat::ItemTypeTable::parse(&cipher::decrypt(&read("itemtype.dat"), cipher::SEED_DATA))
+            .unwrap();
+    let monsters = Ini::parse(&cipher::decrypt(&read("Monster.dat"), cipher::SEED_DATA));
+    let help = Ini::parse(&cipher::decrypt(
+        &read("UserHelpInfo.dat"),
+        cipher::SEED_DATA,
+    ));
+    let dests = Ini::parse(&cipher::decrypt(
+        &read("MapDestination.dat"),
+        cipher::SEED_DATA,
+    ));
+    let lev = dat::LevExpTable::parse(&cipher::decrypt(&read("levexp.dat"), cipher::SEED_LEVEXP));
+    assert!(
+        monsters
+            .sections
+            .iter()
+            .all(|s| s.name.is_empty() || s.get("TypeID").is_some()),
+        "monster without TypeID"
+    );
+    let amount: usize = help
+        .section("Header")
+        .and_then(|h| h.get_parsed("HelpInfoAmount"))
+        .unwrap();
+    assert_eq!(
+        lev.rows[0],
+        dat::LevExp {
+            level: 1,
+            exp_needed: 120,
+            minutes: 2
+        }
+    );
+    eprintln!(
+        "itemtype rows {} · monsters {} · help {amount} · destinations {} · levexp rows {}",
+        items.rows.len(),
+        monsters.sections.len(),
+        dests.sections.len(),
+        lev.rows.len()
+    );
+}
+
+#[test]
+fn binary_dat_tables_round_trip() {
+    use c3_formats_tq::dat;
+    let Some(dir) = client_dir() else { return };
+    let read = |n: &str| std::fs::read(dir.join("ini").join(n)).unwrap();
+
+    let raw = read("MagicType.dat");
+    let magic = dat::MagicTypeTable::parse(&raw).unwrap();
+    assert_eq!(magic.to_bytes(), raw);
+    let thunder = &magic.records[0];
+    assert_eq!(
+        (thunder.id, thunder.name.as_str().as_str()),
+        (1000, "Thunder")
+    );
+    assert_eq!(
+        magic
+            .get(1000, thunder.field("Level").unwrap())
+            .map(|m| m.id),
+        Some(1000)
+    );
+
+    let raw = read("Action.dat");
+    let actions = dat::ActionTable::parse(&raw).unwrap();
+    assert_eq!(actions.to_bytes(), raw);
+
+    let raw = read("AutoAllot.dat");
+    let allot = dat::AutoAllotTable::parse(&raw).unwrap();
+    assert_eq!(allot.to_bytes(), raw);
+    assert_eq!(
+        allot.get(10, 1),
+        Some(dat::Allot {
+            force: 5,
+            speed: 2,
+            health: 3,
+            soul: 0
+        })
+    );
+
+    let raw = read("Tips.dat");
+    let tips = dat::TipsFile::parse(&raw).unwrap();
+    assert_eq!(tips.to_bytes(), raw);
+
+    let legacy = dat::decode_legacy_level_exp(&read("LevelExp.dat"));
+    assert_eq!(&legacy[..4], &[120, 180, 240, 360]);
+    eprintln!(
+        "magic {} · actions {} · allot {}x{} · tips {} (first: {:?}) · legacy levelexp {}",
+        magic.records.len(),
+        actions.entries.len(),
+        allot.professions.len(),
+        allot.levels,
+        tips.records.len(),
+        dat::TipsFile::string(&tips.records[0][0]),
+        legacy.len()
+    );
+}

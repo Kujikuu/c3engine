@@ -2,6 +2,8 @@
 
 pub mod ani;
 pub mod c3;
+pub mod cipher;
+pub mod dat;
 pub mod dmap;
 pub mod gamemap;
 pub mod hash;

@@ -7,17 +7,23 @@ Sources: `D:\Conquer2\Tools\eosource\client5065` (assets), `...\cosource` (clien
 | Format | Purpose | Status | Notes |
 |---|---|---|---|
 | WDF | packed archive | **done** | `wdf.rs` |
-| DNP | packed archive | todo | |
+| DNP | packed archive | **n/a** | no `.dnp` files exist in the 5065 client; not implemented |
 | DDS/TGA | textures | **done** | `texture.rs`; client uses DXT1 (data.wdf) + DXT3, no mips |
-| MSK | masks | todo | |
+| MSK | 1-bit hit masks | **done** | `mask.rs`; 173/177 paired + round-trip (4 lack images, 1 truncated in client) |
 | ANI | animation/frame index (text) | **done** | `ani.rs` |
 | DMap | map cells, heights, portals, scene refs | **done** | `dmap.rs` |
 | PUL | puzzle ground tiles | **done** | `pul.rs` |
 | C3 container | chunked model/effect file | **done** | `c3/mod.rs`; all 4,516 files byte-exact |
 | C3 PHY | mesh + skinning | **done** | `c3/phy.rs`; 7,308 chunks byte-exact; → engine `SkinnedMesh` |
 | C3 MOTI | skeletal motion keyframes | **done** | `c3/motion.rs`; 11,093 chunks byte-exact; → engine `Clip` |
-| C3 SHAP/SMOT/PTCL/PTCX/PTC3/CAME | trails, particles, camera | raw only | kept byte-exact as raw chunks; typed decode is a follow-up |
-| ini/dat tables | model/texture/motion/effect wiring | todo | |
+| C3 SHAP/SMOT/PTCL/CAME | trails, particles, camera | **done** | `c3/effect.rs`; every chunk byte-exact. PTCX/PTC3 absent in 5065 (raw) |
+| ini tables | model/texture/motion/equipment wiring | **done** | `ini.rs` (Ini, PathTable, PartTable) |
+| .scene / .Part | terrain objects (binary / editor text) | **done** | `scene.rs`; 194 + 126 files; 9,884 DMap refs resolve |
+| GameMap.dat | map id → DMap catalog | **done** | `gamemap.rs`; 153 maps byte-exact |
+| .TME | terrain magic effect groups | **done** | `tme.rs`; 88 files byte-exact |
+| .rgn | GUI window regions (RGNDATA) | **done** | `rgn.rs`; 5 files byte-exact |
+| text .dat | Play.dat (+6 shift), Shop/Server (plain ini) | **done** | `textdat.rs` + `ini.rs` |
+| game .dat tables | itemtype, Monster, MagicType, Action, MapDestination, levexp, AutoAllot, Tips, UserHelpInfo, LevelExp | **done** | `cipher.rs` + `dat.rs`; all byte-exact (encrypted ones re-encrypt exactly) |
 
 ## Per-format sections
 (Add `## <FORMAT>` with header layout, field table, quirks, and test files.)
@@ -94,3 +100,49 @@ morphs u32 · frames×morphs f32. `XKEY` isn't in the FILE* loader, only in the 
 (frames wrap at `frames`); vertex = pos × Σ wᵢ·boneᵢ (row vectors), bone 0 if no weights apply.
 Matrices are D3D row-major/row-vector = same memory as glam column-major/column-vector.
 Models are **−Z up**.
+
+## Terrain objects (.scene / .Part)
+Source: `3dgamemap/2DMapTerrainObj.cpp`, `2DMapTerrainObjPart.cpp`. DMap `Terrain` entries point at `.scene`.
+`.scene`: `parts i32` × { `ani char[256]`, `title char[64]`, `offset i32×2`, `interval u32`, `base u32×2 (w,h)`,
+`thick i32`, `scene_offset i32×2`, `height i32`, `h×w × {mask u32, terrain i32, altitude i32}` }.
+`.Part` is the editor text form (`AniFile=`, `AniTitle=`, `OffsetX/Y=`, `AniInterval=`, `Width/Height=`, `Thick=`,
+`Cell[x,y]={mask,terrain,alt}`), without scene offset/height.
+
+## GameMap.dat
+`count u32` × { `id u32`, `path_len u32`, `path`, `puzzle_grid_size u32` } (`GameMapCatalog.cpp`).
+5065 lists 153 maps; `kunlun1..9.DMap` are referenced but absent from the client.
+
+## C3 effect chunks
+SHAP: name · lines{points × f32×3} · texture · segments u32. SMOT: frames × mat4.
+PTCL: name · texture · rows · capacity · frames × {n, if n>0: pos×n, age×n, size×n, mat4}.
+CAME: name · fov f32 (ignored) · n · from×n · to×n. (Strings are u32 length + bytes.)
+
+## MSK / TME / RGN
+- MSK (`AlphaMask.cpp`): headerless bits for the same-named DDS/TGA; bit `x+y·w` → byte `/8`, bit `%8` (LSB
+  first), set = opaque. The client reads `w·h/8+1` bytes.
+- TME (`TerrainEffectManager.cpp`): `count u32` × {`effect char[128]`, `delay u32`, `random_delay u32`, `offset i32×2`};
+  the client negates `offset.x` on load. Loaded from `ini/tme/<name>`.
+- RGN (`Game/GameDlg.cpp`): `payload u32` + Win32 `RGNDATAHEADER` (32 bytes, type 1) + `RECT`s.
+
+## Text .dat
+`ini/Play.dat`: each byte stored +6 (`textdat::PLAY_DAT_SHIFT`). `Shop.dat`, `Server.dat`, `AutoPatch.dat`,
+`version.dat`, `res.dat` are plain text.
+
+## Game .dat tables
+**XorRot cipher** (`cipher.rs`): key[128] = MSVC `rand()` after `srand(seed)` (`state = state*214013+2531011; (state>>16)&0x7FFF`);
+byte i: `ror8(data[i] ^ key[i%128], i%8)`. Seed 0x2537 for itemtype/Monster/MapDestination/UserHelpInfo, 0x4D2 for levexp.
+Decrypted payloads are CRLF text:
+- `itemtype.dat`: `Amount=N` + N rows of 39–40 whitespace tokens (`~` = space, description last). 6,865 items.
+- `Monster.dat`: ini sections `[Name]` with fixed key order (SizeAdd … StcType). 418 monsters.
+- `MapDestination.dat`: ini sections (id, mapid, npcid, parentid, radius, posx, posy, mark, title). 174 entries.
+- `UserHelpInfo.dat`: ini, `[Header] HelpInfoAmount=867`, `[HelpInfoN]`. (`UserHelpInfo.ini.dat` is an unused older copy.)
+- `levexp.dat`: lines `level exp minutes` (levels 1–150).
+
+Binary (`dat.rs`):
+- `MagicType.dat`: `count · keys(id*10+level)[count] · MagicTypeInfo[count]` (0x630 bytes, `3drole/MagicData.h`). 657 records.
+- `Action.dat`: `count · {check1, index, check2, interval, check3}`; checks c1=idx*2+t+i, c2=i*c1+idx*t−i, c3=c1*idx+c2*7+t*i.
+- `AutoAllot.dat`: `profs · levels · prof_ids · {force,speed,health,soul}[profs][levels]` (9 × 120).
+- `Tips.dat` (unused by 5065): `char[32] "Tips" · version 1000 · count · {n · {len, bytes incl. NUL}}`.
+- `LevelExp.dat` (legacy, unused): u32s XOR sign-extended GBK bytes of `★就这样被你蒸熟★`.
+
+The engine never encrypts its own files; ciphers exist only for TQ import/export.

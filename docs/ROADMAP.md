@@ -5,29 +5,29 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
 ## M0: Setup
 - [x] Rust stable MSVC toolchain installed (rustc 1.99.1)
 - [x] Workspace scaffold + docs
-- [ ] CI-like local script: `cargo fmt --check`, `cargo clippy`, `cargo test`
+- [x] Local CI: `scripts/check.ps1` (fmt --check, clippy -D warnings, tests)
 
-## M1: TQ formats [~] (`formats/c3`)
+## M1: TQ formats [x] (complete 2026-10-18) (`formats/c3`)
 Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] WDF package read + write (byte-identical on c3.wdf, data.wdf)
-- [ ] DNP package
+- [x] DNP package: n/a, no .dnp files in the 5065 client
 - [x] DDS (DXT1/3/5, raw) + TGA decode: all 20,144 packed DDS decode
 - [x] ClientFs VFS (loose files first, then WDF) + `mapshot` example (map ground → PNG)
-- [ ] MSK masks
+- [x] MSK masks, TME terrain effects, RGN regions
 - [x] ANI index files (51 files / 56,971 sections; GBK-safe; frame paths resolve in WDF)
-- [ ] ini / dat tables (3DObj, 3DTexture, 3DMotion, 3DEffect, armor, weapon, GameMap.dat)
+- [x] ini tables, .scene/.Part terrain objects, GameMap.dat, all game .dat tables (incl. XorRot-encrypted)
 - [x] DMap (cells, heights, portals, interactive + scene layers): 144/144 client maps byte-identical
 - [x] PUL puzzle (143/143 byte-identical; every used tile resolves in its ANI)
-- [ ] C3 chunks: PHY (mesh), MOTI (skeletal motion), PTCL (particles), camera
-- [ ] Round-trip tests on real client files for every format
+- [x] C3 chunks: PHY, MOTI, SHAP, SMOT, PTCL, CAME
+- [x] Round-trip tests on real client files for every format (`formats/c3/tests/real_files.rs`)
 
 ## Course correction (2026-10-18), see DECISIONS.md
 - [x] (1) `engine/scene` + `engine/assets` + TQ importer/exporter: 144/144 maps round-trip
 - [x] (2) Studio edits engine `Scene`s; TQ access isolated in `studio/src/tq_plugin.rs`
 - [x] (3) C3 models: container + PHY + MOTI (incl. XKEY), engine `c3-anim` Clip/skinning and
       `c3_assets::model`, TQ importer `model_io`; all 4,516 files verified; `modelshot` renders posed models
-- [ ] (3b) Typed decode of SHAP/SMOT (trails), PTCL/PTCX/PTC3 (particles), CAME (camera). Currently raw
-- [ ] (3c) Remaining M1 tables: ini/dat wiring (3DObj, 3DMotion, 3DTexture, armor, weapon), DNP, MSK
+- [x] (3b) Typed SHAP/SMOT/PTCL/CAME (PTCX/PTC3 absent in 5065)
+- [x] (3c) Remaining M1 tables and formats
 - [x] (4) M2 renderer: `engine/render` (wgpu 30) with sprite + lit mesh passes into offscreen targets
       (headless GPU test). Studio ground and the new Models workspace render through it
 
