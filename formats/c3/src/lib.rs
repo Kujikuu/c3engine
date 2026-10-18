@@ -5,6 +5,7 @@ pub mod c3;
 pub mod cipher;
 pub mod dat;
 pub mod dmap;
+pub mod effect_io;
 pub mod gamemap;
 pub mod hash;
 pub mod ini;

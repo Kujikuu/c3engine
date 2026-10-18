@@ -15,7 +15,7 @@ append decisions, document formats as you implement them.
   `gpu.rs` (engine renderer → egui texture), `model_view.rs` + `models_ws.rs` (Models workspace).
 - Rendering goes through `c3-render` only (never egui painter for world content). The Studio shows the
   target's `display_view` (gamma-space view) so colours match.
-- Studio screenshots for verification: use `PrintWindow` (works when the window is behind others). `doc` = model + undo + save
+- Screenshots for verification: `scripts/shot.ps1 -App client|studio -Out x.png -- <app args>` (`PrintWindow`, works when the window is behind others). `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.
 - Nothing in `engine/` or `studio/` references Conquer; game code goes in `games/`.
 - Every format parser needs a round-trip test on real files from

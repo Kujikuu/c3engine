@@ -2,7 +2,7 @@
 //! sprites draw in submission order, under meshes.
 
 use crate::DEPTH_FORMAT;
-use crate::texture::{TextureId, Textures};
+use crate::texture::{TextureId, Textures, Wrap};
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
@@ -177,7 +177,7 @@ impl SpritePass {
         for &(texture, first, count) in &batches.runs {
             let (start, end) = (first.max(range.start), (first + count).min(range.end));
             if start < end {
-                pass.set_bind_group(1, textures.group(texture), &[]);
+                pass.set_bind_group(1, textures.group(texture, Wrap::Clamp), &[]);
                 pass.draw(0..6, start..end);
             }
         }

@@ -117,6 +117,18 @@ SHAP: name · lines{points × f32×3} · texture · segments u32. SMOT: frames �
 PTCL: name · texture · rows · capacity · frames × {n, if n>0: pos×n, age×n, size×n, mat4}.
 CAME: name · fov f32 (ignored) · n · from×n · to×n. (Strings are u32 length + bytes.)
 
+Playback (`C3DEffect::Draw`): per layer, trails, then particles, then meshes. Mesh n pairs with
+MOTI n, SHAP n with SMOT n; only SHAP line 0, points 0–1 form the trail edge; segments ×5, max 800.
+Particles are view-aligned quads (half-size × average matrix scale), atlas cell = age·rows².
+
+## 3DEffect.ini
+`[name]` · `Amount` · per part n: `EffectIdn` (3DEffectObj.ini) `TextureIdn` (3dtexture.ini)
+`ASBn`/`ADBn` (D3D blend, default 5/6) · `Delay` `LoopTime` `FrameInterval` `LoopInterval` (ms)
+· `OffsetX/Y/Z` · optional `ShapeAir`. A `+owner` suffix on the name is ignored. Frames per loop =
+first part's longest element. Frame = (t−delay) mod (interval·frames + gap) / interval; done after
+LoopTime loops. Map effects (DMap type 10/19) loop forever; type 19 adds angles (the first read
+twice: vertical, vertical, horizontal; radians) and a scale.
+
 ## MSK / TME / RGN
 - MSK (`AlphaMask.cpp`): headerless bits for the same-named DDS/TGA; bit `x+y·w` → byte `/8`, bit `%8` (LSB
   first), set = opaque. The client reads `w·h/8+1` bytes.

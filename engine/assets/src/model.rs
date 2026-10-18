@@ -124,4 +124,57 @@ impl SkinnedMesh {
             None => self.vertices.iter().map(|v| v.position).collect(),
         }
     }
+
+    /// Opacity at `frame`: linear between the surrounding opacity keys, held flat past the
+    /// first and last key, 1 without keys. Port of `Key_ProcessAlpha`.
+    pub fn opacity_at(&self, frame: u32) -> f32 {
+        let f = frame as i32;
+        let before = self.opacity_keys.iter().rev().find(|k| k.frame <= f);
+        let after = self.opacity_keys.iter().find(|k| k.frame > f);
+        match (before, after) {
+            (Some(a), Some(b)) => {
+                a.value + (f - a.frame) as f32 / (b.frame - a.frame) as f32 * (b.value - a.value)
+            }
+            (Some(k), None) | (None, Some(k)) => k.value,
+            (None, None) => 1.0,
+        }
+    }
+
+    /// Whether the mesh is shown at `frame`: the latest visibility key at or before it,
+    /// visible before the first key (C3 `Key_ProcessDraw` toggles as frames play).
+    pub fn visible_at(&self, frame: u32) -> bool {
+        self.visibility_keys
+            .iter()
+            .rev()
+            .find(|k| k.frame <= frame as i32)
+            .is_none_or(|k| k.value)
+    }
+
+    /// Sprite-sheet cell shown at `frame`, if a texture key selects one. Port of
+    /// `Key_ProcessChangeTex`, quirks included: an exact key match wins, otherwise the key
+    /// before the first later key; frames past the last key select nothing.
+    pub fn texture_cell_at(&self, frame: u32) -> Option<u32> {
+        let f = frame as i32;
+        for (n, k) in self.texture_keys.iter().enumerate() {
+            if k.frame == f {
+                return u32::try_from(k.value).ok();
+            }
+            if n > 0 && f < k.frame {
+                return u32::try_from(self.texture_keys[n - 1].value).ok();
+            }
+        }
+        None
+    }
+
+    /// UV offset at `frame`: the selected sprite-sheet cell, else `scroll_steps` scroll steps.
+    /// (Classic effects scroll by the effect frame, which can run past the mesh clip.)
+    pub fn uv_offset_at(&self, frame: u32, scroll_steps: u32) -> Vec2 {
+        match self.texture_cell_at(frame) {
+            Some(cell) => {
+                let rows = self.texture_rows.max(1);
+                Vec2::new((cell % rows) as f32, (cell / rows) as f32) / rows as f32
+            }
+            None => self.uv_scroll.unwrap_or(Vec2::ZERO) * scroll_steps as f32,
+        }
+    }
 }

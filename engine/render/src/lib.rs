@@ -7,6 +7,7 @@
 
 pub mod actor;
 mod assets;
+pub mod effect;
 pub mod ground;
 mod mesh;
 pub mod objects;
@@ -16,7 +17,7 @@ mod target;
 mod texture;
 
 pub use assets::SceneAssets;
-pub use mesh::{MeshDraw, MeshVertex};
+pub use mesh::{MeshDraw, MeshStyle, MeshVertex};
 pub use sprite::Sprite;
 pub use target::{DepthBuffer, RenderTarget};
 pub use texture::TextureId;

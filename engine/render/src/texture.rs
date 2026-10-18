@@ -5,12 +5,24 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TextureId(u32);
 
+/// What sampling outside 0..1 texture coordinates does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Wrap {
+    /// Repeats the edge texel: tiles must not bleed into their opposite edge.
+    Clamp = 0,
+    /// Tiles the texture, as D3D does by default (meshes, scrolling effects).
+    Repeat = 1,
+}
+
+/// A texture's bind groups, indexed by [`Wrap`].
+type Groups = [wgpu::BindGroup; 2];
+
 pub(crate) struct Textures {
     layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
-    groups: HashMap<TextureId, wgpu::BindGroup>,
+    samplers: [wgpu::Sampler; 2],
+    groups: HashMap<TextureId, Groups>,
     /// 1×1 white, used for untextured draws.
-    white: wgpu::BindGroup,
+    white: Groups,
     next: u32,
 }
 
@@ -37,27 +49,31 @@ impl Textures {
                 },
             ],
         });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("c3 sampler"),
-            // Clamp: tiles must not bleed into their opposite edge. UV scrolling (C3 `STEP`)
-            // will need a repeating sampler variant when effects are rendered.
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
+        let sampler = |label, address_mode| {
+            device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some(label),
+                address_mode_u: address_mode,
+                address_mode_v: address_mode,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            })
+        };
+        let samplers = [
+            sampler("c3 clamp sampler", wgpu::AddressMode::ClampToEdge),
+            sampler("c3 repeat sampler", wgpu::AddressMode::Repeat),
+        ];
         let white_texture = Self::create(device, [1, 1]);
         Self::write(queue, &white_texture, [1, 1], &[255; 4]);
         let white = Self::bind(
             device,
             &layout,
-            &sampler,
+            &samplers,
             &white_texture.create_view(&Default::default()),
         );
         Self {
             layout,
-            sampler,
+            samplers,
             groups: HashMap::new(),
             white,
             next: 0,
@@ -85,25 +101,28 @@ impl Textures {
         })
     }
 
+    /// One bind group per [`Wrap`] mode.
     fn bind(
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
-        sampler: &wgpu::Sampler,
+        samplers: &[wgpu::Sampler; 2],
         view: &wgpu::TextureView,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("c3 texture group"),
-            layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(sampler),
-                },
-            ],
+    ) -> Groups {
+        samplers.each_ref().map(|sampler| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("c3 texture group"),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(sampler),
+                    },
+                ],
+            })
         })
     }
 
@@ -138,7 +157,7 @@ impl Textures {
         let group = Self::bind(
             device,
             &self.layout,
-            &self.sampler,
+            &self.samplers,
             &texture.create_view(&Default::default()),
         );
         let id = TextureId(self.next);
@@ -152,8 +171,10 @@ impl Textures {
     }
 
     /// Bind group for `id`, or plain white when `None` or released.
-    pub fn group(&self, id: Option<TextureId>) -> &wgpu::BindGroup {
-        id.and_then(|id| self.groups.get(&id))
-            .unwrap_or(&self.white)
+    pub fn group(&self, id: Option<TextureId>, wrap: Wrap) -> &wgpu::BindGroup {
+        let groups = id
+            .and_then(|id| self.groups.get(&id))
+            .unwrap_or(&self.white);
+        &groups[wrap as usize]
     }
 }

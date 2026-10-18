@@ -7,11 +7,13 @@ pub mod character;
 
 use c3_anim::Clip;
 use c3_assets::Image;
+use c3_assets::effect::Effect;
 use c3_assets::model::Model;
 use c3_assets::sprite::{Prefab, SpriteSet};
 use c3_formats_tq::{
     ani::Ani,
     c3::C3File,
+    effect_io::{self, EffectTable},
     gamemap::GameMapCatalog,
     ini::{Ini, PartTable, PathTable},
     model_io,
@@ -43,6 +45,10 @@ struct Tables {
     motions: PathTable,
     /// `WeaponMotion.ini`: weapon motion id → C3 path.
     weapon_motions: PathTable,
+    /// `3DEffect.ini`: effect name → parts and clock.
+    effects: EffectTable,
+    /// `3DEffectObj.ini`: effect part id → C3 path.
+    effect_files: PathTable,
     armor: PartTable,
     armet: PartTable,
     weapon: PartTable,
@@ -72,6 +78,8 @@ impl Tables {
             textures: PathTable::parse(&bytes("3dtexture.ini")),
             motions: PathTable::parse(&bytes("3dmotion.ini")),
             weapon_motions: PathTable::parse(&bytes("WeaponMotion.ini")),
+            effects: EffectTable::parse(&bytes("3DEffect.ini")),
+            effect_files: PathTable::parse(&bytes("3DEffectObj.ini")),
             armor: PartTable::parse(&bytes("armor.ini")),
             armet: PartTable::parse(&bytes("armet.ini")),
             weapon: PartTable::parse(&bytes("weapon.ini")),
@@ -172,6 +180,45 @@ impl Content {
                 .flatten()
         })
         .unwrap_or(-30.0)
+    }
+
+    /// Loads effect `name` from `3DEffect.ini`. Like the client, a part whose file or
+    /// texture is missing ends the effect there.
+    pub fn load_effect(&self, name: &str) -> Result<Effect, String> {
+        let info = self
+            .tables
+            .effects
+            .get(name)
+            .ok_or_else(|| format!("effect {name} is not in 3DEffect.ini"))?;
+        let mut layers = Vec::with_capacity(info.parts.len());
+        for part in &info.parts {
+            let Some(path) = self.tables.effect_files.get(part.effect) else {
+                break;
+            };
+            let Some(texture) = self.tables.textures.get(part.texture) else {
+                break;
+            };
+            let Some(bytes) = self.fs.read(path) else {
+                break;
+            };
+            let file = C3File::parse(&bytes).map_err(|e| format!("{path}: {e}"))?;
+            let mut layer =
+                effect_io::import_effect_layer(&file).map_err(|e| format!("{path}: {e}"))?;
+            layer.texture = Some(texture.to_owned());
+            layer.blend = effect_io::blend_from_d3d(part.src_blend, part.dst_blend);
+            layers.push(layer);
+        }
+        let [x, y, z] = info.offset.map(|v| v as f32);
+        Ok(Effect {
+            layers,
+            timing: info.timing,
+            offset: glam::Vec3::new(x, y, z),
+        })
+    }
+
+    /// Effect names in `3DEffect.ini`.
+    pub fn effect_names(&self) -> impl Iterator<Item = &str> {
+        self.tables.effects.names()
     }
 
     /// Loads an ANI file as a sprite set.

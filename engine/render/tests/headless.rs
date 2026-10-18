@@ -1,7 +1,7 @@
 //! Renders offscreen and reads pixels back. Skips when no GPU adapter is available.
 
 use c3_assets::Image;
-use c3_render::{Frame, MeshDraw, MeshVertex, RenderTarget, Renderer, Sprite};
+use c3_render::{Frame, MeshDraw, MeshStyle, MeshVertex, RenderTarget, Renderer, Sprite};
 use glam::Mat4;
 
 fn renderer() -> Option<Renderer> {
@@ -88,6 +88,7 @@ fn draws_textured_sprite_and_lit_mesh() {
         transform: Mat4::IDENTITY,
         tint: [1.0; 4],
         group: None,
+        style: MeshStyle::SOLID,
     }];
 
     let mut target = None;
@@ -142,6 +143,7 @@ fn painter_order_beats_depth_between_meshes() {
         transform: Mat4::IDENTITY,
         tint: [1.0; 4],
         group: None,
+        style: MeshStyle::SOLID,
     };
     let meshes = [mesh(&near, red), mesh(&far, green)];
     let mut target = None;
@@ -193,6 +195,7 @@ fn same_group_meshes_use_real_depth() {
         transform: Mat4::IDENTITY,
         tint: [1.0; 4],
         group: Some(7),
+        style: MeshStyle::SOLID,
     };
     let meshes = [mesh(&near, red), mesh(&far, green)];
     let mut target = None;

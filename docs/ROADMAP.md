@@ -46,7 +46,11 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       ortho camera, painter's order with map objects via depth slices); Conquer character assembly
       (`games/conquer::character`: armor/armet(hair)/weapon tables, weapon family, body + weapon
       motions with fallbacks, socket attachment `Role·Bone0`). Mounts: Mount.ini is a stub in 5065
-- [ ] Effects / particles
+- [x] Effects: engine `Effect` asset (layers of keyed meshes, baked particles, ribbon trails;
+      per-layer texture + blend; delay/loop clock), TQ importer (`3DEffect.ini` + `3DEffectObj.ini`),
+      `c3_render::effect` playback (billboards, camera-facing particles, 30 ms trail steps), blend-mode
+      pipelines; map effect entities play in the client, `--effect NAME` previews any effect.
+      Next: effects bound to actors (level-up, weapon trails on sockets) sharing the actor's depth
 - [ ] Map + character viewer app
 
 ## M3: Studio v1

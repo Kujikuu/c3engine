@@ -1,15 +1,19 @@
-//! The loaded world: current map scene, its streamed art and the actors on it.
+//! The loaded world: current map scene, its streamed art, its effects and the actors on it.
 //!
-//! Each frame: [`World::prepare`] builds sprites, posed actor meshes and the painter's
-//! order; [`World::mesh_draws`] + [`World::frame`] then describe it to the renderer.
+//! Each frame: [`World::prepare`] builds sprites, posed actor and effect meshes and the
+//! painter's order; [`World::mesh_draws`] + [`World::frame`] then describe it to the renderer.
 
 use crate::actors::{Actor, PartRef};
 use crate::camera::Camera2d;
+use crate::effects::{EffectLibrary, MapEffect, Spot};
 use c3_render::actor::actor_view;
+use c3_render::effect::camera_eye;
 use c3_render::ground::{self, GroundCache};
 use c3_render::objects::{self, ObjectCache, ObjectDraw};
 use c3_render::parallax::{self, ParallaxCache};
-use c3_render::{DrawCmd, Frame, MeshDraw, MeshVertex, Renderer, Sprite, TextureId, View};
+use c3_render::{
+    DrawCmd, Frame, MeshDraw, MeshStyle, MeshVertex, Renderer, Sprite, TextureId, View,
+};
 use c3_scene::Scene;
 use game_conquer::Content;
 use glam::{Mat4, Vec2};
@@ -21,13 +25,28 @@ const OBJECT_DECODE_BUDGET: usize = 12;
 /// Clear colour (linear) behind the map.
 const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
 
-/// One posed actor part for this frame.
+/// World pixels around the view in which effects still play (large effects reach out).
+const EFFECT_CULL_MARGIN: f32 = 400.0;
+
+/// One posed mesh (actor part or effect element) for this frame.
 struct PosedMesh {
-    actor: usize,
-    part: PartRef,
     vertices: Vec<MeshVertex>,
+    indices: Indices,
     texture: Option<TextureId>,
     transform: Mat4,
+    tint: [f32; 4],
+    /// The 3D item it belongs to; its meshes share a depth slice.
+    group: u32,
+    style: MeshStyle,
+}
+
+enum Indices {
+    /// Borrowed from the actor's model.
+    Actor {
+        actor: usize,
+        part: PartRef,
+    },
+    Owned(Vec<u32>),
 }
 
 pub struct World {
@@ -35,6 +54,8 @@ pub struct World {
     pub map_path: String,
     pub scene: Scene,
     pub actors: Vec<Actor>,
+    effects: Vec<MapEffect>,
+    effect_library: EffectLibrary,
     /// Camera tilt for actors (from the game's graphic config).
     tilt_deg: f32,
     ground: GroundCache,
@@ -52,11 +73,15 @@ pub struct World {
 impl World {
     pub fn new(content: Content, map_path: String, scene: Scene) -> Self {
         let tilt_deg = content.oblique_angle();
+        let mut effect_library = EffectLibrary::default();
+        let effects = effect_library.map_effects(&scene, &content, tilt_deg, 0);
         Self {
             content,
             map_path,
             scene,
             actors: Vec::new(),
+            effects,
+            effect_library,
             tilt_deg,
             ground: GroundCache::default(),
             objects: ObjectCache::default(),
@@ -67,6 +92,25 @@ impl World {
             order: Vec::new(),
             streaming: false,
         }
+    }
+
+    /// Places effect `name` on `cell`, playing forever.
+    pub fn place_effect(&mut self, name: &str, cell: c3_scene::CellPos) -> Result<(), String> {
+        let position = self.scene.cell_to_world(cell);
+        let now_ms = self.started.elapsed().as_millis() as u64;
+        let effect = self
+            .effect_library
+            .place(
+                name,
+                &self.content,
+                &self.scene,
+                Spot::at(position),
+                self.tilt_deg,
+                now_ms,
+            )
+            .ok_or_else(|| format!("effect {name} could not be loaded"))?;
+        self.effects.push(effect);
+        Ok(())
     }
 
     /// World rect of the map's ground (`[x, y, w, h]`), for framing.
@@ -118,11 +162,22 @@ impl World {
             &self.content,
             ground::DEFAULT_DECODE_BUDGET,
         );
-        let actor_cells: Vec<_> = self.actors.iter().map(|a| a.cell).collect();
+        // 3D items sorted with the objects: actors, then effects near the view.
+        let [l, t, r, b] = view.rect;
+        let m = EFFECT_CULL_MARGIN;
+        let effects: Vec<usize> = (0..self.effects.len())
+            .filter(|&e| {
+                let p = self.effects[e].position();
+                p.x >= l - m && p.x <= r + m && p.z >= t - m && p.z <= b + m
+            })
+            .collect();
+        let cells: Vec<_> = (self.actors.iter().map(|a| a.cell))
+            .chain(effects.iter().map(|&e| self.effects[e].cell))
+            .collect();
         let objects = objects::sprites(
             &self.scene,
             &view,
-            &actor_cells,
+            &cells,
             &mut self.objects,
             renderer,
             &self.content,
@@ -138,46 +193,88 @@ impl World {
         self.order.push(DrawCmd::Sprites(0..base));
         self.posed.clear();
         let secs = view.time_ms as f32 / 1000.0;
+        let eye = camera_eye(view.center);
         for draw in objects.order {
             match draw {
                 ObjectDraw::Sprite(i) => match self.order.last_mut() {
                     Some(DrawCmd::Sprites(r)) if r.end == base + i => r.end += 1,
                     _ => self.order.push(DrawCmd::Sprites(base + i..base + i + 1)),
                 },
-                ObjectDraw::Actor(a) => {
-                    let a = a as usize;
-                    let role = self.actors[a].pose(&self.scene, self.tilt_deg).transform();
-                    for part in self.actors[a].drawables() {
-                        self.order.push(DrawCmd::Mesh(self.posed.len() as u32));
-                        let actor = &mut self.actors[a];
-                        let texture = actor.texture(part, renderer, &self.content);
-                        let vertices = actor.posed(part, secs);
-                        let transform = actor.transform(part, role, secs);
-                        self.posed.push(PosedMesh {
-                            actor: a,
-                            part,
-                            vertices,
-                            texture,
-                            transform,
-                        });
-                    }
+                ObjectDraw::Actor(item) if (item as usize) < self.actors.len() => {
+                    self.pose_actor(item as usize, item, secs, renderer);
+                }
+                ObjectDraw::Actor(item) => {
+                    let e = effects[item as usize - self.actors.len()];
+                    self.pose_effect(e, item, view.time_ms, eye, renderer);
                 }
             }
         }
         self.streaming = background.streaming || ground.streaming || objects.streaming;
     }
 
-    /// Mesh draws for the posed actors (borrowing this world).
+    fn push_mesh(&mut self, mesh: PosedMesh) {
+        self.order.push(DrawCmd::Mesh(self.posed.len() as u32));
+        self.posed.push(mesh);
+    }
+
+    fn pose_actor(&mut self, a: usize, group: u32, secs: f32, renderer: &mut Renderer) {
+        let role = self.actors[a].pose(&self.scene, self.tilt_deg).transform();
+        for part in self.actors[a].drawables() {
+            let actor = &mut self.actors[a];
+            let mesh = PosedMesh {
+                texture: actor.texture(part, renderer, &self.content),
+                vertices: actor.posed(part, secs),
+                transform: actor.transform(part, role, secs),
+                indices: Indices::Actor { actor: a, part },
+                tint: [1.0; 4],
+                group,
+                style: MeshStyle::SOLID,
+            };
+            self.push_mesh(mesh);
+        }
+    }
+
+    fn pose_effect(
+        &mut self,
+        e: usize,
+        group: u32,
+        now_ms: u64,
+        eye: glam::Vec3,
+        renderer: &mut Renderer,
+    ) {
+        for m in self.effects[e].meshes(now_ms, eye) {
+            let effect = self.effects[e].effect();
+            let texture = self
+                .effect_library
+                .texture(effect, m.layer, renderer, &self.content);
+            let style = MeshStyle::effect(effect.layers[m.layer].blend);
+            self.push_mesh(PosedMesh {
+                vertices: m.vertices,
+                indices: Indices::Owned(m.indices),
+                texture,
+                transform: m.transform,
+                tint: [1.0, 1.0, 1.0, m.opacity],
+                group,
+                style,
+            });
+        }
+    }
+
+    /// Mesh draws for the posed actors and effects (borrowing this world).
     pub fn mesh_draws(&self) -> Vec<MeshDraw<'_>> {
         self.posed
             .iter()
             .map(|p| MeshDraw {
                 vertices: &p.vertices,
-                indices: self.actors[p.actor].indices(p.part),
+                indices: match &p.indices {
+                    Indices::Actor { actor, part } => self.actors[*actor].indices(*part),
+                    Indices::Owned(indices) => indices,
+                },
                 texture: p.texture,
                 transform: p.transform,
-                tint: [1.0; 4],
-                group: Some(p.actor as u32),
+                tint: p.tint,
+                group: Some(p.group),
+                style: p.style,
             })
             .collect()
     }

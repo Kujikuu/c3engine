@@ -19,6 +19,9 @@ Append-only. Format: date · decision · why.
 - 2026-10-18 · Imported mesh positions are stored **already bound** (bind matrix applied, as the client does). `bind_pose` is kept for a future exporter.
 
 - 2026-10-18 · **The engine never encrypts or obfuscates its own files** (user decision). TQ ciphers (XorRot, the +6 shift, the LevelExp XOR) live only in `formats/c3`: decrypt on import, encrypt only when exporting back to the original 5065 client.
+- 2026-10-18 · **Classic meshes draw unlit** (texture × colour), as 5065's graphic.ini disables lighting. The Studio's model view keeps a simple light so shapes read clearly · faithful look in the client.
+- 2026-10-18 · Engine blend modes have no destination-alpha factors. The TQ importer maps D3D DESTALPHA→One and INVDESTALPHA→Zero, because the classic back buffer has no alpha channel · ~11% of effects use them.
+- 2026-10-18 · Meshes sample with **repeat** addressing (D3D default; effects scroll UVs), sprites with clamp (no seams between ground tiles). Alpha test is 8/255 for all meshes (client ALPHAREF).
 
 ## Open
 - ECS: `bevy_ecs` standalone vs custom.

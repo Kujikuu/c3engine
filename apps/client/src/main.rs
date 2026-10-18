@@ -1,13 +1,14 @@
 //! C3 Client: the game runtime window.
 //! Usage: c3-client [client_dir] [--map map/map/xxx.DMap | --map-id 1002] [--cell x,y] [--zoom 1.0]
 //!                   [--actor <3dobj id> | --player look,hair,armor,armet,rweapon,lweapon]
-//!                   [--action 100] [--dir 0-7]
+//!                   [--action 100] [--dir 0-7] [--effect <3DEffect.ini name>]
 //!
 //! Controls: drag or WASD/arrows to pan · wheel to zoom · F to fit · 1 for 100% · Q/E turn the actor ·
 //! Esc to quit.
 
 mod actors;
 mod camera;
+mod effects;
 mod gfx;
 mod world;
 
@@ -222,6 +223,8 @@ struct Args {
     player: Option<Look>,
     action: u32,
     direction: u8,
+    /// Effect to play at the start cell.
+    effect: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -251,6 +254,7 @@ fn parse_args() -> Args {
             .and_then(|v| v.parse().ok())
             .unwrap_or(action::STANDBY),
         direction: flag("--dir").and_then(|v| v.parse().ok()).unwrap_or(0),
+        effect: flag("--effect"),
     }
 }
 
@@ -319,6 +323,11 @@ fn main() {
         Some(Ok(a)) => world.actors.push(a),
         Some(Err(e)) => eprintln!("warning: actor: {e}"),
         None => {}
+    }
+    if let Some(name) = &args.effect
+        && let Err(e) = world.place_effect(name, cell)
+    {
+        eprintln!("warning: {e}");
     }
     let start = args.cell.map(|c| Vec2::from(world.scene.cell_to_world(c)));
     let event_loop = EventLoop::new().expect("event loop");

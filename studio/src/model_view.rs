@@ -161,6 +161,11 @@ pub fn show(
             transform: Mat4::IDENTITY,
             tint: [1.0; 4],
             group: Some(0),
+            // Lit, so shapes read clearly in the editor.
+            style: c3_render::MeshStyle {
+                lit: true,
+                ..c3_render::MeshStyle::SOLID
+            },
         })
         .collect();
 
