@@ -72,8 +72,8 @@ pub struct PortalLink {
     pub to: crate::PortalTarget,
 }
 
-/// A map's NPCs, spawn areas and portal destinations, as one value (the population file of
-/// a map).
+/// A map's NPCs, spawn areas, regions and portal destinations, as one value (the population
+/// file of a map).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Population {
     #[serde(default)]
@@ -82,10 +82,15 @@ pub struct Population {
     pub spawns: Vec<Spawn>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<PortalLink>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub regions: Vec<crate::Region>,
 }
 
 impl Population {
     pub fn is_empty(&self) -> bool {
-        self.npcs.is_empty() && self.spawns.is_empty() && self.links.is_empty()
+        self.npcs.is_empty()
+            && self.spawns.is_empty()
+            && self.links.is_empty()
+            && self.regions.is_empty()
     }
 }

@@ -71,6 +71,7 @@ impl Stage {
             layers: Vec::new(),
             npcs: Vec::new(),
             spawns: Vec::new(),
+            regions: Vec::new(),
             meta: Default::default(),
         };
         let center = Vec2::from(scene.cell_to_world(Self::center()));

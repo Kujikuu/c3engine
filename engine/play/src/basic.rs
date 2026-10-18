@@ -221,6 +221,7 @@ pub fn blank_scene(width: u32, height: u32, cell: [f32; 2], ground: GroundImage)
         layers: Vec::new(),
         npcs: Vec::new(),
         spawns: Vec::new(),
+        regions: Vec::new(),
         meta: BTreeMap::new(),
     }
 }

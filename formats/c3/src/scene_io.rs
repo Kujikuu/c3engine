@@ -110,6 +110,7 @@ pub fn scene_from_dmap(dmap: &DMap, ground: TileLayer) -> Scene {
         // DMaps hold no population: the game's data places NPCs and spawns.
         npcs: Vec::new(),
         spawns: Vec::new(),
+        regions: Vec::new(),
         grid,
         meta,
     }

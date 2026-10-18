@@ -433,6 +433,7 @@ mod tests {
             layers: Vec::new(),
             npcs: Vec::new(),
             spawns: Vec::new(),
+            regions: Vec::new(),
             meta: Default::default(),
         }
     }

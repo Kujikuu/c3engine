@@ -8,6 +8,7 @@ mod layers;
 mod objects;
 mod population;
 mod portals;
+mod regions;
 mod resize;
 
 pub use cells::{Area, MAX_AREA_CELLS};
@@ -70,6 +71,12 @@ pub enum SceneCommand {
     SetSpawn { spawn: Spawn },
     /// Deletes spawn area `id`.
     RemoveSpawn { id: u32 },
+    /// Adds a region (music, safe zone, market, weather…); id 0 picks the lowest free id.
+    AddRegion { region: c3_scene::Region },
+    /// Replaces the region with `region.id` by `region` (moving, resizing or retuning it).
+    SetRegion { region: c3_scene::Region },
+    /// Deletes region `id`.
+    RemoveRegion { id: u32 },
     /// Makes the map `width` × `height` cells, growing or cutting at the far edges: cells
     /// keep their place, and portals, NPCs and spawn areas off the new map go. A ground
     /// of one repeated image grows with the map.
@@ -122,6 +129,10 @@ enum Change {
     Spawns {
         before: Vec<Spawn>,
         after: Vec<Spawn>,
+    },
+    Regions {
+        before: Vec<c3_scene::Region>,
+        after: Vec<c3_scene::Region>,
     },
     Layers {
         before: Vec<c3_scene::ParallaxLayer>,
@@ -181,6 +192,9 @@ impl SceneDoc {
             SceneCommand::AddSpawn { spawn } => self.add_spawn(spawn)?,
             SceneCommand::SetSpawn { spawn } => self.set_spawn(spawn)?,
             SceneCommand::RemoveSpawn { id } => self.remove_spawn(*id)?,
+            SceneCommand::AddRegion { region } => self.add_region(region)?,
+            SceneCommand::SetRegion { region } => self.set_region(region)?,
+            SceneCommand::RemoveRegion { id } => self.remove_region(*id)?,
             SceneCommand::Resize { width, height } => self.resize(*width, *height)?,
             SceneCommand::PaintGround { tiles, image } => {
                 self.paint_ground(tiles, image.as_deref())?
@@ -235,6 +249,9 @@ impl SceneDoc {
             }
             Change::Spawns { before, after } => {
                 self.scene.spawns = pick(forward, before, after).clone()
+            }
+            Change::Regions { before, after } => {
+                self.scene.regions = pick(forward, before, after).clone()
             }
             Change::Layers { before, after } => {
                 self.scene.layers = pick(forward, before, after).clone()
@@ -340,6 +357,7 @@ pub(crate) mod tests {
             layers: Vec::new(),
             npcs: Vec::new(),
             spawns: Vec::new(),
+            regions: Vec::new(),
             meta: Default::default(),
         })
     }

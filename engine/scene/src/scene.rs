@@ -203,6 +203,7 @@ pub struct Scene {
     pub layers: Vec<ParallaxLayer>,
     pub npcs: Vec<Npc>,
     pub spawns: Vec<Spawn>,
+    pub regions: Vec<crate::Region>,
     /// Format-specific values an exporter needs back (e.g. file version). Not edited by tools.
     pub meta: BTreeMap<String, String>,
 }
@@ -225,6 +226,7 @@ impl Scene {
         Population {
             npcs: self.npcs.clone(),
             spawns: self.spawns.clone(),
+            regions: self.regions.clone(),
             links: self
                 .portals
                 .iter()
@@ -237,6 +239,7 @@ impl Scene {
     pub fn set_population(&mut self, population: Population) {
         self.npcs = population.npcs;
         self.spawns = population.spawns;
+        self.regions = population.regions;
         for portal in &mut self.portals {
             portal.to = population
                 .links

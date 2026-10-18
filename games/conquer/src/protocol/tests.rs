@@ -53,6 +53,7 @@ fn scene() -> Scene {
             extra: BTreeMap::new(),
         }],
         spawns: Vec::new(),
+        regions: Vec::new(),
         meta: BTreeMap::new(),
     }
 }

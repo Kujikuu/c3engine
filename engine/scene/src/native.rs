@@ -11,8 +11,8 @@
 //! ```
 
 use crate::{
-    Cell, Entity, Grid, IsoProjection, Npc, ParallaxLayer, Population, Portal, PortalLink, Scene,
-    Spawn, TileLayer, Tileset, WorldPos,
+    Cell, Entity, Grid, IsoProjection, Npc, ParallaxLayer, Population, Portal, PortalLink, Region,
+    Scene, Spawn, TileLayer, Tileset, WorldPos,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -44,6 +44,8 @@ struct SceneFile {
     npcs: Vec<Npc>,
     #[serde(default)]
     spawns: Vec<Spawn>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    regions: Vec<Region>,
     meta: BTreeMap<String, String>,
 }
 
@@ -56,6 +58,8 @@ struct PopulationFile {
     spawns: Vec<Spawn>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     links: Vec<PortalLink>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    regions: Vec<Region>,
 }
 
 /// A ground layer without its tile ids (they are in the `.scene.bin`).
@@ -101,6 +105,7 @@ pub fn save_scene(scene: &Scene, file: &Path) -> Result<()> {
         layers: scene.layers.clone(),
         npcs: scene.npcs.clone(),
         spawns: scene.spawns.clone(),
+        regions: scene.regions.clone(),
         meta: scene.meta.clone(),
     };
     let ron = ron::ser::to_string_pretty(&text, ron::ser::PrettyConfig::default())
@@ -203,6 +208,7 @@ pub fn load_scene(file: &Path) -> Result<Scene> {
         layers: text.layers,
         npcs: text.npcs,
         spawns: text.spawns,
+        regions: text.regions,
         meta: text.meta,
     })
 }
@@ -220,6 +226,7 @@ pub fn save_population(population: &Population, file: &Path) -> Result<()> {
         npcs: population.npcs.clone(),
         spawns: population.spawns.clone(),
         links: population.links.clone(),
+        regions: population.regions.clone(),
     };
     let ron = ron::ser::to_string_pretty(&text, ron::ser::PrettyConfig::default())
         .map_err(|e| invalid(file, e))?;
@@ -250,6 +257,7 @@ pub fn load_population(file: &Path) -> Result<Population> {
         npcs: parsed.npcs,
         spawns: parsed.spawns,
         links: parsed.links,
+        regions: parsed.regions,
     })
 }
 
@@ -356,6 +364,7 @@ mod tests {
                 per_wave: 2,
                 extra: BTreeMap::new(),
             }],
+            regions: Vec::new(),
             meta: [("version".to_owned(), "1".to_owned())].into(),
         };
         let dir = std::env::temp_dir().join(format!("c3-scene-native-{}", std::process::id()));
