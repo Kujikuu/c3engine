@@ -1,9 +1,10 @@
 //! The game server: maps, logged-in players and the tick loop that serves them.
 
 use crate::accounts::Accounts;
-use crate::msg::{ClientMsg, PROTOCOL, ServerMsg, Welcome, decode, encode};
+use crate::front::{Front, FrontEvent};
+use crate::msg::{ClientMsg, Welcome};
 use c3_game::{EntityId, PlayerSave, Sim, TICK_MS, Viewer};
-use c3_net::{ConnId, NetEvent, Server};
+use c3_net::ConnId;
 use c3_scene::CellPos;
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -43,6 +44,13 @@ fn spread(start: CellPos, name: &str) -> CellPos {
     (start.0 + offset(h), start.1 + offset(h / 7))
 }
 
+/// A client: which front it came through, and its connection there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct Client {
+    front: usize,
+    conn: ConnId,
+}
+
 /// A logged-in player.
 struct Online {
     account: String,
@@ -52,21 +60,22 @@ struct Online {
 }
 
 pub struct GameServer {
-    net: Server,
+    fronts: Vec<Box<dyn Front>>,
     maps: Vec<MapWorld>,
     accounts: Accounts,
     config: ServerConfig,
-    online: BTreeMap<ConnId, Online>,
+    online: BTreeMap<Client, Online>,
     since_save_ms: u64,
     log: Vec<String>,
 }
 
 impl GameServer {
-    /// Serves `maps` (at least one) to the clients of `net`.
-    pub fn new(net: Server, maps: Vec<MapWorld>, config: ServerConfig) -> Self {
+    /// Serves `maps` (at least one) to the clients of `fronts`.
+    pub fn new(fronts: Vec<Box<dyn Front>>, maps: Vec<MapWorld>, config: ServerConfig) -> Self {
         assert!(!maps.is_empty(), "a server needs a map");
+        assert!(!fronts.is_empty(), "a server needs a front");
         Self {
-            net,
+            fronts,
             maps,
             accounts: Accounts::new(config.accounts.clone()),
             config,
@@ -76,8 +85,9 @@ impl GameServer {
         }
     }
 
+    /// The first front's address.
     pub fn local_addr(&self) -> SocketAddr {
-        self.net.local_addr()
+        self.fronts[0].local_addr()
     }
 
     /// Players logged in.
@@ -90,14 +100,16 @@ impl GameServer {
         std::mem::take(&mut self.log)
     }
 
-    /// Runs `ms` of game: takes in what clients sent, advances every map and sends each
+    /// Runs `ms` of game: takes in what clients sent, advances every map and shows each
     /// player what changed around them.
     pub fn tick(&mut self, ms: u64) {
-        for event in self.net.poll() {
-            match event {
-                NetEvent::Connected { .. } => {}
-                NetEvent::Received { id, packet } => self.received(id, &packet),
-                NetEvent::Closed { id, .. } => self.leave(id),
+        for front in 0..self.fronts.len() {
+            for event in self.fronts[front].poll() {
+                match event {
+                    FrontEvent::Message(conn, msg) => self.received(Client { front, conn }, msg),
+                    FrontEvent::Closed(conn) => self.leave(Client { front, conn }),
+                    FrontEvent::Problem(text) => self.log.push(text),
+                }
             }
         }
         for (index, map) in self.maps.iter_mut().enumerate() {
@@ -110,11 +122,9 @@ impl GameServer {
                     _ => {}
                 }
             }
-            for (&conn, player) in self.online.iter_mut().filter(|(_, p)| p.map == index) {
+            for (client, player) in self.online.iter_mut().filter(|(_, p)| p.map == index) {
                 let update = map.sim.update_for(player.hero, &mut player.viewer, &events);
-                if !update.is_empty() {
-                    self.net.send(conn, encode(&ServerMsg::Update(update)));
-                }
+                self.fronts[client.front].update(client.conn, &update, map, player.hero);
             }
         }
         self.since_save_ms += ms;
@@ -152,63 +162,39 @@ impl GameServer {
     /// Saves every logged-in character and closes their connections.
     pub fn shutdown(&mut self) {
         self.save_all();
-        for &conn in self.online.keys() {
-            self.net.send(
-                conn,
-                encode(&ServerMsg::Kicked("The server is shutting down.".into())),
-            );
-            self.net.close(conn);
+        for client in self.online.keys() {
+            self.fronts[client.front].kick(client.conn, "The server is shutting down.");
         }
     }
 
-    fn received(&mut self, conn: ConnId, packet: &[u8]) {
-        let msg: ClientMsg = match decode(packet) {
-            Ok(msg) => msg,
-            Err(e) => {
-                self.log
-                    .push(format!("Unreadable message from {conn:?}: {e}"));
-                self.net.close(conn);
-                return;
-            }
-        };
+    fn received(&mut self, client: Client, msg: ClientMsg) {
         match msg {
             ClientMsg::Login {
-                protocol,
-                account,
-                password,
-            } => self.login(conn, protocol, &account, &password),
+                account, password, ..
+            } => self.login(client, &account, &password),
             ClientMsg::Input(input) => {
-                if let Some(p) = self.online.get(&conn) {
+                if let Some(p) = self.online.get(&client) {
                     self.maps[p.map].sim.input(p.hero, input);
                 }
             }
             ClientMsg::Logout => {
-                self.leave(conn);
-                self.net.close(conn);
+                self.leave(client);
+                self.fronts[client.front].kick(client.conn, "Logged out.");
             }
         }
     }
 
-    fn refuse(&mut self, conn: ConnId, why: String) {
-        self.net.send(conn, encode(&ServerMsg::Refused(why)));
-        self.net.close(conn);
-    }
-
-    fn login(&mut self, conn: ConnId, protocol: u32, account: &str, password: &str) {
-        if self.online.contains_key(&conn) {
+    fn login(&mut self, client: Client, account: &str, password: &str) {
+        if self.online.contains_key(&client) {
             return;
         }
-        if protocol != PROTOCOL {
-            let why =
-                format!("This server speaks protocol {PROTOCOL}; the client speaks {protocol}.");
-            return self.refuse(conn, why);
-        }
+        let front = &mut self.fronts[client.front];
         if self
             .online
             .values()
             .any(|p| p.account.eq_ignore_ascii_case(account))
         {
-            return self.refuse(conn, "This account is already playing.".into());
+            return front.refuse(client.conn, "This account is already playing.");
         }
         let first = &self.maps[0];
         let (start, first_key) = (first.start, first.key.clone());
@@ -226,7 +212,7 @@ impl GameServer {
         };
         let save = match self.accounts.login(account, password, new_character) {
             Ok(save) => save,
-            Err(e) => return self.refuse(conn, e.to_string()),
+            Err(e) => return front.refuse(client.conn, &e.to_string()),
         };
         let map = self
             .maps
@@ -235,18 +221,16 @@ impl GameServer {
             .unwrap_or(0);
         let world = &mut self.maps[map];
         let hero = world.sim.add_saved_player(&save);
-        self.net.send(
-            conn,
-            encode(&ServerMsg::Welcome(Welcome {
-                hero,
-                map: world.key.clone(),
-                map_ids: world.map_ids.clone(),
-            })),
-        );
+        let welcome = Welcome {
+            hero,
+            map: world.key.clone(),
+            map_ids: world.map_ids.clone(),
+        };
+        front.welcome(client.conn, &welcome, world);
         self.log
             .push(format!("{account} logged in on {}", world.key));
         self.online.insert(
-            conn,
+            client,
             Online {
                 account: account.to_owned(),
                 map,
@@ -256,9 +240,9 @@ impl GameServer {
         );
     }
 
-    /// The player on `conn` left: save their character and take it out of the world.
-    fn leave(&mut self, conn: ConnId) {
-        let Some(p) = self.online.remove(&conn) else {
+    /// The player of `client` left: save their character and take it out of the world.
+    fn leave(&mut self, client: Client) {
+        let Some(p) = self.online.remove(&client) else {
             return;
         };
         self.save(&p);
@@ -278,11 +262,11 @@ impl GameServer {
     }
 
     fn save_all(&mut self) {
-        let online: Vec<ConnId> = self.online.keys().copied().collect();
-        for conn in online {
-            if let Some(p) = self.online.remove(&conn) {
+        let online: Vec<Client> = self.online.keys().copied().collect();
+        for client in online {
+            if let Some(p) = self.online.remove(&client) {
                 self.save(&p);
-                self.online.insert(conn, p);
+                self.online.insert(client, p);
             }
         }
     }

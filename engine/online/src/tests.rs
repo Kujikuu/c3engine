@@ -3,7 +3,6 @@ use c3_game::{
     Drop, EntityId, Event, Fighter, Input, ItemType, MonsterType, PlayerSave, Rng, Rules, Sim,
     Stats, WorldUpdate,
 };
-use c3_net::Server;
 use c3_scene::{Grid, Spawn};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -89,7 +88,7 @@ fn world() -> Sim {
 fn server(test: &str) -> (GameServer, PathBuf) {
     let dir = std::env::temp_dir().join(format!("c3-online-{}-{test}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let net = Server::bind("127.0.0.1:0", c3_net::Wire::plain).unwrap();
+    let front = EngineFront::bind("127.0.0.1:0").unwrap();
     let maps = vec![MapWorld {
         key: "plain".into(),
         map_ids: vec![7],
@@ -104,7 +103,7 @@ fn server(test: &str) -> (GameServer, PathBuf) {
         }),
         save_every_ms: 60_000,
     };
-    (GameServer::new(net, maps, config), dir)
+    (GameServer::new(vec![Box::new(front)], maps, config), dir)
 }
 
 /// A client's game: its connection and its mirror of the world.

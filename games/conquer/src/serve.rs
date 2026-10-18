@@ -4,8 +4,7 @@
 //! both start one.
 
 use crate::game::{self, GameSetup};
-use c3_net::{Server, Wire};
-use c3_online::{GameServer, MapWorld, ServerConfig};
+use c3_online::{EngineFront, Front, GameServer, MapWorld, ServerConfig};
 use c3_scene::{CellPos, Scene, path};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -52,9 +51,9 @@ impl ServerHandle {
         if maps.is_empty() {
             return Err("there is no map to serve".into());
         }
-        let net = Server::bind(setup.listen.as_str(), Wire::plain)
+        let front = EngineFront::bind(setup.listen.as_str())
             .map_err(|e| format!("can't listen on {}: {e}", setup.listen))?;
-        let addr = net.local_addr();
+        let addr = front.local_addr();
         let stop = Arc::new(AtomicBool::new(false));
         let log: Arc<Mutex<Vec<String>>> = Arc::default();
         let (stopping, sink) = (stop.clone(), log.clone());
@@ -92,7 +91,8 @@ impl ServerHandle {
                     new_character: Box::new(game::new_character),
                     save_every_ms: SAVE_EVERY_MS,
                 };
-                let mut server = GameServer::new(net, worlds, config);
+                let fronts: Vec<Box<dyn Front>> = vec![Box::new(front)];
+                let mut server = GameServer::new(fronts, worlds, config);
                 server.run(&stopping, |line| say(line.to_owned()));
                 say("The server stopped; characters saved.".into());
             })
