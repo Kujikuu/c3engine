@@ -1194,6 +1194,24 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                 "graphics.background",
                 g.background,
             );
+            f.color(
+                ui,
+                (
+                    "Light",
+                    "Colour of the light over the scene: white draws it as it is; darker or tinted for night, dusk or caves",
+                ),
+                "graphics.light",
+                g.light,
+            );
+            f.check(
+                ui,
+                (
+                    "Shade models",
+                    "Shade characters and monsters as if lit by the sun from one side",
+                ),
+                "graphics.shade_models",
+                g.shade_models,
+            );
         }),
         Section::Audio => grid(ui, "audio", |ui| {
             let a = &s.audio;

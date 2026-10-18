@@ -259,6 +259,7 @@ impl Session {
         let tilt = settings::tilt_deg(&settings, &*game);
         let mut world = World::new(Rc::clone(&game), map_path, scene, tilt);
         world.background = world::linear_background(settings.graphics.background);
+        world.light = world::scene_light(&settings.graphics);
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.system(
@@ -404,6 +405,7 @@ impl Session {
         let tilt = settings::tilt_deg(&self.settings, &*self.world.game);
         let mut world = World::new(Rc::clone(&self.world.game), map_path, scene, tilt);
         world.background = self.world.background;
+        world.light = self.world.light;
         let view = SimView::attach(&sim, hero, &mut world)?;
         self.world.release(renderer);
         self.world = world;
@@ -424,6 +426,7 @@ impl Session {
         self.sim.set_settings(settings.gameplay.clone());
         self.audio.apply(&settings.audio);
         self.world.background = world::linear_background(settings.graphics.background);
+        self.world.light = world::scene_light(&settings.graphics);
         self.slots = settings::equipment_slots(&settings, &*self.world.game);
         self.settings = settings;
     }

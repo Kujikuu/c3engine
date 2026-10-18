@@ -408,6 +408,11 @@ pub struct GraphicsSettings {
     pub frame_cap: u32,
     /// Colour around and behind the map.
     pub background: [u8; 3],
+    /// Colour of the light over the scene (white: as drawn; darker or tinted for night,
+    /// dusk or caves). Effects keep their glow.
+    pub light: [u8; 3],
+    /// Shades models as if lit by the sun from one side.
+    pub shade_models: bool,
 }
 
 impl Default for GraphicsSettings {
@@ -416,6 +421,8 @@ impl Default for GraphicsSettings {
             vsync: true,
             frame_cap: 0,
             background: [1, 1, 1],
+            light: [255, 255, 255],
+            shade_models: false,
         }
     }
 }

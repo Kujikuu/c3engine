@@ -39,7 +39,7 @@ pub(crate) struct SpritePass {
 }
 
 const SHADER: &str = r#"
-struct View { m: mat4x4<f32> };
+struct View { m: mat4x4<f32>, ambient: vec4<f32> };
 @group(0) @binding(0) var<uniform> view: View;
 @group(1) @binding(0) var tex: texture_2d<f32>;
 @group(1) @binding(1) var samp: sampler;
@@ -53,7 +53,7 @@ fn vs(@builtin(vertex_index) i: u32, @location(0) rect: vec4<f32>, @location(1) 
     var o: Out;
     o.pos = view.m * vec4(rect.xy + c * rect.zw, 0.0, 1.0);
     o.uv = mix(uv.xy, uv.zw, c);
-    o.tint = tint;
+    o.tint = vec4(tint.rgb * view.ambient.rgb, tint.a);
     return o;
 }
 
@@ -70,7 +70,7 @@ impl SpritePass {
         color_format: wgpu::TextureFormat,
     ) -> Self {
         let (view_buffer, view_layout, view_group) =
-            crate::mesh::uniform(device, "c3 sprite view", 64);
+            crate::mesh::uniform(device, "c3 sprite view", 80);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("c3 sprite shader"),
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
@@ -127,13 +127,13 @@ impl SpritePass {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         view: Mat4,
+        light: crate::Light,
         sprites: &[Sprite],
     ) -> Batches {
-        queue.write_buffer(
-            &self.view_buffer,
-            0,
-            bytemuck::cast_slice(&view.to_cols_array()),
-        );
+        let [r, g, b] = light.ambient;
+        let mut uniform = view.to_cols_array().to_vec();
+        uniform.extend([r, g, b, 1.0]);
+        queue.write_buffer(&self.view_buffer, 0, bytemuck::cast_slice(&uniform));
         let mut runs: Vec<(Option<TextureId>, u32, u32)> = Vec::new();
         let instances: Vec<Instance> = sprites
             .iter()

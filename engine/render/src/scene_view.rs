@@ -379,6 +379,7 @@ impl<K> SceneView<K> {
             mesh_view: actor_view(rect),
             meshes,
             order: &self.order,
+            light: Default::default(),
         }
     }
 }

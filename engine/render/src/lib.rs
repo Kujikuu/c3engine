@@ -63,6 +63,29 @@ pub struct Frame<'a> {
     pub meshes: &'a [MeshDraw<'a>],
     /// Painter's order mixing sprites and meshes. Empty = all sprites, then all meshes.
     pub order: &'a [DrawCmd],
+    pub light: Light,
+}
+
+/// The scene's light: a colour over the map, sprites and solid meshes (effects keep
+/// their glow), and whether models are shaded by a sun.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Light {
+    /// RGB multiplier (linear); white leaves colours as they are.
+    pub ambient: [f32; 3],
+    /// Shades models by `sun` (half-Lambert), as if lit from one side.
+    pub shade_models: bool,
+    /// Direction the sunlight travels (world, normalized in the shader).
+    pub sun: [f32; 3],
+}
+
+impl Default for Light {
+    fn default() -> Self {
+        Self {
+            ambient: [1.0; 3],
+            shade_models: false,
+            sun: [0.4, -0.7, -0.6],
+        }
+    }
 }
 
 /// One step of a frame's painter's order.
@@ -153,9 +176,13 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("c3 frame"),
             });
-        let sprite_batches =
-            self.sprites
-                .prepare(&self.device, &self.queue, frame.sprite_view, frame.sprites);
+        let sprite_batches = self.sprites.prepare(
+            &self.device,
+            &self.queue,
+            frame.sprite_view,
+            frame.light,
+            frame.sprites,
+        );
         let default_order: Vec<DrawCmd>;
         let order = if frame.order.is_empty() {
             default_order = std::iter::once(DrawCmd::Sprites(0..frame.sprites.len() as u32))
@@ -181,11 +208,13 @@ impl Renderer {
             }
         }
         let slice = 1.0 / n.max(1) as f32;
-        let meshes = self
-            .meshes
-            .prepare(&self.device, frame.mesh_view, frame.meshes, |i| {
-                (1.0 - (rank[i] + 1) as f32 * slice, slice)
-            });
+        let meshes = self.meshes.prepare(
+            &self.device,
+            frame.mesh_view,
+            frame.light,
+            frame.meshes,
+            |i| (1.0 - (rank[i] + 1) as f32 * slice, slice),
+        );
         {
             let [r, g, b, a] = frame.clear;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

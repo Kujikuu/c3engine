@@ -68,6 +68,10 @@ struct Uniforms {
     depth: [f32; 4],
     /// x = lit (0/1).
     shading: [f32; 4],
+    /// rgb = colour multiplier of the scene light.
+    ambient: [f32; 4],
+    /// xyz = direction the sunlight travels.
+    sun: [f32; 4],
 }
 
 /// Pipelines differ only in fixed-function state.
@@ -97,6 +101,7 @@ pub(crate) struct MeshPass {
 const SHADER: &str = r#"
 struct U {
     mvp: mat4x4<f32>, model: mat4x4<f32>, tint: vec4<f32>, depth: vec4<f32>, shading: vec4<f32>,
+    ambient: vec4<f32>, sun: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> u: U;
 @group(1) @binding(0) var tex: texture_2d<f32>;
@@ -117,13 +122,13 @@ fn vs(@location(0) pos: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) 
 
 @fragment
 fn fs(in: Out) -> @location(0) vec4<f32> {
-    let c = textureSample(tex, samp, in.uv) * u.tint;
+    let c = textureSample(tex, samp, in.uv) * u.tint * vec4(u.ambient.rgb, 1.0);
     // Classic alpha test (D3D ALPHAREF 8, GREATEREQUAL).
     if (c.a < 8.0 / 255.0) { discard; }
     if (u.shading.x == 0.0) { return c; }
     // Two-sided half-Lambert so thin meshes never go black.
     let n = normalize(in.normal);
-    let light = 0.55 + 0.45 * abs(dot(n, normalize(vec3(0.4, -0.7, -0.6))));
+    let light = 0.55 + 0.45 * abs(dot(n, normalize(u.sun.xyz)));
     return vec4(c.rgb * light, c.a);
 }
 "#;
@@ -272,6 +277,7 @@ impl MeshPass {
         &mut self,
         device: &wgpu::Device,
         view: Mat4,
+        light: crate::Light,
         draws: &[MeshDraw],
         depth: impl Fn(usize) -> (f32, f32),
     ) -> Vec<Option<Prepared>> {
@@ -284,12 +290,18 @@ impl MeshPass {
                 }
                 let pipeline = self.ensure_pipeline(device, d.style);
                 let (start, size) = depth(i);
+                // Solid meshes take the scene light; see-through effects keep their glow.
+                let solid = d.style.depth_write;
+                let lit = d.style.lit || (solid && light.shade_models);
+                let ambient = if solid { light.ambient } else { [1.0; 3] };
                 let uniforms = Uniforms {
                     mvp: (view * d.transform).to_cols_array(),
                     model: d.transform.to_cols_array(),
                     tint: d.tint,
                     depth: [start, size, 0.0, 0.0],
-                    shading: [f32::from(u8::from(d.style.lit)), 0.0, 0.0, 0.0],
+                    shading: [f32::from(u8::from(lit)), 0.0, 0.0, 0.0],
+                    ambient: [ambient[0], ambient[1], ambient[2], 1.0],
+                    sun: [light.sun[0], light.sun[1], light.sun[2], 0.0],
                 };
                 let buffer = |label, contents: &[u8], usage| {
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

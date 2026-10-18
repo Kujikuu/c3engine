@@ -103,6 +103,7 @@ fn draws_textured_sprite_and_lit_mesh() {
             mesh_view: Mat4::IDENTITY,
             meshes: &meshes,
             order: &[],
+            light: Default::default(),
         },
     );
     let px = read_pixels(&r, &target, &queue);

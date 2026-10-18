@@ -11,7 +11,7 @@ use crate::module::GameModule;
 use c3_render::camera::Camera2d;
 use c3_render::effect::camera_eye;
 use c3_render::scene_view::SceneView;
-use c3_render::{Frame, MeshDraw, Renderer, View};
+use c3_render::{Frame, Light, MeshDraw, Renderer, View};
 use c3_scene::Scene;
 use glam::Vec2;
 use std::collections::HashMap;
@@ -33,6 +33,17 @@ pub struct World {
     clock_ms: f64,
     /// Colour (linear) around and behind the map.
     pub background: [f64; 4],
+    pub light: Light,
+}
+
+/// The scene light `graphics` asks for.
+pub fn scene_light(graphics: &c3_core::settings::GraphicsSettings) -> Light {
+    let [r, g, b, _] = linear_background(graphics.light);
+    Light {
+        ambient: [r as f32, g as f32, b as f32],
+        shade_models: graphics.shade_models,
+        ..Light::default()
+    }
 }
 
 /// An sRGB colour as the renderer's linear clear colour.
@@ -64,6 +75,7 @@ impl World {
             background: linear_background(
                 c3_core::settings::GraphicsSettings::default().background,
             ),
+            light: Light::default(),
         };
         world.mark_portals();
         world
@@ -323,6 +335,9 @@ impl World {
 
     /// The frame description for `meshes` (from [`World::mesh_draws`]) seen through `rect`.
     pub fn frame<'a>(&'a self, meshes: &'a [MeshDraw<'a>], rect: [f32; 4]) -> Frame<'a> {
-        self.view.frame(meshes, rect, self.background)
+        Frame {
+            light: self.light,
+            ..self.view.frame(meshes, rect, self.background)
+        }
     }
 }
