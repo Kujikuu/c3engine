@@ -15,7 +15,9 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [x] ClientFs VFS (loose files first, then WDF) + `mapshot` example (map ground → PNG)
 - [x] MSK masks, TME terrain effects, RGN regions
 - [x] ANI index files (51 files / 56,971 sections; GBK-safe; frame paths resolve in WDF)
-- [x] ini tables, .scene/.Part terrain objects, GameMap.dat, all game .dat tables (incl. XorRot-encrypted)
+- [x] ini tables, .scene/.Part terrain objects, GameMap.dat, game .dat tables: 4 binary (MagicType,
+      Action, AutoAllot, Tips) and 4 XorRot-encrypted text tables. Not yet: the GUI dialog/control
+      ini tables, cursors (.ani/.cur), fonts, minimap/radar art; writers for ini and DDS
 - [x] DMap (cells, heights, portals, interactive + scene layers): 144/144 client maps byte-identical
 - [x] PUL puzzle (143/143 byte-identical; every used tile resolves in its ANI)
 - [x] C3 chunks: PHY, MOTI, SHAP, SMOT, PTCL, CAME
@@ -247,6 +249,9 @@ complete project on that engine, then any game of the kind.
       enter region, timers, login)
 - [ ] (6) Undo everywhere: dialogues, scripts, table rows, settings and assets through c3-edit
       commands; File > Save saves everything dirty
+- [ ] (7) Renderer gaps the settings and UI need: world text drawn by the engine with project
+      fonts (names, damage numbers, chat bubbles), custom cursors drawn in the game, a minimap /
+      radar, configurable lighting (today one fixed light)
 
 ## M8: Complete map and world editor
 Every edit one undo step through c3-edit; maps saved to their own files (native scene, or DMap /
@@ -277,7 +282,7 @@ PUL for the classic client).
 - [ ] Data-driven game UI: windows, HUD and dialogs as layout files (images, text, bars, grids,
       buttons, data bindings), skins from images; a Studio UI editor with live preview
 - [ ] Client front end from data: login and server list, character creation and selection,
-      loading screens, settings menu (keys, video, audio)
+      loading screens, settings menu (keys, video, audio); the game UI's minimap / radar
 
 ## M10: Conquer as a complete project (on the engine)
 - [ ] Full import in one step: the client's files plus TQ's server data (an SQL dump such as
@@ -309,9 +314,11 @@ PUL for the classic client).
 - [ ] Build from the Studio: package a playable client and server from a project (assets
       packed, settings applied)
 - [ ] Server for real use: a database option (SQL) beside account files, an admin console
-      (online players, kick, broadcast, save), GM tools with permissions, logs
+      (online players, kick, broadcast, save; `c3-server`'s doc already promises `online`, which
+      doesn't exist), GM tools with permissions, logs
 - [ ] Launcher and patcher
-- [ ] glTF export (Blender pipeline); exporters back to the classic client where useful
+- [ ] glTF export (Blender pipeline); exporters back to the classic client where useful (today
+      only DMap is exported: no C3, ANI, PUL-from-scene, DDS or WDF repack from engine content)
 
 ## M13: AI integration (was M4; the user keeps it last)
 - [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
