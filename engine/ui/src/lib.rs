@@ -15,6 +15,7 @@ mod hud;
 pub mod icons;
 mod menu;
 mod quests;
+mod radar;
 mod shop;
 pub mod style;
 
@@ -244,6 +245,7 @@ impl GameUi {
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();
         hud::hint_line(ui, view);
         hud::status_row(ui, view, player);
+        radar::show(ui, view);
         quests::npc_marks(&ui.painter_at(view.rect), view);
         let mut open = hud::Open {
             bag: &mut self.bag_open,

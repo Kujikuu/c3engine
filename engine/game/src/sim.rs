@@ -197,6 +197,11 @@ impl Sim {
         self.items.values()
     }
 
+    /// Cells that lead to another map.
+    pub fn portal_cells(&self) -> impl Iterator<Item = &CellPos> {
+        self.portals.iter().map(|(cell, _)| cell)
+    }
+
     pub fn npcs(&self) -> &[Npc] {
         &self.npcs
     }

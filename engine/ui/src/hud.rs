@@ -1,6 +1,6 @@
 //! The bar at the bottom (level, life, mana, experience, money, bag and quest buttons) and
 //! what is drawn over the world: drop labels, names and life of the monster fought or pointed at,
-//! and damage numbers.
+//! damage numbers and what players say, in bubbles over their heads.
 
 use crate::fonts;
 use crate::icons;
@@ -12,6 +12,10 @@ use egui::{Color32, Pos2, Rect};
 
 /// Seconds a damage number rises before it is gone.
 const FLOAT_SECONDS: f64 = 1.0;
+/// Seconds a chat bubble stays over the speaker.
+const BUBBLE_SECONDS: f64 = 8.0;
+/// Widest a chat bubble's text runs before it wraps.
+const BUBBLE_WIDTH: f32 = 180.0;
 const BAR_WIDTH: f32 = 500.0;
 /// Width of the bar's right column (money, sound, buttons).
 const RIGHT_COLUMN: f32 = 140.0;
@@ -30,13 +34,29 @@ struct Float {
     color: Color32,
 }
 
+/// What a player said, over its head.
+struct Bubble {
+    at: f64,
+    entity: EntityId,
+    text: String,
+}
+
 #[derive(Default)]
 pub(crate) struct Overlay {
     floats: Vec<Float>,
+    bubbles: Vec<Bubble>,
 }
 
 impl Overlay {
     pub fn event(&mut self, event: &Event, hero: EntityId, now: f64) {
+        if let Event::Chat { player, text, .. } = event {
+            self.bubbles.retain(|b| b.entity != *player);
+            self.bubbles.push(Bubble {
+                at: now,
+                entity: *player,
+                text: text.clone(),
+            });
+        }
         if let Event::Healed { target, amount } = *event
             && amount > 0
         {
@@ -71,6 +91,7 @@ impl Overlay {
     pub fn show(&mut self, ui: &egui::Ui, view: &GameView) {
         let now = ui.input(|i| i.time);
         self.floats.retain(|f| now - f.at < FLOAT_SECONDS);
+        self.bubbles.retain(|b| now - b.at < BUBBLE_SECONDS);
         let painter = ui.painter_at(view.rect);
         drop_labels(&painter, view);
         player_names(&painter, view);
@@ -100,7 +121,50 @@ impl Overlay {
                 f.color.gamma_multiply(1.0 - t * t),
             );
         }
+        // Bubbles stay below the hint line.
+        let top = view.rect.top() + if view.hint.is_empty() { 4.0 } else { 36.0 };
+        for b in &self.bubbles {
+            if let Some(at) = (view.head)(b.entity) {
+                // Fades out over its last half second.
+                let fade = ((BUBBLE_SECONDS - (now - b.at)) / 0.5).min(1.0) as f32;
+                bubble(&painter, at, &b.text, view.hero == b.entity, top, fade);
+            }
+        }
     }
+}
+
+/// `text` in a speech bubble pointing down at `head` (above the name, if one is shown),
+/// pushed down to stay below `top`.
+fn bubble(painter: &egui::Painter, head: Pos2, text: &str, hero: bool, top: f32, fade: f32) {
+    let galley = painter.layout(
+        text.to_owned(),
+        fonts::font(13.0),
+        style::TEXT.gamma_multiply(fade),
+        BUBBLE_WIDTH,
+    );
+    let pad = egui::vec2(8.0, 5.0);
+    let lift = if hero { 8.0 } else { 26.0 };
+    let size = galley.size() + pad * 2.0;
+    let tip = Pos2::new(head.x, (head.y - lift).max(top + size.y + 6.0));
+    let rect = Rect::from_min_size(tip - egui::vec2(size.x / 2.0, size.y + 6.0), size);
+    let fill = style::PANEL.gamma_multiply(0.92 * fade);
+    let edge = egui::Stroke::new(1.0, style::EDGE.gamma_multiply(fade));
+    let tail = vec![
+        tip,
+        Pos2::new(tip.x - 6.0, rect.bottom() - 1.0),
+        Pos2::new(tip.x + 6.0, rect.bottom() - 1.0),
+    ];
+    painter.add(egui::Shape::convex_polygon(tail, fill, edge));
+    painter.rect(rect, 6.0, fill, edge, egui::StrokeKind::Inside);
+    // Covers the tail's top edge so bubble and tail read as one shape.
+    painter.line_segment(
+        [
+            Pos2::new(tip.x - 5.0, rect.bottom() - 1.0),
+            Pos2::new(tip.x + 5.0, rect.bottom() - 1.0),
+        ],
+        egui::Stroke::new(2.0, fill),
+    );
+    painter.galley(rect.min + pad, galley, style::TEXT);
 }
 
 /// The name and life shown over `id` while fought or pointed at: a living monster, or on a
