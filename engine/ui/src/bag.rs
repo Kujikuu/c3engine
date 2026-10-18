@@ -1,10 +1,11 @@
 //! The bag window: worn equipment and the bag's slots. Click an item to use or wear it;
 //! right-click sells it while a shop is open. Hovering shows what an item does.
 
+use crate::fonts;
 use crate::icons;
 use crate::style;
 use crate::{GameView, Icons, UiAction};
-use c3_game::{BAG_SIZE, Item};
+use c3_game::Item;
 use egui::{Color32, RichText, Sense, Vec2};
 
 const COLUMNS: usize = 8;
@@ -26,6 +27,7 @@ pub(crate) fn window(
 ) {
     let Some(p) = view.player() else { return };
     let rect = view.rect;
+    let (bag_size, currency) = (view.sim.bag_size(), &view.sim.settings().currency);
     egui::Window::new("game bag")
         .title_bar(false)
         .frame(style::panel())
@@ -33,9 +35,10 @@ pub(crate) fn window(
         .constrain_to(rect)
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-12.0, 44.0))
         .show(ui.ctx(), |ui| {
+            fonts::use_game_font(ui);
             ui.horizontal(|ui| {
                 ui.label(style::title(icons::BACKPACK, "Bag"));
-                ui.label(RichText::new(format!("{}/{BAG_SIZE}", p.bag.len())).color(style::DIM));
+                ui.label(RichText::new(format!("{}/{bag_size}", p.bag.len())).color(style::DIM));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .add(egui::Button::new(icons::X).frame(false))
@@ -77,13 +80,13 @@ pub(crate) fn window(
             egui::Grid::new("game bag slots")
                 .spacing(Vec2::splat(4.0))
                 .show(ui, |ui| {
-                    for i in 0..BAG_SIZE {
+                    for i in 0..bag_size {
                         let item = p.bag.get(i);
                         let resp = slot_button(ui, view, icons, item, "");
                         if let Some(item) = item {
                             let hint = match shop {
                                 Some(_) => format!(
-                                    "{}\nClick: use · Right-click: sell for {} silver",
+                                    "{}\nClick: use · Right-click: sell for {} {currency}",
                                     describe(view, item.kind),
                                     view.sim.rules().sell_price(item.kind)
                                 ),
@@ -112,7 +115,8 @@ pub(crate) fn window(
                 });
             ui.add_space(4.0);
             ui.label(
-                RichText::new(format!("{}  {} silver", icons::COINS, p.money)).color(style::MONEY),
+                RichText::new(format!("{}  {} {currency}", icons::COINS, p.money))
+                    .color(style::MONEY),
             );
         });
 }
@@ -163,7 +167,7 @@ fn slot_button(
                     } else {
                         initials
                     },
-                    egui::FontId::proportional(13.0),
+                    fonts::font(13.0),
                     style::ITEM,
                 );
             }
@@ -173,7 +177,7 @@ fn slot_button(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
                 empty,
-                egui::FontId::proportional(9.0),
+                fonts::font(9.0),
                 Color32::from_gray(90),
             );
         }

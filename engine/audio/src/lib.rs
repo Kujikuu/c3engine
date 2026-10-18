@@ -12,9 +12,6 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
-/// Cells from the listener at which a sound fades out completely.
-pub const HEARING_RANGE: f32 = 18.0;
-
 /// Reads a sound file of the game by its path.
 pub type Loader = Box<dyn Fn(&str) -> Option<Vec<u8>>>;
 
@@ -28,8 +25,29 @@ pub struct Audio {
     /// Loaded files (`None`: missing or unreadable, not tried again).
     files: HashMap<String, Option<Arc<[u8]>>>,
     muted: bool,
-    pub sound_volume: f32,
-    pub music_volume: f32,
+    volumes: Volumes,
+    /// Cells from the listener at which a sound fades out completely.
+    pub hearing_range: f32,
+}
+
+/// How loud sound plays, each 0–1.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Volumes {
+    /// Everything.
+    pub master: f32,
+    pub music: f32,
+    /// One-shot sounds.
+    pub sound: f32,
+}
+
+impl Default for Volumes {
+    fn default() -> Self {
+        Self {
+            master: 1.0,
+            music: 0.5,
+            sound: 0.8,
+        }
+    }
 }
 
 impl Audio {
@@ -46,8 +64,20 @@ impl Audio {
             load,
             files: HashMap::new(),
             muted: false,
-            sound_volume: 0.8,
-            music_volume: 0.5,
+            volumes: Volumes::default(),
+            hearing_range: 18.0,
+        }
+    }
+
+    pub fn volumes(&self) -> Volumes {
+        self.volumes
+    }
+
+    /// Plays at `volumes` from now on (the music playing too).
+    pub fn set_volumes(&mut self, volumes: Volumes) {
+        self.volumes = volumes;
+        if let Some(music) = &self.music {
+            music.set_volume(volumes.master * volumes.music);
         }
     }
 
@@ -98,7 +128,7 @@ impl Audio {
         let Some(source) = self.decode(path) else {
             return;
         };
-        let gain = volume * self.sound_volume;
+        let gain = volume * self.volumes.master * self.volumes.sound;
         if let Some(sink) = &self.sink {
             sink.mixer().add(source.amplify(gain));
         }
@@ -106,7 +136,8 @@ impl Audio {
 
     /// Plays sound `path` once, softer the farther (cells) it is from the listener.
     pub fn play_at(&mut self, path: &str, distance: f32) {
-        self.play(path, 1.0 - (distance / HEARING_RANGE).clamp(0.0, 1.0));
+        let range = self.hearing_range.max(f32::EPSILON);
+        self.play(path, 1.0 - (distance / range).clamp(0.0, 1.0));
     }
 
     /// Starts music `path` (from its start) unless it is already playing; `None` stops it.
@@ -122,7 +153,7 @@ impl Audio {
             return;
         };
         let player = Player::connect_new(sink.mixer());
-        player.set_volume(self.music_volume);
+        player.set_volume(self.volumes.master * self.volumes.music);
         let Some(source) = self.decode(path) else {
             return;
         };

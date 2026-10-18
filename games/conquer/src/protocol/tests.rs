@@ -68,6 +68,7 @@ fn server(accounts: &std::path::Path) -> (ServerHandle, SocketAddr) {
             tables: None,
             accounts: accounts.to_owned(),
             rules: Arc::new(ConquerGameRules),
+            settings: crate::module::conquer_settings(),
             fronts: vec![Box::new(front)],
         },
     )

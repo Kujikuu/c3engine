@@ -34,6 +34,8 @@ pub struct PlaySetup {
     pub map_ids: Vec<u32>,
     /// Play through a local game server.
     pub online: bool,
+    /// The project's settings.
+    pub settings: c3_core::ProjectSettings,
 }
 
 /// The account Play mode logs in to its local server with.
@@ -74,6 +76,7 @@ impl PlaySession {
                     map_ids: setup.map_ids,
                     start,
                     seed: c3_play::game::time_seed(),
+                    settings: setup.settings,
                 },
             )?;
             (session, None)
@@ -109,6 +112,7 @@ impl PlaySession {
                 tables: setup.tables.clone(),
                 accounts,
                 rules: game.rules(),
+                settings: setup.settings.clone(),
                 fronts: Vec::new(),
             },
         )?;
@@ -116,6 +120,7 @@ impl PlaySession {
             game,
             doc.scene().clone(),
             setup.tables,
+            setup.settings,
             &server.addr().to_string(),
             PLAY_ACCOUNT,
             PLAY_ACCOUNT,
@@ -126,6 +131,11 @@ impl PlaySession {
     /// The local server's address, when playing online.
     pub fn server_addr(&self) -> Option<SocketAddr> {
         self.server.as_ref().map(ServerHandle::addr)
+    }
+
+    /// Plays by `settings` from now on.
+    pub fn set_settings(&mut self, settings: c3_core::ProjectSettings) {
+        self.screen.set_settings(settings);
     }
 
     /// Walks the hero up to NPC `id` and talks to it, as if it was clicked.
@@ -191,7 +201,7 @@ impl PlaySession {
             (rect.width() * ppp).round() as u32,
             (rect.height() * ppp).round() as u32,
         ];
-        let (camera, viewport) = (&self.screen.camera, self.screen.viewport());
+        let (camera, viewport) = (&self.screen.view_camera(), self.screen.viewport());
         let view_rect = camera.view_rect(viewport);
         let world = &mut self.screen.session.world;
         world.prepare(&mut self.gpu.renderer, camera, viewport);

@@ -21,7 +21,7 @@ append decisions, document formats as you implement them.
   panel asset browser), `hierarchy.rs` (Hierarchy + Create menu), `selection.rs` (what is
   selected, picking, move/duplicate/remove commands), `scene_inspector.rs` (selection Inspector,
   Population import/export), `live_scene.rs` (Scene view drawing: SceneView + NPC actors),
-  `play.rs` (Play mode: hosts `c3_play::screen::GameScreen` in the Game view), `stage.rs` (Preview stage), `new_map.rs` (File > New Map), `data_panel.rs` (Data
+  `play.rs` (Play mode: hosts `c3_play::screen::GameScreen` in the Game view), `stage.rs` (Preview stage), `new_map.rs` (File > New Map), `project_settings.rs` (Edit > Project Settings: `SettingsDoc` edits, saved as they change, applied to Play), `data_panel.rs` (Data
   panel: game tables, SQL import, row Inspector), `script_panel.rs` + `code_view.rs` (Script
   panel: Rhai editor with live problems and function reference), `dialogue_panel.rs` +
   `graph_canvas.rs` + `node_editor.rs` (Dialogue panel: dialogue graphs and quests), `icons.rs` (bundled
@@ -39,12 +39,15 @@ append decisions, document formats as you implement them.
 - Screenshots for verification: `& .\scripts\shot.ps1 -App client|studio -Out x.png -AppArgs @(<app args>)` (`PrintWindow`, works when the window is behind others).
   Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --online --play --talk <npc>
   --attack --bag --quests --say "/cmd" --script <name> --table <name> --dialogue <name> --node <id>
-  --show <panel> --exec <commands.json> --new-map [name] --make-map <name>`. `doc` = model + undo + save
+  --show <panel> --exec <commands.json> --new-map [name] --make-map <name> --settings [section]`. `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.
 - Nothing in `engine/` or `studio/` references Conquer (except `studio/src/tq_plugin.rs`, the
   Studio's game plugin); game code goes in `games/`. Generic play code (world, actors,
   sessions, serving) lives in `engine/play`; a game plugs in by implementing `GameModule` and
   being picked in `games/registry`.
+- Tunable values are Project Settings (`c3_core::settings`), never new constants: add the field
+  (with a default and a rule in `problems()`), read it where it applies, show it in
+  `studio/src/project_settings.rs`.
 - Every format parser needs a round-trip test on real files from
   `D:\Conquer2\Tools\eosource\client5065` (skip gracefully if absent).
 - Build: `cargo build` · Test: `cargo test` · Lint: `cargo clippy --all-targets`.

@@ -3,13 +3,14 @@
 //! over NPCs: a gold `!` for a quest to take, a gold `?` for one to hand in, a grey `?` for
 //! one still running.
 
+use crate::fonts;
 use crate::icons;
 use crate::style;
 use crate::{GameView, item_name};
 use c3_game::{Player, Sim};
 use c3_script::quest::{DONE, NOT_TAKEN, TAKEN};
 use c3_script::{Goal, Quest};
-use egui::{Color32, FontId, RichText};
+use egui::{Color32, RichText};
 
 /// Below the host's hint line along the top of the game view.
 const TOP: f32 = 44.0;
@@ -96,6 +97,7 @@ pub(crate) fn window(ui: &mut egui::Ui, view: &GameView, open: &mut bool) {
         .constrain_to(view.rect)
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(12.0, TOP))
         .show(ui.ctx(), |ui| {
+            fonts::use_game_font(ui);
             ui.set_width(LOG_WIDTH);
             ui.horizontal(|ui| {
                 ui.label(style::title(icons::SCROLL, "Quests"));
@@ -188,6 +190,7 @@ pub(crate) fn tracker(ui: &mut egui::Ui, view: &GameView) {
         .constrain_to(view.rect)
         .interactable(false)
         .show(ui.ctx(), |ui| {
+            fonts::use_game_font(ui);
             egui::Frame::new()
                 .fill(style::backing(0.8))
                 .corner_radius(4.0)
@@ -245,7 +248,7 @@ pub(crate) fn npc_marks(painter: &egui::Painter, view: &GameView) {
             at,
             egui::Align2::CENTER_CENTER,
             text,
-            FontId::proportional(16.0),
+            fonts::font(16.0),
             color,
         );
     }

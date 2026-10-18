@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 c3-assets = { version = "0.1.0", path = "../engine/assets" }
+c3-core = { version = "0.1.0", path = "../engine/core" }
 c3-data = { version = "0.1.0", path = "../engine/data" }
 c3-edit = { version = "0.1.0", path = "../engine/edit" }
 c3-formats-tq = { version = "0.1.0", path = "../formats/c3" }
@@ -23,3 +24,4 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 rfd = "0.17.2"
 ron = "0.12.2"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"

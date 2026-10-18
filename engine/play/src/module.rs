@@ -6,10 +6,10 @@
 use crate::character::{Character, CharacterMotions, Look};
 use c3_assets::Image;
 use c3_audio::MusicRegion;
-use c3_game::{EntityId, Player, PlayerSave, Rules, Sim};
-use c3_project::Project;
+use c3_game::{EntityId, Player, Rules, Sim};
+use c3_project::{Project, ProjectSettings};
 use c3_render::SceneAssets;
-use c3_scene::{CellPos, Npc, Scene};
+use c3_scene::{Npc, Scene};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -53,12 +53,10 @@ pub trait Looks {
     fn action_names(&self) -> Vec<(u32, String)>;
 }
 
-/// A game's rules and the character a new player starts as. `Send`, so a game server can
-/// run them on its own thread.
+/// A game's rules. `Send`, so a game server can run them on its own thread.
 pub trait GameRules: Send + Sync {
     /// The rules, from the project's `tables/` (when it has them), and what was wrong there.
     fn rules(&self, tables: Option<&Path>) -> (Box<dyn Rules>, Vec<String>);
-    fn new_character(&self, name: &str, cell: CellPos) -> PlayerSave;
 }
 
 /// A game the engine plays.
@@ -69,6 +67,10 @@ pub trait GameModule {
     fn assets(&self) -> &dyn SceneAssets;
     fn looks(&self) -> &dyn Looks;
     fn rules(&self) -> Arc<dyn GameRules>;
+    /// The settings of a project of this game that has no settings file yet.
+    fn default_settings(&self) -> ProjectSettings {
+        ProjectSettings::default()
+    }
     /// Maps of `project` that can be played, by key.
     fn maps(&self, project: &Project) -> Vec<String>;
     /// The map played when none is named.

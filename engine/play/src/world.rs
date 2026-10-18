@@ -17,9 +17,6 @@ use glam::Vec2;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-/// Clear colour (linear) behind the map.
-const BACKGROUND: [f64; 4] = [0.004, 0.004, 0.005, 1.0];
-
 /// Clickable box of an NPC around its feet, in world pixels.
 const NPC_PICK_HALF_WIDTH: f32 = 32.0;
 const NPC_PICK_HEIGHT: f32 = 110.0;
@@ -34,11 +31,28 @@ pub struct World {
     view: SceneView<ActorPart>,
     /// Game time in milliseconds: the clock for animation and movement.
     clock_ms: f64,
+    /// Colour (linear) around and behind the map.
+    pub background: [f64; 4],
+}
+
+/// An sRGB colour as the renderer's linear clear colour.
+pub fn linear_background(srgb: [u8; 3]) -> [f64; 4] {
+    let lin = |c: u8| {
+        let c = f64::from(c) / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    [lin(srgb[0]), lin(srgb[1]), lin(srgb[2]), 1.0]
 }
 
 impl World {
-    pub fn new(game: Rc<dyn GameModule>, map_path: String, scene: Scene) -> Self {
-        let view = SceneView::new(&scene, game.assets(), game.tilt_deg(), 0);
+    /// A world of `scene` (map `map_path` of `game`), its 3D roles and effects tilted by
+    /// `tilt_deg`.
+    pub fn new(game: Rc<dyn GameModule>, map_path: String, scene: Scene, tilt_deg: f32) -> Self {
+        let view = SceneView::new(&scene, game.assets(), tilt_deg, 0);
         Self {
             game,
             map_path,
@@ -47,6 +61,9 @@ impl World {
             retired: Vec::new(),
             view,
             clock_ms: 0.0,
+            background: linear_background(
+                c3_core::settings::GraphicsSettings::default().background,
+            ),
         }
     }
 
@@ -267,6 +284,6 @@ impl World {
 
     /// The frame description for `meshes` (from [`World::mesh_draws`]) seen through `rect`.
     pub fn frame<'a>(&'a self, meshes: &'a [MeshDraw<'a>], rect: [f32; 4]) -> Frame<'a> {
-        self.view.frame(meshes, rect, BACKGROUND)
+        self.view.frame(meshes, rect, self.background)
     }
 }

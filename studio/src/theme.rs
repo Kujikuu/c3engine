@@ -31,7 +31,7 @@ pub const TEXT: Color32 = Color32::from_gray(210);
 pub const TEXT_DIM: Color32 = Color32::from_gray(140);
 
 pub fn apply(ctx: &egui::Context) {
-    icons::install(ctx);
+    c3_ui::fonts::install(ctx, Vec::new());
     let mut style = (*ctx.global_style()).clone();
     style.visuals = egui::Visuals::dark();
     let v = &mut style.visuals;

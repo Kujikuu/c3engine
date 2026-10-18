@@ -38,7 +38,8 @@ Order set by the user (2026-10-18): a complete engine that can truly create Conq
 an Eudemons-like game (or any of the kind) from the Studio, with everything, Unity-style and
 easy for indies. The foundation (M7) comes first, because every later step needs it.
 - [x] M7 step 1: the game-module seam (done 2026-10-18)
-- [ ] M7 step 2: Project Settings
+- [x] M7 step 2: Project Settings (done 2026-10-18)
+- [ ] M7 step 3: Input System
 
 Why this order: see "Review (2026-10-18)" below.
 
@@ -226,21 +227,35 @@ complete project on that engine, then any game of the kind.
     blank walkable map. Verified with screenshots on a from-scratch project (New Map, Scene
     with NPCs, Play local and through a local server, Preview, `c3-server` + `c3-client`) and
     on the Conquer project (Scene with NPC models, Play, Preview unchanged)
-- [ ] (2) Project Settings, Unity-style: a settings file in the project and an Edit > Project
+- [x] (2) Project Settings, Unity-style: a settings file in the project and an Edit > Project
       Settings window, applied live in Play mode and read by the built client and server.
       Every hard-coded value found in the review moves there:
-  - [ ] Player: game name, icon, window and full screen, resolutions, login and loading screens
-  - [ ] Cursors: normal, attack, talk, pick up, portal, busy..., from project assets, hotspots
-  - [ ] Camera: projection (cell size, tilt), zoom levels and limits, wheel speed, follow
-        smoothing and dead zone, map edge clamping, shake
+  - [x] Player: game name, icon, window size, full screen, resizable (login and loading screens
+        come with M9's client front end)
+  - [x] Cursors: normal, attack, talk, pick up, portal from project assets (PNG or Windows
+        `.cur`/`.ani`, animated), hotspots; drawn by the game in the client and the Game view
+        (a busy cursor comes with M9's loading screens)
+  - [x] Camera: projection (new-map cell size, tilt), start zoom and limits, wheel speed, pan
+        speed, free pan, follow smoothing and dead zone, map edge clamping, shake on hit
   - [ ] Input: the project's action maps and default bindings per device (step 3)
-  - [ ] Gameplay: tick rate, view range, ranges (talk, reach, jump, leash), timings (corpse,
-        revive, item life), bag size, currencies and their names, start map and cell, new
-        character templates, GM permissions
-  - [ ] Graphics and audio: frame cap, vsync, effect quality, lighting; mixer volumes, hearing
-        range
-  - [ ] Network: ports, protocol fronts, save interval
-  - [ ] Localization: string tables and fonts (GBK and Unicode)
+  - [x] Gameplay: tick, view range, ranges (talk, trade, jump, attack search, monster leash
+        and wander), timings (corpse, revive, item life), bag size, the currency's name, start
+        map and cell, new character template (level, money, bag, worn), GM permissions
+        (several currencies come with step 6)
+  - [x] Graphics and audio: frame cap, vsync, background colour; master, music and sound
+        volumes, hearing range (effect quality and lighting: step 8)
+  - [x] Network: port, protocol fronts (the 5065 front is a setting of Conquer projects), save
+        interval, join timeout
+  - [x] Localization: game fonts in order with fallbacks for other scripts (string tables come
+        with M9's data-driven game UI, where the UI's text becomes data)
+  - Done 2026-10-18: `c3_core::settings` (types, defaults, rules), `settings.toml` in the
+    project (`c3-project`), `c3_edit::SettingsDoc` (undoable `set`/`reset` by path, for the
+    Studio, AI and MCP alike), the game's defaults (`GameModule::default_settings`: Conquer's
+    cursors, Silver, newbie gear, 5065 front), the Studio's Edit > Project Settings window
+    (eight sections, reset to default, cursor previews, saved as you go, Ctrl+Z). Verified on
+    a from-scratch project (bag 12, Coins, zoom 2, window title and size in the client) and
+    the Conquer project (its cursors, Silver and gear; the server serves the 5065 front from
+    the settings)
 - [ ] (3) Input System, like Unity's: games read actions (move, walk to, attack, skill 1-n,
       talk, pick up, open bag, camera zoom...), never raw keys; the project defines action maps
       and default bindings, players rebind them in game, saved per player

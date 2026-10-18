@@ -33,9 +33,10 @@ struct NpcActors {
 }
 
 impl LiveScene {
-    pub fn new(scene: &Scene, game: &dyn GameModule, now_ms: u64) -> Self {
+    /// The drawing of `scene` as `game` shows it, 3D roles and effects tilted by `tilt_deg`.
+    pub fn new(scene: &Scene, game: &dyn GameModule, now_ms: u64, tilt_deg: f32) -> Self {
         Self {
-            view: SceneView::new(scene, game.assets(), game.tilt_deg(), now_ms),
+            view: SceneView::new(scene, game.assets(), tilt_deg, now_ms),
             npcs: NpcActors::default(),
         }
     }

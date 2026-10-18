@@ -55,7 +55,12 @@ pub struct Stage {
 }
 
 impl Stage {
-    pub fn new(game: Rc<dyn GameModule>, render_state: &egui_wgpu::RenderState) -> Self {
+    /// A stage of `game`'s roles, tilted by `tilt_deg`.
+    pub fn new(
+        game: Rc<dyn GameModule>,
+        render_state: &egui_wgpu::RenderState,
+        tilt_deg: f32,
+    ) -> Self {
         let side = STAGE_CELLS;
         let scene = Scene {
             grid: Grid::new(side, side),
@@ -76,7 +81,7 @@ impl Stage {
             looks.action_names(),
         );
         let mut stage = Self {
-            world: World::new(game, "Preview".into(), scene),
+            world: World::new(game, "Preview".into(), scene, tilt_deg),
             camera: Camera2d { center, zoom: 1.5 },
             gpu: GpuView::new(render_state),
             look,
@@ -292,7 +297,8 @@ impl Studio {
             );
             return;
         };
-        let stage = (self.stage).get_or_insert_with(|| Stage::new(Rc::clone(game), state));
+        let tilt = self.tilt_deg();
+        let stage = (self.stage).get_or_insert_with(|| Stage::new(Rc::clone(game), state, tilt));
         let mut play_effect = false;
         let mut pick_effect = None;
         egui::Panel::left("stage controls")

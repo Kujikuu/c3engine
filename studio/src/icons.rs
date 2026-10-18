@@ -2,10 +2,9 @@
 //! too. Icons are text, so they sit inline in labels and buttons:
 //! `format!("{FLOPPY_DISK}  Save")`. Never use emoji for icons.
 
-pub use c3_ui::icons::install;
-
 // Codepoints from the Phosphor regular font. Keep this list to icons the Studio uses; find
 // more with `python scripts/phosphor_icon.py engine/ui/assets/fonts/Phosphor.ttf <icon-name>...`.
+pub const APP_WINDOW: &str = "\u{E5DA}";
 pub const ARROW_CLOCKWISE: &str = "\u{E036}";
 pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{E038}";
 pub const ARROW_DOWN: &str = "\u{E03E}";
@@ -23,11 +22,14 @@ pub const BOOK_OPEN: &str = "\u{E0E6}";
 pub const FILM_STRIP: &str = "\u{E792}";
 pub const FLAG: &str = "\u{E244}";
 pub const FOLDER: &str = "\u{E24A}";
+pub const GEAR_SIX: &str = "\u{E272}";
 pub const GIT_FORK: &str = "\u{E27E}";
+pub const GLOBE_SIMPLE: &str = "\u{E28E}";
 pub const IMAGE: &str = "\u{E2CA}";
 pub const LINK_BREAK: &str = "\u{E2E4}";
 pub const LIST_BULLETS: &str = "\u{E2F2}";
 pub const PACKAGE: &str = "\u{E390}";
+pub const PAINT_BRUSH: &str = "\u{E6F0}";
 pub const PUZZLE_PIECE: &str = "\u{E596}";
 pub const SCROLL: &str = "\u{EB7A}";
 pub const SQUARES_FOUR: &str = "\u{E464}";
@@ -67,12 +69,14 @@ pub const SPEAKER_HIGH: &str = "\u{E44A}";
 pub const STACK: &str = "\u{E466}";
 pub const STOP: &str = "\u{E46C}";
 pub const TERMINAL: &str = "\u{E47E}";
+pub const TRANSLATE: &str = "\u{E4A2}";
 pub const TRASH: &str = "\u{E4A6}";
 pub const TREE: &str = "\u{E6DA}";
 pub const TREE_STRUCTURE: &str = "\u{E67C}";
 pub const UPLOAD_SIMPLE: &str = "\u{E4C0}";
 pub const USER: &str = "\u{E4C2}";
 pub const USERS_THREE: &str = "\u{E68E}";
+pub const VIDEO_CAMERA: &str = "\u{E4DA}";
 pub const WARNING: &str = "\u{E4E0}";
 pub const X: &str = "\u{E4F6}";
 pub const X_CIRCLE: &str = "\u{E4F8}";

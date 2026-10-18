@@ -1,8 +1,9 @@
 //! c3-game: the gameplay simulation shared by the Studio's Play mode, the client and (M6)
 //! the server. A [`Sim`] runs one map in fixed ticks: players walk, fight monsters born in
 //! spawn areas, earn experience and levels, pick up drops and trade with shops. What things
-//! are and how fights are settled comes from the game through [`Rules`]; the engine keeps
-//! the world, movement, timing and order (see docs/DECISIONS.md: a typed world, no ECS).
+//! are and how fights are settled comes from the game through [`Rules`]; its numbers (ticks,
+//! ranges, timings, the bag) from the project's [`GameplaySettings`]; the engine keeps the
+//! world, movement, timing and order (see docs/DECISIONS.md: a typed world, no ECS).
 
 mod commands;
 mod dialogue;
@@ -19,15 +20,16 @@ mod rules;
 mod save;
 mod sim;
 
+pub use c3_core::settings::GameplaySettings;
 pub use commands::HELP as COMMAND_HELP;
-pub use entity::{BAG_SIZE, GroundItem, Item, Monster, Player, Task};
+pub use entity::{GroundItem, Item, Monster, Player, Task};
 pub use event::Event;
 pub use input::{Input, MAX_CHAT};
-pub use remote::{EntityState, VIEW_RANGE, Viewer, WorldUpdate};
+pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{Drop, Fighter, ItemType, MonsterType, Rules, Stats};
 pub use save::PlayerSave;
-pub use sim::{Sim, TICK_MS};
+pub use sim::Sim;
 
 use c3_scene::CellPos;
 use serde::{Deserialize, Serialize};
@@ -36,18 +38,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EntityId(pub u32);
 
-/// How long a dead monster lies before it vanishes (ms).
-pub const CORPSE_MS: u64 = 3000;
-/// How long a dead player waits to come back (ms).
-pub const REVIVE_MS: u64 = 10_000;
-/// How long a drop stays on the ground (ms).
-pub const ITEM_LIFE_MS: u64 = 60_000;
-/// Cells from an NPC within which a player can trade with it.
-pub const NPC_REACH: i32 = 18;
-/// Cells a player can jump at once.
-pub const JUMP_RANGE: i32 = 16;
-/// Cells from an NPC within which a player can start talking to it.
-pub const TALK_RANGE: i32 = 3;
+/// Seconds as whole milliseconds.
+pub(crate) fn ms(seconds: f64) -> u64 {
+    (seconds * 1000.0).round().max(0.0) as u64
+}
 
 /// Steps between two cells (diagonals count one).
 pub fn distance(a: CellPos, b: CellPos) -> i32 {

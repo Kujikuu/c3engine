@@ -29,6 +29,7 @@ mod new_map;
 mod node_editor;
 mod panels;
 mod play;
+mod project_settings;
 mod scene_inspector;
 mod script_panel;
 mod selection;

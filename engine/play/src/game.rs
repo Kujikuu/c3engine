@@ -2,7 +2,7 @@
 //! server): the simulation of a map with the game's rules, the project's quests and scripts.
 
 use crate::module::GameRules;
-use c3_game::Sim;
+use c3_game::{GameplaySettings, Sim};
 use c3_scene::Scene;
 use c3_script::{Quest, ScriptHost, quest};
 use std::path::PathBuf;
@@ -17,6 +17,8 @@ pub struct GameSetup {
     /// The game's ids for the map (script teleports within it work).
     pub map_ids: Vec<u32>,
     pub seed: u64,
+    /// The numbers the simulation runs by.
+    pub settings: GameplaySettings,
 }
 
 /// The game's rules, with the tables' problems marked as such.
@@ -60,6 +62,7 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
         rules,
         setup.seed,
     );
+    sim.set_settings(setup.settings.clone());
     sim.set_quests(quests(setup.tables.as_ref(), &mut problems));
     if let Some(dir) = &setup.scripts {
         sim.set_scripts(
@@ -76,9 +79,11 @@ pub fn mirror_sim(
     scene: &Scene,
     tables: Option<&PathBuf>,
     game: &dyn GameRules,
+    settings: &GameplaySettings,
 ) -> (Sim, Vec<String>) {
     let (rules, mut problems) = rules_of(game, tables);
     let mut sim = Sim::new(scene.grid.clone(), scene.npcs.clone(), Vec::new(), rules, 0);
+    sim.set_settings(settings.clone());
     sim.set_quests(quests(tables, &mut problems));
     (sim, problems)
 }

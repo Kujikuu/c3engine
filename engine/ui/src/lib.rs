@@ -10,6 +10,7 @@
 mod bag;
 mod chat;
 mod dialogue;
+pub mod fonts;
 mod hud;
 pub mod icons;
 mod quests;
@@ -150,6 +151,7 @@ impl GameUi {
         icons: &mut dyn Icons,
     ) -> Vec<UiAction> {
         let mut actions = Vec::new();
+        fonts::use_game_font(ui);
         self.overlay.show(ui, view);
         let Some(player) = view.player() else {
             return actions;

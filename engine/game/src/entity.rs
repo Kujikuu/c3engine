@@ -7,9 +7,6 @@ use c3_script::Conversation;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
-/// Items a player's bag holds.
-pub const BAG_SIZE: usize = 40;
-
 /// One item someone carries; `id` is unique in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {

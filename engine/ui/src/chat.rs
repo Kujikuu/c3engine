@@ -1,10 +1,11 @@
 //! The chat log at the bottom left: system messages, notices and what players say, with an
 //! input line (Enter to type, Enter to send, Esc to stop).
 
+use crate::fonts;
 use crate::style;
 use crate::{UiAction, item_name};
 use c3_game::{EntityId, Event, Sim};
-use egui::{Color32, FontId, Rect};
+use egui::{Color32, Rect};
 use std::collections::VecDeque;
 
 /// Lines kept in the log.
@@ -30,11 +31,12 @@ impl Chat {
 
     /// A line for what happened to the hero.
     pub fn event(&mut self, event: &Event, sim: &Sim, hero: EntityId) {
+        let currency = &sim.settings().currency;
         let line = match event {
             Event::Died { id, .. } if *id == hero => Some((
                 format!(
                     "You died. You come back in {} seconds.",
-                    c3_game::REVIVE_MS / 1000
+                    sim.settings().revive_seconds
                 ),
                 style::BAD,
             )),
@@ -49,7 +51,7 @@ impl Chat {
             } if *player == hero => Some((
                 match kind {
                     Some(k) => format!("You picked up {}.", item_name(sim, *k)),
-                    None => format!("You picked up {money} silver."),
+                    None => format!("You picked up {money} {currency}."),
                 },
                 style::GOOD,
             )),
@@ -58,7 +60,10 @@ impl Chat {
                 kind,
                 price,
             } if *player == hero => Some((
-                format!("You bought {} for {price} silver.", item_name(sim, *kind)),
+                format!(
+                    "You bought {} for {price} {currency}.",
+                    item_name(sim, *kind)
+                ),
                 style::TEXT,
             )),
             Event::Sold {
@@ -66,7 +71,7 @@ impl Chat {
                 kind,
                 price,
             } if *player == hero => Some((
-                format!("You sold {} for {price} silver.", item_name(sim, *kind)),
+                format!("You sold {} for {price} {currency}.", item_name(sim, *kind)),
                 style::TEXT,
             )),
             Event::Used { player, kind } if *player == hero => {
@@ -89,7 +94,7 @@ impl Chat {
         let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
         let bottom = rect.bottom() - 74.0;
         let painter = ui.painter_at(rect);
-        let font = FontId::proportional(13.0);
+        let font = fonts::font(13.0);
         let mut y = bottom - if self.typing { 28.0 } else { 0.0 };
         for (text, color) in self.lines.iter().rev().take(SHOWN) {
             let galley = painter.layout(text.clone(), font.clone(), *color, WIDTH);
@@ -116,6 +121,7 @@ impl Chat {
             .order(egui::Order::Foreground)
             .fixed_pos(egui::pos2(rect.left() + 8.0, bottom - 24.0))
             .show(ui.ctx(), |ui| {
+                fonts::use_game_font(ui);
                 let field = ui.add(
                     egui::TextEdit::singleline(&mut self.input)
                         .id(id)

@@ -6,12 +6,9 @@ use crate::event::Event;
 use crate::index::CellIndex;
 use crate::rng::Rng;
 use crate::rules::Rules;
-use crate::{EntityId, distance};
+use crate::{EntityId, GameplaySettings, distance};
 use c3_scene::{CellPos, Grid, Npc, Spawn};
 use std::collections::BTreeMap;
-
-/// Game time per tick.
-pub const TICK_MS: u64 = 50;
 
 /// A spawn area and how it is doing.
 pub(crate) struct SpawnArea {
@@ -25,6 +22,7 @@ pub struct Sim {
     pub(crate) npcs: Vec<Npc>,
     pub(crate) spawns: Vec<SpawnArea>,
     pub(crate) rules: Box<dyn Rules>,
+    pub(crate) settings: GameplaySettings,
     pub(crate) rng: Rng,
     pub(crate) now_ms: u64,
     /// Time advanced but not yet ticked.
@@ -64,6 +62,7 @@ impl Sim {
                 })
                 .collect(),
             rules,
+            settings: GameplaySettings::default(),
             rng: Rng::new(seed),
             now_ms: 0,
             pending_ms: 0,
@@ -92,6 +91,21 @@ impl Sim {
         &*self.rules
     }
 
+    /// The numbers it runs by (ticks, ranges, timings, the bag).
+    pub fn settings(&self) -> &GameplaySettings {
+        &self.settings
+    }
+
+    /// Items a bag holds.
+    pub fn bag_size(&self) -> usize {
+        self.settings.bag_size as usize
+    }
+
+    /// Runs by `settings` from now on (timers already started keep their end).
+    pub fn set_settings(&mut self, settings: GameplaySettings) {
+        self.settings = settings;
+    }
+
     pub fn grid(&self) -> &Grid {
         &self.grid
     }
@@ -104,9 +118,10 @@ impl Sim {
     /// Moves game time on by `ms`, running every tick that fits.
     pub fn advance(&mut self, ms: u64) {
         self.pending_ms += ms;
-        while self.pending_ms >= TICK_MS {
-            self.pending_ms -= TICK_MS;
-            self.now_ms += TICK_MS;
+        let tick = self.settings.tick_ms.max(1);
+        while self.pending_ms >= tick {
+            self.pending_ms -= tick;
+            self.now_ms += tick;
             self.tick();
         }
     }
@@ -192,7 +207,7 @@ impl Sim {
     pub(crate) fn npc_in_reach(&self, player: CellPos, npc: u32) -> bool {
         self.npcs
             .iter()
-            .any(|n| n.id == npc && distance(n.cell, player) <= crate::NPC_REACH)
+            .any(|n| n.id == npc && distance(n.cell, player) <= self.settings.trade_range)
     }
 
     pub(crate) fn message(&mut self, player: EntityId, text: impl Into<String>) {

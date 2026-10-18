@@ -9,18 +9,16 @@ use crate::module::{Act, GameModule, GameRules, Looks, load_project_scene};
 use c3_assets::Image;
 use c3_assets::effect::Effect;
 use c3_assets::sprite::{Prefab, SpriteSet};
-use c3_game::{Drop, Fighter, ItemType, MonsterType, Player, PlayerSave, Rng, Rules, Stats};
+use c3_game::{Drop, Fighter, ItemType, MonsterType, Player, Rng, Rules, Stats};
 use c3_project::Project;
 use c3_render::SceneAssets;
-use c3_scene::{CellPos, Grid, IsoProjection, Npc, Scene, TileLayer, Tileset};
+use c3_scene::{Grid, IsoProjection, Npc, Scene, TileLayer, Tileset};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::builtin::{self, GROUND_IMAGE, GROUND_TILE};
 /// Cell size of new maps, in world pixels (the classic 2:1 diamond).
-const CELL_W: f32 = 64.0;
-const CELL_H: f32 = 32.0;
 /// Action ids of the engine's own game.
 const STAND: u32 = 100;
 const WALK: u32 = 110;
@@ -260,21 +258,18 @@ impl GameRules for BasicRules {
     fn rules(&self, _tables: Option<&Path>) -> (Box<dyn Rules>, Vec<String>) {
         (Box::new(BasicRules), Vec::new())
     }
-
-    fn new_character(&self, name: &str, cell: CellPos) -> PlayerSave {
-        PlayerSave::new(name, cell)
-    }
 }
 
 /// A blank map `width` × `height` cells: all walkable, on the engine's default ground.
-pub fn blank_scene(width: u32, height: u32) -> Scene {
+pub fn blank_scene(width: u32, height: u32, cell: [f32; 2]) -> Scene {
+    let [cell_w, cell_h] = cell;
     let grid = Grid::new(width.max(1), height.max(1));
-    let projection = IsoProjection::for_grid(CELL_W, CELL_H, grid.width);
+    let projection = IsoProjection::for_grid(cell_w, cell_h, grid.width);
     // The ground covers the map's diamond: from its left to its right corner, top to bottom.
     let (w, h) = (grid.width as f32, grid.height as f32);
-    let left = projection.origin.0 - CELL_W * h / 2.0;
-    let right = projection.origin.0 + CELL_W * w / 2.0;
-    let bottom = CELL_H * (w + h) / 2.0 + projection.origin.1;
+    let left = projection.origin.0 - cell_w * h / 2.0;
+    let right = projection.origin.0 + cell_w * w / 2.0;
+    let bottom = cell_h * (w + h) / 2.0 + projection.origin.1;
     let origin = (left.floor() as i32, 0);
     let tiles_x = ((right - left) / GROUND_TILE as f32).ceil() as u32 + 1;
     let tiles_y = (bottom / GROUND_TILE as f32).ceil() as u32 + 1;
@@ -310,7 +305,7 @@ mod tests {
 
     #[test]
     fn a_blank_map_is_walkable_and_has_ground() {
-        let scene = blank_scene(40, 30);
+        let scene = blank_scene(40, 30, [64.0, 32.0]);
         assert_eq!((scene.grid.width, scene.grid.height), (40, 30));
         assert!(scene.grid.cells.iter().all(|c| !c.is_blocked()));
         let ground = scene.ground.as_ref().expect("ground");

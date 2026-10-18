@@ -6,7 +6,7 @@
 use crate::entity::Task;
 use crate::event::Event;
 use crate::sim::Sim;
-use crate::{EntityId, TALK_RANGE, distance};
+use crate::{EntityId, distance};
 use c3_scene::CellPos;
 use c3_script::{Conversation, Effect, NpcInfo, PlayerState, ScriptError, Step};
 use std::collections::{BTreeMap, BTreeSet};
@@ -84,7 +84,7 @@ impl Sim {
             return;
         };
         let (cell, name, script) = (n.cell, n.name.clone(), n.script.clone());
-        if distance(here, cell) > TALK_RANGE {
+        if distance(here, cell) > self.settings.talk_range {
             self.message(id, format!("You can't reach {name}."));
             return;
         }

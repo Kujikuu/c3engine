@@ -3,7 +3,7 @@
 use crate::accounts::Accounts;
 use crate::front::{Front, FrontEvent};
 use crate::msg::{ClientMsg, Welcome};
-use c3_game::{EntityId, PlayerSave, Sim, TICK_MS, Viewer};
+use c3_game::{EntityId, PlayerSave, Sim, Viewer};
 use c3_net::ConnId;
 use c3_scene::CellPos;
 use std::collections::BTreeMap;
@@ -33,6 +33,8 @@ pub struct ServerConfig {
     pub new_character: NewCharacter,
     /// How often logged-in characters are saved (ms of game time).
     pub save_every_ms: u64,
+    /// Game time per tick (ms), the pace the server runs at.
+    pub tick_ms: u64,
 }
 
 /// A cell near `start` picked by `name`, so new characters don't all stand on one spot.
@@ -137,10 +139,11 @@ impl GameServer {
     /// Ticks in real time until `stop` is set, then saves everyone; the server's log lines
     /// go to `log` as they come.
     pub fn run(&mut self, stop: &AtomicBool, mut log: impl FnMut(&str)) {
-        let step = Duration::from_millis(TICK_MS);
+        let tick = self.config.tick_ms.max(1);
+        let step = Duration::from_millis(tick);
         let mut next = Instant::now();
         while !stop.load(Ordering::Relaxed) {
-            self.tick(TICK_MS);
+            self.tick(tick);
             for line in self.take_log() {
                 log(&line);
             }

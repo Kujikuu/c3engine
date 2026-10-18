@@ -1,10 +1,10 @@
 //! Players: what hosts tell them to do (walk, attack, pick up, buy…) and how they carry it
 //! out each tick.
 
-use crate::entity::{BAG_SIZE, Item, Player, Task};
+use crate::entity::{Item, Player, Task};
 use crate::event::Event;
 use crate::sim::Sim;
-use crate::{EntityId, REVIVE_MS, distance};
+use crate::{EntityId, distance, ms};
 use c3_scene::CellPos;
 use c3_scene::path::{self, PathRules};
 use std::collections::VecDeque;
@@ -63,13 +63,14 @@ impl Sim {
         p.path = path::find_path(&self.grid, p.cell, goal, &PLAYER_PATH).into();
     }
 
-    /// Jumps the player to `to`, if it is walkable and within `JUMP_RANGE`.
+    /// Jumps the player to `to`, if it is walkable and within the jump range.
     pub fn jump(&mut self, id: EntityId, to: CellPos) {
         if !self.walkable(to) {
             return;
         }
+        let range = self.settings.jump_range;
         let Some(p) = self.living(id) else { return };
-        if distance(p.cell, to) > crate::JUMP_RANGE {
+        if distance(p.cell, to) > range {
             return;
         }
         let from = p.cell;
@@ -219,13 +220,14 @@ impl Sim {
 
     /// Takes off the item worn in item `item`'s place, into the bag (if there is room).
     pub fn unequip(&mut self, id: EntityId, item: u32) {
+        let bag_size = self.bag_size();
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
         let Some(at) = p.equipment.iter().position(|i| i.id == item) else {
             return;
         };
-        if p.bag.len() >= BAG_SIZE {
+        if p.bag.len() >= bag_size {
             self.message(id, "Your bag is full.");
             return;
         }
@@ -321,10 +323,11 @@ impl Sim {
     /// Puts a new `kind` in the player's bag; false (and a message) when it is full.
     pub fn give_item(&mut self, id: EntityId, kind: u32) -> bool {
         let item = self.new_item_id();
+        let bag_size = self.bag_size();
         let Some(p) = self.players.get_mut(&id) else {
             return false;
         };
-        if p.bag.len() >= BAG_SIZE {
+        if p.bag.len() >= bag_size {
             self.message(id, "Your bag is full.");
             return false;
         }
@@ -487,14 +490,14 @@ impl Sim {
 
     /// The player dies; it comes back after a while where it fell.
     pub(crate) fn kill_player(&mut self, id: EntityId, killer: Option<EntityId>) {
-        let now = self.now_ms;
+        let revive_at = self.now_ms + ms(self.settings.revive_seconds);
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
         p.life = 0;
         p.task = Task::Idle;
         p.path.clear();
-        p.revive_at_ms = Some(now + REVIVE_MS);
+        p.revive_at_ms = Some(revive_at);
         self.events.push(Event::Died { id, killer });
     }
 

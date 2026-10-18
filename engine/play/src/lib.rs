@@ -15,11 +15,13 @@ pub mod audio;
 pub mod basic;
 pub mod builtin;
 pub mod character;
+pub mod cursor;
 pub mod game;
 pub mod module;
 pub mod screen;
 pub mod serve;
 pub mod session;
+pub mod settings;
 pub mod sim_view;
 pub mod world;
 

@@ -7,6 +7,7 @@
 
 use crate::game::{self, GameSetup};
 use crate::module::GameRules;
+use c3_core::ProjectSettings;
 use c3_online::{EngineFront, Front, GameServer, MapWorld, ServerConfig};
 use c3_scene::{CellPos, Scene, path};
 use std::net::SocketAddr;
@@ -15,8 +16,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-/// How often logged-in characters are saved (ms).
-const SAVE_EVERY_MS: u64 = 60_000;
 /// How far (cells) the start may be moved to stand on walkable ground.
 const START_SEARCH: i32 = 50;
 
@@ -38,8 +37,10 @@ pub struct ServeSetup {
     pub tables: Option<PathBuf>,
     /// Folder of the account files.
     pub accounts: PathBuf,
-    /// The game's rules and new characters.
+    /// The game's rules.
     pub rules: Arc<dyn GameRules>,
+    /// The project's settings (gameplay numbers, new characters, saving).
+    pub settings: ProjectSettings,
     /// Fronts for other clients beside the engine's own, already listening.
     pub fronts: Vec<Box<dyn Front + Send>>,
 }
@@ -66,6 +67,7 @@ impl ServerHandle {
             tables,
             accounts,
             rules,
+            settings,
             fronts: extra,
             ..
         } = setup;
@@ -87,6 +89,7 @@ impl ServerHandle {
                             tables: tables.clone(),
                             map_ids: m.map_ids.clone(),
                             seed,
+                            settings: settings.gameplay.clone(),
                         };
                         let (sim, problems) = game::new_sim(&m.scene, &setup, &*rules);
                         problems.into_iter().for_each(&say);
@@ -104,11 +107,14 @@ impl ServerHandle {
                 for front in fronts.iter().skip(1) {
                     say(format!("Also serving clients on {}", front.local_addr()));
                 }
-                let make = Arc::clone(&rules);
+                let gameplay = settings.gameplay.clone();
                 let config = ServerConfig {
                     accounts,
-                    new_character: Box::new(move |name, cell| make.new_character(name, cell)),
-                    save_every_ms: SAVE_EVERY_MS,
+                    new_character: Box::new(move |name, cell| {
+                        crate::settings::new_character(&gameplay, name, cell)
+                    }),
+                    save_every_ms: seconds_to_ms(settings.network.save_interval_seconds),
+                    tick_ms: settings.gameplay.tick_ms,
                 };
                 let fronts = fronts.into_iter().map(|f| f as Box<dyn Front>).collect();
                 let mut server = GameServer::new(fronts, worlds, config);
@@ -152,4 +158,8 @@ impl Drop for ServerHandle {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+fn seconds_to_ms(seconds: f64) -> u64 {
+    (seconds * 1000.0).round().max(1.0) as u64
 }

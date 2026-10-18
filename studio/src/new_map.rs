@@ -53,7 +53,9 @@ impl Studio {
             return;
         };
         let file = project.map_file(name);
-        let scene = c3_play::basic::blank_scene(width, height);
+        let cell = (self.applied_settings.as_ref())
+            .map_or([64.0, 32.0], |s| s.camera.new_map_cell.map(|v| v as f32));
+        let scene = c3_play::basic::blank_scene(width, height, cell);
         let written = file
             .parent()
             .map_or(Ok(()), std::fs::create_dir_all)

@@ -1,5 +1,6 @@
 //! The shop window: an NPC's goods with their prices; Buy puts one in the bag.
 
+use crate::fonts;
 use crate::icons;
 use crate::style;
 use crate::{GameView, Icons, UiAction};
@@ -30,6 +31,7 @@ pub(crate) fn window(
         .constrain_to(rect)
         .anchor(egui::Align2::LEFT_TOP, egui::vec2(12.0, 44.0))
         .show(ui.ctx(), |ui| {
+            fonts::use_game_font(ui);
             ui.set_width(270.0);
             ui.horizontal(|ui| {
                 ui.label(style::title(icons::STOREFRONT, name));
@@ -90,8 +92,13 @@ pub(crate) fn window(
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(format!("{}  {} silver", icons::COINS, p.money))
-                        .color(style::MONEY),
+                    RichText::new(format!(
+                        "{}  {} {}",
+                        icons::COINS,
+                        p.money,
+                        view.sim.settings().currency
+                    ))
+                    .color(style::MONEY),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(

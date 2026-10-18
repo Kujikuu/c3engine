@@ -1,10 +1,10 @@
-//! Conquer's maps by their key and the character a new player starts as.
+//! Conquer's maps by their key and what a new player starts with.
 
 use crate::Content;
 use crate::character::DEFAULT_HERO;
-use c3_game::PlayerSave;
+use c3_core::settings::NewCharacter;
 use c3_project::Project;
-use c3_scene::{CellPos, Scene};
+use c3_scene::Scene;
 
 /// Money a new character starts with, to try shops.
 pub const START_MONEY: u64 = 1000;
@@ -24,17 +24,17 @@ pub fn load_map(project: &Project, content: &Content, key: &str) -> Result<Scene
     Ok(scene)
 }
 
-/// The character a new Conquer player starts as: the default look's gear and some money.
-pub fn new_character(name: &str, cell: CellPos) -> PlayerSave {
+/// What a new Conquer player starts with: the default look's gear and some money.
+pub fn new_character() -> NewCharacter {
     let gear = [
         DEFAULT_HERO.armor,
         DEFAULT_HERO.armet,
         DEFAULT_HERO.r_weapon,
         DEFAULT_HERO.l_weapon,
     ];
-    PlayerSave {
+    NewCharacter {
         money: START_MONEY,
         equipment: gear.into_iter().filter(|&k| k != 0).collect(),
-        ..PlayerSave::new(name, cell)
+        ..NewCharacter::default()
     }
 }

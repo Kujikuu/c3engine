@@ -5,13 +5,15 @@
 //! they own the window, camera and renderer and pass input in.
 
 use crate::audio::GameAudio;
+use crate::cursor::CursorKind;
 use crate::game::{self, GameSetup};
 use crate::module::GameModule;
+use crate::settings;
 use crate::sim_view::SimView;
-use crate::world::World;
+use crate::world::{self, World};
 use c3_game::{EntityId, Event, Input, Sim, WorldUpdate};
 use c3_online::{Connection, RemoteEvent, Welcome};
-use c3_project::Project;
+use c3_project::{Project, ProjectSettings};
 use c3_render::camera::Camera2d;
 use c3_scene::{CellPos, Scene, path};
 use c3_ui::{GameUi, GameView, Icons, LogLine, UiAction, style};
@@ -21,14 +23,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-/// Cells within which "attack nearest" looks for a monster.
-const ATTACK_SEARCH: i32 = 10;
 /// How far (cells) the hero may start from the asked cell.
 const START_SEARCH: i32 = 50;
 /// World pixels above an actor's feet where its name and numbers go.
 const HEAD_HEIGHT: f32 = 110.0;
-/// How long joining a server may take.
-const JOIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
 /// Where the game runs.
 enum Link {
@@ -46,6 +44,7 @@ struct Opening {
     map_ids: Vec<u32>,
     problems: Vec<String>,
     link: Link,
+    settings: ProjectSettings,
 }
 
 /// Where a session finds the project's game and where the hero starts.
@@ -56,6 +55,8 @@ pub struct SessionSetup {
     pub map_ids: Vec<u32>,
     pub start: CellPos,
     pub seed: u64,
+    /// The project's settings.
+    pub settings: ProjectSettings,
 }
 
 /// How the game view sits on screen this frame.
@@ -92,6 +93,9 @@ pub struct Session {
     audio: GameAudio,
     log: Vec<LogLine>,
     link: Link,
+    settings: ProjectSettings,
+    /// When (UI seconds) the hero was last hit.
+    hit_at: Option<f64>,
 }
 
 impl Session {
@@ -109,10 +113,14 @@ impl Session {
             tables: setup.tables,
             map_ids: setup.map_ids.clone(),
             seed: setup.seed,
+            settings: setup.settings.gameplay.clone(),
         };
-        let rules = game.rules();
-        let (mut sim, problems) = game::new_sim(&scene, &game_setup, &*rules);
-        let hero = sim.add_saved_player(&rules.new_character("Hero", start));
+        let (mut sim, problems) = game::new_sim(&scene, &game_setup, &*game.rules());
+        let hero = sim.add_saved_player(&settings::new_character(
+            &setup.settings.gameplay,
+            "Hero",
+            start,
+        ));
         Self::open(
             game,
             Opening {
@@ -123,6 +131,7 @@ impl Session {
                 map_ids: setup.map_ids,
                 problems,
                 link: Link::Local,
+                settings: setup.settings,
             },
         )
     }
@@ -132,16 +141,19 @@ impl Session {
     pub fn join(
         game: Rc<dyn GameModule>,
         project: &Project,
+        settings: ProjectSettings,
         addr: &str,
         account: &str,
         password: &str,
     ) -> Result<Self, String> {
-        let (conn, welcome, updates) = Connection::join(addr, account, password, JOIN_TIMEOUT)?;
+        let timeout = join_timeout(&settings);
+        let (conn, welcome, updates) = Connection::join(addr, account, password, timeout)?;
         let scene = game.load_map(project, &welcome.map)?;
         Self::joined(
             game,
             scene,
             Some(project.tables_dir()),
+            settings,
             (conn, welcome, updates),
         )
     }
@@ -152,21 +164,24 @@ impl Session {
         game: Rc<dyn GameModule>,
         scene: Scene,
         tables: Option<PathBuf>,
+        settings: ProjectSettings,
         addr: &str,
         account: &str,
         password: &str,
     ) -> Result<Self, String> {
-        let joined = Connection::join(addr, account, password, JOIN_TIMEOUT)?;
-        Self::joined(game, scene, tables, joined)
+        let joined = Connection::join(addr, account, password, join_timeout(&settings))?;
+        Self::joined(game, scene, tables, settings, joined)
     }
 
     fn joined(
         game: Rc<dyn GameModule>,
         scene: Scene,
         tables: Option<PathBuf>,
+        settings: ProjectSettings,
         (conn, welcome, updates): (Connection, Welcome, Vec<WorldUpdate>),
     ) -> Result<Self, String> {
-        let (mut sim, problems) = game::mirror_sim(&scene, tables.as_ref(), &*game.rules());
+        let (mut sim, problems) =
+            game::mirror_sim(&scene, tables.as_ref(), &*game.rules(), &settings.gameplay);
         for update in updates {
             sim.apply_update(update);
         }
@@ -180,6 +195,7 @@ impl Session {
                 map_ids: welcome.map_ids,
                 problems,
                 link: Link::Remote(conn),
+                settings,
             },
         )
     }
@@ -193,6 +209,7 @@ impl Session {
             map_ids,
             problems,
             link,
+            settings,
         } = o;
         let mut log: Vec<LogLine> = problems.into_iter().map(LogLine::Error).collect();
         // What happened while setting up is shown by attaching the view; keep the warnings.
@@ -201,9 +218,12 @@ impl Session {
                 log.push(LogLine::Error(text));
             }
         }
-        let audio = GameAudio::new(Rc::clone(&game), map_ids);
+        let mut audio = GameAudio::new(Rc::clone(&game), map_ids);
+        audio.apply(&settings.audio);
         let slots = game.slot_names();
-        let mut world = World::new(Rc::clone(&game), map_path, scene);
+        let tilt = settings::tilt_deg(&settings, &*game);
+        let mut world = World::new(Rc::clone(&game), map_path, scene, tilt);
+        world.background = world::linear_background(settings.graphics.background);
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.system(
@@ -224,7 +244,27 @@ impl Session {
             audio,
             log,
             link,
+            settings,
+            hit_at: None,
         })
+    }
+
+    pub fn settings(&self) -> &ProjectSettings {
+        &self.settings
+    }
+
+    /// Plays by `settings` from now on: the simulation's numbers, sound and look. (The tilt
+    /// and the start apply to the next session.)
+    pub fn set_settings(&mut self, settings: ProjectSettings) {
+        self.sim.set_settings(settings.gameplay.clone());
+        self.audio.apply(&settings.audio);
+        self.world.background = world::linear_background(settings.graphics.background);
+        self.settings = settings;
+    }
+
+    /// When (UI seconds) the hero was last hit, for the camera's shake.
+    pub fn hit_at(&self) -> Option<f64> {
+        self.hit_at
     }
 
     /// Whether the game runs on a server: `Some(connected)`, or `None` when local.
@@ -241,6 +281,27 @@ impl Session {
             Link::Local => self.sim.input(self.hero, input),
             Link::Remote(conn) => conn.send(input),
         }
+    }
+
+    /// Shows `problems` in the host's console.
+    pub fn report(&mut self, problems: Vec<String>) {
+        self.log.extend(problems.into_iter().map(LogLine::Error));
+    }
+
+    /// What the cursor shows over world point `point` (monsters aside: the host asks
+    /// [`Self::monster_at`] first).
+    pub fn hover(&self, point: Vec2) -> CursorKind {
+        if self.world.npc_at(point).is_some() {
+            return CursorKind::Talk;
+        }
+        if self.view.item_at(&self.sim, &self.world, point).is_some() {
+            return CursorKind::PickUp;
+        }
+        let cell = self.world.scene.world_to_cell((point.x, point.y));
+        if self.world.scene.portals.iter().any(|p| p.cell == cell) {
+            return CursorKind::Portal;
+        }
+        CursorKind::Normal
     }
 
     /// Lines for the host's console since the last call.
@@ -290,7 +351,8 @@ impl Session {
 
     /// Sends the hero after the nearest monster it can reach.
     pub fn attack_nearest(&mut self) {
-        if let Some(target) = self.sim.nearest_monster(self.hero, ATTACK_SEARCH) {
+        let search = self.settings.gameplay.attack_search;
+        if let Some(target) = self.sim.nearest_monster(self.hero, search) {
             self.input(Input::Attack(target));
         }
     }
@@ -335,6 +397,13 @@ impl Session {
             }
         }
         let events = self.sim.take_events();
+        let hero = self.hero;
+        if events
+            .iter()
+            .any(|e| matches!(e, Event::Attacked { target, .. } if *target == hero))
+        {
+            self.hit_at = Some(now);
+        }
         self.view.apply(&events, &self.sim, &mut self.world);
         self.ui.events(&events, &self.sim, self.hero, now);
         self.audio.events(&events, &self.sim, self.hero);
@@ -438,4 +507,9 @@ impl Icons for ItemIcons {
             .as_ref()
             .map(TextureHandle::id)
     }
+}
+
+/// How long joining a server may take.
+fn join_timeout(settings: &ProjectSettings) -> std::time::Duration {
+    std::time::Duration::from_secs_f64(settings.network.join_timeout_seconds.max(1.0))
 }

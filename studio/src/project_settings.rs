@@ -1,0 +1,1363 @@
+//! Edit > Project Settings: every setting of the game, by section, as in Unity. Each edit is
+//! a `c3_edit::SettingsCommand` (one undo step per drag or typed value), saved at once to
+//! `settings.toml` and applied to the game playing in the Game view.
+
+use crate::app::{Focus, Studio};
+use crate::icons;
+use crate::theme;
+use c3_core::ProjectSettings;
+use c3_core::settings::{Cursor, FrontSettings};
+use c3_edit::{SettingsCommand, SettingsDoc};
+use c3_play::GameModule;
+use eframe::egui::{self, DragValue, RichText, TextureHandle};
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::ops::RangeInclusive;
+use std::path::{Path, PathBuf};
+
+/// The window's sections, in order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Section {
+    Player,
+    Cursors,
+    Camera,
+    Gameplay,
+    Graphics,
+    Audio,
+    Network,
+    Localization,
+}
+
+impl Section {
+    const ALL: [Self; 8] = [
+        Self::Player,
+        Self::Cursors,
+        Self::Camera,
+        Self::Gameplay,
+        Self::Graphics,
+        Self::Audio,
+        Self::Network,
+        Self::Localization,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Player => "Player",
+            Self::Cursors => "Cursors",
+            Self::Camera => "Camera",
+            Self::Gameplay => "Gameplay",
+            Self::Graphics => "Graphics",
+            Self::Audio => "Audio",
+            Self::Network => "Network",
+            Self::Localization => "Localization",
+        }
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            Self::Player => icons::APP_WINDOW,
+            Self::Cursors => icons::CURSOR,
+            Self::Camera => icons::VIDEO_CAMERA,
+            Self::Gameplay => icons::GAME_CONTROLLER,
+            Self::Graphics => icons::PAINT_BRUSH,
+            Self::Audio => icons::SPEAKER_HIGH,
+            Self::Network => icons::GLOBE_SIMPLE,
+            Self::Localization => icons::TRANSLATE,
+        }
+    }
+
+    fn about(self) -> &'static str {
+        match self {
+            Self::Player => "The game as a program: its name, icon and window.",
+            Self::Cursors => {
+                "The mouse cursor for what it is over: images of the project (PNG, or Windows \
+                 .cur/.ani cursors). Empty: the system pointer."
+            }
+            Self::Camera => "How the game's camera sees the map and follows the hero.",
+            Self::Gameplay => {
+                "The simulation's numbers: timing, ranges, the bag, where players start and \
+                 what they start with, and who may use game-master commands."
+            }
+            Self::Graphics => "How the client draws.",
+            Self::Audio => "Volumes and how far sounds carry.",
+            Self::Network => "The game server: its port, saving, and fronts for other clients.",
+            Self::Localization => {
+                "The fonts the game's text is drawn with, in order: each next font draws the \
+                 characters the ones before lack (e.g. Chinese)."
+            }
+        }
+    }
+}
+
+/// What an edit in the window asks for, carried out after it is drawn.
+enum Edit {
+    /// Starts one undo step for a drag or a typed value.
+    Begin(String),
+    Command(SettingsCommand),
+    End,
+}
+
+/// The Project Settings window and the settings it edits.
+pub struct SettingsEditor {
+    pub doc: SettingsDoc,
+    pub open: bool,
+    section: Section,
+    /// Text of list fields being typed, by setting path.
+    buffers: HashMap<String, String>,
+    /// Cursor previews by image path: the first frame, or why it can't be shown.
+    previews: HashMap<String, Result<TextureHandle, String>>,
+}
+
+impl SettingsEditor {
+    pub fn new(settings: ProjectSettings, defaults: ProjectSettings) -> Self {
+        Self {
+            doc: SettingsDoc::new(settings, defaults),
+            open: false,
+            section: Section::Player,
+            buffers: HashMap::new(),
+            previews: HashMap::new(),
+        }
+    }
+
+    pub fn settings(&self) -> &ProjectSettings {
+        self.doc.settings()
+    }
+}
+
+/// What the fields read and collect while one section is drawn.
+struct Fields<'a> {
+    doc: &'a SettingsDoc,
+    edits: Vec<Edit>,
+    buffers: &'a mut HashMap<String, String>,
+    previews: &'a mut HashMap<String, Result<TextureHandle, String>>,
+    game: Option<&'a dyn GameModule>,
+    /// Where the files the settings name are (paths are relative to it).
+    files_root: Option<PathBuf>,
+    maps: &'a [String],
+    /// What went wrong picking files, for the Studio to show.
+    problems: Vec<String>,
+}
+
+impl Fields<'_> {
+    fn set(&mut self, path: &str, value: Value) {
+        self.edits.push(Edit::Command(SettingsCommand::Set {
+            path: path.into(),
+            value,
+        }));
+    }
+
+    /// Opens or closes the undo step of a drag or a typed field.
+    fn track(&mut self, resp: &egui::Response, label: &str) {
+        if resp.drag_started() || resp.gained_focus() {
+            self.edits.push(Edit::Begin(format!("Change {label}")));
+        }
+        if resp.drag_stopped() || resp.lost_focus() {
+            self.edits.push(Edit::End);
+        }
+    }
+
+    /// The row's label, with its hint on hover.
+    fn label(ui: &mut egui::Ui, label: &str, hint: &str) {
+        ui.label(RichText::new(label).color(theme::TEXT_DIM))
+            .on_hover_text(hint);
+    }
+
+    /// A button putting `path` back to its default, shown while it differs.
+    fn reset(&mut self, ui: &mut egui::Ui, path: &str) {
+        if !self.doc.is_default(path)
+            && ui
+                .add(
+                    egui::Button::new(RichText::new(icons::ARROW_COUNTER_CLOCKWISE).small())
+                        .frame(false),
+                )
+                .on_hover_text("Back to the default")
+                .clicked()
+        {
+            self.edits
+                .push(Edit::Command(SettingsCommand::Reset { path: path.into() }));
+        }
+    }
+
+    fn number(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: f64,
+        range: RangeInclusive<f64>,
+        suffix: &str,
+    ) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            let mut v = value;
+            let speed = ((range.end() - range.start()) / 500.0).max(0.001);
+            let resp = ui.add(
+                DragValue::new(&mut v)
+                    .range(range)
+                    .speed(speed)
+                    .max_decimals(3)
+                    .suffix(suffix),
+            );
+            self.track(&resp, label);
+            if resp.changed() {
+                self.set(path, json!(v));
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    fn whole(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: i64,
+        range: RangeInclusive<i64>,
+        suffix: &str,
+    ) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            let mut v = value;
+            let resp = ui.add(
+                DragValue::new(&mut v)
+                    .range(range)
+                    .speed(0.2)
+                    .suffix(suffix),
+            );
+            self.track(&resp, label);
+            if resp.changed() {
+                self.set(path, json!(v));
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    fn check(&mut self, ui: &mut egui::Ui, (label, hint): (&str, &str), path: &str, value: bool) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            let mut v = value;
+            if ui.checkbox(&mut v, "").changed() {
+                self.set(path, json!(v));
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    fn text(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: &str,
+        placeholder: &str,
+    ) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            let mut v = value.to_owned();
+            let resp = ui.add(
+                egui::TextEdit::singleline(&mut v)
+                    .hint_text(placeholder)
+                    .desired_width(240.0),
+            );
+            self.track(&resp, label);
+            if resp.changed() {
+                self.set(path, json!(v));
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    fn color(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: [u8; 3],
+    ) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            let mut v = value;
+            let resp = ui.color_edit_button_srgb(&mut v);
+            if resp.changed() {
+                self.set(path, json!(v));
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    /// A list of whole numbers typed as `1, 2, 3` (applied while it reads as one).
+    fn numbers(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: &[u32],
+    ) {
+        let shown = value
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.list(
+            ui,
+            (label, hint),
+            path,
+            shown,
+            "e.g. 410003, 130003",
+            |text| {
+                text.split(',')
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(|t| t.parse::<u32>().ok().map(Value::from))
+                    .collect::<Option<Vec<_>>>()
+                    .map(Value::Array)
+            },
+        );
+    }
+
+    /// A list of names typed as `a, b`.
+    fn names(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: &[String],
+    ) {
+        self.list(
+            ui,
+            (label, hint),
+            path,
+            value.join(", "),
+            "e.g. admin, alice",
+            |text| {
+                Some(Value::Array(
+                    text.split(',')
+                        .map(str::trim)
+                        .filter(|t| !t.is_empty())
+                        .map(Value::from)
+                        .collect(),
+                ))
+            },
+        );
+    }
+
+    fn list(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        shown: String,
+        placeholder: &str,
+        parse: impl Fn(&str) -> Option<Value>,
+    ) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            let mut text = self.buffers.get(path).cloned().unwrap_or(shown);
+            let resp = ui.add(
+                egui::TextEdit::singleline(&mut text)
+                    .hint_text(placeholder)
+                    .desired_width(240.0),
+            );
+            self.track(&resp, label);
+            if resp.changed()
+                && let Some(value) = parse(&text)
+            {
+                self.set(path, value);
+            }
+            if resp.has_focus() {
+                self.buffers.insert(path.to_owned(), text);
+            } else {
+                self.buffers.remove(path);
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    /// A file of the game's content, typed or picked.
+    fn file(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: &str,
+        kinds: &[&str],
+    ) {
+        Self::label(ui, label, hint);
+        ui.horizontal(|ui| {
+            if let Some(picked) = self.file_field(ui, label, value, kinds) {
+                self.set(path, json!(picked));
+            }
+            self.reset(ui, path);
+        });
+        ui.end_row();
+    }
+
+    /// A path field with a Browse button; returns the new path when it changes.
+    fn file_field(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        value: &str,
+        kinds: &[&str],
+    ) -> Option<String> {
+        let mut v = value.to_owned();
+        let resp = ui.add(
+            egui::TextEdit::singleline(&mut v)
+                .hint_text("none")
+                .desired_width(200.0),
+        );
+        self.track(&resp, label);
+        let mut changed = resp.changed().then_some(v);
+        if ui
+            .button(icons::FOLDER_OPEN)
+            .on_hover_text("Pick a file of the project")
+            .clicked()
+            && let Some(root) = &self.files_root
+            && let Some(file) = rfd::FileDialog::new()
+                .add_filter(label, kinds)
+                .set_directory(root)
+                .pick_file()
+        {
+            match relative(root, &file) {
+                Some(rel) => changed = Some(rel),
+                None => self
+                    .problems
+                    .push(format!("Pick a file inside {}", root.display())),
+            }
+        }
+        changed
+    }
+
+    fn cursor(
+        &mut self,
+        ui: &mut egui::Ui,
+        (label, hint): (&str, &str),
+        path: &str,
+        value: &Cursor,
+    ) {
+        Self::label(ui, label, hint);
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                let image_path = format!("{path}.image");
+                let kinds = ["png", "cur", "ani", "ico", "bmp", "tga", "dds"];
+                if let Some(picked) = self.file_field(ui, label, &value.image, &kinds) {
+                    self.set(&image_path, json!(picked));
+                }
+                self.reset(ui, path);
+            });
+            if !value.image.is_empty() {
+                ui.horizontal(|ui| {
+                    self.preview(ui, value);
+                    let mut own = value.hotspot.is_some();
+                    let hotspot_path = format!("{path}.hotspot");
+                    if ui
+                        .checkbox(&mut own, "Hotspot")
+                        .on_hover_text("The pixel that points; off: the one the file names")
+                        .changed()
+                    {
+                        self.set(&hotspot_path, if own { json!([0, 0]) } else { Value::Null });
+                    }
+                    if let Some([x, y]) = value.hotspot {
+                        let (mut x, mut y) = (x, y);
+                        let rx = ui.add(DragValue::new(&mut x).range(0..=255).prefix("x "));
+                        let ry = ui.add(DragValue::new(&mut y).range(0..=255).prefix("y "));
+                        self.track(&rx, label);
+                        self.track(&ry, label);
+                        if rx.changed() || ry.changed() {
+                            self.set(&hotspot_path, json!([x, y]));
+                        }
+                    }
+                });
+            }
+        });
+        ui.end_row();
+    }
+
+    /// The cursor's first frame with its hotspot marked, or why it can't be read.
+    fn preview(&mut self, ui: &mut egui::Ui, value: &Cursor) {
+        let Some(game) = self.game else { return };
+        let key = format!("{}|{:?}", value.image, value.hotspot);
+        let preview = self.previews.entry(key).or_insert_with(|| {
+            c3_play::cursor::read(game, value).map(|cursor| {
+                let frame = &cursor.frames[0];
+                let image = &frame.image;
+                let mut rgba = image.rgba.clone();
+                let [hx, hy] = frame.hotspot;
+                if hx < image.width && hy < image.height {
+                    let at = ((hy * image.width + hx) * 4) as usize;
+                    rgba[at..at + 4].copy_from_slice(&[255, 60, 60, 255]);
+                }
+                ui.ctx().load_texture(
+                    format!("cursor preview {}", value.image),
+                    egui::ColorImage::from_rgba_unmultiplied(
+                        [image.width as usize, image.height as usize],
+                        &rgba,
+                    ),
+                    egui::TextureOptions::NEAREST,
+                )
+            })
+        });
+        match preview {
+            Ok(texture) => {
+                let size = texture.size_vec2();
+                let (rect, _) =
+                    ui.allocate_exact_size(size + egui::vec2(4.0, 4.0), egui::Sense::hover());
+                ui.painter()
+                    .rect_filled(rect, 3.0, egui::Color32::from_gray(60));
+                ui.painter().image(
+                    texture.id(),
+                    rect.shrink(2.0),
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    egui::Color32::WHITE,
+                );
+            }
+            Err(e) => {
+                ui.label(RichText::new(format!("{} {e}", icons::WARNING)).color(theme::WARNING));
+            }
+        }
+    }
+}
+
+/// `file` as a path under `root` with forward slashes, if it is under it.
+fn relative(root: &Path, file: &Path) -> Option<String> {
+    let rel = file.strip_prefix(root).ok()?;
+    Some(rel.to_string_lossy().replace('\\', "/"))
+}
+
+fn grid(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
+    egui::Grid::new(id)
+        .num_columns(2)
+        .spacing([18.0, 8.0])
+        .min_col_width(150.0)
+        .show(ui, body);
+}
+
+fn heading(ui: &mut egui::Ui, text: &str) {
+    ui.add_space(6.0);
+    ui.label(RichText::new(text).strong());
+    ui.add_space(2.0);
+}
+
+impl Studio {
+    /// Opens Edit > Project Settings, at `section` when given.
+    pub(crate) fn show_project_settings(&mut self, section: Option<&str>) {
+        if let Some(editor) = &mut self.settings {
+            editor.open = true;
+            if let Some(s) = section.and_then(|n| {
+                Section::ALL
+                    .into_iter()
+                    .find(|s| s.name().eq_ignore_ascii_case(n))
+            }) {
+                editor.section = s;
+            }
+        }
+    }
+
+    /// Draws the Project Settings window while it is open and carries out its edits.
+    pub(crate) fn project_settings_window(&mut self, ctx: &egui::Context) {
+        let files_root = self.files_root();
+        let maps: Vec<String> = self.maps.iter().map(|m| m.key()).collect();
+        let Some(editor) = &mut self.settings else {
+            return;
+        };
+        if !editor.open {
+            return;
+        }
+        let mut open = true;
+        let mut edits = Vec::new();
+        let mut problems = Vec::new();
+        let resp = egui::Window::new(theme::icon_text(icons::GEAR_SIX, "Project Settings"))
+            .id(egui::Id::unique("project settings"))
+            .open(&mut open)
+            .default_size([760.0, 560.0])
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
+            .min_size([560.0, 360.0])
+            .collapsible(false)
+            .show(ctx, |ui| {
+                egui::Panel::left("settings sections")
+                    .resizable(false)
+                    .exact_size(170.0)
+                    .show(ui, |ui| {
+                        ui.add_space(4.0);
+                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                            for section in Section::ALL {
+                                let text = theme::icon_text(section.icon(), section.name());
+                                if ui
+                                    .add(egui::Button::selectable(editor.section == section, text))
+                                    .clicked()
+                                {
+                                    editor.section = section;
+                                }
+                            }
+                        });
+                    });
+                egui::Panel::bottom("settings footer").show(ui, |ui| {
+                    ui.label(
+                        RichText::new(
+                            "Saved to settings.toml as you go · Play picks changes up at once \
+                                 (tilt and the start: next Play) · Ctrl+Z undoes",
+                        )
+                        .small()
+                        .color(theme::TEXT_DIM),
+                    );
+                });
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let section = editor.section;
+                    ui.label(
+                        RichText::new(theme::icon_text(section.icon(), section.name())).size(18.0),
+                    );
+                    ui.label(RichText::new(section.about()).color(theme::TEXT_DIM));
+                    ui.separator();
+                    let settings = editor.doc.settings().clone();
+                    let mut fields = Fields {
+                        doc: &editor.doc,
+                        edits: Vec::new(),
+                        buffers: &mut editor.buffers,
+                        previews: &mut editor.previews,
+                        game: self.game.as_deref(),
+                        files_root: files_root.clone(),
+                        maps: &maps,
+                        problems: Vec::new(),
+                    };
+                    egui::ScrollArea::vertical()
+                        .auto_shrink(false)
+                        .show(ui, |ui| {
+                            section_fields(ui, section, &settings, &mut fields);
+                        });
+                    edits = fields.edits;
+                    problems = fields.problems;
+                });
+            });
+        if let Some(resp) = &resp
+            && resp.response.contains_pointer()
+            && ctx.input(|i| i.pointer.any_pressed())
+        {
+            self.focus = Focus::Settings;
+        }
+        if let Some(problem) = problems.pop() {
+            self.error = Some(problem);
+        }
+        let Some(editor) = &mut self.settings else {
+            return;
+        };
+        editor.open = open;
+        let mut changed = false;
+        for edit in edits {
+            match edit {
+                Edit::Begin(label) => editor.doc.begin_group(label),
+                Edit::End => editor.doc.end_group(),
+                Edit::Command(command) => match editor.doc.execute(&command) {
+                    Ok(outcome) => changed |= outcome.changed,
+                    Err(e) => self.error = Some(format!("Can't change that setting: {e}")),
+                },
+            }
+        }
+        if changed {
+            self.settings_changed();
+        }
+    }
+
+    /// Where the files the settings name live: the game's content (a Conquer client), else
+    /// the project's assets.
+    fn files_root(&self) -> Option<PathBuf> {
+        let project = self.project.as_ref()?;
+        Some(
+            project
+                .tq_client()
+                .map_or_else(|| project.assets_dir(), |(_, dir)| dir),
+        )
+    }
+
+    /// Saves the settings and applies them where they show: the game playing, the game's
+    /// fonts, the Scene view's tilt.
+    pub(crate) fn settings_changed(&mut self) {
+        let (Some(editor), Some(project)) = (&self.settings, &self.project) else {
+            return;
+        };
+        let settings = editor.settings().clone();
+        if let Err(e) = project.save_settings(&settings) {
+            self.error = Some(format!("Can't save the settings: {e}"));
+        }
+        if let Some(play) = &mut self.playing {
+            play.set_settings(settings.clone());
+        }
+        if self.applied_settings.as_ref().map(|s| &s.localization) != Some(&settings.localization) {
+            self.fonts_dirty = true;
+        }
+        let tilt_changed = self.applied_settings.as_ref().map(|s| s.camera.tilt_deg)
+            != Some(settings.camera.tilt_deg);
+        self.applied_settings = Some(settings);
+        if tilt_changed {
+            self.stage = None;
+            self.rebuild_live_scene();
+        }
+    }
+}
+
+/// The fields of `section`.
+fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &mut Fields) {
+    match section {
+        Section::Player => grid(ui, "player", |ui| {
+            let p = &s.player;
+            f.text(
+                ui,
+                ("Game name", "Shown as the window title"),
+                "player.game_name",
+                &p.game_name,
+                "the project's name",
+            );
+            f.file(
+                ui,
+                ("Icon", "The window icon: an .ico or an image"),
+                "player.icon",
+                &p.icon,
+                &["ico", "png", "bmp", "tga", "dds"],
+            );
+            f.whole(
+                ui,
+                ("Window width", "Pixels"),
+                "player.window_width",
+                i64::from(p.window_width),
+                320..=7680,
+                " px",
+            );
+            f.whole(
+                ui,
+                ("Window height", "Pixels"),
+                "player.window_height",
+                i64::from(p.window_height),
+                240..=4320,
+                " px",
+            );
+            f.check(
+                ui,
+                ("Full screen", "Start full screen"),
+                "player.fullscreen",
+                p.fullscreen,
+            );
+            f.check(
+                ui,
+                ("Resizable", "Players may resize the window"),
+                "player.resizable",
+                p.resizable,
+            );
+        }),
+        Section::Cursors => grid(ui, "cursors", |ui| {
+            let c = &s.cursors;
+            f.cursor(
+                ui,
+                ("Normal", "Over nothing in particular"),
+                "cursors.normal",
+                &c.normal,
+            );
+            f.cursor(
+                ui,
+                ("Attack", "Over a monster"),
+                "cursors.attack",
+                &c.attack,
+            );
+            f.cursor(ui, ("Talk", "Over an NPC"), "cursors.talk", &c.talk);
+            f.cursor(
+                ui,
+                ("Pick up", "Over something on the ground"),
+                "cursors.pick_up",
+                &c.pick_up,
+            );
+            f.cursor(ui, ("Portal", "Over a portal"), "cursors.portal", &c.portal);
+        }),
+        Section::Camera => {
+            let c = &s.camera;
+            heading(ui, "Zoom");
+            grid(ui, "camera zoom", |ui| {
+                f.number(
+                    ui,
+                    ("Start zoom", "1 = the art's own size"),
+                    "camera.zoom",
+                    c.zoom,
+                    0.05..=16.0,
+                    "×",
+                );
+                f.number(
+                    ui,
+                    ("Least zoom", "How far players can zoom out"),
+                    "camera.min_zoom",
+                    c.min_zoom,
+                    0.05..=16.0,
+                    "×",
+                );
+                f.number(
+                    ui,
+                    ("Most zoom", "How far players can zoom in"),
+                    "camera.max_zoom",
+                    c.max_zoom,
+                    0.05..=16.0,
+                    "×",
+                );
+                f.number(
+                    ui,
+                    ("Wheel speed", "How fast the wheel zooms; 0: it doesn't"),
+                    "camera.wheel_speed",
+                    c.wheel_speed,
+                    0.0..=5.0,
+                    "×",
+                );
+            });
+            heading(ui, "Following and panning");
+            grid(ui, "camera follow", |ui| {
+                f.check(
+                    ui,
+                    (
+                        "Free pan",
+                        "Players may move the camera off the hero (drag, keys)",
+                    ),
+                    "camera.free_pan",
+                    c.free_pan,
+                );
+                f.number(
+                    ui,
+                    ("Pan speed", "Keyboard panning at zoom 1"),
+                    "camera.pan_speed",
+                    c.pan_speed,
+                    0.0..=5000.0,
+                    " px/s",
+                );
+                f.number(
+                    ui,
+                    (
+                        "Follow smoothing",
+                        "Seconds to catch up with the hero; 0: locked on",
+                    ),
+                    "camera.follow_smoothing",
+                    c.follow_smoothing,
+                    0.0..=3.0,
+                    " s",
+                );
+                f.number(
+                    ui,
+                    (
+                        "Dead zone",
+                        "How far the hero may move from the centre before the camera follows",
+                    ),
+                    "camera.dead_zone",
+                    c.dead_zone,
+                    0.0..=600.0,
+                    " px",
+                );
+                f.check(
+                    ui,
+                    ("Keep in map", "The view never shows past the map's edge"),
+                    "camera.clamp_to_map",
+                    c.clamp_to_map,
+                );
+                f.number(
+                    ui,
+                    (
+                        "Shake on hit",
+                        "How hard the view shakes when the hero is hit; 0: no shake",
+                    ),
+                    "camera.shake",
+                    c.shake,
+                    0.0..=40.0,
+                    " px",
+                );
+            });
+            heading(ui, "Projection");
+            grid(ui, "camera projection", |ui| {
+                f.tilt(ui, c.tilt_deg);
+                f.number(
+                    ui,
+                    ("New map cell width", "Pixels across a cell of new maps"),
+                    "camera.new_map_cell.0",
+                    c.new_map_cell[0],
+                    2.0..=512.0,
+                    " px",
+                );
+                f.number(
+                    ui,
+                    ("New map cell height", "Pixels down a cell of new maps"),
+                    "camera.new_map_cell.1",
+                    c.new_map_cell[1],
+                    1.0..=512.0,
+                    " px",
+                );
+            });
+        }
+        Section::Gameplay => {
+            let g = &s.gameplay;
+            heading(ui, "Time");
+            grid(ui, "gameplay time", |ui| {
+                f.whole(
+                    ui,
+                    ("Tick", "Game time per simulation step"),
+                    "gameplay.tick_ms",
+                    g.tick_ms as i64,
+                    10..=1000,
+                    " ms",
+                );
+                f.number(
+                    ui,
+                    ("Corpse time", "How long a dead monster lies"),
+                    "gameplay.corpse_seconds",
+                    g.corpse_seconds,
+                    0.0..=600.0,
+                    " s",
+                );
+                f.number(
+                    ui,
+                    ("Revive time", "How long a dead player waits to come back"),
+                    "gameplay.revive_seconds",
+                    g.revive_seconds,
+                    0.0..=600.0,
+                    " s",
+                );
+                f.number(
+                    ui,
+                    ("Drop lifetime", "How long a drop stays on the ground"),
+                    "gameplay.item_life_seconds",
+                    g.item_life_seconds,
+                    0.0..=3600.0,
+                    " s",
+                );
+            });
+            heading(ui, "Ranges (cells)");
+            grid(ui, "gameplay ranges", |ui| {
+                f.whole(
+                    ui,
+                    ("View", "How far players see others"),
+                    "gameplay.view_range",
+                    i64::from(g.view_range),
+                    1..=100,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Talk", "How near an NPC a player must be to talk"),
+                    "gameplay.talk_range",
+                    i64::from(g.talk_range),
+                    0..=100,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Trade", "How near an NPC a player must be to trade"),
+                    "gameplay.trade_range",
+                    i64::from(g.trade_range),
+                    0..=100,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Jump", "How far a player jumps at once"),
+                    "gameplay.jump_range",
+                    i64::from(g.jump_range),
+                    0..=100,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Attack nearest", "How far Tab looks for a monster"),
+                    "gameplay.attack_search",
+                    i64::from(g.attack_search),
+                    0..=100,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Monster leash", "How far monsters chase from home"),
+                    "gameplay.monster_leash",
+                    i64::from(g.monster_leash),
+                    0..=200,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Monster wander", "How far monsters roam from home"),
+                    "gameplay.monster_wander",
+                    i64::from(g.monster_wander),
+                    0..=100,
+                    "",
+                );
+            });
+            heading(ui, "Items and money");
+            grid(ui, "gameplay items", |ui| {
+                f.whole(
+                    ui,
+                    ("Bag size", "Items a bag holds"),
+                    "gameplay.bag_size",
+                    i64::from(g.bag_size),
+                    1..=500,
+                    "",
+                );
+                f.text(
+                    ui,
+                    ("Currency", "The money's name, as players see it"),
+                    "gameplay.currency",
+                    &g.currency,
+                    "Gold",
+                );
+            });
+            heading(ui, "New characters");
+            grid(ui, "gameplay start", |ui| {
+                f.start_map(ui, &g.start_map);
+                f.start_cell(ui, g.start_cell);
+                f.whole(
+                    ui,
+                    ("Level", "The level they start at"),
+                    "gameplay.new_character.level",
+                    i64::from(g.new_character.level),
+                    1..=1000,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Money", "The money they start with"),
+                    "gameplay.new_character.money",
+                    g.new_character.money as i64,
+                    0..=i64::MAX,
+                    "",
+                );
+                f.numbers(
+                    ui,
+                    ("Bag", "Item types they carry"),
+                    "gameplay.new_character.bag",
+                    &g.new_character.bag,
+                );
+                f.numbers(
+                    ui,
+                    ("Worn", "Item types they wear"),
+                    "gameplay.new_character.equipment",
+                    &g.new_character.equipment,
+                );
+            });
+            heading(ui, "Game masters");
+            grid(ui, "gameplay gm", |ui| {
+                f.check(
+                    ui,
+                    (
+                        "Everyone",
+                        "Everyone may use / commands (handy while making the game)",
+                    ),
+                    "gameplay.gm_everyone",
+                    g.gm_everyone,
+                );
+                f.names(
+                    ui,
+                    ("Accounts", "Accounts that may use / commands"),
+                    "gameplay.gm_accounts",
+                    &g.gm_accounts,
+                );
+            });
+        }
+        Section::Graphics => grid(ui, "graphics", |ui| {
+            let g = &s.graphics;
+            f.check(
+                ui,
+                ("VSync", "Wait for the display between frames (no tearing)"),
+                "graphics.vsync",
+                g.vsync,
+            );
+            f.whole(
+                ui,
+                ("Frame cap", "Most frames per second; 0: no limit"),
+                "graphics.frame_cap",
+                i64::from(g.frame_cap),
+                0..=1000,
+                " fps",
+            );
+            f.color(
+                ui,
+                ("Background", "Colour around and behind the map"),
+                "graphics.background",
+                g.background,
+            );
+        }),
+        Section::Audio => grid(ui, "audio", |ui| {
+            let a = &s.audio;
+            f.number(
+                ui,
+                ("Master volume", "Everything"),
+                "audio.master_volume",
+                a.master_volume,
+                0.0..=1.0,
+                "",
+            );
+            f.number(
+                ui,
+                ("Music volume", "Music"),
+                "audio.music_volume",
+                a.music_volume,
+                0.0..=1.0,
+                "",
+            );
+            f.number(
+                ui,
+                ("Sound volume", "Actions, effects and the UI"),
+                "audio.sound_volume",
+                a.sound_volume,
+                0.0..=1.0,
+                "",
+            );
+            f.number(
+                ui,
+                ("Hearing range", "How far from the hero a sound fades out"),
+                "audio.hearing_range",
+                a.hearing_range,
+                1.0..=100.0,
+                " cells",
+            );
+        }),
+        Section::Network => {
+            let n = &s.network;
+            grid(ui, "network", |ui| {
+                f.whole(
+                    ui,
+                    ("Port", "The engine protocol's port"),
+                    "network.port",
+                    i64::from(n.port),
+                    1..=65535,
+                    "",
+                );
+                f.number(
+                    ui,
+                    ("Save interval", "How often logged-in characters are saved"),
+                    "network.save_interval_seconds",
+                    n.save_interval_seconds,
+                    1.0..=3600.0,
+                    " s",
+                );
+                f.number(
+                    ui,
+                    ("Join timeout", "How long a client waits for the server"),
+                    "network.join_timeout_seconds",
+                    n.join_timeout_seconds,
+                    1.0..=120.0,
+                    " s",
+                );
+            });
+            heading(ui, "Fronts for other clients");
+            f.fronts(ui, &n.fronts);
+        }
+        Section::Localization => {
+            heading(ui, "Fonts");
+            f.fonts(ui, &s.localization.fonts);
+        }
+    }
+}
+
+/// Fields particular to one setting.
+impl Fields<'_> {
+    fn tilt(&mut self, ui: &mut egui::Ui, tilt: Option<f64>) {
+        Self::label(
+            ui,
+            "Tilt",
+            "Tilt of 3D roles and effects; off: the game's own",
+        );
+        ui.horizontal(|ui| {
+            let mut own = tilt.is_some();
+            let game_tilt = self.game.map_or(0.0, |g| g.tilt_deg());
+            if ui.checkbox(&mut own, "").changed() {
+                self.set(
+                    "camera.tilt_deg",
+                    if own { json!(game_tilt) } else { Value::Null },
+                );
+            }
+            match tilt {
+                Some(t) => {
+                    let mut t = t;
+                    let resp = ui.add(
+                        DragValue::new(&mut t)
+                            .range(-90.0..=90.0)
+                            .speed(0.1)
+                            .suffix("°"),
+                    );
+                    self.track(&resp, "Tilt");
+                    if resp.changed() {
+                        self.set("camera.tilt_deg", json!(t));
+                    }
+                }
+                None => {
+                    ui.label(
+                        RichText::new(format!("the game's ({game_tilt:.1}°)"))
+                            .color(theme::TEXT_DIM),
+                    );
+                }
+            }
+        });
+        ui.end_row();
+    }
+
+    fn start_map(&mut self, ui: &mut egui::Ui, map: &str) {
+        Self::label(ui, "Start map", "The map new characters start on");
+        ui.horizontal(|ui| {
+            let shown = if map.is_empty() {
+                "the game's first map"
+            } else {
+                map
+            };
+            let mut chosen = None;
+            egui::ComboBox::from_id_salt("start map")
+                .selected_text(shown)
+                .width(240.0)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(map.is_empty(), "the game's first map")
+                        .clicked()
+                    {
+                        chosen = Some(String::new());
+                    }
+                    for m in self.maps {
+                        if ui.selectable_label(m == map, m).clicked() {
+                            chosen = Some(m.clone());
+                        }
+                    }
+                });
+            if let Some(m) = chosen {
+                self.set("gameplay.start_map", json!(m));
+            }
+            self.reset(ui, "gameplay.start_map");
+        });
+        ui.end_row();
+    }
+
+    fn start_cell(&mut self, ui: &mut egui::Ui, cell: Option<[i32; 2]>) {
+        Self::label(
+            ui,
+            "Start cell",
+            "The cell they start on; off: the map's centre",
+        );
+        ui.horizontal(|ui| {
+            let mut own = cell.is_some();
+            if ui.checkbox(&mut own, "").changed() {
+                self.set(
+                    "gameplay.start_cell",
+                    if own { json!([0, 0]) } else { Value::Null },
+                );
+            }
+            match cell {
+                Some([x, y]) => {
+                    let (mut x, mut y) = (x, y);
+                    let rx = ui.add(DragValue::new(&mut x).range(0..=4096).prefix("x "));
+                    let ry = ui.add(DragValue::new(&mut y).range(0..=4096).prefix("y "));
+                    self.track(&rx, "Start cell");
+                    self.track(&ry, "Start cell");
+                    if rx.changed() || ry.changed() {
+                        self.set("gameplay.start_cell", json!([x, y]));
+                    }
+                }
+                None => {
+                    ui.label(RichText::new("the map's centre").color(theme::TEXT_DIM));
+                }
+            }
+        });
+        ui.end_row();
+    }
+
+    fn fronts(&mut self, ui: &mut egui::Ui, fronts: &[FrontSettings]) {
+        let mut list = fronts.to_vec();
+        let mut changed = false;
+        let mut remove = None;
+        if list.is_empty() {
+            ui.label(
+                RichText::new("Only the engine's own clients connect.").color(theme::TEXT_DIM),
+            );
+        }
+        egui::Grid::new("fronts")
+            .num_columns(3)
+            .spacing([10.0, 6.0])
+            .show(ui, |ui| {
+                for (i, front) in list.iter_mut().enumerate() {
+                    let kind = ui
+                        .add_sized(
+                            [160.0, 22.0],
+                            egui::TextEdit::singleline(&mut front.kind).hint_text("kind"),
+                        )
+                        .on_hover_text("Which client it serves, e.g. conquer-5065");
+                    let ip = ui
+                        .add_sized(
+                            [160.0, 22.0],
+                            egui::TextEdit::singleline(&mut front.public_ip).hint_text("public IP"),
+                        )
+                        .on_hover_text("Where its clients are sent after logging in");
+                    self.track(&kind, "fronts");
+                    self.track(&ip, "fronts");
+                    changed |= kind.changed() || ip.changed();
+                    if ui
+                        .button(icons::TRASH)
+                        .on_hover_text("Remove this front")
+                        .clicked()
+                    {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(i) = remove {
+            list.remove(i);
+            changed = true;
+        }
+        if ui
+            .button(theme::icon_text(icons::PLUS, "Add a front"))
+            .clicked()
+        {
+            list.push(FrontSettings {
+                kind: "conquer-5065".into(),
+                public_ip: "127.0.0.1".into(),
+            });
+            changed = true;
+        }
+        if changed {
+            self.set(
+                "network.front",
+                serde_json::to_value(&list).unwrap_or_default(),
+            );
+        }
+    }
+
+    fn fonts(&mut self, ui: &mut egui::Ui, fonts: &[String]) {
+        let mut list = fonts.to_vec();
+        let mut changed = false;
+        let mut remove = None;
+        if list.is_empty() {
+            ui.label(
+                RichText::new("The engine's font draws the game's text.").color(theme::TEXT_DIM),
+            );
+        }
+        for (i, font) in fonts.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("{}.", i + 1)).color(theme::TEXT_DIM));
+                if let Some(picked) = self.file_field(ui, "Font", font, &["ttf", "otf"]) {
+                    list[i] = picked;
+                    changed = true;
+                }
+                if ui
+                    .button(icons::TRASH)
+                    .on_hover_text("Remove this font")
+                    .clicked()
+                {
+                    remove = Some(i);
+                }
+            });
+        }
+        if let Some(i) = remove {
+            list.remove(i);
+            changed = true;
+        }
+        if ui
+            .button(theme::icon_text(icons::PLUS, "Add a font"))
+            .clicked()
+        {
+            list.push(String::new());
+            changed = true;
+        }
+        if changed {
+            self.set("localization.fonts", json!(list));
+        }
+    }
+}

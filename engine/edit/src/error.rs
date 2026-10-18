@@ -23,6 +23,10 @@ pub enum EditError {
     /// An area covering more cells than a single command may touch.
     AreaTooLarge(usize),
     InvalidArea(String),
+    /// A settings path that names no setting.
+    NoSetting(String),
+    /// A settings value of the wrong type, or settings that break a rule.
+    InvalidSetting(String),
 }
 
 impl fmt::Display for EditError {
@@ -48,6 +52,8 @@ impl fmt::Display for EditError {
                 crate::MAX_AREA_CELLS
             ),
             Self::InvalidArea(why) => write!(f, "invalid area: {why}"),
+            Self::NoSetting(path) => write!(f, "there is no setting {path}"),
+            Self::InvalidSetting(why) => write!(f, "{why}"),
         }
     }
 }

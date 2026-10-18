@@ -210,7 +210,7 @@ impl ApplicationHandler for App {
                 return;
             }
         };
-        match gfx::Gfx::new(window) {
+        match gfx::Gfx::new(window, true) {
             Ok(g) => self.gfx = Some(g),
             Err(e) => {
                 eprintln!("graphics init failed: {e}");
@@ -378,7 +378,8 @@ fn load_world(args: &Args) -> Result<World, String> {
     for w in &map.warnings {
         eprintln!("warning: {w}");
     }
-    Ok(World::new(map.game, map.path, map.scene))
+    let tilt = map.game.tilt_deg();
+    Ok(World::new(map.game, map.path, map.scene, tilt))
 }
 
 fn main() {

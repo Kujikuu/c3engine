@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+c3-core = { version = "0.1.0", path = "../core" }
 c3-script = { version = "0.1.0", path = "../script" }
 c3-data = { version = "0.1.0", path = "../data" }
 c3-scene = { version = "0.1.0", path = "../scene" }

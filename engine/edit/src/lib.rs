@@ -16,6 +16,7 @@ mod error;
 mod history;
 mod query;
 mod scene;
+mod settings;
 mod table;
 
 pub use error::EditError;
@@ -25,6 +26,7 @@ pub use query::{
     SceneSummary, WalkabilityMap, entity_kind_name,
 };
 pub use scene::{Area, MAX_AREA_CELLS, SceneCommand, SceneDoc, entity_label};
+pub use settings::{SettingsCommand, SettingsDoc};
 pub use table::{TableCommand, TableDoc};
 
 use serde::Serialize;
@@ -61,6 +63,11 @@ pub fn scene_command_schema() -> serde_json::Value {
 /// JSON schema of [`TableCommand`].
 pub fn table_command_schema() -> serde_json::Value {
     serde_json::to_value(schemars::schema_for!(TableCommand)).unwrap_or_default()
+}
+
+/// JSON schema of [`SettingsCommand`].
+pub fn settings_command_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(SettingsCommand)).unwrap_or_default()
 }
 
 /// JSON schema of [`SceneQuery`].

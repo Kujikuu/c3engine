@@ -10,5 +10,8 @@ mod wire;
 
 pub use front::{ACCOUNT_PORT, ConquerFront, ConquerSetup, GAME_PORT};
 
+/// The name Project Settings give the front for the original 5065 client.
+pub const FRONT_KIND: &str = "conquer-5065";
+
 #[cfg(test)]
 mod tests;

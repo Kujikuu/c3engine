@@ -136,7 +136,7 @@ fn shopkeeper() -> Npc {
 fn run_until(sim: &mut Sim, max_ms: u64, done: impl Fn(&Sim) -> bool) -> bool {
     let end = sim.now_ms() + max_ms;
     while sim.now_ms() < end {
-        sim.advance(TICK_MS);
+        sim.advance(sim.settings().tick_ms);
         if done(sim) {
             return true;
         }
@@ -236,7 +236,8 @@ fn aggressive_monsters_kill_players_who_come_back() {
             .any(|e| matches!(e, Event::Died { id, .. } if *id == hero))
     );
     // Monsters leave the dead alone; the player revives with full life.
-    assert!(run_until(&mut sim, REVIVE_MS + 1000, |s| s
+    let revive = ms(sim.settings().revive_seconds);
+    assert!(run_until(&mut sim, revive + 1000, |s| s
         .player(hero)
         .unwrap()
         .is_alive()));
@@ -271,12 +272,12 @@ fn shops_bags_and_potions() {
     let p = sim.player(hero).unwrap();
     assert_eq!((p.life, p.bag.len()), (60, 0));
 
-    for _ in 0..BAG_SIZE {
+    for _ in 0..sim.bag_size() {
         assert!(sim.give_item(hero, POTION));
     }
     assert!(!sim.give_item(hero, POTION), "the bag is full");
     assert!(sim.take_items(hero, POTION, 3));
-    assert_eq!(sim.player(hero).unwrap().bag.len(), BAG_SIZE - 3);
+    assert_eq!(sim.player(hero).unwrap().bag.len(), sim.bag_size() - 3);
 
     // Out of reach, the shop doesn't trade.
     sim.place(hero, (40, 40));
@@ -395,7 +396,7 @@ fn players_talk_to_npcs_and_scripts_change_them() {
     );
 
     sim.talk(hero, SHOP_NPC);
-    sim.advance(TICK_MS);
+    sim.advance(sim.settings().tick_ms);
     sim.answer(hero, 0);
     assert_eq!(sim.player(hero).unwrap().shop, Some(SHOP_NPC));
     assert!(sim.take_events().contains(&Event::ShopOpened {
@@ -428,6 +429,26 @@ fn chat_commands() {
     assert!(sim.command(hero, "/item 999").is_err());
     assert!(sim.command(hero, "/money lots").is_err());
     assert!(sim.command(hero, "/fly").is_err());
+}
+
+#[test]
+fn settings_decide_game_masters_and_the_bag() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 8);
+    let hero = sim.add_player("Alice", (3, 3), 1);
+    sim.set_settings(GameplaySettings {
+        gm_everyone: false,
+        gm_accounts: vec!["admin".into()],
+        bag_size: 2,
+        ..GameplaySettings::default()
+    });
+    assert!(sim.command(hero, "/money 5").is_err());
+    let admin = sim.add_player("Admin", (4, 4), 1);
+    assert!(
+        sim.command(admin, "/item 100 9")
+            .unwrap()
+            .contains("2 × Potion")
+    );
+    assert_eq!(sim.player(admin).unwrap().bag.len(), 2);
 }
 
 #[test]

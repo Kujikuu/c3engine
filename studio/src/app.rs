@@ -37,6 +37,8 @@ pub(crate) enum Focus {
     /// The script editor (its text field keeps its own undo).
     Script,
     Dialogue,
+    /// The Project Settings window.
+    Settings,
 }
 
 /// Something waiting on the "unsaved changes" prompt.
@@ -84,6 +86,12 @@ pub struct Studio {
     pub(crate) stage: Option<crate::stage::Stage>,
     /// The New Map dialog, while it is open.
     pub(crate) new_map: Option<crate::new_map::NewMapForm>,
+    /// The project's settings and their window.
+    pub(crate) settings: Option<crate::project_settings::SettingsEditor>,
+    /// The settings last applied (to tell what changed).
+    pub(crate) applied_settings: Option<c3_core::ProjectSettings>,
+    /// The game's fonts need installing (Localization changed).
+    pub(crate) fonts_dirty: bool,
     /// The Data panel: tables and the one open.
     pub(crate) data: crate::data_panel::DataPanel,
     /// The Script panel: scripts and the one being edited.
@@ -154,6 +162,9 @@ impl Studio {
             import_job: None,
             game: None,
             new_map: None,
+            settings: None,
+            applied_settings: None,
+            fonts_dirty: false,
             client: None,
             workspace: Workspace::Maps,
             maps: Vec::new(),
@@ -282,6 +293,13 @@ impl Studio {
                 s.dialogues.select(node);
             }
         }
+        if args.iter().any(|a| a == "--settings") {
+            s.show_project_settings(
+                flag("--settings")
+                    .filter(|n| !n.starts_with("--"))
+                    .as_deref(),
+            );
+        }
         if let Some(name) = flag("--show")
             && let Some(panel) = Panel::ALL
                 .into_iter()
@@ -338,6 +356,8 @@ impl Studio {
     pub(crate) fn open_client(&mut self) {
         self.client = None;
         self.game = None;
+        self.settings = None;
+        self.applied_settings = None;
         self.stage = None;
         self.maps.clear();
         self.models.clear();
@@ -358,6 +378,18 @@ impl Studio {
             }
             (None, None) => None,
         };
+        if let (Some(game), Some(project)) = (&self.game, &self.project) {
+            let (settings, problem) = c3_play::settings::load(project, &**game);
+            if let Some(problem) = problem {
+                self.error = Some(problem);
+            }
+            self.settings = Some(crate::project_settings::SettingsEditor::new(
+                settings.clone(),
+                game.default_settings(),
+            ));
+            self.applied_settings = Some(settings);
+            self.fonts_dirty = true;
+        }
         self.refresh_maps();
         self.refresh_assets();
         self.refresh_tables();
@@ -508,14 +540,36 @@ impl Studio {
                 self.inspect_asset = false;
                 let doc = MapDoc::new(map.clone(), scene, warnings);
                 self.cam.center = doc.bounds().center();
-                let live = (self.game.as_ref())
-                    .map(|game| LiveScene::new(doc.scene(), &**game, self.scene_ms as u64));
-                self.set_live_scene(live);
                 self.doc = Some(doc);
+                self.rebuild_live_scene();
                 self.fit_pending = true;
                 self.error = None;
             }
             Err(e) => self.error = Some(format!("Can't open {}: {e}", map.name())),
+        }
+    }
+
+    /// Builds the Scene view's drawing of the open map anew (a new map, a new tilt).
+    pub(crate) fn rebuild_live_scene(&mut self) {
+        let tilt = self.tilt_deg();
+        let live = match (&self.game, &self.doc) {
+            (Some(game), Some(doc)) => Some(LiveScene::new(
+                doc.scene(),
+                &**game,
+                self.scene_ms as u64,
+                tilt,
+            )),
+            _ => None,
+        };
+        self.set_live_scene(live);
+    }
+
+    /// The tilt of 3D roles and effects: the settings', else the game's.
+    pub(crate) fn tilt_deg(&self) -> f32 {
+        match (&self.game, &self.applied_settings) {
+            (Some(game), Some(settings)) => c3_play::settings::tilt_deg(settings, &**game),
+            (Some(game), None) => game.tilt_deg(),
+            _ => 0.0,
         }
     }
 
@@ -635,7 +689,28 @@ impl Studio {
         }
     }
 
+    /// Installs the game's fonts (Localization) for the Game view's text.
+    fn install_game_fonts(&mut self, ctx: &egui::Context) {
+        let (Some(game), Some(settings)) = (&self.game, &self.applied_settings) else {
+            c3_ui::fonts::install(ctx, Vec::new());
+            return;
+        };
+        let (fonts, problems) = c3_play::settings::game_fonts(settings, &**game);
+        if let Some(problem) = problems.into_iter().next() {
+            self.error = Some(problem);
+        }
+        c3_ui::fonts::install(ctx, fonts);
+    }
+
     pub(crate) fn undo(&mut self) {
+        if self.focus == Focus::Settings {
+            let label = self.settings.as_mut().and_then(|s| s.doc.undo());
+            if let Some(label) = label {
+                self.settings_changed();
+                self.notify(format!("Undid: {label}"));
+            }
+            return;
+        }
         let label = match self.focus {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::undo),
             Focus::Data => self.data.undo(),
@@ -643,6 +718,7 @@ impl Studio {
             // A focused text field undoes its own typing.
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.undo(),
+            Focus::Settings => None,
         };
         if let Some(label) = label {
             self.notify(format!("Undid: {label}"));
@@ -650,12 +726,21 @@ impl Studio {
     }
 
     pub(crate) fn redo(&mut self) {
+        if self.focus == Focus::Settings {
+            let label = self.settings.as_mut().and_then(|s| s.doc.redo());
+            if let Some(label) = label {
+                self.settings_changed();
+                self.notify(format!("Redid: {label}"));
+            }
+            return;
+        }
         let label = match self.focus {
             Focus::Scene => self.doc.as_mut().and_then(MapDoc::redo),
             Focus::Data => self.data.redo(),
             Focus::Script => None,
             Focus::Dialogue if self.dialogues.typing => None,
             Focus::Dialogue => self.dialogues.redo(),
+            Focus::Settings => None,
         };
         if let Some(label) = label {
             self.notify(format!("Redid: {label}"));
@@ -684,6 +769,13 @@ impl Studio {
             }
             Focus::Script => (None, None),
             Focus::Dialogue => self.dialogues.undo_redo_labels(),
+            Focus::Settings => {
+                let doc = self.settings.as_ref().map(|s| &s.doc);
+                (
+                    doc.and_then(|d| d.undo_label()).map(str::to_owned),
+                    doc.and_then(|d| d.redo_label()).map(str::to_owned),
+                )
+            }
         }
     }
 
@@ -757,6 +849,8 @@ impl Studio {
                 Focus::Dialogue => {
                     self.save_dialogue();
                 }
+                // Settings are saved as they change.
+                Focus::Settings => {}
             }
         }
         if ctx.egui_wants_keyboard_input() {
@@ -915,6 +1009,10 @@ impl eframe::App for Studio {
             .show(ui, |ui| self.status_bar(ui));
         self.project_dialog(&ctx);
         self.new_map_dialog(&ctx);
+        self.project_settings_window(&ctx);
+        if std::mem::take(&mut self.fonts_dirty) {
+            self.install_game_fonts(&ctx);
+        }
         self.import_progress(&ctx);
         if self.project.is_none() {
             egui::CentralPanel::default().show(ui, |ui| self.home(ui));

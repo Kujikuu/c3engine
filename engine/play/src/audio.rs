@@ -2,7 +2,8 @@
 //! stands, as the game ([`GameModule`]) says they sound.
 
 use crate::module::{Act, GameModule};
-use c3_audio::{Audio, MusicDirector};
+use c3_audio::{Audio, MusicDirector, Volumes};
+use c3_core::settings::AudioSettings;
 use c3_game::{EntityId, Event, Sim, distance};
 use std::rc::Rc;
 
@@ -28,6 +29,16 @@ impl GameAudio {
     /// `None` without a sound device, else whether sound is muted.
     pub fn muted(&self) -> Option<bool> {
         self.audio.has_device().then(|| self.audio.muted())
+    }
+
+    /// Plays by `settings` from now on.
+    pub fn apply(&mut self, settings: &AudioSettings) {
+        self.audio.set_volumes(Volumes {
+            master: settings.master_volume as f32,
+            music: settings.music_volume as f32,
+            sound: settings.sound_volume as f32,
+        });
+        self.audio.hearing_range = settings.hearing_range as f32;
     }
 
     pub fn toggle_muted(&mut self) {

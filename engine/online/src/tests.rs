@@ -102,6 +102,7 @@ fn server(test: &str) -> (GameServer, PathBuf) {
             ..PlayerSave::new(name, cell)
         }),
         save_every_ms: 60_000,
+        tick_ms: 50,
     };
     (GameServer::new(vec![Box::new(front)], maps, config), dir)
 }

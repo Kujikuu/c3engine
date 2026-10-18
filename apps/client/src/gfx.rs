@@ -14,7 +14,8 @@ pub struct Gfx {
 }
 
 impl Gfx {
-    pub fn new(window: Arc<Window>) -> Result<Self, String> {
+    /// Graphics for `window`; `vsync` waits for the display between frames.
+    pub fn new(window: Arc<Window>, vsync: bool) -> Result<Self, String> {
         let instance = wgpu::Instance::default();
         let surface = instance
             .create_surface(window.clone())
@@ -37,7 +38,11 @@ impl Gfx {
         if let Some(&srgb) = caps.formats.iter().find(|f| f.is_srgb()) {
             config.format = srgb;
         }
-        config.present_mode = wgpu::PresentMode::AutoVsync;
+        config.present_mode = if vsync {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
+        };
         surface.configure(&device, &config);
 
         let depth = DepthBuffer::new(&device, [config.width, config.height]);

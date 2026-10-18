@@ -1,6 +1,7 @@
 //! The NPC dialogue window: what the NPC says and the answers (click, or number keys).
 
 use crate::UiAction;
+use crate::fonts;
 use crate::icons;
 use crate::style;
 use c3_script::Conversation;
@@ -38,6 +39,7 @@ pub(crate) fn window(
         .pivot(egui::Align2::LEFT_BOTTOM)
         .constrain_to(rect)
         .show(ui.ctx(), |ui| {
+            fonts::use_game_font(ui);
             style::panel().show(ui, |ui| {
                 ui.set_width(WIDTH);
                 ui.horizontal(|ui| {

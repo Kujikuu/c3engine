@@ -4,16 +4,17 @@
 use crate::Content;
 use crate::character::{DEFAULT_HERO, RoleLook, action, player_look, weapon_family};
 use crate::game;
+use crate::protocol::FRONT_KIND;
 use crate::rules::{ConquerRules, SLOT_NAMES};
 use c3_assets::Image;
 use c3_audio::MusicRegion;
-use c3_game::{EntityId, Player, PlayerSave, Rules, Sim};
+use c3_game::{EntityId, Player, Rules, Sim};
 use c3_play::{
     Act, Character, CharacterMotions, GameModule, GameRules, Look, LookKind, Looks, PartModel,
 };
-use c3_project::Project;
+use c3_project::{Project, ProjectSettings};
 use c3_render::SceneAssets;
-use c3_scene::{CellPos, Npc, Scene};
+use c3_scene::{Npc, Scene};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -55,7 +56,7 @@ impl ConquerModule {
     }
 }
 
-/// Conquer's rules from a project's tables (built-in ones without), and a newbie's start.
+/// Conquer's rules from a project's tables (built-in ones without).
 pub struct ConquerGameRules;
 
 impl GameRules for ConquerGameRules {
@@ -68,10 +69,37 @@ impl GameRules for ConquerGameRules {
             None => (Box::new(ConquerRules::default()), Vec::new()),
         }
     }
+}
 
-    fn new_character(&self, name: &str, cell: CellPos) -> PlayerSave {
-        game::new_character(name, cell)
+/// The client's cursor files, by what the mouse is over.
+const CURSORS: [(&str, &str); 4] = [
+    ("normal", "data/Cursor/Normal.ani"),
+    ("attack", "data/Cursor/pk.ani"),
+    ("talk", "data/Cursor/Npc.ani"),
+    ("pick_up", "data/Cursor/pickup.ani"),
+];
+
+/// Conquer's settings: its cursors, money and newbie, served to the original client too.
+pub fn conquer_settings() -> ProjectSettings {
+    let mut s = ProjectSettings::default();
+    s.player.game_name = "Conquer Online".into();
+    s.player.icon = "conquer.ico".into();
+    for (kind, file) in CURSORS {
+        let cursor = match kind {
+            "normal" => &mut s.cursors.normal,
+            "attack" => &mut s.cursors.attack,
+            "talk" => &mut s.cursors.talk,
+            _ => &mut s.cursors.pick_up,
+        };
+        cursor.image = file.into();
     }
+    s.gameplay.currency = "Silver".into();
+    s.gameplay.new_character = game::new_character();
+    s.network.fronts.push(c3_core::settings::FrontSettings {
+        kind: FRONT_KIND.into(),
+        public_ip: "127.0.0.1".into(),
+    });
+    s
 }
 
 impl GameModule for ConquerModule {
@@ -85,6 +113,10 @@ impl GameModule for ConquerModule {
 
     fn looks(&self) -> &dyn Looks {
         self
+    }
+
+    fn default_settings(&self) -> ProjectSettings {
+        conquer_settings()
     }
 
     fn rules(&self) -> Arc<dyn GameRules> {

@@ -18,8 +18,11 @@ impl Sim {
             .map(|w| w.parse().map_err(|_| format!("\"{w}\" is not a number")))
             .collect::<Result<_, _>>()?;
         let arg = |i: usize| args.get(i).copied().ok_or_else(|| format!("Usage: {HELP}"));
-        if !self.players.contains_key(&id) {
+        let Some(player) = self.players.get(&id) else {
             return Err("No such player".into());
+        };
+        if !self.settings.is_gm(&player.name) {
+            return Err("Only game masters can use commands.".into());
         }
         match name.as_str() {
             "help" => Ok(HELP.into()),
@@ -39,7 +42,7 @@ impl Sim {
                     .get(1)
                     .copied()
                     .unwrap_or(1)
-                    .clamp(1, crate::BAG_SIZE as i64);
+                    .clamp(1, self.bag_size() as i64);
                 let given = (0..count).take_while(|_| self.give_item(id, kind)).count();
                 Ok(format!("Gave {given} × {name}."))
             }

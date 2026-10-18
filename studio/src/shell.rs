@@ -204,6 +204,17 @@ impl Studio {
             {
                 self.show_panel(Panel::History);
             }
+            ui.separator();
+            if ui
+                .add_enabled(
+                    self.settings.is_some(),
+                    egui::Button::new(theme::icon_text(icons::GEAR_SIX, "Project Settings…")),
+                )
+                .on_disabled_hover_text("Open a project first")
+                .clicked()
+            {
+                self.show_project_settings(None);
+            }
         });
     }
 
@@ -331,8 +342,12 @@ impl Studio {
         let setup = crate::play::PlaySetup {
             scripts: self.project.as_ref().map(|p| p.scripts_dir()),
             tables: self.project.as_ref().map(|p| p.tables_dir()),
-            map_ids: game.map_ids(doc.name()),
+            map_ids: game.map_ids(&doc.map.key()),
             online: self.play_online,
+            settings: self
+                .applied_settings
+                .clone()
+                .unwrap_or_else(|| game.default_settings()),
         };
         match crate::play::PlaySession::start(std::rc::Rc::clone(game), doc, start, state, setup) {
             Ok(session) => {

@@ -2,11 +2,12 @@
 //! what is drawn over the world: drop labels, names and life of the monster fought or pointed at,
 //! and damage numbers.
 
+use crate::fonts;
 use crate::icons;
 use crate::style;
 use crate::{GameView, UiAction, item_name};
 use c3_game::{EntityId, Event, Player, Task};
-use egui::{Color32, FontId, Pos2, Rect};
+use egui::{Color32, Pos2, Rect};
 
 /// Seconds a damage number rises before it is gone.
 const FLOAT_SECONDS: f64 = 1.0;
@@ -95,7 +96,7 @@ impl Overlay {
                 at + egui::vec2(0.0, -26.0 - 30.0 * t),
                 egui::Align2::CENTER_BOTTOM,
                 &f.text,
-                FontId::proportional(18.0),
+                fonts::font(18.0),
                 f.color.gamma_multiply(1.0 - t * t),
             );
         }
@@ -104,8 +105,7 @@ impl Overlay {
 
 /// A name with a life bar under it, centred above `at`.
 fn name_plate(painter: &egui::Painter, at: Pos2, name: &str, life: u32, max: u32) {
-    let galley =
-        painter.layout_no_wrap(name.to_owned(), FontId::proportional(12.0), Color32::WHITE);
+    let galley = painter.layout_no_wrap(name.to_owned(), fonts::font(12.0), Color32::WHITE);
     let width = galley.size().x.max(70.0);
     let top = at - egui::vec2(width / 2.0, galley.size().y + 10.0);
     painter.rect_filled(
@@ -157,7 +157,7 @@ fn labelled_meter(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         format!("{label}  {value} / {max}"),
-        FontId::proportional(10.5),
+        fonts::font(10.5),
         Color32::WHITE,
     );
 }
@@ -191,14 +191,14 @@ pub(crate) fn bar(
         badge.center() - egui::vec2(0.0, 5.0),
         egui::Align2::CENTER_CENTER,
         p.level.to_string(),
-        FontId::proportional(15.0),
+        fonts::font(15.0),
         style::GOLD,
     );
     painter.text(
         badge.center() + egui::vec2(0.0, 9.0),
         egui::Align2::CENTER_CENTER,
         "LV",
-        FontId::proportional(8.0),
+        fonts::font(8.0),
         style::DIM,
     );
     let left = badge.right() + 10.0;
@@ -248,7 +248,7 @@ pub(crate) fn bar(
         egui::pos2(column, area.top() + 14.0),
         egui::Align2::LEFT_CENTER,
         format!("{}  {}", icons::COINS, p.money),
-        FontId::proportional(13.0),
+        fonts::font(13.0),
         style::MONEY,
     );
     let bag = Rect::from_min_size(
@@ -259,7 +259,7 @@ pub(crate) fn bar(
         "{}  Bag {}/{}",
         icons::BACKPACK,
         p.bag.len(),
-        c3_game::BAG_SIZE
+        view.sim.bag_size()
     );
     let button = egui::Button::new(egui::RichText::new(label).size(12.0)).selected(*open.bag);
     if ui
@@ -305,8 +305,7 @@ fn player_names(painter: &egui::Painter, view: &GameView) {
         if !view.rect.contains(at) {
             continue;
         }
-        let galley =
-            painter.layout_no_wrap(p.name.clone(), FontId::proportional(12.0), Color32::WHITE);
+        let galley = painter.layout_no_wrap(p.name.clone(), fonts::font(12.0), Color32::WHITE);
         let pos = at + egui::vec2(-galley.size().x / 2.0, -galley.size().y - 4.0);
         painter.rect_filled(
             Rect::from_min_size(
@@ -329,11 +328,14 @@ fn drop_labels(painter: &egui::Painter, view: &GameView) {
         }
         let (text, color) = match item.kind {
             Some(k) => (item_name(view.sim, k), style::ITEM),
-            None => (format!("{} silver", item.money), style::MONEY),
+            None => (
+                format!("{} {}", item.money, view.sim.settings().currency),
+                style::MONEY,
+            ),
         };
         painter.circle_filled(at, 4.0, color);
         painter.circle_stroke(at, 4.0, egui::Stroke::new(1.0, Color32::BLACK));
-        let galley = painter.layout_no_wrap(text, FontId::proportional(11.0), color);
+        let galley = painter.layout_no_wrap(text, fonts::font(11.0), color);
         let pos = at + egui::vec2(-galley.size().x / 2.0, -galley.size().y - 7.0);
         painter.rect_filled(
             Rect::from_min_size(

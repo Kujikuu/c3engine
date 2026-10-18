@@ -10,9 +10,6 @@ use crate::sim::Sim;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Cells around a player within which they see others.
-pub const VIEW_RANGE: i32 = 18;
-
 /// One entity as sent.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EntityState {
@@ -122,7 +119,7 @@ impl Sim {
         };
         let mut seen: BTreeMap<EntityId, EntityState> = BTreeMap::new();
         seen.insert(id, EntityState::Player(Box::new(me.clone())));
-        for (other, _) in self.index.near(me.cell, VIEW_RANGE) {
+        for (other, _) in self.index.near(me.cell, self.settings.view_range) {
             let state = if let Some(p) = self.players.get(&other) {
                 EntityState::Player(Box::new(p.public()))
             } else if let Some(m) = self.monsters.get(&other) {

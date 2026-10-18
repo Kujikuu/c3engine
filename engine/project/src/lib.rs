@@ -6,7 +6,8 @@
 //!
 //! ```text
 //! MyGame/
-//!   c3project.toml   name, engine version, content sources, settings
+//!   c3project.toml   name, engine version, content sources
+//!   settings.toml    Project Settings (player, cursors, camera, gameplay...)
 //!   assets/          models, effects, sprites, textures, sounds
 //!   maps/            scenes
 //!   tables/          items, skills, monsters, …
@@ -19,12 +20,17 @@ mod recent;
 pub use copy::{CopyProgress, copy_entries};
 pub use recent::{RecentProject, RecentProjects};
 
+pub use c3_core::ProjectSettings;
+
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// Manifest file name inside a project folder.
 pub const MANIFEST: &str = "c3project.toml";
+
+/// Project Settings file name inside a project folder.
+pub const SETTINGS: &str = "settings.toml";
 
 /// Folders every project has, created with it.
 pub const FOLDERS: [&str; 4] = ["assets", "maps", "tables", "scripts"];
@@ -39,6 +45,8 @@ pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     Io(PathBuf, std::io::Error),
     Manifest(PathBuf, String),
+    /// A settings file that can't be read or written as settings.
+    Settings(PathBuf, String),
     /// Creating a project where one, or other files, already exist.
     NotEmpty(PathBuf),
 }
@@ -47,7 +55,9 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(path, e) => write!(f, "{}: {e}", path.display()),
-            Self::Manifest(path, e) => write!(f, "{}: {e}", path.display()),
+            Self::Manifest(path, e) | Self::Settings(path, e) => {
+                write!(f, "{}: {e}", path.display())
+            }
             Self::NotEmpty(path) => write!(
                 f,
                 "{} is not empty; choose an empty or new folder",
@@ -145,6 +155,32 @@ impl Project {
 
     pub fn name(&self) -> &str {
         &self.manifest.name
+    }
+
+    /// The Project Settings file.
+    pub fn settings_file(&self) -> PathBuf {
+        self.root.join(SETTINGS)
+    }
+
+    /// The project's settings; `None` when it has no settings file yet (its game's defaults
+    /// apply).
+    pub fn load_settings(&self) -> Result<Option<ProjectSettings>> {
+        let file = self.settings_file();
+        if !file.is_file() {
+            return Ok(None);
+        }
+        let text = std::fs::read_to_string(&file).map_err(|e| Error::Io(file.clone(), e))?;
+        toml::from_str(&text)
+            .map(Some)
+            .map_err(|e| Error::Settings(file, e.to_string()))
+    }
+
+    /// Writes the project's settings.
+    pub fn save_settings(&self, settings: &ProjectSettings) -> Result<()> {
+        let file = self.settings_file();
+        let text = toml::to_string_pretty(settings)
+            .map_err(|e| Error::Settings(file.clone(), e.to_string()))?;
+        std::fs::write(&file, text).map_err(|e| Error::Io(file, e))
     }
 
     /// Folder holding the project's maps.
@@ -278,6 +314,35 @@ mod tests {
             std::env::temp_dir().join(format!("c3-project-test-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
+    }
+
+    #[test]
+    fn settings_round_trip_and_default_when_missing() {
+        let dir = temp_dir("settings");
+        let project = Project::create(&dir, Manifest::new("Game")).unwrap();
+        assert_eq!(project.load_settings().unwrap(), None);
+        let mut settings = ProjectSettings::default();
+        settings.camera.max_zoom = 2.5;
+        settings.camera.tilt_deg = Some(30.0);
+        settings.gameplay.start_cell = Some([10, 20]);
+        settings.cursors.attack.image = "cursors/sword.png".into();
+        settings
+            .network
+            .fronts
+            .push(c3_core::settings::FrontSettings {
+                kind: "conquer-5065".into(),
+                public_ip: "127.0.0.1".into(),
+            });
+        project.save_settings(&settings).unwrap();
+        assert_eq!(project.load_settings().unwrap(), Some(settings));
+        // A file naming only what it changes keeps the defaults for the rest.
+        std::fs::write(project.settings_file(), "[gameplay]\nbag_size = 60\n").unwrap();
+        let partial = project.load_settings().unwrap().unwrap();
+        assert_eq!(partial.gameplay.bag_size, 60);
+        assert_eq!(partial.camera, ProjectSettings::default().camera);
+        std::fs::write(project.settings_file(), "[gameplay]\nbag_size = \"many\"\n").unwrap();
+        assert!(matches!(project.load_settings(), Err(Error::Settings(..))));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

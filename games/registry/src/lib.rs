@@ -3,6 +3,7 @@
 //! engine's own game ([`c3_play::basic::BasicGame`]). The client, the server and the Studio
 //! reach games only through here and [`GameModule`].
 
+use c3_core::settings::NetworkSettings;
 use c3_online::Front;
 use c3_play::GameModule;
 use c3_play::basic::BasicGame;
@@ -10,6 +11,7 @@ use c3_project::Project;
 use c3_scene::Scene;
 use game_conquer::ConquerModule;
 use game_conquer::module::DEFAULT_MAP_ID;
+use game_conquer::protocol::FRONT_KIND;
 use game_conquer::protocol::{ConquerFront, ConquerSetup};
 use std::path::Path;
 use std::rc::Rc;
@@ -58,8 +60,26 @@ pub fn open_client_map(
     })
 }
 
+/// The Project Settings name of the front for the original Conquer 5065 client.
+pub use game_conquer::protocol::FRONT_KIND as CONQUER_FRONT;
+
 /// Conquer's ports for the original 5065 client.
 pub use game_conquer::protocol::{ACCOUNT_PORT, GAME_PORT};
+
+/// The fronts `network` names, each listening on `listen` (an IP) at its own ports.
+pub fn fronts(
+    network: &NetworkSettings,
+    listen: &str,
+) -> Result<Vec<Box<dyn Front + Send>>, String> {
+    network
+        .fronts
+        .iter()
+        .map(|f| match f.kind.as_str() {
+            FRONT_KIND => conquer_front(listen, &f.public_ip),
+            other => Err(format!("no game serves clients of kind \"{other}\"")),
+        })
+        .collect()
+}
 
 /// A front for the original Conquer 5065 client, on `listen` (an IP) at Conquer's ports, that
 /// sends logged-in clients to `public_ip`.

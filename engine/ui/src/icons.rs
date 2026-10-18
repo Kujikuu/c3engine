@@ -23,13 +23,6 @@ pub fn add_to(fonts: &mut FontDefinitions) {
     }
 }
 
-/// Sets egui's default fonts plus the icon font.
-pub fn install(ctx: &egui::Context) {
-    let mut fonts = FontDefinitions::default();
-    add_to(&mut fonts);
-    ctx.set_fonts(fonts);
-}
-
 pub const BACKPACK: &str = "\u{E922}";
 pub const CHAT_CIRCLE_DOTS: &str = "\u{E16C}";
 pub const CHAT_TEXT: &str = "\u{E17A}";

@@ -6,6 +6,7 @@ use glam::Vec2;
 pub const MIN_ZOOM: f32 = 0.05;
 pub const MAX_ZOOM: f32 = 4.0;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Camera2d {
     /// World point at the centre of the screen.
     pub center: Vec2,

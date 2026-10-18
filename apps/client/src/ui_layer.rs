@@ -21,7 +21,7 @@ pub struct UiLayer {
 impl UiLayer {
     pub fn new(window: &Arc<Window>, device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
         let ctx = egui::Context::default();
-        c3_ui::icons::install(&ctx);
+        c3_ui::fonts::install(&ctx, Vec::new());
         let state = egui_winit::State::new(
             ctx.clone(),
             egui::ViewportId::ROOT,

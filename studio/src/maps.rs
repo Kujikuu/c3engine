@@ -31,6 +31,13 @@ impl MapRef {
             Self::Client(path) => client_map_name(path),
         }
     }
+
+    /// How the game loads it: a project map's name, or the client map's path.
+    pub fn key(&self) -> String {
+        match self {
+            Self::Project(name) | Self::Client(name) => name.clone(),
+        }
+    }
 }
 
 /// `map/map/newplain.DMap` → `newplain`.

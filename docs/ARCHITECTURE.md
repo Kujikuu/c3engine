@@ -6,7 +6,7 @@ review in ROADMAP.md).
 ```
 c3engine/
   engine/            game-agnostic engine crates (c3-*)
-    core/      empty stub (planned: settings, shared services)
+    core/      c3-core: Project Settings types (`settings`), shared by every crate
     assets/    decoded asset types (image, model, sprite set, prefab, effect) and the
                `AssetSource` read trait (planned: asset database, ids, import settings, hot
                reload, packaging, plain PNG/glTF/OGG/TTF)
@@ -28,7 +28,7 @@ c3engine/
                the quest model (`tables/quests.table.ron`, state in player variables)
     online/    c3-online: the engine's client/server protocol over c3-net: GameServer (maps,
                logins, per-player views, saves), Connection (a client's end), Accounts
-    project/   c3-project: game projects on disk (c3project.toml manifest, folders, content
+    project/   c3-project: game projects on disk (c3project.toml manifest, settings.toml, folders, content
                sources, recent projects)
     game/      c3-game: the simulation shared by Play mode, client and server: one map's
                players, monsters and drops in fixed ticks (movement, spawns, monster AI,
@@ -36,8 +36,9 @@ c3engine/
                decide numbers (planned: multi-map transfers, data/script rules, skills)
     play/      c3-play: playing a game, shared by the client, the server and the Studio's Scene,
                Play and Preview: the game-module seam (`GameModule`: content, `Looks`,
-               `GameRules`, sounds, maps), world, actor, screen, session, sim view, game audio,
-               server thread; `basic::BasicGame`, the engine's own game for projects made from
+               `GameRules`, sounds, maps, default settings), world, actor, screen (camera by
+               the settings), cursors, session, sim view, game audio, server thread,
+               `settings` (load, new characters, start, tilt, fonts, icon); `basic::BasicGame`, the engine's own game for projects made from
                scratch (placeholder figures, a built-in ground, `blank_scene` for new maps)
     edit/      c3-edit: headless editing API. Typed serializable
                commands with undo/redo, queries and their schemas. Used by the Studio UI,

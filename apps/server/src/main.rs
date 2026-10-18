@@ -1,34 +1,36 @@
 //! C3 Server: runs a game project's world for its clients.
 //!
-//! `c3-server <project> [--map <key>]... [--cell x,y] [--port 7101] [--listen 0.0.0.0]
+//! `c3-server <project> [--map <key>]... [--cell x,y] [--port <port>] [--listen 0.0.0.0]
 //! [--conquer <public ip>]`
 //! serves each `--map` (a project scene's name or a content map path such as
-//! `map/map/newplain.DMap`; the game's first map when none is named, Twin City for Conquer),
-//! with the project's NPCs, spawns, rules, scripts and quests. Any project serves: the game
-//! that plays it comes from `c3-games`. New characters start on the first map, at `--cell` (else its
-//! middle). Accounts and characters are kept in `<project>/server/accounts`; an unknown
-//! account name logs in by making the account.
+//! `map/map/newplain.DMap`; Project Settings' start map when none is named, else the game's
+//! first), with the project's NPCs, spawns, rules, scripts and quests. Any project serves:
+//! the game that plays it comes from `c3-games`, its numbers from Project Settings (port,
+//! tick, saving, new characters). New characters start on the first map, at `--cell` (else
+//! the settings' start cell, else its middle). Accounts and characters are kept in
+//! `<project>/server/accounts`; an unknown account name logs in by making the account.
 //!
-//! `--conquer` also serves the original Conquer 5065 client: an account server on port 9958
-//! and a game server on 5816, to which logged-in clients are sent at `<public ip>`.
+//! Project Settings > Network > fronts also serve other clients; Conquer's settings serve the
+//! original 5065 client (an account server on port 9958 and a game server on 5816, to which
+//! logged-in clients are sent at the front's public IP). `--conquer <public ip>` serves it
+//! too, at that IP.
 //!
 //! Type `quit` to stop (characters are saved).
 
+use c3_core::settings::FrontSettings;
 use c3_play::serve::{ServeSetup, ServedMap, ServerHandle};
 use c3_scene::CellPos;
 use std::io::BufRead;
 use std::sync::mpsc;
 use std::time::Duration;
 
-/// The engine protocol's port.
-const DEFAULT_PORT: u16 = 7101;
-
 struct Args {
     project: String,
     maps: Vec<String>,
     cell: Option<CellPos>,
     listen: String,
-    port: u16,
+    /// The engine protocol's port; `None`: Project Settings'.
+    port: Option<u16>,
     /// The public IP Conquer clients reach the game server at, when serving them.
     conquer: Option<String>,
 }
@@ -39,7 +41,7 @@ fn parse_args() -> Result<Args, String> {
         .first()
         .filter(|a| !a.starts_with("--"))
         .cloned()
-        .ok_or("usage: c3-server <project> [--map <key>]... [--cell x,y] [--port 7101]")?;
+        .ok_or("usage: c3-server <project> [--map <key>]... [--cell x,y] [--port <port>]")?;
     let flag = |name: &str| {
         args.iter()
             .position(|a| a == name)
@@ -56,8 +58,8 @@ fn parse_args() -> Result<Args, String> {
         Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
     });
     let port = match flag("--port") {
-        Some(p) => p.parse().map_err(|_| format!("\"{p}\" is not a port"))?,
-        None => DEFAULT_PORT,
+        Some(p) => Some(p.parse().map_err(|_| format!("\"{p}\" is not a port"))?),
+        None => None,
     };
     Ok(Args {
         project,
@@ -73,10 +75,24 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
     let project = c3_project::Project::open(&args.project).map_err(|e| e.to_string())?;
     let game = c3_games::open_project(&project)?;
     println!("Game: {}", game.name());
+    let (mut settings, problem) = c3_play::settings::load(&project, &*game);
+    if let Some(problem) = problem {
+        eprintln!("warning: {problem}");
+    }
+    if let Some(ip) = &args.conquer {
+        settings
+            .network
+            .fronts
+            .retain(|f| f.kind != c3_games::CONQUER_FRONT);
+        settings.network.fronts.push(FrontSettings {
+            kind: c3_games::CONQUER_FRONT.into(),
+            public_ip: ip.clone(),
+        });
+    }
     let mut keys = args.maps.clone();
     if keys.is_empty() {
         keys.push(
-            game.default_map(&project)
+            c3_play::settings::start_map(&settings.gameplay, &project, &*game)
                 .ok_or("the project has no map to serve; make one in the Studio")?,
         );
     }
@@ -85,7 +101,7 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
         let scene = game.load_map(&project, &key)?;
         let middle = (scene.grid.width as i32 / 2, scene.grid.height as i32 / 2);
         let start = if i == 0 {
-            args.cell.unwrap_or(middle)
+            (args.cell).unwrap_or_else(|| c3_play::settings::start_cell(&settings.gameplay, &scene))
         } else {
             middle
         };
@@ -104,15 +120,17 @@ fn start(args: &Args) -> Result<ServerHandle, String> {
     ServerHandle::spawn(
         maps,
         ServeSetup {
-            listen: format!("{}:{}", args.listen, args.port),
+            listen: format!(
+                "{}:{}",
+                args.listen,
+                args.port.unwrap_or(settings.network.port)
+            ),
             scripts: Some(project.scripts_dir()),
             tables: Some(project.tables_dir()),
             accounts: project.server_dir().join("accounts"),
             rules: game.rules(),
-            fronts: match &args.conquer {
-                Some(ip) => vec![c3_games::conquer_front(&args.listen, ip)?],
-                None => Vec::new(),
-            },
+            fronts: c3_games::fronts(&settings.network, &args.listen)?,
+            settings,
         },
     )
 }

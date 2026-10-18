@@ -5,14 +5,10 @@ use crate::entity::{GroundItem, Monster};
 use crate::event::Event;
 use crate::rules::Drop;
 use crate::sim::Sim;
-use crate::{CORPSE_MS, EntityId, ITEM_LIFE_MS, distance};
+use crate::{EntityId, distance, ms};
 use c3_scene::CellPos;
 use c3_scene::path::{self, DIRECTIONS, PathRules};
 
-/// Farthest a monster follows a player from home before it gives up.
-const LEASH: i32 = 24;
-/// How far from home a monster wanders.
-const WANDER: i32 = 4;
 /// Chance per tick (of 1000) that an idle monster takes a wandering step.
 const WANDER_CHANCE: u32 = 15;
 /// Tries to find a free cell for a newborn monster.
@@ -94,9 +90,10 @@ impl Sim {
 
     pub(crate) fn tick_monster(&mut self, id: EntityId) {
         let now = self.now_ms;
+        let (leash, wander) = (self.settings.monster_leash, self.settings.monster_wander);
         let m = &self.monsters[&id];
         if let Some(died) = m.died_at_ms {
-            if now >= died + CORPSE_MS {
+            if now >= died + ms(self.settings.corpse_seconds) {
                 self.remove_monster(id);
             }
             return;
@@ -109,7 +106,7 @@ impl Sim {
             self.players.get(t).is_some_and(|p| {
                 p.is_alive()
                     && distance(p.cell, cell) <= view.max(1) * 2
-                    && distance(cell, home) <= LEASH
+                    && distance(cell, home) <= leash
             })
         });
         let target = target.or_else(|| {
@@ -137,12 +134,12 @@ impl Sim {
                     self.step_monster(id, goal);
                 }
             }
-            None if distance(cell, home) > WANDER => self.step_monster(id, home),
+            None if distance(cell, home) > wander => self.step_monster(id, home),
             None => {
                 if self.rng.chance(WANDER_CHANCE, 1000) {
                     let d = DIRECTIONS[self.rng.range(0, 7) as usize];
                     let to = (cell.0 + d.0, cell.1 + d.1);
-                    if distance(to, home) <= WANDER {
+                    if distance(to, home) <= wander {
                         self.step_monster(id, to);
                     }
                 }
@@ -279,7 +276,7 @@ impl Sim {
                 cell: spot,
                 money,
                 kind,
-                expires_ms: self.now_ms + ITEM_LIFE_MS,
+                expires_ms: self.now_ms + ms(self.settings.item_life_seconds),
             },
         );
         self.index.insert(id, spot);
