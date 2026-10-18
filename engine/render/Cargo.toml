@@ -4,3 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+bytemuck = { version = "1.25.2", features = ["derive"] }
+c3-assets = { version = "0.1.0", path = "../assets" }
+glam = { version = "0.34.1", features = ["bytemuck"] }
+wgpu = "30"
+
+[dev-dependencies]
+pollster = "1.0.1"
