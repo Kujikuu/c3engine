@@ -1,12 +1,14 @@
 //! Studio application state: client/map loading, editing commands, shortcuts, and panel layout.
 
 use crate::doc::MapDoc;
+use crate::dock::Dock;
 use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
 use crate::home::{ImportJob, ProjectDialog};
-use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
+use crate::map_view::{Camera, Overlays};
 use crate::maps::{self, MapRef};
 use crate::model_view::{ModelDoc, OrbitCamera};
+use crate::shell::{self, LogEntry, Panel};
 use crate::theme;
 use crate::tq_plugin::{Client, ModelEntry};
 use c3_project::{Project, RecentProjects};
@@ -63,6 +65,18 @@ pub struct Studio {
     pub(crate) notice: Option<(String, Instant)>,
     pub(crate) pending: Option<Pending>,
     pub(crate) fit_pending: bool,
+    /// The docking layout of the panels.
+    pub(crate) dock: Dock<Panel>,
+    /// Console messages, oldest first.
+    pub(crate) log: Vec<LogEntry>,
+    pub(crate) console_infos: bool,
+    pub(crate) console_errors: bool,
+    /// Last error / notice copied into the console.
+    pub(crate) logged_error: Option<String>,
+    pub(crate) logged_notice: Option<Instant>,
+    /// The game client started by Play.
+    pub(crate) play: Option<std::process::Child>,
+    pub(crate) started: Instant,
     allow_quit: bool,
     title: String,
 }
@@ -111,6 +125,14 @@ impl Studio {
             notice: None,
             pending: None,
             fit_pending: false,
+            dock: shell::load_layout(),
+            log: Vec::new(),
+            console_infos: true,
+            console_errors: true,
+            logged_error: None,
+            logged_notice: None,
+            play: None,
+            started: Instant::now(),
             allow_quit: false,
             title: String::new(),
         };
@@ -485,59 +507,6 @@ impl Studio {
             self.title = title;
         }
     }
-
-    fn viewport(&mut self, ui: &mut egui::Ui) {
-        let Some(gpu) = &mut self.gpu else {
-            ui.centered_and_justified(|ui| {
-                ui.colored_label(
-                    theme::DANGER,
-                    "GPU renderer unavailable (wgpu backend required).",
-                )
-            });
-            return;
-        };
-        let (Some(client), Some(doc)) = (&self.client, &mut self.doc) else {
-            theme::empty_state(ui, self.client.is_some());
-            return;
-        };
-        if self.fit_pending && self.cam.viewport.x > 1.0 {
-            self.cam.fit(doc.bounds());
-            self.fit_pending = false;
-        }
-        let tool = self.editor.tool;
-        let mode = ViewMode {
-            pan_with_primary: tool == Tool::Inspect,
-            brush: tool.uses_brush().then(|| {
-                let color = if tool == Tool::Block {
-                    colors::BRUSH_BLOCK
-                } else {
-                    colors::BRUSH_CLEAR
-                };
-                (self.editor.brush, color)
-            }),
-            dragging_portal: self.editor.dragging_portal(),
-        };
-        let viewport_rect = ui.max_rect();
-        let r = map_view::show(
-            ui,
-            client,
-            gpu,
-            &mut self.ground,
-            doc,
-            &mut self.cam,
-            self.overlays,
-            mode,
-        );
-        self.hover = r.pointer.cell;
-        self.streaming = r.streaming;
-        if let Some(msg) = self.editor.handle(doc, &r.pointer) {
-            self.notify(msg);
-        }
-        if self.fit_pending {
-            ui.ctx().request_repaint();
-        }
-        self.tool_palette(ui.ctx(), viewport_rect);
-    }
 }
 
 impl eframe::App for Studio {
@@ -546,51 +515,34 @@ impl eframe::App for Studio {
         self.guard_quit(&ctx);
         self.shortcuts(&ctx);
         self.update_title(&ctx);
+        self.poll_play();
+        self.sync_console();
 
-        egui::Panel::top("toolbar")
-            .exact_size(36.0)
-            .show(ui, |ui| self.toolbar(ui));
+        let bar = egui::Frame::new()
+            .fill(theme::BAR_FILL)
+            .inner_margin(egui::Margin::symmetric(8, 2));
+        egui::Panel::top("menu bar")
+            .frame(bar)
+            .show(ui, |ui| self.menu_bar(ui));
+        if self.project.is_some() {
+            egui::Panel::top("toolbar")
+                .exact_size(34.0)
+                .frame(bar)
+                .show(ui, |ui| self.main_toolbar(ui));
+        }
         egui::Panel::bottom("status")
-            .exact_size(26.0)
+            .exact_size(24.0)
+            .frame(bar)
             .show(ui, |ui| self.status_bar(ui));
         self.project_dialog(&ctx);
         self.import_progress(&ctx);
         if self.project.is_none() {
             egui::CentralPanel::default().show(ui, |ui| self.home(ui));
-            self.unsaved_prompt(&ctx);
-            return;
+        } else {
+            egui::CentralPanel::no_frame().show(ui, |ui| self.dock_ui(ui));
         }
-        let models = self.workspace == Workspace::Models;
-        egui::Panel::left("browser")
-            .default_size(220.0)
-            .size_range(160.0..=400.0)
-            .show(ui, |ui| {
-                if models {
-                    self.model_list(ui)
-                } else {
-                    self.map_list(ui)
-                }
-            });
-        egui::Panel::right("inspector")
-            .default_size(270.0)
-            .size_range(220.0..=440.0)
-            .show(ui, |ui| {
-                if models {
-                    self.model_inspector(ui)
-                } else {
-                    self.inspector(ui)
-                }
-            });
-        egui::CentralPanel::no_frame().show(ui, |ui| {
-            if models {
-                self.model_viewport(ui)
-            } else {
-                self.viewport(ui)
-            }
-        });
-
         self.unsaved_prompt(&ctx);
-        if self.notice.is_some() {
+        if self.notice.is_some() || self.play.is_some() {
             ctx.request_repaint_after(Duration::from_millis(500));
         }
     }

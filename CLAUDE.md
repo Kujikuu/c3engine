@@ -13,6 +13,9 @@ append decisions, document formats as you implement them.
   `c3_formats_tq`**. TQ ⇄ Scene conversion lives in `formats/c3/src/scene_io.rs`.
 - **Every project edit goes through `c3-edit` commands** (typed, serializable, undoable). Never
   mutate a document directly from UI code; add a command instead. AI/MCP will use the same commands.
+- Studio UI is Unity-inspired: `shell.rs` (menu bar, toolbar, `Panel` enum, default layout, Play,
+  console), `dock.rs` (generic docking), `panels.rs` (one fn per panel), `icons.rs` (bundled
+  Phosphor font; **never emoji as icons**), `theme.rs` (Unity-like dark theme + shared widgets).
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
   `home.rs` (start page, project dialogs, File menu, Project inspector section), `maps.rs` (project
   vs client maps, `MapRef`), `gpu.rs` (engine

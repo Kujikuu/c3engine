@@ -1,6 +1,7 @@
 //! Map editing tools: how pointer input becomes `c3_edit` commands on the document.
 
 use crate::doc::MapDoc;
+use crate::icons;
 use crate::map_view::Pointer;
 use c3_edit::{Area, SceneCommand};
 use c3_scene::CellPos;
@@ -31,10 +32,10 @@ impl Tool {
 
     pub fn icon(self) -> &'static str {
         match self {
-            Tool::Inspect => "🔍",
-            Tool::Block => "⛔",
-            Tool::Clear => "✅",
-            Tool::Portal => "🌀",
+            Tool::Inspect => icons::HAND,
+            Tool::Block => icons::PROHIBIT,
+            Tool::Clear => icons::ERASER,
+            Tool::Portal => icons::DOOR_OPEN,
         }
     }
 

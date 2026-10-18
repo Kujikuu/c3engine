@@ -8,14 +8,17 @@
 
 mod app;
 mod doc;
+mod dock;
 mod editor;
 mod gpu;
 mod home;
+mod icons;
 mod map_view;
 mod maps;
 mod model_view;
 mod models_ws;
 mod panels;
+mod shell;
 mod theme;
 mod tq_plugin;
 

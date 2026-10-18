@@ -1,7 +1,8 @@
-//! Models workspace: browse `3dobj.ini` models, preview them with the engine renderer,
-//! and scrub their animation.
+//! Models: open `3dobj.ini` models, preview them in the Scene view with the engine renderer,
+//! and scrub their animation in the Inspector.
 
 use crate::app::Studio;
+use crate::icons;
 use crate::model_view::{self, ModelDoc, OrbitCamera};
 use crate::theme;
 use crate::tq_plugin::ModelEntry;
@@ -71,60 +72,38 @@ impl Studio {
         }
     }
 
-    pub(crate) fn model_list(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            ui.heading("Models");
-            ui.label(RichText::new(self.models.len().to_string()).weak());
-        });
-        ui.add_space(4.0);
-        ui.add(
-            egui::TextEdit::singleline(&mut self.filter)
-                .hint_text("Search id or path…")
-                .desired_width(f32::INFINITY),
-        );
-        ui.add_space(4.0);
-        let list = self.filtered_models();
-        if list.is_empty() {
-            ui.label(RichText::new("No models match.").weak());
+    /// Hierarchy for an open model: its parts.
+    pub(crate) fn model_hierarchy(&mut self, ui: &mut egui::Ui) {
+        let Some(m) = &self.model else {
+            theme::empty_state(
+                ui,
+                icons::TREE_STRUCTURE,
+                "No model open",
+                "Open a model from the Project panel.",
+            );
             return;
-        }
-        let mut open = None;
-        let row_height = 22.0;
-        egui::ScrollArea::vertical()
-            .auto_shrink(false)
-            .max_height(ui.available_height() - 22.0)
-            .show_rows(ui, row_height, list.len(), |ui, rows| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    for e in &list[rows] {
-                        let selected = self.model.as_ref().is_some_and(|m| m.entry == *e);
-                        let name = e.path.rsplit('/').next().unwrap_or(&e.path);
-                        let r = ui
-                            .add(
-                                egui::Button::selectable(selected, format!("{}  {name}", e.id))
-                                    .min_size(egui::vec2(0.0, row_height)),
-                            )
-                            .on_hover_text(&e.path);
-                        if r.clicked() {
-                            open = Some(e.clone());
-                        }
-                    }
-                });
-            });
-        if let Some(e) = open {
-            self.open_model(&e);
-        }
-        ui.label(
-            RichText::new("PgUp / PgDn: previous / next model")
-                .weak()
-                .small(),
-        );
+        };
+        let name = m.entry.path.rsplit('/').next().unwrap_or(&m.entry.path);
+        ui.label(RichText::new(theme::icon_text(icons::CUBE, name)).strong());
+        ui.indent("model parts", |ui| {
+            for p in &m.model.parts {
+                let icon = if p.visible {
+                    icons::PERSON_SIMPLE
+                } else {
+                    icons::CIRCLE
+                };
+                ui.label(theme::icon_text(icon, &p.mesh.name))
+                    .on_hover_text(if p.visible {
+                        "Mesh part"
+                    } else {
+                        "Socket (attachment point, not drawn)"
+                    });
+            }
+        });
     }
 
     pub(crate) fn model_inspector(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(6.0);
         let Some(m) = &mut self.model else {
-            ui.label(RichText::new("Select a model to inspect it.").weak());
             return;
         };
         egui::ScrollArea::vertical()
@@ -161,14 +140,22 @@ impl Studio {
                         return;
                     }
                     ui.horizontal(|ui| {
-                        let label = if m.playing { "⏸ Pause" } else { "▶ Play" };
-                        if ui.button(label).on_hover_text("Space").clicked() {
+                        let (icon, hint) = if m.playing {
+                            (icons::PAUSE, "Pause (Space)")
+                        } else {
+                            (icons::PLAY, "Play (Space)")
+                        };
+                        if theme::icon_toggle(ui, m.playing, icon, hint).clicked() {
                             m.playing ^= true;
                         }
-                        if ui.button("⏮").on_hover_text("Previous frame (←)").clicked() {
+                        if theme::icon_toggle(ui, false, icons::SKIP_BACK, "Previous frame (←)")
+                            .clicked()
+                        {
                             m.step(-1);
                         }
-                        if ui.button("⏭").on_hover_text("Next frame (→)").clicked() {
+                        if theme::icon_toggle(ui, false, icons::SKIP_FORWARD, "Next frame (→)")
+                            .clicked()
+                        {
                             m.step(1);
                         }
                     });
@@ -196,15 +183,12 @@ impl Studio {
     pub(crate) fn model_viewport(&mut self, ui: &mut egui::Ui) {
         let (Some(client), Some(gpu), Some(doc)) = (&self.client, &mut self.gpu, &mut self.model)
         else {
-            ui.centered_and_justified(|ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(ui.available_height() * 0.4);
-                    ui.label(RichText::new("Select a model to preview").size(18.0));
-                    ui.label(
-                        RichText::new("Pick one from the list on the left, or press PgDn.").weak(),
-                    );
-                });
-            });
+            theme::empty_state(
+                ui,
+                icons::CUBE,
+                "No model open",
+                "Open one from Models in the Project panel, or press PgDn.",
+            );
             return;
         };
         model_view::show(ui, client, gpu, doc, &mut self.orbit);

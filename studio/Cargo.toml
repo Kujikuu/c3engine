@@ -10,6 +10,9 @@ c3-formats-tq = { version = "0.1.0", path = "../formats/c3" }
 c3-project = { version = "0.1.0", path = "../engine/project" }
 c3-render = { version = "0.1.0", path = "../engine/render" }
 c3-scene = { version = "0.1.0", path = "../engine/scene" }
+dirs = "7.0.0"
 eframe = "0.37.0"
 glam = "0.34.1"
 rfd = "0.17.2"
+ron = "0.12.2"
+serde = { version = "1.0.229", features = ["derive"] }

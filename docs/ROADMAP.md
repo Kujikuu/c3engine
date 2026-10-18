@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 4: Unity-style editor shell (docking, menus, toolbar, theme, icons), then the Project panel
+- [ ] M3 step 4b: Project panel as a full asset browser (folder tree, thumbnails, previews)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -85,9 +85,14 @@ Toward the Unity/UE5-style editor, in order:
       saved straight to their DMap (`.bak` only for content used in place). The engine's own
       scene format (`c3_scene::native`, `.scene.ron` + `.scene.bin`, all 144 maps lossless) is for
       maps made in the engine. `c3-client --project <folder>` plays a project
-- [ ] (4) Unity-style editor shell: dockable panels (Hierarchy, Scene, Game, Inspector, Project,
-      Console) with saved layouts, menu bar, Play/Pause/Step toolbar, crafted dark theme, a real
-      icon font replacing every emoji glyph in the Studio
+- [x] (4) Unity-style editor shell: own dock system (`studio/src/dock.rs`: tab groups, resizable
+      splits, drag tabs to a group or an edge, close/reopen from Window, layout saved to
+      `<config>/C3Engine/layout.ron`, Reset Layout); panels Hierarchy (portals, effects, objects,
+      sounds, layers; click to jump), Scene (own bar: overlays, brush, zoom), Game, Inspector,
+      Undo History, Project, Console (messages/errors with filters); menu bar (File/Edit/Window/
+      Help), toolbar (tools, Play/Pause/Step, Layout); Play launches the game client on the open
+      map where the Scene view looks (Stop ends it); Unity-like dark theme; bundled Phosphor icon
+      font replaces every emoji. (egui_dock/egui_tiles/egui-phosphor don't support egui 0.37 yet)
 - [ ] (4b) Project panel (asset browser): folder tree, search, thumbnails, live preview of models,
       effects, sprites, maps
 - [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly

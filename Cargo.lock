@@ -622,9 +622,12 @@ dependencies = [
  "c3-project",
  "c3-render",
  "c3-scene",
+ "dirs",
  "eframe",
  "glam",
  "rfd",
+ "ron",
+ "serde",
 ]
 
 [[package]]

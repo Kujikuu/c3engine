@@ -2,6 +2,7 @@
 //! and the File menu.
 
 use crate::app::{Pending, Studio};
+use crate::icons;
 use crate::theme;
 use crate::tq_plugin;
 use c3_project::{
@@ -236,33 +237,66 @@ impl Studio {
 
     pub(crate) fn file_menu(&mut self, ui: &mut egui::Ui) {
         ui.menu_button("File", |ui| {
-            if ui.button("New Project…").clicked() {
+            if ui
+                .button(theme::icon_text(icons::PLUS, "New Project…"))
+                .clicked()
+            {
                 self.show_new_project();
             }
-            if ui.button("Open Project…").clicked() {
+            if ui
+                .button(theme::icon_text(icons::FOLDER_OPEN, "Open Project…"))
+                .clicked()
+            {
                 self.browse_open_project();
             }
-            if ui.button("Import Conquer 5065 Client…").clicked() {
+            if ui
+                .button(theme::icon_text(
+                    icons::DOWNLOAD_SIMPLE,
+                    "Import Conquer 5065 Client…",
+                ))
+                .clicked()
+            {
                 self.show_import_conquer(None);
             }
-            ui.menu_button("Open Recent", |ui| {
-                let entries = self.recent.entries.clone();
-                if entries.is_empty() {
-                    ui.label(RichText::new("No recent projects").weak());
-                }
-                for e in entries {
-                    let label = format!("{}  —  {}", e.name, e.path.display());
-                    if ui
-                        .add_enabled(e.exists(), egui::Button::new(label))
-                        .clicked()
-                    {
-                        self.request_open_project(e.path);
+            ui.menu_button(
+                theme::icon_text(icons::CLOCK_COUNTER_CLOCKWISE, "Open Recent"),
+                |ui| {
+                    let entries = self.recent.entries.clone();
+                    if entries.is_empty() {
+                        ui.label(RichText::new("No recent projects").weak());
                     }
-                }
-            });
+                    for e in entries {
+                        let label = format!("{}  —  {}", e.name, e.path.display());
+                        if ui
+                            .add_enabled(e.exists(), egui::Button::new(label))
+                            .clicked()
+                        {
+                            self.request_open_project(e.path);
+                        }
+                    }
+                },
+            );
+            ui.separator();
+            let save = egui::Button::new(theme::icon_text(icons::FLOPPY_DISK, "Save"))
+                .shortcut_text("Ctrl+S");
+            let hint = match self.save_target() {
+                Some(target) => format!("Writes {target}"),
+                None => "No map open".to_owned(),
+            };
+            if ui
+                .add_enabled(self.is_dirty(), save)
+                .on_hover_text(&hint)
+                .on_disabled_hover_text(&hint)
+                .clicked()
+            {
+                self.save();
+            }
             ui.separator();
             if ui
-                .add_enabled(self.project.is_some(), egui::Button::new("Close Project"))
+                .add_enabled(
+                    self.project.is_some(),
+                    egui::Button::new(theme::icon_text(icons::X, "Close Project")),
+                )
                 .clicked()
             {
                 self.request_close_project();
@@ -293,16 +327,24 @@ impl Studio {
                 ui.set_width(260.0);
                 ui.label(RichText::new("Start").strong().size(16.0));
                 ui.add_space(6.0);
-                if start_button(ui, "+   New Project", "An empty game project").clicked() {
+                if start_button(ui, icons::PLUS, "New Project", "An empty game project").clicked() {
                     self.show_new_project();
                 }
-                if start_button(ui, "📂  Open Project", "A project folder on disk").clicked() {
+                if start_button(
+                    ui,
+                    icons::FOLDER_OPEN,
+                    "Open Project",
+                    "A project folder on disk",
+                )
+                .clicked()
+                {
                     self.browse_open_project();
                 }
                 if start_button(
                     ui,
-                    "⤓  Import Conquer 5065",
-                    "A project reading an original client folder",
+                    icons::DOWNLOAD_SIMPLE,
+                    "Import Conquer 5065",
+                    "A new project from a 5065 client's files",
                 )
                 .clicked()
                 {
@@ -352,7 +394,7 @@ impl Studio {
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui
-                                .small_button("✕")
+                                .small_button(icons::X)
                                 .on_hover_text("Remove from this list (the folder is kept)")
                                 .clicked()
                             {
@@ -649,8 +691,8 @@ fn source_label(game: &str) -> &str {
 }
 
 /// A large start-page action button with a description.
-fn start_button(ui: &mut egui::Ui, label: &str, hint: &str) -> egui::Response {
-    let text = RichText::new(label).size(15.0);
+fn start_button(ui: &mut egui::Ui, icon: &str, label: &str, hint: &str) -> egui::Response {
+    let text = RichText::new(theme::icon_text(icon, label)).size(15.0);
     let r = ui.add_sized([250.0, 38.0], egui::Button::new(text));
     ui.label(RichText::new(hint).small().weak());
     ui.add_space(8.0);
