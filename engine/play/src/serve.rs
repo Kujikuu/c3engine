@@ -96,6 +96,8 @@ struct Worlds {
     tables: Option<PathBuf>,
     rules: Arc<dyn GameRules>,
     settings: c3_core::settings::GameplaySettings,
+    /// The ids of the maps where players may attack each other.
+    pk_maps: Vec<u32>,
     seed: u64,
 }
 
@@ -108,6 +110,7 @@ impl Worlds {
             map_ids: m.map_ids.clone(),
             seed: self.seed,
             settings: self.settings.clone(),
+            pk: m.map_ids.iter().any(|id| self.pk_maps.contains(id)),
         };
         let (sim, problems) = game::new_sim(&m.scene, &setup, &*self.rules);
         problems.into_iter().for_each(say);
@@ -162,6 +165,10 @@ impl ServerHandle {
                     tables,
                     rules,
                     settings: settings.gameplay.clone(),
+                    pk_maps: (settings.maps.iter())
+                        .filter(|m| m.pk)
+                        .map(|m| m.id)
+                        .collect(),
                     seed: game::time_seed(),
                 };
                 let worlds: Vec<MapWorld> =

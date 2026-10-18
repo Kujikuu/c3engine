@@ -27,6 +27,15 @@ pub fn load(project: &Project, game: &dyn GameModule) -> (ProjectSettings, Optio
     }
 }
 
+/// Whether the map answering to `map_ids` lets players attack each other (the map list's
+/// `pk`).
+pub fn pk_map(settings: &ProjectSettings, map_ids: &[u32]) -> bool {
+    settings
+        .maps
+        .iter()
+        .any(|m| m.pk && map_ids.contains(&m.id))
+}
+
 /// A new character called `name` at `cell`, as the settings make them.
 pub fn new_character(settings: &GameplaySettings, name: &str, cell: CellPos) -> PlayerSave {
     let start = &settings.new_character;

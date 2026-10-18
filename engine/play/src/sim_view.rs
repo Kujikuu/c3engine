@@ -206,18 +206,18 @@ impl SimView {
 
     /// The living monster drawn under world point `point` (the nearest when several are).
     pub fn monster_at(&self, sim: &Sim, world: &World, point: Vec2) -> Option<EntityId> {
-        sim.monsters()
-            .filter(|m| m.is_alive())
-            .filter_map(|m| {
-                let feet = self.feet(world, m.id)?;
+        let monsters = (sim.monsters()).filter(|m| m.is_alive()).map(|m| m.id);
+        // On PK maps other players are foes too.
+        let players = (sim.players())
+            .filter(|p| sim.pk() && self.actor(p.id) != Some(0) && p.is_alive())
+            .map(|p| p.id);
+        monsters
+            .chain(players)
+            .filter_map(|id| {
+                let feet = self.feet(world, id)?;
                 let d = point - feet;
                 let hit = d.x.abs() <= PICK_HALF_WIDTH && (-PICK_HEIGHT..=16.0).contains(&d.y);
-                hit.then(|| {
-                    (
-                        m.id,
-                        (point - (feet - Vec2::Y * PICK_HEIGHT / 2.0)).length(),
-                    )
-                })
+                hit.then(|| (id, (point - (feet - Vec2::Y * PICK_HEIGHT / 2.0)).length()))
             })
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(id, _)| id)

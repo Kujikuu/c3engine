@@ -53,7 +53,8 @@ impl Sim {
             SkillTarget::Myself => CastAt::Me,
             _ => at,
         };
-        if t.target == SkillTarget::Enemy && !matches!(at, CastAt::Entity(e) if self.is_foe(e)) {
+        if t.target == SkillTarget::Enemy && !matches!(at, CastAt::Entity(e) if self.is_foe(id, e))
+        {
             self.message(id, format!("{} needs a target.", t.name));
             return;
         }
@@ -63,9 +64,10 @@ impl Sim {
         p.path.clear();
     }
 
-    /// Whether `e` is a living monster (what damaging skills may be aimed at).
-    fn is_foe(&self, e: EntityId) -> bool {
-        self.monsters.get(&e).is_some_and(|m| m.is_alive())
+    /// Whether `caster` may aim a damaging skill at `e`: a living monster, or another player
+    /// on a PK map.
+    fn is_foe(&self, caster: EntityId, e: EntityId) -> bool {
+        self.foe_cell(caster, e).is_some()
     }
 
     /// Where `at` is now, if it is still there.
@@ -171,12 +173,19 @@ impl Sim {
             (kind, _) => kind,
         };
         match kind {
-            SkillKind::Damage if area > 0 => (self.monsters.values())
-                .filter(|m| m.is_alive() && distance(m.cell, goal) <= area)
-                .map(|m| m.id)
-                .collect(),
+            SkillKind::Damage if area > 0 => {
+                let monsters = (self.monsters.values())
+                    .filter(|m| m.is_alive() && distance(m.cell, goal) <= area)
+                    .map(|m| m.id);
+                // On PK maps a blast reaches other players too.
+                let players = (self.players.values())
+                    .filter(|p| self.pk && p.id != caster)
+                    .filter(|p| p.is_alive() && distance(p.cell, goal) <= area)
+                    .map(|p| p.id);
+                monsters.chain(players).collect()
+            }
             SkillKind::Damage => match at {
-                CastAt::Entity(e) if self.is_foe(e) => vec![e],
+                CastAt::Entity(e) if self.is_foe(caster, e) => vec![e],
                 _ => Vec::new(),
             },
             SkillKind::Heal | SkillKind::Status if area > 0 => (self.players.values())
@@ -193,6 +202,11 @@ impl Sim {
     fn skill_hits(&mut self, id: EntityId, t: &SkillType, target: EntityId) {
         let attacker = self.players[&id].fighter();
         let level = attacker.level;
+        if let Some(p) = self.players.get(&target) {
+            let defender = p.fighter();
+            let damage = self.rules.skill_hit(&attacker, &defender, t, &mut self.rng);
+            return self.hurt_player(id, target, damage);
+        }
         let Some(m) = self.monsters.get_mut(&target) else {
             return;
         };

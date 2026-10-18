@@ -32,6 +32,9 @@ pub struct PlayerSave {
     /// Skills known.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<u32>,
+    /// Players killed on PK maps.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub pk_kills: u32,
     #[serde(default)]
     pub flags: BTreeMap<String, i64>,
 }
@@ -115,6 +118,7 @@ impl PlayerSave {
             equipment: Vec::new(),
             wallet: BTreeMap::new(),
             skills: Vec::new(),
+            pk_kills: 0,
             flags: BTreeMap::new(),
         }
     }
@@ -139,6 +143,7 @@ impl Sim {
         p.money = save.money;
         p.wallet = save.wallet.clone();
         p.skills = save.skills.clone();
+        p.pk_kills = save.pk_kills;
         p.bag = bag;
         p.equipment = worn;
         p.flags = save.flags.clone();
@@ -171,6 +176,7 @@ impl Sim {
             equipment: p.equipment.iter().map(|i| self.stored_item(i)).collect(),
             wallet: p.wallet.clone(),
             skills: p.skills.clone(),
+            pk_kills: p.pk_kills,
             flags: p.flags.clone(),
         })
     }
@@ -208,4 +214,8 @@ impl Sim {
             quality: item.quality,
         }
     }
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }

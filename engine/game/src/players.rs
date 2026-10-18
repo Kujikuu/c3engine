@@ -56,6 +56,7 @@ impl Sim {
                 skills: Vec::new(),
                 cooldowns: Default::default(),
                 statuses: Vec::new(),
+                pk_kills: 0,
                 stats,
                 bag: Vec::new(),
                 equipment: Vec::new(),
@@ -138,7 +139,7 @@ impl Sim {
 
     /// Sends the player after monster `target`, hitting it when in range.
     pub fn attack(&mut self, id: EntityId, target: EntityId) {
-        if !self.monsters.get(&target).is_some_and(|m| m.is_alive()) {
+        if self.foe_cell(id, target).is_none() {
             return;
         }
         self.stop_talking(id);
@@ -553,12 +554,7 @@ impl Sim {
     }
 
     fn chase_and_hit(&mut self, id: EntityId, target: EntityId) {
-        let Some(goal) = self
-            .monsters
-            .get(&target)
-            .filter(|m| m.is_alive())
-            .map(|m| m.cell)
-        else {
+        let Some(goal) = self.foe_cell(id, target) else {
             let p = self.players.get_mut(&id).expect("ticking");
             p.task = Task::Idle;
             p.path.clear();
@@ -571,7 +567,11 @@ impl Sim {
             if self.now_ms >= p.next_attack_ms {
                 p.next_attack_ms = self.now_ms + u64::from(p.stats.attack_ms.max(1));
                 p.direction = path::facing(p.cell, goal).unwrap_or(p.direction);
-                self.player_hits(id, target);
+                if self.monsters.contains_key(&target) {
+                    self.player_hits(id, target);
+                } else {
+                    self.player_hits_player(id, target);
+                }
             }
             return;
         }

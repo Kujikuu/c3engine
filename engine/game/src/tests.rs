@@ -886,3 +886,22 @@ fn statuses_change_stats_tick_life_stun_and_wear_off() {
     sim.advance(3000);
     assert_eq!(sim.player(hero).unwrap().cell, (9, 5));
 }
+
+#[test]
+fn players_fight_players_only_on_pk_maps() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let a = sim.add_player("A", (5, 5), 1);
+    let b = sim.add_player("B", (6, 5), 1);
+    sim.attack(a, b);
+    sim.advance(2000);
+    let life = sim.player(b).unwrap().stats.max_life;
+    assert_eq!(sim.player(b).unwrap().life, life, "no PK here");
+    sim.set_pk(true);
+    sim.attack(a, b);
+    sim.advance(60_000);
+    assert_eq!(sim.player(a).unwrap().pk_kills, 1);
+    assert!(
+        sim.save_player(a).unwrap().pk_kills == 1,
+        "kept in the save"
+    );
+}

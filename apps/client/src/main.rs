@@ -313,6 +313,8 @@ struct Args {
     walk_to: Option<(i32, i32)>,
     /// Start with running on.
     run: bool,
+    /// Chat lines said at the start, in turn (`/` commands too).
+    say: Vec<String>,
 }
 
 fn parse_args() -> Args {
@@ -344,6 +346,10 @@ fn parse_args() -> Args {
         effect: flag("--effect"),
         walk_to: flag("--walk-to").and_then(|v| parse_cell(&v)),
         run: args.iter().any(|a| a == "--run"),
+        say: (args.windows(2))
+            .filter(|w| w[0] == "--say")
+            .map(|w| w[1].clone())
+            .collect(),
     }
 }
 
@@ -395,6 +401,7 @@ fn main() {
             map: args.map,
             cell: args.cell,
             online,
+            say: args.say,
         };
         if let Err(e) = game::run(game) {
             eprintln!("error: {e}");

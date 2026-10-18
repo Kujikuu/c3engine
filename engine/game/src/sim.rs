@@ -38,6 +38,8 @@ pub struct Sim {
     pub(crate) scripts: Option<c3_script::ScriptHost>,
     /// Game map ids of this map (script teleports within it work).
     pub(crate) map_ids: Vec<u32>,
+    /// Players may attack each other here.
+    pub(crate) pk: bool,
     /// Portals that lead somewhere: their cells and destinations.
     pub(crate) portals: Vec<(CellPos, c3_scene::PortalTarget)>,
     pub(crate) quests: Vec<c3_script::Quest>,
@@ -77,6 +79,7 @@ impl Sim {
             events: Vec::new(),
             scripts: None,
             map_ids: Vec::new(),
+            pk: false,
             portals: Vec::new(),
             quests: Vec::new(),
         };

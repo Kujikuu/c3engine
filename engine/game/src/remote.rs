@@ -39,6 +39,9 @@ pub struct WorldUpdate {
     pub gone: Vec<EntityId>,
     /// What happened that the player could see.
     pub events: Vec<Event>,
+    /// Whether players may attack each other on the map now.
+    #[serde(default)]
+    pub pk: bool,
 }
 
 impl WorldUpdate {
@@ -67,7 +70,6 @@ impl Player {
             wallet: Default::default(),
             skills: Vec::new(),
             cooldowns: Default::default(),
-            statuses: Vec::new(),
             ..self.clone()
         }
     }
@@ -126,6 +128,7 @@ impl Sim {
     pub fn update_for(&self, id: EntityId, viewer: &mut Viewer, events: &[Event]) -> WorldUpdate {
         let mut update = WorldUpdate {
             now_ms: self.now_ms,
+            pk: self.pk,
             ..Default::default()
         };
         let Some(me) = self.players.get(&id) else {
@@ -179,6 +182,7 @@ impl Sim {
     /// go, and the events are queued for `take_events` as if they had happened here.
     pub fn apply_update(&mut self, update: WorldUpdate) {
         self.now_ms = update.now_ms;
+        self.pk = update.pk;
         for state in update.changed {
             let id = state.id();
             let (old, new) = match state {

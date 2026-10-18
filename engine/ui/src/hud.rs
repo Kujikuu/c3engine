@@ -80,22 +80,11 @@ impl Overlay {
         });
         let plates = [fighting, view.hovered.filter(|h| Some(*h) != fighting)];
         for id in plates.into_iter().flatten() {
-            let Some(m) = view.sim.monster(id).filter(|m| m.is_alive()) else {
+            let Some((name, life, max)) = fight_plate(view, id) else {
                 continue;
             };
             if let Some(at) = (view.head)(id) {
-                let name = view
-                    .sim
-                    .rules()
-                    .monster(m.kind)
-                    .map_or("?", |t| t.name.as_str());
-                name_plate(
-                    &painter,
-                    at,
-                    &format!("{name}  Lv {}", m.level),
-                    m.life,
-                    m.stats.max_life,
-                );
+                name_plate(&painter, at, &name, life, max);
             }
         }
         for f in &self.floats {
@@ -112,6 +101,27 @@ impl Overlay {
             );
         }
     }
+}
+
+/// The name and life shown over `id` while fought or pointed at: a living monster, or on a
+/// PK map another player.
+fn fight_plate(view: &GameView, id: EntityId) -> Option<(String, u32, u32)> {
+    if let Some(m) = view.sim.monster(id).filter(|m| m.is_alive()) {
+        let rules = view.sim.rules();
+        let name = rules.monster(m.kind).map_or("?", |t| t.name.as_str());
+        return Some((format!("{name}  Lv {}", m.level), m.life, m.stats.max_life));
+    }
+    let p = view
+        .sim
+        .player(id)
+        .filter(|p| p.is_alive() && view.sim.pk())?;
+    (id != view.hero).then(|| {
+        (
+            format!("{}  Lv {}", p.name, p.level),
+            p.life,
+            p.stats.max_life,
+        )
+    })
 }
 
 /// A name with a life bar under it, centred above `at`.
@@ -523,7 +533,13 @@ fn player_names(painter: &egui::Painter, view: &GameView) {
         if !view.rect.contains(at) {
             continue;
         }
-        let galley = painter.layout_no_wrap(p.name.clone(), fonts::font(12.0), Color32::WHITE);
+        // Killers of players are marked red.
+        let color = if p.pk_kills > 0 {
+            style::BAD
+        } else {
+            Color32::WHITE
+        };
+        let galley = painter.layout_no_wrap(p.name.clone(), fonts::font(12.0), color);
         let pos = at + egui::vec2(-galley.size().x / 2.0, -galley.size().y - 4.0);
         painter.rect_filled(
             Rect::from_min_size(

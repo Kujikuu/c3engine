@@ -36,6 +36,8 @@ pub struct GameArgs {
     pub cell: Option<CellPos>,
     /// Play on a server (which picks the map) instead of here.
     pub online: Option<Online>,
+    /// Chat lines said at the start, in turn.
+    pub say: Vec<String>,
 }
 
 /// Opens the game window and plays until it is closed.
@@ -55,7 +57,7 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         eprintln!("warning: {problem}");
     }
     let maps = MapList::new(&project, &*game, &settings);
-    let session = match &args.online {
+    let mut session = match &args.online {
         Some(o) => Session::join(
             Rc::clone(&game),
             &project,
@@ -66,6 +68,9 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         )?,
         None => local_session(&project, Rc::clone(&game), &settings, &maps, &args)?,
     };
+    for line in &args.say {
+        session.say(line);
+    }
     let title = match settings.player.game_name.as_str() {
         "" => project.name().to_owned(),
         name => name.to_owned(),

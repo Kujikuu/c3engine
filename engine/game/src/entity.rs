@@ -90,6 +90,9 @@ pub struct Player {
     /// Status effects it bears.
     #[serde(default)]
     pub statuses: Vec<crate::statuses::ActiveStatus>,
+    /// Players it killed on PK maps.
+    #[serde(default)]
+    pub pk_kills: u32,
     pub stats: Stats,
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.

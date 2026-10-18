@@ -19,6 +19,8 @@ pub struct GameSetup {
     pub seed: u64,
     /// The numbers the simulation runs by.
     pub settings: GameplaySettings,
+    /// Players may attack each other on the map.
+    pub pk: bool,
 }
 
 /// The game's rules, with the tables' problems marked as such.
@@ -65,6 +67,7 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     sim.set_settings(setup.settings.clone());
     sim.set_quests(quests(setup.tables.as_ref(), &mut problems));
     sim.set_map_ids(setup.map_ids.clone());
+    sim.set_pk(setup.pk);
     sim.set_portals(&scene.portals);
     if let Some(dir) = &setup.scripts {
         sim.set_scripts(

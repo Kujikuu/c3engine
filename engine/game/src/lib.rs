@@ -14,6 +14,7 @@ mod input;
 mod monsters;
 mod players;
 mod portals;
+mod pvp;
 mod quests;
 mod remote;
 mod rng;
