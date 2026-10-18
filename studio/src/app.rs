@@ -139,6 +139,7 @@ pub struct Studio {
     pub(crate) clipboard: Option<crate::selection::Clip>,
     /// The Ground tool's palette thumbnails.
     pub(crate) ground_thumbs: crate::ground_panel::Thumbnails,
+    pub(crate) world: crate::world_view::WorldView,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -242,6 +243,7 @@ impl Studio {
             revealed: None,
             clipboard: None,
             ground_thumbs: Default::default(),
+            world: Default::default(),
             hover: None,
             streaming: false,
             error: None,
@@ -549,6 +551,7 @@ impl Studio {
             None => Vec::new(),
         };
         self.refresh_map_list();
+        self.world.refresh();
     }
 
     /// Re-reads the game's map list (ids, names, music) from the maps and the settings.
@@ -870,6 +873,7 @@ impl Studio {
                 if let Some(doc) = &mut self.doc {
                     doc.mark_saved();
                 }
+                self.world.refresh();
                 self.notify(format!("Saved {name}"));
                 true
             }

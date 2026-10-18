@@ -90,6 +90,7 @@ impl Studio {
         }))
         .map_err(|e| e.to_string())?;
         self.write_map(&there_ref, other.scene(), None)?;
+        self.world.refresh();
         let doc = self.doc.as_mut().expect("checked above");
         let there_now = PortalTarget {
             map: to.map,

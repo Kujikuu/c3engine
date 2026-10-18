@@ -361,7 +361,7 @@ complete project on that engine, then any game of the kind.
     sprites and solid meshes; effects keep their glow) and sun shading for models. Verified
     with screenshots on the from-scratch project and the Conquer project
 
-## M8: Complete map and world editor
+## M8: Complete map and world editor [x] (complete 2026-10-18)
 Every edit one undo step through c3-edit; maps saved to their own files (native scene, or DMap /
 PUL for the classic client).
 - [x] New map from scratch (size, default ground) with the project's own art; resize; map
@@ -416,7 +416,12 @@ PUL for the classic client).
     arrival cell, opens the destination at the arrival, and Link both ways makes (or reuses)
     a portal by the arrival on the destination map leading back; travellers arrive beside
     portals, never on them. Map keys compare without case (DMap paths)
-- [ ] World view: every map as a node with its portal links; open a map from it
+- [x] World view: every map as a node with its portal links; open a map from it
+  - Done 2026-10-18: the World tab shows every listed map as a card and portal links as
+    arrows (both ways drawn once), read from project scenes and, for client maps, their
+    population files (TQ's cq_passway/cq_portal links); the open map shows as edited. The
+    most linked map sits in the middle with its neighbours around it; cards drag (kept in
+    the project's world.ron), Fit frames the linked maps, double-click opens a map
 
 ## M9: Content editors and the game UI
 - [ ] Table and schema editor: create tables, add, rename and type columns; references between

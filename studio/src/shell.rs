@@ -30,11 +30,14 @@ pub(crate) enum Panel {
     Script,
     /// Dialogue graphs and quests.
     Dialogue,
+    /// Every map and the portals between them.
+    World,
 }
 
 impl Panel {
-    pub const ALL: [Panel; 11] = [
+    pub const ALL: [Panel; 12] = [
         Panel::Scene,
+        Panel::World,
         Panel::Game,
         Panel::Preview,
         Panel::Script,
@@ -60,6 +63,7 @@ impl Panel {
             Panel::Data => icons::DATABASE,
             Panel::Script => icons::FILE_CODE,
             Panel::Dialogue => icons::CHATS,
+            Panel::World => icons::GLOBE_SIMPLE,
         }
     }
 
@@ -76,14 +80,21 @@ impl Panel {
             Panel::Data => "Data",
             Panel::Script => "Script",
             Panel::Dialogue => "Dialogue",
+            Panel::World => "World",
         }
     }
 
     /// Panels a reopened panel joins (its usual neighbours).
     fn neighbours(self) -> &'static [Panel] {
         match self {
-            Panel::Scene | Panel::Game | Panel::Preview | Panel::Script | Panel::Dialogue => &[
+            Panel::Scene
+            | Panel::World
+            | Panel::Game
+            | Panel::Preview
+            | Panel::Script
+            | Panel::Dialogue => &[
                 Panel::Scene,
+                Panel::World,
                 Panel::Game,
                 Panel::Preview,
                 Panel::Script,
@@ -105,6 +116,7 @@ pub(crate) fn default_layout() -> Dock<Panel> {
         let left = group(vec![Panel::Hierarchy]);
         let centre = group(vec![
             Panel::Scene,
+            Panel::World,
             Panel::Game,
             Panel::Preview,
             Panel::Script,
@@ -515,6 +527,7 @@ impl TabViewer<Panel> for Studio {
             Panel::Data => self.data_panel(ui),
             Panel::Script => self.script_panel(ui),
             Panel::Dialogue => self.dialogue_panel(ui),
+            Panel::World => self.world_panel(ui),
         }
     }
 }

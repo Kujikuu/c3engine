@@ -46,6 +46,7 @@ mod shell;
 mod stage;
 mod theme;
 mod tq_plugin;
+mod world_view;
 
 use eframe::egui;
 
