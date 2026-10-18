@@ -32,7 +32,7 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
       (headless GPU test). Studio ground and the new Models workspace render through it
 
 ## Next
-- [ ] M3 step 1: project system, then step 2: the c3-edit command layer (foundation for AI)
+- [ ] M3 step 2: the c3-edit command layer (foundation for AI)
 
 ## M2: Renderer [x] (complete 2026-10-18)
 - [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
@@ -68,8 +68,10 @@ Done so far:
 - [x] Models workspace: skinned model preview through `c3-render`
 
 Toward the Unity/UE5-style editor, in order:
-- [ ] (1) Project system: create/open a game project folder (manifest, asset folders, recent
-      projects, welcome screen); "Import from Conquer 5065 client" creates a Conquer project
+- [x] (1) Project system: `engine/project` (c3-project: `c3project.toml` manifest, standard
+      folders, content sources, recent list); Studio start page (New / Open / Import Conquer 5065,
+      recent projects), File menu, project dialogs (`--new`, `--import <client>`), Project section
+      in the inspector; the project's TQ client source feeds maps and models
 - [ ] (2) Command layer `engine/edit` (c3-edit): every project change is a typed, serializable
       command with undo/redo; read-only queries with schemas; existing map editing moves onto it.
       The foundation for the assistant and MCP (M4)

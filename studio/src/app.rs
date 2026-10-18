@@ -3,16 +3,18 @@
 use crate::doc::MapDoc;
 use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
+use crate::home::ProjectDialog;
 use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
 use crate::model_view::{ModelDoc, OrbitCamera};
 use crate::theme;
 use crate::tq_plugin::{Client, ModelEntry};
+use c3_project::{Project, RecentProjects};
 use c3_render::ground::GroundCache;
 use c3_scene::CellPos;
 use eframe::egui::{self, Key};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-const DEFAULT_CLIENT: &str = r"D:\Conquer2\Tools\eosource\client5065";
 const NOTICE_DURATION: Duration = Duration::from_secs(4);
 
 /// Top-level editor area.
@@ -26,11 +28,17 @@ pub(crate) enum Workspace {
 #[derive(Clone)]
 pub(crate) enum Pending {
     OpenMap(String),
+    OpenProject(PathBuf),
+    CloseProject,
     Quit,
 }
 
 pub struct Studio {
-    pub(crate) client_dir: String,
+    /// The open project; `None` shows the start page.
+    pub(crate) project: Option<Project>,
+    pub(crate) recent: RecentProjects,
+    pub(crate) dialog: Option<ProjectDialog>,
+    /// The project's TQ client source, if it has one.
     pub(crate) client: Option<Client>,
     pub(crate) workspace: Workspace,
     pub(crate) maps: Vec<String>,
@@ -65,13 +73,11 @@ impl Studio {
                 .and_then(|i| args.get(i + 1))
                 .cloned()
         };
-        let client_dir = args
-            .first()
-            .filter(|a| !a.starts_with("--"))
-            .cloned()
-            .unwrap_or_else(|| DEFAULT_CLIENT.to_owned());
+        let project_arg = args.first().filter(|a| !a.starts_with("--")).cloned();
         let mut s = Self {
-            client_dir,
+            project: None,
+            recent: RecentProjects::load_default(),
+            dialog: None,
             client: None,
             workspace: Workspace::Maps,
             maps: Vec::new(),
@@ -103,7 +109,15 @@ impl Studio {
             allow_quit: false,
             title: String::new(),
         };
-        s.open_client();
+        if let Some(path) = project_arg {
+            s.open_project(std::path::Path::new(&path));
+        }
+        if args.iter().any(|a| a == "--new") {
+            s.show_new_project();
+        }
+        if args.iter().any(|a| a == "--import") {
+            s.show_import_conquer(flag("--import").as_deref());
+        }
         if let Some(m) = flag("--map") {
             s.load_map(&m);
         }
@@ -123,21 +137,31 @@ impl Studio {
 
     // ---- documents ----
 
+    /// Opens the project's TQ client source (maps and models come from it for now).
     pub(crate) fn open_client(&mut self) {
-        match Client::open(&self.client_dir) {
+        self.client = None;
+        self.maps.clear();
+        self.models.clear();
+        let Some((_, dir)) = self.project.as_ref().and_then(Project::tq_client) else {
+            return;
+        };
+        match Client::open(&dir.display().to_string()) {
             Ok(client) => {
                 self.maps = client.list_maps();
                 self.models = client.list_models();
                 self.client = Some(client);
-                self.error = None;
             }
-            Err(e) => {
-                self.client = None;
-                self.maps.clear();
-                self.models.clear();
-                self.error = Some(format!("Can't open client folder: {e}"));
-            }
+            Err(e) => self.error = Some(format!("Can't open the project's client folder: {e}")),
         }
+    }
+
+    /// Closes the open map and model (without asking).
+    pub(crate) fn close_documents(&mut self) {
+        self.doc = None;
+        self.model = None;
+        self.filter.clear();
+        self.hover = None;
+        self.editor = Editor::default();
     }
 
     pub(crate) fn is_dirty(&self) -> bool {
@@ -196,6 +220,8 @@ impl Studio {
         }
         match p {
             Pending::OpenMap(path) => self.load_map(&path),
+            Pending::OpenProject(path) => self.open_project(&path),
+            Pending::CloseProject => self.close_project(),
             Pending::Quit => {
                 self.allow_quit = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -349,14 +375,18 @@ impl Studio {
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
-        let title = match (self.workspace, &self.doc, &self.model) {
-            (Workspace::Models, _, Some(m)) => format!("Model {} — C3 Studio", m.entry.id),
-            (Workspace::Maps, Some(d), _) => format!(
-                "{}{} — C3 Studio",
+        let project = self.project_name();
+        let title = match (&self.project, self.workspace, &self.doc, &self.model) {
+            (None, ..) => "C3 Studio".to_owned(),
+            (_, Workspace::Models, _, Some(m)) => {
+                format!("Model {} — {project} — C3 Studio", m.entry.id)
+            }
+            (_, Workspace::Maps, Some(d), _) => format!(
+                "{}{} — {project} — C3 Studio",
                 if d.is_dirty() { "● " } else { "" },
                 d.name()
             ),
-            _ => "C3 Studio".to_owned(),
+            _ => format!("{project} — C3 Studio"),
         };
         if title != self.title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -431,6 +461,12 @@ impl eframe::App for Studio {
         egui::Panel::bottom("status")
             .exact_size(26.0)
             .show(ui, |ui| self.status_bar(ui));
+        self.project_dialog(&ctx);
+        if self.project.is_none() {
+            egui::CentralPanel::default().show(ui, |ui| self.home(ui));
+            self.unsaved_prompt(&ctx);
+            return;
+        }
         let models = self.workspace == Workspace::Models;
         egui::Panel::left("browser")
             .default_size(220.0)

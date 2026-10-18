@@ -28,6 +28,18 @@ pub struct ModelEntry {
     pub path: String,
 }
 
+/// Checks that `root` is a Conquer 5065 client folder (it has the map catalog).
+pub fn check_client(root: &Path) -> Result<(), String> {
+    let fs = ClientFs::open(root).map_err(|e| format!("{}: {e}", root.display()))?;
+    match fs.read("ini/GameMap.dat") {
+        Some(_) => Ok(()),
+        None => Err(format!(
+            "{} doesn't look like a Conquer client folder (no ini/GameMap.dat).",
+            root.display()
+        )),
+    }
+}
+
 impl Client {
     pub fn open(root: &str) -> Result<Self, String> {
         let fs = ClientFs::open(root).map_err(|e| e.to_string())?;

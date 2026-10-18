@@ -97,9 +97,10 @@ pub fn empty_state(ui: &mut egui::Ui, client_ok: bool) {
                     RichText::new("Pick one from the list on the left, or press PgDn.").weak(),
                 );
             } else {
-                ui.label(RichText::new("No client loaded").size(18.0));
+                ui.label(RichText::new("No maps in this project yet").size(18.0));
                 ui.label(
-                    RichText::new("Set the client folder in the inspector on the right.").weak(),
+                    RichText::new("Projects imported from a Conquer client list its maps here.")
+                        .weak(),
                 );
             }
         });

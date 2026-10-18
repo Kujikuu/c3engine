@@ -15,6 +15,13 @@ impl Studio {
                     .size(16.0)
                     .color(theme::ACCENT),
             );
+            self.file_menu(ui);
+            ui.separator();
+            let Some(project) = &self.project else {
+                return;
+            };
+            ui.label(RichText::new(project.name()).strong())
+                .on_hover_text(project.root.display().to_string());
             ui.separator();
             for (ws, label, hint) in [
                 (
@@ -183,7 +190,7 @@ impl Studio {
         }
         ui.add_space(4.0);
         if self.client.is_none() {
-            ui.label(RichText::new("Set a valid client folder in the inspector.").weak());
+            ui.label(RichText::new("This project has no maps yet. Its content source is shown under Project in the inspector.").weak());
             return;
         }
         if list.is_empty() {
@@ -339,21 +346,7 @@ impl Studio {
                     });
                 }
 
-                theme::section(ui, "Client", |ui| {
-                    ui.label(RichText::new("Folder").weak());
-                    let r = ui.add(
-                        egui::TextEdit::singleline(&mut self.client_dir)
-                            .desired_width(f32::INFINITY),
-                    );
-                    if r.lost_focus() {
-                        self.open_client();
-                    }
-                    if self.client.is_none() {
-                        ui.colored_label(theme::DANGER, "Not loaded");
-                    } else {
-                        ui.label(RichText::new(format!("{} maps found", self.maps.len())).weak());
-                    }
-                });
+                self.project_section(ui);
             });
     }
 
@@ -363,6 +356,8 @@ impl Studio {
                 ui.colored_label(theme::DANGER, format!("⚠ {e}"));
             } else if let Some(n) = self.active_notice() {
                 ui.colored_label(colors::COVER, format!("✔ {n}"));
+            } else if self.project.is_none() {
+                ui.label(RichText::new("No project open").weak());
             } else if self.workspace == Workspace::Models {
                 match &self.model {
                     Some(m) => {
@@ -416,6 +411,9 @@ impl Studio {
             } else {
                 ui.label(RichText::new("No map open").weak());
             }
+            if self.project.is_none() {
+                return;
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let tool = self.editor.tool;
                 ui.label(
@@ -443,6 +441,8 @@ impl Studio {
         let name = self.doc.as_ref().map_or("", |d| d.name()).to_owned();
         let action = match pending {
             Pending::OpenMap(_) => "opening another map",
+            Pending::OpenProject(_) => "opening another project",
+            Pending::CloseProject => "closing the project",
             Pending::Quit => "quitting",
         };
         let mut choice: Option<Option<bool>> = None; // Some(Some(save)) or Some(None) = cancel

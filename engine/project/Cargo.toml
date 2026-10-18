@@ -1,0 +1,9 @@
+[package]
+name = "c3-project"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dirs = "7.0.0"
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.1.8"

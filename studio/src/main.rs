@@ -1,10 +1,14 @@
-//! C3 Studio: the engine's editor. v0: client map browser/viewer.
-//! Usage: c3-studio [client_dir] [--map map/map/xxx.DMap] [--zoom 0.5] [--model <3dobj id>]
+//! C3 Studio: the engine's editor.
+//! Usage: c3-studio [project folder] [--map map/map/xxx.DMap] [--zoom 0.5] [--model <3dobj id>]
+//!                  [--new | --import <Conquer 5065 client folder>]
+//! Without a project it opens on the start page (new, open, import, recent); `--new` and
+//! `--import` open those dialogs.
 
 mod app;
 mod doc;
 mod editor;
 mod gpu;
+mod home;
 mod map_view;
 mod model_view;
 mod models_ws;

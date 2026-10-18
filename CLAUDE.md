@@ -12,7 +12,9 @@ append decisions, document formats as you implement them.
 - Editors touch engine types only (`c3_scene`, `c3_assets`). In the Studio, **only `tq_plugin.rs` may use
   `c3_formats_tq`**. TQ ⇄ Scene conversion lives in `formats/c3/src/scene_io.rs`.
 - Studio layout: `studio/src/{main,app,panels,doc,editor,map_view,theme,tq_plugin}.rs`, plus
-  `gpu.rs` (engine renderer → egui texture), `model_view.rs` + `models_ws.rs` (Models workspace).
+  `home.rs` (start page, project dialogs, File menu, Project inspector section), `gpu.rs` (engine
+  renderer → egui texture), `model_view.rs` + `models_ws.rs` (Models workspace). The Studio always
+  works on an open `c3_project::Project`; its TQ client source is opened through `tq_plugin`.
 - Rendering goes through `c3-render` only (never egui painter for world content). The Studio shows the
   target's `display_view` (gamma-space view) so colours match.
 - Screenshots for verification: `scripts/shot.ps1 -App client|studio -Out x.png -- <app args>` (`PrintWindow`, works when the window is behind others). `doc` = model + undo + save

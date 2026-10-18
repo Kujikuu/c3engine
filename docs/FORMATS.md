@@ -25,6 +25,21 @@ Sources: `D:\Conquer2\Tools\eosource\client5065` (assets), `...\cosource` (clien
 | text .dat | Play.dat (+6 shift), Shop/Server (plain ini) | **done** | `textdat.rs` + `ini.rs` |
 | game .dat tables | itemtype, Monster, MagicType, Action, MapDestination, levexp, AutoAllot, Tips, UserHelpInfo, LevelExp | **done** | `cipher.rs` + `dat.rs`; all byte-exact (encrypted ones re-encrypt exactly) |
 
+## Engine formats (native, unencrypted)
+
+### c3project.toml (project manifest)
+TOML in the project folder root, next to `assets/`, `maps/`, `tables/`, `scripts/`.
+```toml
+name = "Conquer"
+engine = "0.1.0"            # engine version last saved with
+
+[[source]]                  # optional external content, read until imported
+kind = "tq-client"
+game = "conquer-5065"
+path = 'D:\Conquer2\Tools\eosource\client5065'
+```
+Recent projects: `<config dir>/C3Engine/recent.toml`, `[[project]]` entries (name, path, opened).
+
 ## Per-format sections
 (Add `## <FORMAT>` with header layout, field table, quirks, and test files.)
 
