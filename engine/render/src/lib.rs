@@ -12,6 +12,7 @@ pub mod effect;
 pub mod effect_library;
 pub mod ground;
 mod mesh;
+pub mod minimap;
 pub mod objects;
 pub mod parallax;
 pub mod scene_view;
@@ -165,6 +166,47 @@ impl Renderer {
     }
 
     /// Draws `frame` into an offscreen `target` and submits the work.
+    /// The pixels of `target` (sRGB RGBA), read back from the GPU.
+    pub fn read_target(&self, target: &RenderTarget) -> c3_assets::Image {
+        let [w, h] = target.size;
+        let row = (4 * w).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("c3 readback"),
+            size: u64::from(row * h),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            target.color.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(row),
+                    rows_per_image: Some(h),
+                },
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit([encoder.finish()]);
+        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+        // Waiting can only fail if the device is lost; the pixels then read as black.
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
+        let rgba = match buffer.slice(..).get_mapped_range() {
+            Ok(data) => (0..h)
+                .flat_map(|y| data[(y * row) as usize..(y * row + 4 * w) as usize].to_vec())
+                .collect(),
+            Err(_) => vec![0; (4 * w * h) as usize],
+        };
+        c3_assets::Image::new(w, h, rgba)
+    }
+
     pub fn render(&mut self, target: &RenderTarget, frame: &Frame) {
         self.render_into(&target.color_view, &target.depth, frame);
     }

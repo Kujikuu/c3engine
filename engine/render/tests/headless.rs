@@ -1,7 +1,7 @@
 //! Renders offscreen and reads pixels back. Skips when no GPU adapter is available.
 
 use c3_assets::Image;
-use c3_render::{Frame, MeshDraw, MeshStyle, MeshVertex, RenderTarget, Renderer, Sprite};
+use c3_render::{Frame, MeshDraw, MeshStyle, MeshVertex, Renderer, Sprite};
 use glam::Mat4;
 
 fn renderer() -> Option<Renderer> {
@@ -12,49 +12,12 @@ fn renderer() -> Option<Renderer> {
 }
 
 /// Reads the target back as RGBA8.
-fn read_pixels(r: &Renderer, target: &RenderTarget, queue: &wgpu::Queue) -> Vec<u8> {
-    let device = r.device();
-    let [w, h] = target.size;
-    let row = (4 * w).div_ceil(256) * 256;
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: None,
-        size: (row * h) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-    let mut encoder = device.create_command_encoder(&Default::default());
-    encoder.copy_texture_to_buffer(
-        target.color.as_image_copy(),
-        wgpu::TexelCopyBufferInfo {
-            buffer: &buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(row),
-                rows_per_image: Some(h),
-            },
-        },
-        wgpu::Extent3d {
-            width: w,
-            height: h,
-            depth_or_array_layers: 1,
-        },
-    );
-    queue.submit([encoder.finish()]);
-    buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-    let data = buffer.slice(..).get_mapped_range().expect("map readback");
-    (0..h)
-        .flat_map(|y| data[(y * row) as usize..(y * row + 4 * w) as usize].to_vec())
-        .collect()
-}
-
 #[test]
 fn draws_textured_sprite_and_lit_mesh() {
     let Some(mut r) = renderer() else {
         eprintln!("no GPU adapter, skipping");
         return;
     };
-    let queue = r.queue().clone();
     let red = r.upload_texture(&Image::new(1, 1, vec![255, 0, 0, 255]));
 
     // Left half: red sprite. Right half: white triangle mesh.
@@ -106,7 +69,7 @@ fn draws_textured_sprite_and_lit_mesh() {
             light: Default::default(),
         },
     );
-    let px = read_pixels(&r, &target, &queue);
+    let px = r.read_target(&target).rgba;
     let at = |x: u32, y: u32| &px[((y * 64 + x) * 4) as usize..][..4];
     assert_eq!(at(16, 32), [255, 0, 0, 255], "sprite");
     let mesh = at(48, 40);
@@ -125,7 +88,6 @@ fn painter_order_beats_depth_between_meshes() {
         eprintln!("no GPU adapter, skipping");
         return;
     };
-    let queue = r.queue().clone();
     let red = r.upload_texture(&Image::new(1, 1, vec![255, 0, 0, 255]));
     let green = r.upload_texture(&Image::new(1, 1, vec![0, 255, 0, 255]));
     let quad = |z: f32| {
@@ -161,7 +123,7 @@ fn painter_order_beats_depth_between_meshes() {
             ..Default::default()
         },
     );
-    let px = read_pixels(&r, &target, &queue);
+    let px = r.read_target(&target).rgba;
     let c = &px[(4 * 8 + 4) * 4..][..4];
     assert!(
         c[1] > 200 && c[0] == 0,
@@ -177,7 +139,6 @@ fn same_group_meshes_use_real_depth() {
         eprintln!("no GPU adapter, skipping");
         return;
     };
-    let queue = r.queue().clone();
     let red = r.upload_texture(&Image::new(1, 1, vec![255, 0, 0, 255]));
     let green = r.upload_texture(&Image::new(1, 1, vec![0, 255, 0, 255]));
     let quad = |z: f32| {
@@ -213,7 +174,7 @@ fn same_group_meshes_use_real_depth() {
             ..Default::default()
         },
     );
-    let px = read_pixels(&r, &target, &queue);
+    let px = r.read_target(&target).rgba;
     let c = &px[(4 * 8 + 4) * 4..][..4];
     assert!(
         c[0] > 200 && c[1] == 0,

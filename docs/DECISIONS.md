@@ -76,3 +76,4 @@ Append-only. Format: date · decision · why.
 
 ## Open
 - Visual target for Conquer: exact classic 5065 first, or modernized from the start.
+- 2026-10-18 · **Visual scripting milestone; MCP earlier; no assistant panel for now** (user choice): M10 adds Blueprint-style visual scripting able to make a whole Conquer game without code; MCP + AI context move to M11, before Conquer (M12), since the command layer is ready and agents can then build and test content; the Studio assistant panel is dropped for now. Supersedes the "Studio assistant" half of the AI decision above.

@@ -392,7 +392,30 @@ PUL for the classic client).
 - [ ] Client front end from data: login and server list, character creation and selection,
       loading screens, settings menu (keys, video, audio); the game UI's minimap / radar
 
-## M10: Conquer as a complete project (on the engine)
+## M10: Visual scripting (Unreal Blueprints-style; a whole Conquer game without code)
+Decided 2026-10-18: every game rule and behaviour can be made in node graphs; Rhai stays as
+an option, never a requirement. Graphs compile to the same commands and events scripts use,
+run on the server and the local session alike, and are edited through c3-edit with undo.
+- [ ] Graph runtime: typed pins (number, text, bool, entity, item, map, cell, list), exec
+      flow, variables (graph, player, world, saved), functions and macros, events, latent nodes
+      (wait, timers, move-to), compiled to a checked form; errors point at the node
+- [ ] Node library over the whole gameplay core: players, monsters, NPCs, items, skills,
+      statuses, quests, money, teams, maps, portals, spawns, chat, dialogue pages, UI windows,
+      effects and sounds, random, math, tables (read rows by key)
+- [ ] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
+      talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
+- [ ] Graph editor in the Studio: Blueprint-like canvas (search palette, typed wiring,
+      reroutes, comments, collapse to function), live debugging in Play (breakpoints, watched
+      values, the path that ran lit), find references
+- [ ] Prove it: the Conquer project's NPCs, quests, formulas and events made only with graphs
+
+## M11: MCP and AI integration (moved before Conquer; the Studio assistant panel is dropped)
+- [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude
+      Code): maps, tables, settings, assets, dialogues, scripts and graphs, play-testing
+- [ ] Project context for AI: schemas, tables, map summaries, the node library and docs the
+      model can query
+
+## M12: Conquer as a complete project (on the engine)
 - [ ] Full import in one step: the client's files plus TQ's server data (an SQL dump such as
       `tq_re/db/cq_finalized_mariadb.sql`): every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn
       areas (`cq_generator`), portals and destinations (`cq_passway`, `cq_portal`), the map list
@@ -409,7 +432,7 @@ PUL for the classic client).
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)
 
-## M11: Any game of the kind (Eudemons-like or the user's own)
+## M13: Any game of the kind (Eudemons-like or the user's own)
 - [ ] Social and companion systems as engine modules a game switches on and shapes with data:
       teams, trade, guilds, friends, mail, pets and companions (summon, fight, level, evolve,
       equip), mounts, crafting, events and schedules
@@ -418,7 +441,7 @@ PUL for the classic client).
 - [ ] Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), the sample
       game, a getting-started guide in the Studio, tooltips, errors that say how to fix them
 
-## M12: Ship
+## M14: Ship
 - [ ] Build from the Studio: package a playable client and server from a project (assets
       packed, settings applied), with per-platform build settings
 - [ ] Platforms: Windows, macOS and Linux desktop clients; Android and iOS clients (wgpu on
@@ -433,9 +456,3 @@ PUL for the classic client).
 - [ ] Launcher and patcher
 - [ ] glTF export (Blender pipeline); exporters back to the classic client where useful (today
       only DMap is exported: no C3, ANI, PUL-from-scene, DDS or WDF repack from engine content)
-
-## M13: AI integration (was M4; the user keeps it last)
-- [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude Code)
-- [ ] Studio assistant panel (`engine/ai`, Claude API): chat that edits the project through c3-edit
-      tools; shows each change, applies on confirm, one undo step per request; API key in settings
-- [ ] Project context for AI: schemas, tables, map summaries and docs the model can query
