@@ -86,7 +86,8 @@ Toward the Unity/UE5-style editor, in order:
       scene format (`c3_scene::native`, `.scene.ron` + `.scene.bin`, all 144 maps lossless) is for
       maps made in the engine. `c3-client --project <folder>` plays a project
 - [ ] (4) Unity-style editor shell: dockable panels (Hierarchy, Scene, Game, Inspector, Project,
-      Console) with saved layouts, menu bar, Play/Pause/Step toolbar, crafted dark theme, icons
+      Console) with saved layouts, menu bar, Play/Pause/Step toolbar, crafted dark theme, a real
+      icon font replacing every emoji glyph in the Studio
 - [ ] (4b) Project panel (asset browser): folder tree, search, thumbnails, live preview of models,
       effects, sprites, maps
 - [ ] (5) Scene view on the shared renderer: maps draw objects, parallax, effects and actors exactly
