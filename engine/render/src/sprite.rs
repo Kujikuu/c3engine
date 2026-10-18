@@ -1,8 +1,8 @@
 //! Instanced textured quads in world space (ground tiles, 2D sprites). No depth test:
 //! sprites draw in submission order, under meshes.
 
+use crate::DEPTH_FORMAT;
 use crate::texture::{TextureId, Textures};
-use crate::{COLOR_FORMAT, DEPTH_FORMAT};
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
@@ -64,7 +64,11 @@ fn fs(in: Out) -> @location(0) vec4<f32> {
 "#;
 
 impl SpritePass {
-    pub fn new(device: &wgpu::Device, texture_layout: &wgpu::BindGroupLayout) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        texture_layout: &wgpu::BindGroupLayout,
+        color_format: wgpu::TextureFormat,
+    ) -> Self {
         let (view_buffer, view_layout, view_group) =
             crate::mesh::uniform(device, "c3 sprite view", 64);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -94,7 +98,7 @@ impl SpritePass {
                 entry_point: Some("fs"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: COLOR_FORMAT,
+                    format: color_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],

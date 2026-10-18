@@ -4,16 +4,14 @@
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
 use crate::tq_plugin::Client;
-use c3_render::{Frame, Sprite, TextureId};
+use c3_render::Frame;
+use c3_render::ground::{self, GroundCache};
 use c3_scene::{CellPos, EntityKind};
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 use glam::camera::rh::proj::directx;
-use std::collections::HashMap;
 
 pub const MIN_ZOOM: f32 = 0.03;
 pub const MAX_ZOOM: f32 = 4.0;
-/// Tiles decoded per frame, so panning stays smooth while streaming.
-const DECODE_BUDGET: usize = 6;
 
 /// Overlay palette, shared by the viewport and the legend.
 pub mod colors {
@@ -90,53 +88,6 @@ pub struct ViewResult {
     pub pointer: Pointer,
     /// Tiles still waiting to stream in.
     pub streaming: bool,
-}
-
-/// GPU textures for the open map's ground tiles. View state: rebuilt per map.
-#[derive(Default)]
-pub struct GroundCache {
-    path: String,
-    /// `None` = tile failed to load.
-    tiles: HashMap<u16, Option<TextureId>>,
-}
-
-impl GroundCache {
-    pub fn loaded(&self) -> usize {
-        self.tiles.len()
-    }
-
-    /// Drops textures when a different map is shown.
-    fn bind_to(&mut self, path: &str, gpu: &mut GpuView) {
-        if self.path != path {
-            for id in self.tiles.drain().filter_map(|(_, t)| t) {
-                gpu.renderer.release_texture(id);
-            }
-            self.path = path.to_owned();
-        }
-    }
-
-    /// Texture for a tile; decodes and uploads it if `budget` allows. Outer `None` = not loaded yet.
-    fn tile(
-        &mut self,
-        id: u16,
-        frame: Option<&String>,
-        client: &Client,
-        gpu: &mut GpuView,
-        budget: &mut usize,
-    ) -> Option<Option<TextureId>> {
-        if let Some(t) = self.tiles.get(&id) {
-            return Some(*t);
-        }
-        if *budget == 0 {
-            return None;
-        }
-        *budget -= 1;
-        let texture = frame
-            .and_then(|f| client.load_image(f))
-            .map(|img| gpu.renderer.upload_texture(&img));
-        self.tiles.insert(id, texture);
-        Some(texture)
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -276,48 +227,23 @@ fn draw_ground(
     view: Rect,
     zoom: f32,
 ) -> bool {
-    cache.bind_to(&doc.path, gpu);
-    let mut sprites = Vec::new();
-    let mut streaming = false;
-    if let Some(ground) = doc.scene.ground.as_ref().filter(|g| g.width > 0) {
-        let g = ground.tile_size as f32;
-        let (ox, oy) = (ground.origin.0 as f32, ground.origin.1 as f32);
-        let x0 = ((view.min.x - ox) / g).floor().max(0.0) as u32;
-        let y0 = ((view.min.y - oy) / g).floor().max(0.0) as u32;
-        let x1 = (((view.max.x - ox) / g).ceil().max(0.0) as u32).min(ground.width);
-        let y1 = (((view.max.y - oy) / g).ceil().max(0.0) as u32).min(ground.height);
-        // Half a screen pixel of overlap hides seams between tiles.
-        let size = g + 0.5 / zoom;
-        let mut budget = DECODE_BUDGET;
-        for gy in y0..y1 {
-            for gx in x0..x1 {
-                let Some(id) = ground.tile(gx, gy) else {
-                    continue;
-                };
-                let (texture, tint) = match cache.tile(
-                    id,
-                    ground.tileset.frames.get(&id),
-                    client,
-                    gpu,
-                    &mut budget,
-                ) {
-                    Some(Some(t)) => (Some(t), [1.0; 4]),
-                    None => {
-                        streaming = true;
-                        (None, [0.012, 0.012, 0.012, 1.0])
-                    }
-                    // Magenta makes missing content obvious.
-                    Some(None) => (None, [0.05, 0.0, 0.05, 1.0]),
-                };
-                sprites.push(Sprite {
-                    rect: [ox + gx as f32 * g, oy + gy as f32 * g, size, size],
-                    uv: [0.0, 0.0, 1.0, 1.0],
-                    texture,
-                    tint,
-                });
-            }
-        }
-    }
+    // Half a screen pixel of overlap hides seams between tiles.
+    let ground = match doc.scene.ground.as_ref() {
+        Some(layer) => ground::sprites(
+            layer,
+            [view.min.x, view.min.y, view.max.x, view.max.y],
+            0.5 / zoom,
+            cache,
+            &mut gpu.renderer,
+            ground::DEFAULT_DECODE_BUDGET,
+            |path| client.load_image(path),
+        ),
+        None => ground::GroundSprites {
+            sprites: Vec::new(),
+            streaming: false,
+        },
+    };
+    let (sprites, streaming) = (ground.sprites, ground.streaming);
     let ppp = ui.ctx().pixels_per_point();
     let size = [
         (rect.width() * ppp).round() as u32,

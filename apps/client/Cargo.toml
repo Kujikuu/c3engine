@@ -4,3 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+c3-render = { version = "0.1.0", path = "../../engine/render" }
+c3-scene = { version = "0.1.0", path = "../../engine/scene" }
+game-conquer = { version = "0.1.0", path = "../../games/conquer" }
+glam = "0.34.1"
+pollster = "1.0.1"
+wgpu = "30"
+winit = "0.30"

@@ -3,10 +3,11 @@
 use crate::doc::MapDoc;
 use crate::editor::{Editor, Tool};
 use crate::gpu::GpuView;
-use crate::map_view::{self, Camera, GroundCache, Overlays, ViewMode, colors};
+use crate::map_view::{self, Camera, Overlays, ViewMode, colors};
 use crate::model_view::{ModelDoc, OrbitCamera};
 use crate::theme;
 use crate::tq_plugin::{Client, ModelEntry};
+use c3_render::ground::GroundCache;
 use c3_scene::CellPos;
 use eframe::egui::{self, Key};
 use std::time::{Duration, Instant};

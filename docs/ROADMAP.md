@@ -37,7 +37,8 @@ Reference assets: `D:\Conquer2\Tools\eosource\client5065`
 - [ ] Game client app (`apps/client`): winit window presenting `c3-render`, map + walking hero
 
 ## M2: Renderer
-- [ ] wgpu window + camera
+- [x] wgpu window + camera: `apps/client` (winit 0.30 + surface), drag/WASD pan, wheel zoom, fit;
+      content via `games/conquer::Content`; shared `c3_render::ground` streaming (180 fps on Twin City)
 - [ ] Puzzle ground + map layers (classic iso)
 - [ ] Skinned C3 meshes with armor/weapon/mount layering
 - [ ] Effects / particles

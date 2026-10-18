@@ -1,8 +1,8 @@
 //! Lit, textured triangle meshes with depth testing. Vertices arrive already posed
 //! (skinning happens on the CPU, like the classic client).
 
+use crate::DEPTH_FORMAT;
 use crate::texture::{TextureId, Textures};
-use crate::{COLOR_FORMAT, DEPTH_FORMAT};
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
@@ -114,7 +114,11 @@ fn uniform_layout(device: &wgpu::Device, label: &str) -> wgpu::BindGroupLayout {
 }
 
 impl MeshPass {
-    pub fn new(device: &wgpu::Device, texture_layout: &wgpu::BindGroupLayout) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        texture_layout: &wgpu::BindGroupLayout,
+        color_format: wgpu::TextureFormat,
+    ) -> Self {
         let uniform_layout = uniform_layout(device, "c3 mesh uniforms");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("c3 mesh shader"),
@@ -143,7 +147,7 @@ impl MeshPass {
                 entry_point: Some("fs"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: COLOR_FORMAT,
+                    format: color_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],

@@ -531,6 +531,15 @@ version = "0.1.0"
 [[package]]
 name = "c3-client"
 version = "0.1.0"
+dependencies = [
+ "c3-render",
+ "c3-scene",
+ "game-conquer",
+ "glam",
+ "pollster",
+ "wgpu",
+ "winit",
+]
 
 [[package]]
 name = "c3-core"
@@ -559,6 +568,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "c3-assets",
+ "c3-scene",
  "glam",
  "pollster",
  "wgpu",
@@ -1316,6 +1326,11 @@ dependencies = [
 [[package]]
 name = "game-conquer"
 version = "0.1.0"
+dependencies = [
+ "c3-assets",
+ "c3-formats-tq",
+ "c3-scene",
+]
 
 [[package]]
 name = "gethostname"
