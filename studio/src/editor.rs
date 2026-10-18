@@ -20,15 +20,36 @@ pub enum Tool {
     Clear,
     /// Add, move (drag) and delete (right-click) portals.
     Portal,
+    /// Paint, fill, erase or pick ground tiles.
+    Ground,
+}
+
+/// What the Ground tool does with a click.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum GroundMode {
+    Paint,
+    Fill,
+    Erase,
+    /// Takes the image under the pointer as the one to paint with.
+    Pick,
+}
+
+/// The Ground tool's settings.
+#[derive(Clone, Debug)]
+pub struct GroundBrush {
+    pub mode: GroundMode,
+    /// The image painted (an asset path, as the tileset names its frames).
+    pub image: Option<String>,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 5] = [
+    pub const ALL: [Tool; 6] = [
         Tool::Inspect,
         Tool::Select,
         Tool::Block,
         Tool::Clear,
         Tool::Portal,
+        Tool::Ground,
     ];
 
     pub fn label(self) -> &'static str {
@@ -38,6 +59,7 @@ impl Tool {
             Tool::Block => "Block",
             Tool::Clear => "Walkable",
             Tool::Portal => "Portal",
+            Tool::Ground => "Ground",
         }
     }
 
@@ -48,6 +70,7 @@ impl Tool {
             Tool::Block => icons::PROHIBIT,
             Tool::Clear => icons::ERASER,
             Tool::Portal => icons::DOOR_OPEN,
+            Tool::Ground => icons::PAINT_BRUSH,
         }
     }
 
@@ -59,6 +82,7 @@ impl Tool {
             Tool::Block => 3,
             Tool::Clear => 4,
             Tool::Portal => 5,
+            Tool::Ground => 6,
         }
     }
 
@@ -69,11 +93,14 @@ impl Tool {
             Tool::Block => "Drag to mark cells blocked · [ ] brush size",
             Tool::Clear => "Drag to mark cells walkable · [ ] brush size",
             Tool::Portal => "Click: add · Drag: move · Right-click: delete",
+            Tool::Ground => {
+                "Drag to paint ground tiles · [ ] brush size · pick the image in the Inspector"
+            }
         }
     }
 
     pub fn uses_brush(self) -> bool {
-        matches!(self, Tool::Block | Tool::Clear)
+        matches!(self, Tool::Block | Tool::Clear | Tool::Ground)
     }
 }
 
@@ -92,6 +119,7 @@ pub struct Editor {
     drag_from: Option<CellPos>,
     /// A selection box being dragged out: the world point it started at, and where it reaches.
     boxing: Option<((f32, f32), (f32, f32))>,
+    pub ground: GroundBrush,
     /// Hidden from the Scene view (not drawn, not picked); the map keeps them.
     hidden: HashSet<Selection>,
     /// Drawn but not picked, so work around them can't move them by accident.
@@ -107,6 +135,10 @@ impl Default for Editor {
             selection: Vec::new(),
             drag_from: None,
             boxing: None,
+            ground: GroundBrush {
+                mode: GroundMode::Paint,
+                image: None,
+            },
             hidden: HashSet::new(),
             locked: HashSet::new(),
         }
@@ -250,6 +282,7 @@ impl Editor {
                 None
             }
             Tool::Portal => self.handle_portal(doc, p),
+            Tool::Ground => self.handle_ground(doc, p),
         }
     }
 
@@ -347,6 +380,73 @@ impl Editor {
         })
     }
 
+    fn handle_ground(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {
+        let tile = p.world.and_then(|w| ground_tile(doc.scene(), w));
+        let image = self.ground.image.clone();
+        match self.ground.mode {
+            GroundMode::Pick => {
+                if p.primary_pressed {
+                    let picked = tile.and_then(|t| ground_image(doc.scene(), t))?;
+                    self.ground.mode = GroundMode::Paint;
+                    self.ground.image = Some(picked.clone());
+                    return Some(format!("Painting with {picked}"));
+                }
+                None
+            }
+            GroundMode::Fill => {
+                if !p.primary_pressed {
+                    return None;
+                }
+                let at = tile?;
+                let Some(image) = image else {
+                    return Some("Pick an image to fill with in the Inspector".into());
+                };
+                Some(run(
+                    doc,
+                    SceneCommand::FillGround {
+                        at,
+                        image: Some(image),
+                    },
+                ))
+            }
+            GroundMode::Paint | GroundMode::Erase => {
+                let erase = self.ground.mode == GroundMode::Erase;
+                if !erase && image.is_none() {
+                    return p
+                        .primary_pressed
+                        .then(|| "Pick an image to paint with in the Inspector".into());
+                }
+                // One stroke is one undo step.
+                if p.primary_pressed {
+                    doc.begin_group(if erase {
+                        "Erase ground"
+                    } else {
+                        "Paint ground"
+                    });
+                }
+                if p.primary_down
+                    && let Some((x, y)) = tile
+                {
+                    let r = self.brush as i64;
+                    let tiles = (-r..=r)
+                        .flat_map(|dy| (-r..=r).map(move |dx| (dx, dy)))
+                        .filter_map(|(dx, dy)| {
+                            let (tx, ty) = (i64::from(x) + dx, i64::from(y) + dy);
+                            Some((u32::try_from(tx).ok()?, u32::try_from(ty).ok()?))
+                        })
+                        .collect();
+                    let image = if erase { None } else { image };
+                    // Tiles off the layer are skipped; a stroke always applies.
+                    let _ = doc.execute(&SceneCommand::PaintGround { tiles, image });
+                }
+                if p.primary_released {
+                    doc.end_group();
+                }
+                None
+            }
+        }
+    }
+
     fn handle_portal(&mut self, doc: &mut MapDoc, p: &Pointer) -> Option<String> {
         // A drag released outside the map is cancelled.
         if p.primary_released && p.cell.is_none() {
@@ -388,4 +488,29 @@ fn toggle(set: &mut HashSet<Selection>, items: &[Selection]) -> bool {
         set.extend(items.iter().copied());
         true
     }
+}
+
+/// Runs `command`; returns what it did or why it was refused.
+fn run(doc: &mut MapDoc, command: SceneCommand) -> String {
+    match doc.execute(&command) {
+        Ok(outcome) => outcome.summary,
+        Err(e) => format!("Can't do that: {e}"),
+    }
+}
+
+/// The ground tile under world point `world`, if the map has ground there.
+pub fn ground_tile(scene: &c3_scene::Scene, (wx, wy): (f32, f32)) -> Option<(u32, u32)> {
+    let g = scene.ground.as_ref()?;
+    let size = g.tile_size.max(1) as f32;
+    let x = ((wx - g.origin.0 as f32) / size).floor();
+    let y = ((wy - g.origin.1 as f32) / size).floor();
+    let inside = x >= 0.0 && y >= 0.0 && (x as u32) < g.width && (y as u32) < g.height;
+    inside.then_some((x as u32, y as u32))
+}
+
+/// The image shown on ground tile `tile`.
+fn ground_image(scene: &c3_scene::Scene, (x, y): (u32, u32)) -> Option<String> {
+    let g = scene.ground.as_ref()?;
+    let id = (*g.tiles.get((y * g.width + x) as usize)?)?;
+    g.tileset.frames.get(&id).cloned()
 }

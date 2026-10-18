@@ -3,6 +3,7 @@
 //! (placed entities) and `population` (NPCs, monster spawns).
 
 mod cells;
+mod ground;
 mod objects;
 mod population;
 mod portals;
@@ -68,6 +69,19 @@ pub enum SceneCommand {
     /// keep their place, and portals, NPCs and spawn areas off the new map go. A ground
     /// of one repeated image grows with the map.
     Resize { width: u32, height: u32 },
+    /// Sets the ground tiles `[x, y]` (tile columns and rows) to show `image` (added to the
+    /// tileset when new), or clears them when `image` is null.
+    PaintGround {
+        tiles: Vec<(u32, u32)>,
+        #[serde(default)]
+        image: Option<String>,
+    },
+    /// Sets every tile joined to `at` that shows what it shows to `image` (null: clears).
+    FillGround {
+        at: (u32, u32),
+        #[serde(default)]
+        image: Option<String>,
+    },
 }
 
 /// A recorded change, with what it replaced.
@@ -90,6 +104,11 @@ enum Change {
     Spawns {
         before: Vec<Spawn>,
         after: Vec<Spawn>,
+    },
+    /// The ground layer.
+    Ground {
+        before: Box<c3_scene::TileLayer>,
+        after: Box<c3_scene::TileLayer>,
     },
     /// The whole scene (a resize).
     Whole {
@@ -139,6 +158,10 @@ impl SceneDoc {
             SceneCommand::SetSpawn { spawn } => self.set_spawn(spawn)?,
             SceneCommand::RemoveSpawn { id } => self.remove_spawn(*id)?,
             SceneCommand::Resize { width, height } => self.resize(*width, *height)?,
+            SceneCommand::PaintGround { tiles, image } => {
+                self.paint_ground(tiles, image.as_deref())?
+            }
+            SceneCommand::FillGround { at, image } => self.fill_ground(*at, image.as_deref())?,
         };
         let changed = change.is_some();
         if let Some(change) = change {
@@ -185,6 +208,9 @@ impl SceneDoc {
             }
             Change::Spawns { before, after } => {
                 self.scene.spawns = pick(forward, before, after).clone()
+            }
+            Change::Ground { before, after } => {
+                self.scene.ground = Some((**pick(forward, before, after)).clone())
             }
             Change::Whole { before, after } => {
                 self.scene = (**pick(forward, before, after)).clone()

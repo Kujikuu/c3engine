@@ -388,7 +388,11 @@ PUL for the classic client).
     cover objects show their footprint; bring to front / send to back, line up in a row or
     column; H hides and L locks (Shift: all back), marked in the Hierarchy; Ctrl+C / Ctrl+V
     paste under the pointer on any map, Ctrl+D duplicates; each change one undo step
-- [ ] Ground: paint tiles from tilesets (brush, fill, erase, pick)
+- [x] Ground: paint tiles from tilesets (brush, fill, erase, pick)
+  - Done 2026-10-18: the Ground tool (6) paints with a brush of tiles, fills joined
+    look-alike tiles, erases and picks; its palette is the map's tileset (plus the project's
+    images on engine maps, added to the tileset as needed). A client map paints with its own
+    puzzle tiles and saving writes its PUL back (the original kept as .bak)
 - [ ] Cells: height and surface brushes beside the walkability brush; overlays
 - [ ] Layers: parallax backgrounds (sky, water) and their items; layer order
 - [ ] Regions: music, sound, safe zone, PK-free, booth, weather, light, script triggers

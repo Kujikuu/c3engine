@@ -51,7 +51,11 @@ impl Studio {
                 let mut size = self.editor.brush * 2 + 1;
                 let slider = egui::Slider::new(&mut size, 1..=MAX_BRUSH * 2 + 1)
                     .step_by(2.0)
-                    .suffix(" cells");
+                    .suffix(if self.editor.tool == Tool::Ground {
+                        " tiles"
+                    } else {
+                        " cells"
+                    });
                 if ui
                     .add(slider)
                     .on_hover_text("[ and ] change the brush")
@@ -176,7 +180,8 @@ impl Studio {
         let tool = self.editor.tool;
         let mode = ViewMode {
             pan_with_primary: tool == Tool::Inspect,
-            brush: tool.uses_brush().then(|| {
+            ground_brush: (tool == Tool::Ground).then_some(self.editor.brush),
+            brush: (tool.uses_brush() && tool != Tool::Ground).then(|| {
                 let color = if tool == Tool::Block {
                     colors::BRUSH_BLOCK
                 } else {
@@ -313,6 +318,10 @@ impl Studio {
             .auto_shrink(false)
             .show(ui, |ui| {
                 if self.row_inspector(ui) || self.selection_inspector(ui) {
+                    return;
+                }
+                if self.editor.tool == Tool::Ground && self.doc.is_some() {
+                    self.ground_inspector(ui);
                     return;
                 }
                 match &self.doc {

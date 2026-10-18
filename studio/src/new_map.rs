@@ -35,7 +35,7 @@ impl Default for NewMapForm {
 }
 
 /// Image files under `dir`, as asset paths (`tiles/grass.png`), sorted.
-fn images_in(dir: &std::path::Path) -> Vec<String> {
+pub(crate) fn images_in(dir: &std::path::Path) -> Vec<String> {
     const KINDS: [&str; 6] = ["png", "jpg", "jpeg", "bmp", "tga", "dds"];
     let mut found = Vec::new();
     let mut stack = vec![dir.to_path_buf()];

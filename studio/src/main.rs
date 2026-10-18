@@ -20,6 +20,7 @@ mod dock;
 mod editor;
 mod gpu;
 mod graph_canvas;
+mod ground_panel;
 mod hierarchy;
 mod home;
 mod hot_reload;

@@ -100,6 +100,8 @@ pub struct ViewMode<'a> {
     pub boxing: Option<((f32, f32), (f32, f32))>,
     /// Things hidden from the view (the map keeps them).
     pub hidden: &'a HashSet<Selection>,
+    /// The Ground tool's brush: tiles on each side of the one under the pointer.
+    pub ground_brush: Option<i32>,
 }
 
 /// Pointer state over the map this frame.
@@ -315,8 +317,32 @@ pub fn show(
         draw_portals(&painter, doc, &mode, rect, cam.zoom, to_screen, cell);
     }
 
+    // The Ground tool paints whole tiles: outline the ones it would paint.
+    if let (Some(r), Some(world), Some(g)) = (
+        mode.ground_brush,
+        pointer.world,
+        doc.scene().ground.as_ref(),
+    ) && let Some((x, y)) = crate::editor::ground_tile(doc.scene(), world)
+    {
+        let size = g.tile_size as f32;
+        let corner = |tx: i64, ty: i64| {
+            to_screen(Pos2::new(
+                g.origin.0 as f32 + tx as f32 * size,
+                g.origin.1 as f32 + ty as f32 * size,
+            ))
+        };
+        let (x, y, r) = (i64::from(x), i64::from(y), i64::from(r));
+        let area = Rect::from_two_pos(corner(x - r, y - r), corner(x + r + 1, y + r + 1));
+        painter.rect(
+            area,
+            0.0,
+            colors::DROP.gamma_multiply(0.12),
+            Stroke::new(2.0, colors::DROP),
+            egui::StrokeKind::Inside,
+        );
+    }
     // Brush / hover outline.
-    if let Some(c) = cell {
+    if let Some(c) = cell.filter(|_| mode.ground_brush.is_none()) {
         let center = to_screen(doc.cell_to_world(c));
         match mode.brush {
             Some((r, color)) => {

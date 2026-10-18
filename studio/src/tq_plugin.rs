@@ -270,6 +270,12 @@ impl Client {
         write_map_file(&file, &scene_io::export_dmap(scene).to_bytes(), backup)?;
         Ok(file)
     }
+
+    /// Writes a classic map's ground back to its PUL (atomic; `backup` as for the map).
+    pub fn save_ground(&self, ground: &TileLayer, backup: bool) -> Result<(), String> {
+        let file = self.root.join(Path::new(&ground.source.replace('\\', "/")));
+        write_map_file(&file, &scene_io::export_puzzle(ground).to_bytes(), backup)
+    }
 }
 
 pub fn write_map_file(file: &Path, bytes: &[u8], backup: bool) -> Result<(), String> {

@@ -115,6 +115,14 @@ pub fn scene_from_dmap(dmap: &DMap, ground: TileLayer) -> Scene {
     }
 }
 
+/// Converts a ground layer back to its PUL (tile ids are the ANI's `Puzzle<n>` sections).
+pub fn export_puzzle(layer: &TileLayer) -> Puzzle {
+    let mut puzzle = Puzzle::new(layer.width, layer.height, &layer.tileset.source);
+    puzzle.tiles = layer.tiles.iter().map(|t| t.unwrap_or(EMPTY)).collect();
+    puzzle.roll_speed = Some(layer.scroll);
+    puzzle
+}
+
 /// Converts a scene back to a DMap.
 pub fn export_dmap(scene: &Scene) -> DMap {
     let meta = |k: &str, default: u32| {
@@ -379,5 +387,33 @@ fn layer_to_tq(l: &ParallaxLayer) -> SceneLayer {
         layer_type: dmap::LAYER_SCENE,
         move_rate: l.scroll_rate,
         objects,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ani::AniSection;
+
+    #[test]
+    fn a_painted_ground_writes_back_to_its_puzzle() {
+        let mut puzzle = Puzzle::new(3, 2, "ani/plain.ani");
+        puzzle.tiles = vec![0, 1, EMPTY, 1, 0, 0];
+        let ani = Ani {
+            sections: (0..2)
+                .map(|i| AniSection {
+                    title: format!("Puzzle{i}").into_bytes(),
+                    frames: vec![format!("data/tile{i}.dds").into_bytes()],
+                })
+                .collect(),
+        };
+        let mut layer = tile_layer("map/plain.pul", &puzzle, "ani/plain.ani", &ani);
+        layer.tiles[2] = Some(1);
+        let written = export_puzzle(&layer);
+        assert_eq!(written.tiles, [0, 1, 1, 1, 0, 0]);
+        assert_eq!(written.ani_file.to_gbk_string(), "ani/plain.ani");
+        let again = Puzzle::parse(&written.to_bytes()).unwrap();
+        assert_eq!(again.tiles, written.tiles);
+        assert_eq!((again.width, again.height), (3, 2));
     }
 }

@@ -137,6 +137,8 @@ pub struct Studio {
     pub(crate) revealed: Option<crate::selection::Selection>,
     /// Things copied from a map, ready to paste on any map.
     pub(crate) clipboard: Option<crate::selection::Clip>,
+    /// The Ground tool's palette thumbnails.
+    pub(crate) ground_thumbs: crate::ground_panel::Thumbnails,
     pub(crate) hover: Option<CellPos>,
     pub(crate) streaming: bool,
     pub(crate) error: Option<String>,
@@ -236,6 +238,7 @@ impl Studio {
             picking_effect: false,
             revealed: None,
             clipboard: None,
+            ground_thumbs: Default::default(),
             hover: None,
             streaming: false,
             error: None,
@@ -294,6 +297,25 @@ impl Studio {
         }
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
+        }
+        // A tool by its number key (1-6), and the Ground tool's image.
+        if let Some(tool) = flag("--tool")
+            .and_then(|t| t.parse::<u8>().ok())
+            .and_then(|k| Tool::ALL.into_iter().find(|t| t.key() == k))
+        {
+            s.editor.tool = tool;
+        }
+        if let Some(image) = flag("--ground-image") {
+            s.editor.ground.image = Some(image);
+        }
+        if let Some(mode) = flag("--ground-mode") {
+            use crate::editor::GroundMode;
+            s.editor.ground.mode = match mode.as_str() {
+                "fill" => GroundMode::Fill,
+                "erase" => GroundMode::Erase,
+                "pick" => GroundMode::Pick,
+                _ => GroundMode::Paint,
+            };
         }
         if args.iter().any(|a| a == "--minimap") {
             s.generate_minimap();
@@ -802,6 +824,10 @@ impl Studio {
                 // Content used in place belongs to the original client: keep its original.
                 Some(client) => client
                     .save_map(doc.scene(), path, !project.content_in_project())
+                    .and_then(|_| match doc.changed_ground() {
+                        Some(ground) => client.save_ground(ground, !project.content_in_project()),
+                        None => Ok(()),
+                    })
                     .and_then(|_| {
                         // DMaps hold no population: it lives next to the project's maps.
                         let file = project.population_file(&name);
@@ -1179,6 +1205,7 @@ impl Studio {
                 (Key::Num3, Tool::Block),
                 (Key::Num4, Tool::Clear),
                 (Key::Num5, Tool::Portal),
+                (Key::Num6, Tool::Ground),
             ] {
                 if i.key_pressed(key) {
                     self.editor.tool = tool;

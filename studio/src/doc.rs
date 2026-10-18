@@ -12,6 +12,9 @@ pub struct MapDoc {
     /// Non-fatal load problems, shown in the inspector.
     pub warnings: Vec<String>,
     edit: SceneDoc,
+    /// The ground as last saved (a classic map's ground is its own file, written when it
+    /// changed).
+    saved_ground: Option<c3_scene::TileLayer>,
 }
 
 impl MapDoc {
@@ -19,6 +22,7 @@ impl MapDoc {
         Self {
             map,
             warnings,
+            saved_ground: scene.ground.clone(),
             edit: SceneDoc::new(scene),
         }
     }
@@ -29,6 +33,14 @@ impl MapDoc {
 
     pub fn scene(&self) -> &Scene {
         self.edit.scene()
+    }
+
+    /// The ground layer, when it changed since the last save.
+    pub fn changed_ground(&self) -> Option<&c3_scene::TileLayer> {
+        self.scene()
+            .ground
+            .as_ref()
+            .filter(|g| Some(*g) != self.saved_ground.as_ref())
     }
 
     // ---- geometry (egui types) ----
@@ -124,6 +136,7 @@ impl MapDoc {
 
     /// Call after the scene was written successfully.
     pub fn mark_saved(&mut self) {
+        self.saved_ground = self.scene().ground.clone();
         self.edit.mark_saved();
     }
 }
