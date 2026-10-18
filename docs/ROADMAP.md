@@ -40,7 +40,8 @@ easy for indies. The foundation (M7) comes first, because every later step needs
 - [x] M7 step 1: the game-module seam (done 2026-10-18)
 - [x] M7 step 2: Project Settings (done 2026-10-18)
 - [x] M7 step 3: Input System (done 2026-10-18)
-- [ ] M7 step 4: Native asset pipeline
+- [x] M7 step 4: Native asset pipeline (done 2026-10-18)
+- [ ] M7 step 5: Multi-map worlds
 
 Why this order: see "Review (2026-10-18)" below.
 
@@ -281,11 +282,29 @@ complete project on that engine, then any game of the kind.
     rebinds), `touch` (the on-screen overlay), `GameScreen` reading actions only. Verified on
     a from-scratch project and the Conquer project: the Input page, Play with touch controls,
     the Controls page
-- [ ] (4) Native asset pipeline, the Unity way: plain PNG/JPG sprites, sprite sheets and
+- [x] (4) Native asset pipeline, the Unity way: plain PNG/JPG sprites, sprite sheets and
       tilesets, glTF models and animations, WAV/OGG/MP3, TTF fonts, used in place with per-asset
       import settings (a sidecar file, like Unity's `.meta`); an asset database with stable ids
       and references; hot reload for every asset; a native effect format; the Project panel
       imports, renames, moves and deletes with references kept; TQ formats stay importers
+  - Done 2026-10-18 in seven commits (4a-4g): `c3_core::asset` (sidecars: id + importer:
+    image filter, pivot, grid, animations; sound volume, loop, stream; model scale; effect,
+    font, data), `c3_project::AssetDb` (sidecars written beside the project's files, never in a
+    TQ client; rename/move/delete to `.c3/trash`/import; references in maps, settings, tables
+    and scripts follow a rename), `c3_edit::AssetDoc` (undoable `AssetCommand`s),
+    `c3_play::native` (images and sheet frames `path#i`, sprite sets, tilesets, glTF models,
+    sounds, fonts) layered over every game by `ProjectGame`, `c3-formats-gltf` (Y-up metres to
+    −Z-up pixels, two-joint skinning, rigid parts on animated nodes, 30 fps clips, textures
+    `model#texture<i>`), OGG Vorbis, `.c3fx` effects (flipbooks + glTF layers), sharp-pixel
+    sampling. Studio: Inspector Import section (frame grid over the preview, animations,
+    sound Listen), glTF in the Model view (animation picker), effects in the Preview, hot
+    reload of every view, Project panel + menu, drop-to-import, drag-to-move, rename, delete.
+    Verified on the scratch and Conquer projects (native sprites beside TQ art in the Scene
+    and Play, a skinned and a rigid glTF, a two-layer effect, a font, a live recolour in Play,
+    a folder rename that the map followed)
+  - Later: the Undo History panel lists asset steps (step 7); placing assets by dragging
+    them into the Scene (M8); roles drawn from sheets or glTF models (step 6 / M9); map music
+    for native projects (step 5's map properties)
 - [ ] (5) Multi-map worlds: the map list as an engine registry (ids, names, properties);
       portals with a destination map and cell; players move between maps through portals and
       teleports, in Play mode and on the server (one `Sim` per map, transfers between them)

@@ -6,11 +6,11 @@ review in ROADMAP.md).
 ```
 c3engine/
   engine/            game-agnostic engine crates (c3-*)
-    core/      c3-core: Project Settings types (`settings`) and the Input System's actions and
-               bindings (`input`), shared by every crate
-    assets/    decoded asset types (image, model, sprite set, prefab, effect) and the
-               `AssetSource` read trait (planned: asset database, ids, import settings, hot
-               reload, packaging, plain PNG/glTF/OGG/TTF)
+    core/      c3-core: Project Settings types (`settings`), the Input System's actions and
+               bindings (`input`) and asset sidecars (`asset`: id + import settings), shared by
+               every crate
+    assets/    decoded asset types (image, model, sprite set, prefab, effect, cursor) and the
+               `AssetSource` read trait (planned: packaging)
     render/    wgpu renderer: instanced sprites, streamed ground tiles, objects in painter's
                order, parallax, CPU-skinned meshes (one fixed light), effects, offscreen targets,
                `Camera2d`
@@ -23,14 +23,16 @@ c3engine/
     ui/        c3-ui: in-game UI on egui (HUD, chat, bag + equipment, shop, NPC dialogue,
                quest log + tracker, world overlays and quest marks); returns UiActions; owns
                the shared icon font
-    audio/     c3-audio (rodio): one-shot sounds with distance falloff, music, music regions
+    audio/     c3-audio (rodio): WAV/OGG/MP3, one-shot sounds with distance falloff, music
+               (looping by the sound's import settings), music regions
     script/    Rhai script host: sandboxed, hot reload, NPC dialogue + quest API, editor
                diagnostics; dialogue graphs (`dialogues/*.dialogue.ron`) compiled to scripts;
                the quest model (`tables/quests.table.ron`, state in player variables)
     online/    c3-online: the engine's client/server protocol over c3-net: GameServer (maps,
                logins, per-player views, saves), Connection (a client's end), Accounts
     project/   c3-project: game projects on disk (c3project.toml manifest, settings.toml, folders, content
-               sources, recent projects)
+               sources, recent projects); `AssetDb`: the assets' `.meta` sidecars, file
+               operations (trash in `.c3/trash`) and references that follow renames
     game/      c3-game: the simulation shared by Play mode, client and server: one map's
                players, monsters and drops in fixed ticks (movement, spawns, monster AI,
                melee combat, exp/levels, bag, equipment, shops, jump); a game's `Rules` (Rust)
@@ -42,14 +44,17 @@ c3engine/
                mapper from devices to actions), controls (player rebinds), touch (the
                on-screen joystick and buttons), session, sim view, game audio, server thread,
                `settings` (load, new characters, start, tilt, fonts, icon); `basic::BasicGame`, the engine's own game for projects made from
-               scratch (placeholder figures, a built-in ground, `blank_scene` for new maps)
+               scratch (placeholder figures, a built-in ground, `blank_scene` for new maps);
+               `native` (the project's own images, sheets, glTF models, sounds, `.c3fx`
+               effects in `native_effect`) layered over any game by `ProjectGame`
     edit/      c3-edit: headless editing API. Typed serializable
-               commands with undo/redo, queries and their schemas. Used by the Studio UI,
-               the AI assistant and the MCP server alike
+               commands with undo/redo (scenes, tables, settings, assets), queries and their
+               schemas. Used by the Studio UI, the AI assistant and the MCP server alike
     ai/        (planned) c3-ai: Claude API client and the bridge exposing c3-edit commands
                and queries to the model as tools
   formats/
     c3/        c3-formats-tq: TQ format plugins (read + write)
+    gltf/      c3-formats-gltf: glTF 2.0 models and animations as engine models
   games/
     conquer/   game-conquer: `ConquerModule` (the `GameModule` of Conquer 5065), rules,
                content, role looks, sound tables, `protocol/` (the 5065 client's front:
