@@ -4,6 +4,7 @@ pub mod ani;
 pub mod c3;
 pub mod dmap;
 pub mod hash;
+pub mod ini;
 pub mod io;
 pub mod model_io;
 pub mod pul;

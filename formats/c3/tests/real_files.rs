@@ -426,3 +426,50 @@ fn c3_models_import_to_engine() {
         failed.first()
     );
 }
+
+/// Equipment tables resolve: every part's mesh is in 3dobj.ini and its texture in
+/// 3dtexture.ini, and those files exist in the client.
+#[test]
+fn equipment_tables_resolve_to_files() {
+    use c3_formats_tq::{
+        ini::{PartTable, PathTable},
+        vfs::ClientFs,
+    };
+    let Some(dir) = client_dir() else { return };
+    let fs = ClientFs::open(&dir).unwrap();
+    let table = |name: &str| {
+        fs.read(&format!("ini/{name}"))
+            .unwrap_or_else(|| panic!("{name} missing"))
+            .into_owned()
+    };
+    let objects = PathTable::parse(&table("3dobj.ini"));
+    let textures = PathTable::parse(&table("3dtexture.ini"));
+    let motions = PathTable::parse(&table("3dmotion.ini"));
+    eprintln!(
+        "3dobj {} · 3dtexture {} · 3dmotion {}",
+        objects.paths.len(),
+        textures.paths.len(),
+        motions.paths.len()
+    );
+
+    // head.ini and headmotion.ini are empty in 5065; Mount.ini is a one-entry stub in another layout.
+    for name in ["armor.ini", "weapon.ini", "armet.ini"] {
+        let parts = PartTable::parse(&table(name));
+        let (mut ok, mut no_mesh, mut no_tex, mut no_file) = (0, 0, 0, 0);
+        for part in parts.looks.values().flatten() {
+            match (objects.get(part.mesh), textures.get(part.texture)) {
+                (None, _) => no_mesh += 1,
+                (_, None) if part.texture != 0 => no_tex += 1,
+                (Some(m), t) if fs.read(m).is_none() || t.is_some_and(|t| fs.read(t).is_none()) => {
+                    no_file += 1
+                }
+                _ => ok += 1,
+            }
+        }
+        eprintln!(
+            "{name}: {} looks, parts ok {ok}, unknown mesh id {no_mesh}, unknown texture id {no_tex}, missing file {no_file}",
+            parts.looks.len()
+        );
+        assert!(ok > 0, "{name}: nothing resolved");
+    }
+}
