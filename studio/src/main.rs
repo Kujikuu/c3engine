@@ -32,6 +32,7 @@ mod models_ws;
 mod new_map;
 mod node_editor;
 mod panels;
+mod placing;
 mod play;
 mod project_settings;
 mod scene_inspector;

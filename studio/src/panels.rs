@@ -202,6 +202,10 @@ impl Studio {
         );
         self.hover = r.pointer.cell;
         self.streaming = r.streaming;
+        if let Some((key, at)) = &r.dropped {
+            self.place_asset(key, *at);
+            return;
+        }
         if self.animate {
             // Capped so a long pause doesn't jump animations ahead.
             self.scene_ms += f64::from(ui.input(|i| i.stable_dt).min(0.1)) * 1000.0;

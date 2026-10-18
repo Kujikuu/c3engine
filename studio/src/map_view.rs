@@ -2,6 +2,7 @@
 //! editing overlays on top, handles camera input, and reports pointer interaction for the
 //! active tool (see `editor`).
 
+use crate::browser::AssetKey;
 use crate::doc::MapDoc;
 use crate::gpu::GpuView;
 use crate::icons;
@@ -30,6 +31,8 @@ pub mod colors {
     pub const SOUND: Color32 = Color32::from_rgb(200, 120, 255);
     pub const EFFECT: Color32 = Color32::from_rgb(255, 140, 60);
     pub const HOVER: Color32 = Color32::from_rgb(255, 214, 90);
+    /// Where a dragged asset would land.
+    pub const DROP: Color32 = Color32::from_rgb(90, 200, 255);
     pub const BRUSH_BLOCK: Color32 = Color32::from_rgb(255, 90, 90);
     pub const BRUSH_CLEAR: Color32 = Color32::from_rgb(90, 230, 130);
     pub const NPC: Color32 = Color32::from_rgb(120, 220, 255);
@@ -110,6 +113,8 @@ pub struct Pointer {
 
 pub struct ViewResult {
     pub pointer: Pointer,
+    /// An asset dropped from the Project panel, and the cell it landed on.
+    pub dropped: Option<(AssetKey, CellPos)>,
     /// Tiles still waiting to stream in.
     pub streaming: bool,
 }
@@ -207,11 +212,17 @@ pub fn show(
     draw_selection(&painter, doc, mode, to_screen, diamond);
 
     // Pointer.
-    let hover_pos = resp.hover_pos().or(if resp.is_pointer_button_down_on() {
-        ui.input(|i| i.pointer.interact_pos())
-    } else {
-        None
-    });
+    // While an asset is dragged in from the Project panel the view isn't "hovered" (the
+    // drag owns the pointer), so the pointer is read directly.
+    let carrying = egui::DragAndDrop::has_payload_of_type::<AssetKey>(ui.ctx());
+    let hover_pos = resp
+        .hover_pos()
+        .or(if resp.is_pointer_button_down_on() || carrying {
+            ui.input(|i| i.pointer.interact_pos().or(i.pointer.hover_pos()))
+                .filter(|p| rect.contains(*p))
+        } else {
+            None
+        });
     let cell = hover_pos
         .map(|s| doc.world_to_cell(to_world(s)))
         .filter(|&c| doc.cell(c).is_some());
@@ -222,6 +233,28 @@ pub fn show(
             i.pointer.primary_released(),
         )
     });
+    // An asset dragged from the Project panel: a ghost on the cell it would land on.
+    let dragging = egui::DragAndDrop::payload::<AssetKey>(ui.ctx());
+    let dropped = resp
+        .dnd_release_payload::<AssetKey>()
+        .and_then(|key| cell.map(|c| ((*key).clone(), c)));
+    if let (Some(key), Some(c)) = (&dragging, cell) {
+        let center = to_screen(doc.cell_to_world(c));
+        painter.add(Shape::convex_polygon(
+            diamond(center, 1.0),
+            colors::DROP.gamma_multiply(0.35),
+            Stroke::new(2.0, colors::DROP),
+        ));
+        let name = key.rel.rsplit('/').next().unwrap_or(&key.rel);
+        painter.text(
+            center - Vec2::new(0.0, half_h + 6.0),
+            egui::Align2::CENTER_BOTTOM,
+            format!("{name} · {}, {}", c.0, c.1),
+            egui::FontId::proportional(13.0),
+            Color32::WHITE,
+        );
+    }
+    let dragging = dragging.is_some() || dropped.is_some();
     let pointer = Pointer {
         cell,
         world: hover_pos.map(|s| {
@@ -229,9 +262,10 @@ pub fn show(
             (w.x, w.y)
         }),
         pick_radius: PICK_RADIUS / cam.zoom,
-        primary_pressed: pressed && resp.hovered(),
-        primary_down: down && resp.is_pointer_button_down_on(),
-        primary_released: released,
+        // A drag from the Project panel isn't a click on the map.
+        primary_pressed: pressed && resp.hovered() && !dragging,
+        primary_down: down && resp.is_pointer_button_down_on() && !dragging,
+        primary_released: released && !dragging,
         secondary_clicked: resp.secondary_clicked(),
     };
 
@@ -269,7 +303,11 @@ pub fn show(
         }
     }
 
-    ViewResult { pointer, streaming }
+    ViewResult {
+        pointer,
+        dropped,
+        streaming,
+    }
 }
 
 /// Renders the scene with the engine renderer and paints the result.

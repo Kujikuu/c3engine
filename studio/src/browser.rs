@@ -47,7 +47,7 @@ pub(crate) enum AssetKind {
 }
 
 impl AssetKind {
-    fn of(name: &str) -> Self {
+    pub(crate) fn of(name: &str) -> Self {
         let lower = name.to_lowercase();
         if lower.ends_with(c3_project::MAP_SUFFIX) {
             return Self::Scene;
@@ -958,11 +958,12 @@ impl Studio {
             kind.label().to_owned()
         };
         let editable = self.editable_root(key.root);
-        if editable {
+        // Files drag anywhere (onto the map to place them); folders only within the assets.
+        if kind != AssetKind::Folder {
             response.dnd_set_drag_payload(key.clone());
-            if kind == AssetKind::Folder {
-                drop_target(response, key, pick);
-            }
+        } else if editable {
+            response.dnd_set_drag_payload(key.clone());
+            drop_target(response, key, pick);
         }
         let response = response
             .clone()

@@ -309,11 +309,21 @@ impl Content {
         self.tables.effects.names()
     }
 
-    /// Loads an ANI file as a sprite set.
+    /// Loads an ANI file as a sprite set; a single image (a DDS placed on a map in the
+    /// Studio) is a set of one frame.
     pub fn load_sprite_set(&self, path: &str) -> Option<SpriteSet> {
-        Some(sprite_io::sprite_set_from_ani(
-            &Ani::parse(&self.fs.read(path)?).ok()?,
-        ))
+        let bytes = self.fs.read(path)?;
+        if let Ok(ani) = Ani::parse(&bytes) {
+            return Some(sprite_io::sprite_set_from_ani(&ani));
+        }
+        self.load_image(path)?;
+        Some(SpriteSet {
+            animations: [(
+                c3_play::native::ALL_FRAMES.to_owned(),
+                vec![path.to_owned()],
+            )]
+            .into(),
+        })
     }
 
     /// Loads a `.scene` terrain object as a prefab.

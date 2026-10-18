@@ -3,6 +3,7 @@
 //! the "+" menu creates new things where the Scene view looks, like Unity's Create menu.
 
 use crate::app::{Studio, Workspace};
+use crate::browser::AssetKey;
 use crate::icons;
 use crate::selection::Selection;
 use crate::theme;
@@ -33,6 +34,13 @@ impl Studio {
             );
             return;
         };
+        // Assets dropped on the Hierarchy land in the middle of the Scene view.
+        let zone = ui.interact(ui.max_rect(), ui.next_auto_id(), egui::Sense::hover());
+        if let Some(key) = zone.dnd_release_payload::<AssetKey>() {
+            let at = doc.world_to_cell(self.cam.center);
+            self.place_asset(&key, at);
+            return;
+        }
         let name = if doc.is_dirty() {
             format!("{}*", doc.name())
         } else {
@@ -155,10 +163,12 @@ impl Studio {
         ui.menu_button(theme::icon_text(icons::SPARKLE, "Effect"), |ui| {
             self.effect_picker(ui, at);
         });
-        let object = self.browser_object(at);
+        let object = (self.browser.selected.as_ref()).and_then(|key| self.asset_entity(key, at));
         let hint = match &object {
             Some(_) => "Place the asset selected in the Project panel",
-            None => "Select a sprite set (.ani) or terrain object (.scene) in the Project panel",
+            None => {
+                "Select an image, sprite set, terrain object, sound or effect in the Project panel (or drag one onto the map)"
+            }
         };
         let button = ui.add_enabled(
             object.is_some(),
@@ -231,36 +241,6 @@ impl Studio {
             );
         }
         chosen
-    }
-
-    /// The Project panel's selection as a new object on `at`: a sprite (first animation of a
-    /// sprite set) or a terrain object.
-    fn browser_object(&self, at: CellPos) -> Option<Entity> {
-        let key = self.browser.selected.as_ref()?;
-        let client = self.client.as_ref()?;
-        let rel = key.rel.as_str();
-        let ext = rel.rsplit_once('.')?.1.to_ascii_lowercase();
-        let kind = match ext.as_str() {
-            "ani" => {
-                let set = c3_render::SceneAssets::sprite_set(client, rel)?;
-                let animation = set.animations.keys().next()?.clone();
-                EntityKind::Sprite {
-                    asset: rel.to_owned(),
-                    animation,
-                    footprint: (1, 1),
-                    offset: (0, 0),
-                    frame_ms: 100,
-                }
-            }
-            "scene" | "part" => EntityKind::Prefab {
-                asset: rel.to_owned(),
-            },
-            _ => return None,
-        };
-        Some(Entity {
-            placement: Placement::Cell(at),
-            kind,
-        })
     }
 
     /// Runs a create command and selects what it made.
