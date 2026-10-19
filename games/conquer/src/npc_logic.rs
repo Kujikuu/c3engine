@@ -772,13 +772,8 @@ impl<'a> Builder<'a> {
                 column,
             ),
             // Items: give, take one, carries one (by type, or by name when data is 0).
-            501 => Self::checked(
-                g,
-                "item.give",
-                &[("item", num(a.data)), ("count", num(1))],
-                "given",
-                column,
-            ),
+            501 | 528 => self.award(g, a, &tokens, column),
+            529 => self.erase_token(g, a, &tokens, column),
             502 => match self.item_type(a) {
                 Some(kind) => Self::checked(
                     g,
@@ -1338,6 +1333,130 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// 501: an item given, its numbers as param says (TQ's amount, amount limit, ident, two
+    /// gems, three magics, reduce_dmg, add_life, anti_monster, colour; the colour is 3 unless
+    /// said). 528: a statistic token, `amount_limit` the statistic (event 1) it counts and
+    /// its `data` that statistic now (items §5.3).
+    fn award(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let given = Self::checked(
+            g,
+            "item.give",
+            &[("item", num(a.data)), ("count", num(1))],
+            "given",
+            column,
+        );
+        let int = |i: usize| {
+            tokens
+                .get(i)
+                .and_then(|t| t.parse::<i64>().ok())
+                .unwrap_or(0)
+        };
+        // Conquer's item attributes by their place in param.
+        let mut sets: Vec<(&str, Number)> = (([(2, "ident"), (3, "gem1"), (4, "gem2")].iter())
+            .chain(if a.kind == 501 {
+                &[(8, "bless"), (9, "enchant")][..]
+            } else {
+                &[]
+            }))
+        .filter(|(i, _)| int(*i) != 0)
+        .map(|(i, name)| (*name, Number::Literal(int(*i))))
+        .collect();
+        match a.kind {
+            501 if !tokens.is_empty() => {
+                let color = tokens
+                    .get(11)
+                    .and_then(|t| t.parse::<i64>().ok())
+                    .unwrap_or(3);
+                sets.push(("color", Number::Literal(color)));
+            }
+            528 if tokens.len() == 9 && int(1) != 0 => {
+                let counted = format!("stc_1_{}", int(1));
+                let now = g.node("player.flag", &[("name", txt(&counted))], column);
+                sets.push(("durability", Number::Literal(int(1))));
+                sets.push(("data", Number::Node(now)));
+            }
+            528 if tokens.len() != 9 => sets.clear(),
+            _ => {}
+        }
+        let mut ok = given.ok;
+        for (name, value) in sets {
+            let values = [("item", num(a.data)), ("name", txt(name))];
+            let set = g.node("item.set_given_attr", &values, column);
+            self.feed(g, &value, set, "value");
+            if let Some(from) = ok {
+                g.exec(from, set);
+            }
+            ok = Some((set, "then"));
+        }
+        Emitted { ok, ..given }
+    }
+
+    /// 529: the first statistic token of type `data` counting statistic `param[0]` that has
+    /// seen it grow by `param[1]` since it was given, erased; failing when there is none.
+    fn erase_token(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let int = |i: usize| tokens.get(i).and_then(|t| t.parse::<i64>().ok());
+        let (Some(counted), Some(need)) = (int(0), int(1)) else {
+            return self.not_converted(g, a, column);
+        };
+        const ERASED: &str = "token_erased";
+        let reset = g.node(
+            "player.set_flag",
+            &[("name", txt(ERASED)), ("value", num(0))],
+            column,
+        );
+        let held = g.node("item.held_of", &[("item", num(a.data))], column);
+        let each = g.node("flow.for_each", &[], column);
+        g.data(held, each, "list");
+        g.exec((reset, "then"), each);
+        // This one: it counts that statistic, which has grown enough, and none was erased.
+        let durability = g.node("held.durability", &[], column);
+        g.wire((each, "item"), (durability, "item"));
+        let counts = self.compare_node(g, durability, "==", counted, column);
+        let since = g.node("held.attr", &[("name", txt("data"))], column);
+        g.wire((each, "item"), (since, "item"));
+        let now = g.node(
+            "player.flag",
+            &[("name", txt(&format!("stc_1_{counted}")))],
+            column,
+        );
+        let grown = g.node("math.subtract", &[], column);
+        g.data(now, grown, "a");
+        g.data(since, grown, "b");
+        let enough = self.compare_node(g, grown, ">=", need, column);
+        let erased = g.node("player.flag", &[("name", txt(ERASED))], column);
+        let first = self.compare_node(g, erased, "==", 0, column);
+        let mut all = counts;
+        for cond in [enough, first] {
+            let and = g.node("logic.and", &[], column);
+            g.data(all, and, "a");
+            g.data(cond, and, "b");
+            all = and;
+        }
+        let this = g.node("flow.branch", &[], column);
+        g.data(all, this, "condition");
+        g.exec((each, "body"), this);
+        let erase = g.node("held.erase", &[], column);
+        g.wire((each, "item"), (erase, "item"));
+        g.exec((this, "true"), erase);
+        let mark = g.node(
+            "player.set_flag",
+            &[("name", txt(ERASED)), ("value", num(1))],
+            column,
+        );
+        g.exec((erase, "then"), mark);
+        // Done: whether one was.
+        let one = g.node("player.flag", &[("name", txt(ERASED))], column);
+        let was = self.compare_node(g, one, "==", 1, column);
+        let result = g.node("flow.branch", &[], column);
+        g.data(was, result, "condition");
+        g.exec((each, "done"), result);
+        Emitted {
+            entry: Some(reset),
+            ok: Some((result, "true")),
+            fail: Some((result, "false")),
+        }
+    }
+
     /// 516: a random worn item whose `cq_item` column compares with a number; its slot kept
     /// in `iter_var_data<i>` (flag `var_data<i>`), failing when none does.
     fn pick_worn(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
@@ -1843,6 +1962,19 @@ impl<'a> Builder<'a> {
             .filter_map(|n| n.trim().parse().ok())
             .collect();
         let rest: Vec<&str> = rest.split_whitespace().collect();
+        // Compared with a number the script worked out before (`%iter_var_data<i>`).
+        if let (&[event, kind], 1073, Some(op), Some(Number::Node(v))) = (
+            numbers.as_slice(),
+            a.kind,
+            rest.first().copied(),
+            rest.get(1).and_then(|t| self.number(g, t, column)),
+        ) {
+            let name = txt(&format!("stc_{event}_{kind}"));
+            let flag = g.node("player.flag", &[("name", name)], column);
+            let op = if matches!(op, ">" | ">=") { op } else { "==" };
+            let cmp = self.compare_nodes(g, flag, op, v, column);
+            return Self::branch(g, cmp, column);
+        }
         let (&[event, kind], Some(op), Some(v)) = (
             numbers.as_slice(),
             rest.first().copied(),
@@ -1935,6 +2067,81 @@ mod tests {
         assert!(script.contains("Hello {player}!"), "{script}");
         assert!(script.contains("task_20"), "{script}");
         assert!(script.contains("teleport(1002"), "{script}");
+    }
+
+    #[test]
+    fn statistic_tokens_are_given_and_erased() {
+        let mut logic = NpcLogic::default();
+        for a in [
+            action(10, 11, 0, 528, 750_000, "1 55 0 0 0 0 0 0 0"),
+            action(11, 0, 0, 101, 0, "Given."),
+            action(20, 21, 22, 529, 750_000, "55 1800"),
+            action(21, 0, 0, 101, 0, "Erased."),
+            action(22, 0, 0, 101, 0, "Not~yet."),
+        ] {
+            logic.actions.insert(a.id, a);
+        }
+        logic.tasks.insert(1, task(1, 10));
+        logic.tasks.insert(2, task(2, 20));
+        let npcs = BTreeMap::from([(7, vec![1]), (8, vec![2])]);
+        let converted = convert(&logic, &npcs, &HashMap::new());
+        let dir = std::env::temp_dir().join(format!("c3-tokens-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, bp) in &converted.blueprints {
+            let script = c3_script::blueprint::compile(name, bp).expect("compiles");
+            let file = dir.join(format!("graphs/{name}{}", c3_script::SCRIPT_SUFFIX));
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, script).unwrap();
+        }
+        let mut host = c3_script::ScriptHost::new(dir.clone(), None);
+        let npc = |id| c3_script::NpcInfo {
+            id,
+            name: "Clerk".into(),
+        };
+        let mut player = c3_script::PlayerState {
+            flags: BTreeMap::from([("stc_1_55".to_owned(), 1950)]),
+            bag_space: 5,
+            ..Default::default()
+        };
+        let reply = host
+            .talk(&converted.scripts[&7], &npc(7), &mut player)
+            .unwrap();
+        let given = |name: &str, value| c3_script::Effect::GivenAttr {
+            item: 750_000,
+            name: name.into(),
+            value,
+        };
+        assert!(
+            reply.effects.contains(&given("durability", 55)),
+            "{:?}",
+            reply.effects
+        );
+        assert!(
+            reply.effects.contains(&given("data", 1950)),
+            "{:?}",
+            reply.effects
+        );
+        // A token given at 100 of that statistic: 1850 since, enough.
+        let token = |data| c3_script::HeldItem {
+            kind: 750_000,
+            count: 1,
+            durability: 55,
+            worn: false,
+            attrs: BTreeMap::from([("data".to_owned(), data)]),
+        };
+        player.held = BTreeMap::from([(5, token(1900)), (6, token(100))]);
+        player.items = BTreeMap::from([(750_000, 2)]);
+        let reply = host
+            .talk(&converted.scripts[&8], &npc(8), &mut player)
+            .unwrap();
+        assert_eq!(reply.page.lines, ["Erased."]);
+        assert_eq!(player.held.keys().collect::<Vec<_>>(), [&5]);
+        let reply = host
+            .talk(&converted.scripts[&8], &npc(8), &mut player)
+            .unwrap();
+        assert_eq!(reply.page.lines, ["Not yet."]);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

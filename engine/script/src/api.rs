@@ -178,12 +178,22 @@ fn items(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("has_item", move |item: i64, count: i64| {
         with(&s, |c| c.player.item_count(item) >= count)
     });
+    // Given when the bag has room (a free place, or a stack of it to join); whether it was.
     let give = |s: Shared| {
         move |item: i64, count: i64| {
             positive(count, "count")?;
             with(&s, |c| {
+                let joins = c.player.item_count(item) > 0;
+                if !joins && c.player.bag_space <= 0 {
+                    c.effects.push(Effect::Message("Your bag is full.".into()));
+                    return false;
+                }
+                if !joins {
+                    c.player.bag_space -= 1;
+                }
                 c.player.give_item(item, count);
                 c.effects.push(Effect::GaveItem { item, count });
+                true
             })
         }
     };
@@ -821,6 +831,41 @@ fn held_items(engine: &mut Engine, shared: &Shared) {
             }
         })
     });
+    let s = shared.clone();
+    engine.register_fn("held_of", move |kind: i64| {
+        with(&s, |c| {
+            (c.player.held.iter())
+                .filter(|(_, i)| i.kind == kind && !i.worn)
+                .map(|(id, _)| Dynamic::from(*id))
+                .collect::<rhai::Array>()
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("erase_item", move |id: i64| {
+        with(&s, |c| match c.player.held.get(&id) {
+            Some(item) if !item.worn => {
+                let (kind, count) = (item.kind, item.count.max(1));
+                c.player.held.remove(&id);
+                c.player.take_item(kind, count);
+                c.effects.push(Effect::TookItem { item: kind, count });
+                true
+            }
+            _ => false,
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn(
+        "set_given_attr",
+        move |item: i64, name: &str, value: i64| {
+            with(&s, |c| {
+                c.effects.push(Effect::GivenAttr {
+                    item,
+                    name: name.to_owned(),
+                    value,
+                })
+            })
+        },
+    );
     let s = shared.clone();
     engine.register_fn("item_worn", move |id: i64| {
         with(&s, |c| c.player.held.get(&id).is_some_and(|i| i.worn))

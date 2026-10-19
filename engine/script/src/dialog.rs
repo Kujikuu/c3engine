@@ -109,6 +109,8 @@ pub struct DialogOption {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HeldItem {
     pub kind: i64,
+    /// How many there are (a stack).
+    pub count: i64,
     pub durability: i64,
     pub worn: bool,
     /// The game's numbers for it, by the settings' item attribute names.
@@ -192,6 +194,13 @@ pub enum Effect {
     Signal {
         name: String,
         args: [i64; 3],
+    },
+    /// The item of type `item` given last gets `value` as attribute `name` (or, named
+    /// "durability", as its durability).
+    GivenAttr {
+        item: i64,
+        name: String,
+        value: i64,
     },
     /// NPC `npc` goes to `cell` of game map `map` (another map: it leaves this one).
     MoveNpc {

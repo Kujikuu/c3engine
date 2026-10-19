@@ -192,6 +192,7 @@ impl Sim {
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
             Effect::Life(change) => self.script_life(id, change),
             Effect::DropMoney(amount) => self.drop_money_of(id, amount),
+            Effect::GivenAttr { item, name, value } => self.set_given_attr(id, item, &name, value),
             Effect::Signal { name, args } => {
                 let args = args.iter().map(|&a| a.into()).collect();
                 self.script_event(id, &name, args);
@@ -391,6 +392,7 @@ impl Sim {
                     let names = self.settings.item_attributes.iter();
                     let held = c3_script::HeldItem {
                         kind: item.kind.into(),
+                        count: item.count.into(),
                         durability: item.durability.into(),
                         worn,
                         attrs: (names.zip(item.attrs))
@@ -486,6 +488,17 @@ impl Sim {
                 self.learn_skill(id, skill);
             }
         }
+        // Items taken away by their ids, then the counts the rest of the change makes.
+        let mut erased: BTreeMap<i64, i64> = BTreeMap::new();
+        if let Some(p) = self.players.get_mut(&id) {
+            p.bag.retain(|item| {
+                let gone = !after.held.contains_key(&i64::from(item.id));
+                if gone {
+                    *erased.entry(item.kind.into()).or_default() += i64::from(item.count);
+                }
+                !gone
+            });
+        }
         let kinds: BTreeSet<i64> = before
             .items
             .keys()
@@ -494,7 +507,8 @@ impl Sim {
             .collect();
         for kind in kinds {
             let Ok(k) = u32::try_from(kind) else { continue };
-            let change = after.item_count(kind) - before.item_count(kind);
+            let change = after.item_count(kind) - before.item_count(kind)
+                + erased.get(&kind).copied().unwrap_or(0);
             let count = u32::try_from(change.unsigned_abs()).unwrap_or(u32::MAX);
             if change > 0 {
                 self.give_items(id, k, count);
@@ -504,6 +518,24 @@ impl Sim {
         }
         // Attributes and the look may change what the player's stats are.
         self.refresh_stats(id);
+    }
+
+    /// The player's item of type `kind` given last (the bag's last of it) gets `value` as
+    /// attribute `name`, or as its durability.
+    fn set_given_attr(&mut self, id: EntityId, kind: i64, name: &str, value: i64) {
+        let index = self.settings.item_attributes.iter().position(|n| n == name);
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let Some(item) = p.bag.iter_mut().rev().find(|i| i64::from(i.kind) == kind) else {
+            return;
+        };
+        let value32 = value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        match (name, index) {
+            ("durability", _) => item.durability = u32::try_from(value.max(0)).unwrap_or(u32::MAX),
+            (_, Some(i)) if i < item.attrs.len() => item.attrs[i] = value32,
+            _ => {}
+        }
     }
 
     /// The walkable cell next to `npc` nearest `from` (or the NPC's own cell).

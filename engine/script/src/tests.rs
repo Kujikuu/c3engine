@@ -59,6 +59,7 @@ fn dialogue_pages_answers_and_player_changes() {
     let mut player = PlayerState {
         name: "Hero".into(),
         money: 150,
+        bag_space: 10,
         ..Default::default()
     };
     let reply = host.talk("npc/shop", &npc(), &mut player).unwrap();

@@ -79,6 +79,19 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "held_of(type)",
+        "The ids of the player's items of `type` in the bag, for the item functions",
+    ),
+    (
+        "erase_item(id)",
+        "Takes away the player's item `id` from the bag; false when it can't",
+    ),
+    (
+        "set_given_attr(type, name, value)",
+        "The item of `type` given last (give_item) gets `value` as attribute `name`, or as its \
+         durability",
+    ),
+    (
         "level_after(exp) / percent_after(exp)",
         "The level, and the whole percent into it, the player would be at with `exp` more \
          experience (the levels table walked; nothing changes)",
@@ -168,7 +181,10 @@ pub const API: &[(&str, &str)] = &[
         "has_item(item[, n])",
         "Whether the player carries (n of) an item",
     ),
-    ("give_item(item[, n])", "Gives the player (n of) an item"),
+    (
+        "give_item(item[, n])",
+        "Gives the player (n of) an item when the bag has room for it; whether it did",
+    ),
     (
         "take_item(item[, n])",
         "Takes (n of) an item if carried; true if taken",
