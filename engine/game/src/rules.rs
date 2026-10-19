@@ -121,7 +121,8 @@ pub struct Loot {
 pub struct StatsFor<'a> {
     pub level: u32,
     pub profession: u32,
-    /// The game's attributes (every one the settings name, defaults included).
+    /// The game's attributes (every one the settings name, defaults included) and, for a
+    /// player, what it wears as a fighter's facts ([`Fighter::facts`]).
     pub attributes: &'a std::collections::BTreeMap<String, i64>,
 }
 

@@ -258,6 +258,20 @@ pub const NODES: &[NodeDef] = &[
         &[("used", Item), ("target", Number)],
     ),
     event(
+        "event.combine",
+        "On working items together",
+        "on_combine",
+        &[
+            ("kind", Number),
+            ("item1", Number),
+            ("item2", Number),
+            ("item3", Number),
+            ("item4", Number),
+            ("item5", Number),
+            ("value", Number),
+        ],
+    ),
+    event(
         "event.level_up",
         "On levelling up",
         "on_level_up",

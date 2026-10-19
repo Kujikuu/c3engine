@@ -16,6 +16,10 @@ pub const ACCOUNT: u16 = 1051;
 pub const CONNECT: u16 = 1052;
 pub const LOGIN_REPLY: u16 = 1055;
 pub const MAP_ITEM: u16 = 1101;
+/// Setting a gem in a socket or taking it out (items spec §6.1).
+pub const GEM_EMBED: u16 = 1027;
+/// Composing +N: the main item, two minors and the gems (items spec §7.1).
+pub const COMPOSE: u16 = 2036;
 pub const NPC_INFO: u16 = 2030;
 pub const NPC: u16 = 2031;
 pub const DIALOG: u16 = 2032;
@@ -88,6 +92,20 @@ pub mod item {
     /// A Meteor (data) on an item (id): its level.
     pub const UPLEV: u16 = 20;
     pub const PING: u16 = 27;
+    /// A gem (data) enchanting an item (id): its extra life (items spec §6.4).
+    pub const ENCHANT: u16 = 28;
+}
+
+/// The kinds of `Input::Combine` Conquer's rules blueprint answers.
+pub mod combine {
+    /// A gem set in an item's socket (`value`: 1 or 2).
+    pub const EMBED: u32 = 1;
+    /// The gem in an item's socket taken out (destroyed).
+    pub const REMOVE_GEM: u32 = 2;
+    /// +N composing: the main item, two minors, the gems.
+    pub const COMPOSE: u32 = 3;
+    /// A gem enchanting an item.
+    pub const ENCHANT: u32 = 4;
 }
 
 /// Status flag of a dead role.
@@ -422,6 +440,17 @@ pub enum Request {
         channel: u16,
         words: String,
     },
+    /// A gem set in (`remove` false) or taken from socket `pos` of `item`.
+    GemEmbed {
+        item: u32,
+        gem: u32,
+        pos: u16,
+        remove: bool,
+    },
+    /// Composing: the main item first, then the minors and gems.
+    Compose {
+        items: Vec<u32>,
+    },
     /// The client's ping (MsgItem 27), answered by sending it back unchanged.
     Ping(Vec<u8>),
     /// A packet the front doesn't use.
@@ -474,6 +503,29 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 action => Request::Item { action, id, data },
             }
         }
+        GEM_EMBED => {
+            r.skip(4)?;
+            let (item, gem) = (r.u32()?, r.u32()?);
+            let pos = r.u16()?;
+            Request::GemEmbed {
+                item,
+                gem,
+                pos,
+                remove: r.u16()? == 1,
+            }
+        }
+        COMPOSE => match r.u8()? {
+            0 => {
+                let count = usize::from(r.u8()?).min(5);
+                r.skip(2)?;
+                let mut items = Vec::with_capacity(count);
+                for _ in 0..count {
+                    items.push(r.u32()?);
+                }
+                Request::Compose { items }
+            }
+            _ => Request::Other(kind),
+        },
         MAP_ITEM => {
             let id = r.u32()?;
             r.skip(10)?;

@@ -5,7 +5,7 @@
 mod client;
 mod crypto;
 mod front;
-mod packets;
+pub(crate) mod packets;
 mod wire;
 
 pub use front::{ACCOUNT_PORT, ConquerFront, ConquerSetup, GAME_PORT};

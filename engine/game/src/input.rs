@@ -39,6 +39,14 @@ pub enum Input {
         item: u32,
         target: u32,
     },
+    /// Work items together (set a gem, compose, enchant): the game's kind of work, the items
+    /// (up to five, the player's own) and a number (a socket); its rules answer.
+    Combine {
+        kind: u32,
+        items: Vec<u32>,
+        #[serde(default)]
+        value: i64,
+    },
     /// Take off worn item `id`.
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
@@ -78,6 +86,7 @@ impl Sim {
             Input::Ghost => self.become_ghost(id),
             Input::Use(item) => self.use_item(id, item),
             Input::UseOn { item, target } => self.use_item_on(id, item, target),
+            Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
             Input::Unequip(item) => self.unequip(id, item),
             Input::Say(line) if line.starts_with('/') => {
                 let (ok, text) = match self.command(id, &line) {

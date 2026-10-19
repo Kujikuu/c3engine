@@ -782,8 +782,36 @@ impl ConquerClient {
                     item: data,
                     target: item_id,
                 }),
+                item::ENCHANT => inputs.push(Input::Combine {
+                    kind: pk::combine::ENCHANT,
+                    items: vec![item_id, data],
+                    value: 0,
+                }),
                 _ => {}
             },
+            Request::GemEmbed {
+                item: target,
+                gem,
+                pos,
+                remove,
+            } => inputs.push(Input::Combine {
+                kind: if remove {
+                    pk::combine::REMOVE_GEM
+                } else {
+                    pk::combine::EMBED
+                },
+                items: if remove {
+                    vec![target]
+                } else {
+                    vec![target, gem]
+                },
+                value: i64::from(pos.clamp(1, 2)),
+            }),
+            Request::Compose { items } if items.len() >= 3 => inputs.push(Input::Combine {
+                kind: pk::combine::COMPOSE,
+                items,
+                value: 0,
+            }),
             Request::MapItem {
                 action: 3,
                 id: item_id,

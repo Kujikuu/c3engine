@@ -17,8 +17,8 @@ const CLASS: &str =
     "if((profession % 1000) / 10 > 10, (profession % 1000) / 100 * 10, (profession % 1000) / 10)";
 
 /// TQ's MaxLife (progression §5.1): 3 × (strength + agility + spirit) + 24 × vitality, and
-/// Trojans 5–15% more by their step.
-const LIFE: &str = "base + if((profession % 1000) / 10 == 1, base * if(profession % 10 == 1, 5, if(profession % 10 == 2, 8, if(profession % 10 == 3, 10, if(profession % 10 == 4, 12, if(profession % 10 == 5, 15, 0))))) / 100, 0)";
+/// Trojans 5–15% more by their step; worn items' enchanting adds its life (items §6.4).
+const LIFE: &str = "worn_enchant + base + if((profession % 1000) / 10 == 1, base * if(profession % 10 == 1, 5, if(profession % 10 == 2, 8, if(profession % 10 == 3, 10, if(profession % 10 == 4, 12, if(profession % 10 == 5, 15, 0))))) / 100, 0)";
 const LIFE_BASE: &str = "(strength + agility + spirit + vitality * 8) * 3";
 /// TQ's MaxMana (§5.2): spirit × 5; Fire and Water Taoists × 5 more per step (up to × 30).
 const MANA: &str =
@@ -29,7 +29,7 @@ const MANA: &str =
 /// per 5 levels.
 const HIT_CHANCE: &str = "min(max(if(attacker.monster == 0, attacker.agility, attacker.dexterity) / 2 - target.dodge + 100, 10), 90) + if(attacker.monster == 0 && target.monster != 0 && attacker.level > target.level, (attacker.level - target.level) / 5 * 10, 0)";
 /// Melee damage (battle §2.4–2.6), worked out in steps; nothing when it misses.
-const HIT_STEPS: [(&str, &str); 9] = [
+const HIT_STEPS: [(&str, &str); 10] = [
     // The attack: the roll, Dragon gems, and against a monster the level difference.
     (
         "pve",
@@ -57,7 +57,15 @@ const HIT_STEPS: [(&str, &str); 9] = [
         "least",
         "max(if(attacker.monster == 0, attacker.strength, (attacker.attack_min + attacker.attack_max) / 2) / if(armor == 6, 100, if(armor == 7, 200, if(armor == 8, 500, if(armor == 9, 1000, 10)))), 1)",
     ),
-    ("raw", "max(max(atk - def, 0), least)"),
+    // A bow (500xxx) goes against dodge, not defence, and players take a share by level.
+    (
+        "bow",
+        "attacker.monster == 0 && attacker.worn4 / 1000 == 500",
+    ),
+    (
+        "raw",
+        "if(bow, max(atk - atk * max(target.dodge - if(target.monster == 0, 50, 25), 0) / 100, least) * if(target.monster != 0, 100, if(target.level < 22, 35, if(target.level < 50, 25, if(target.level < 90, 20, if(target.level < 110, 15, 12))))) / 100, max(max(atk - def, 0), least))",
+    ),
     // A player target: Tortoise gems take half, rebirths a share, blessing its percent.
     (
         "tortoise",
@@ -92,6 +100,7 @@ pub fn rules_blueprint() -> Blueprint {
     };
     player_stats(&mut bp.events, next_lane(600.0));
     hit(&mut bp.events, next_lane(500.0));
+    skill_hit(&mut bp.events, next_lane(700.0));
     exp(&mut bp.events, next_lane(300.0));
     can_wear(&mut bp.events, next_lane(500.0));
     level_up(&mut bp.events, next_lane(300.0));
@@ -101,6 +110,7 @@ pub fn rules_blueprint() -> Blueprint {
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
+    combine(&mut bp.events, next_lane(2400.0));
     bp.functions.push(allot());
     bp
 }
@@ -267,6 +277,58 @@ fn player_stats(g: &mut Graph, top: f32) {
                 node: record,
                 pin: "value".into(),
             }
+        },
+    );
+}
+
+/// Magic damage (battle M.6) in steps: the skill's power and the caster's gear, less against
+/// players, the level difference against monsters, the target's magic defence, Phoenix gems.
+const MAGIC_STEPS: [(&str, &str); 6] = [
+    (
+        "m_power",
+        "skill.power + if(attacker.monster == 0, attacker.gear_magic_atk, 0)",
+    ),
+    (
+        "m_level",
+        "if(target.monster == 0, m_power - m_power / 4, if(attacker.monster == 0, max(100 + disdain_usr_atk_mst(attacker.level - target.level), 0) * m_power / 100, m_power))",
+    ),
+    (
+        "m_def",
+        "m_level - min(if(target.monster != 0, target.magic_def, target.gear_magic_def), 90) * m_level / 100",
+    ),
+    (
+        "m_gem",
+        "if(attacker.monster == 0, m_def + attacker.socket_gem_magic * m_def / 100, m_def)",
+    ),
+    (
+        "m_super",
+        "if(attacker.socket_gem_magic >= 180, m_gem + m_gem / 20, m_gem)",
+    ),
+    (
+        "m_tortoise",
+        "if(target.monster == 0, m_super - m_super / 2 * min(target.socket_gem_defence, 100) / 100, m_super)",
+    ),
+];
+/// A skill's damage: physical skills (power 30000 + percent) a weapon hit's share, others
+/// magic; both then rebirth defence (players) or `defence2` (monsters), and blessing.
+const SKILL_HIT: &str = "if(skill.power >= 30000, reborn * (skill.power - 30000) / 100, if(target.monster != 0, if(target.defence2 > 0, m_tortoise * target.defence2 / 10000, m_tortoise), m_tortoise * if(target.rebirths >= 2, if(attacker.monster != 0 || attacker.rebirths >= 2, 7000, 5000), if(target.rebirths >= 1 && target.profession % 10 >= 3, 7000, 10000)) / 10000))";
+
+fn skill_hit(g: &mut Graph, top: f32) {
+    formula(
+        g,
+        top,
+        "formula.skill_hit",
+        &["attacker", "target", "skill"],
+        None,
+        |w, names| {
+            for (name, text) in HIT_STEPS.iter().chain(&MAGIC_STEPS) {
+                names.define(w, name, text);
+            }
+            names.define(w, "damage", SKILL_HIT);
+            names.write(
+                w,
+                "max(damage - if(target.monster == 0, damage * min(target.worn_bless, 100) / 100, 0), 1)",
+            )
         },
     );
 }
@@ -729,6 +791,312 @@ fn upgrade_name(
         node,
         pin: "value".into(),
     })
+}
+
+/// One way of working items together (items §6–7): its kind, the checks that must hold (and
+/// what is said when one doesn't), and what is done, in order.
+struct Work {
+    kind: u32,
+    checks: &'static [(&'static str, &'static str)],
+    steps: &'static [Step],
+}
+
+/// A step of a [`Work`].
+enum Step {
+    /// Item attribute `name` of the item `item` names set to `value`.
+    Set {
+        item: &'static str,
+        name: &'static str,
+        value: &'static str,
+    },
+    /// The item `item` names erased, when `when` holds (empty: always).
+    Erase {
+        item: &'static str,
+        when: &'static str,
+    },
+    /// The player told `text`.
+    Say(&'static str),
+}
+
+/// A gem item (700xxx); an open socket holds 255.
+const IS_GEM: &str = "t(gem) / 10000 == 70";
+
+/// TQ's ways of working items together, as `Input::Combine` raises them.
+const WORKS: [Work; 4] = {
+    use crate::protocol::packets::combine;
+    [
+        // A gem set in an open socket (§6.1; no restriction of gem to item).
+        Work {
+            kind: combine::EMBED,
+            checks: &[
+                (IS_GEM, "That isn't a gem."),
+                ("socket == 255", "That socket isn't open."),
+            ],
+            steps: &[
+                Step::Set {
+                    item: "item",
+                    name: "socket",
+                    value: "t(gem) % 1000",
+                },
+                Step::Erase {
+                    item: "gem",
+                    when: "",
+                },
+                Step::Say("The gem is set."),
+            ],
+        },
+        // The gem in a socket taken out: destroyed, the socket open again.
+        Work {
+            kind: combine::REMOVE_GEM,
+            checks: &[("socket != 0 && socket != 255", "There is no gem there.")],
+            steps: &[
+                Step::Set {
+                    item: "item",
+                    name: "socket",
+                    value: "255",
+                },
+                Step::Say("The gem is taken out."),
+            ],
+        },
+        // +N composing (§7.1): two minors of the same kind (or +N stones) at least the main's
+        // plus; from +5 a gem, and for weapons two; no roll.
+        Work {
+            kind: combine::COMPOSE,
+            checks: &[
+                ("t(item) / 10000 != 73", "A stone can't be the main item."),
+                ("plus(item) < 9", "It can't be raised any further."),
+                (
+                    "fits(item2) && fits(item3)",
+                    "Those items don't go with it.",
+                ),
+                (
+                    "plus(item2) > 0 && plus(item3) > 0 && plus(item2) >= plus(item) && plus(item3) >= plus(item)",
+                    "The other items' plus must be at least the main item's.",
+                ),
+                (
+                    "plus(item) < 5 || t(item4) / 10000 == 70 && (!weapon(item) || t(item5) / 10000 == 70)",
+                    "Composing past +5 takes gems.",
+                ),
+            ],
+            steps: &[
+                Step::Erase {
+                    item: "item2",
+                    when: "",
+                },
+                Step::Erase {
+                    item: "item3",
+                    when: "",
+                },
+                Step::Erase {
+                    item: "item4",
+                    when: "plus(item) >= 5",
+                },
+                Step::Erase {
+                    item: "item5",
+                    when: "plus(item) >= 5 && weapon(item)",
+                },
+                Step::Set {
+                    item: "item",
+                    name: "plus",
+                    value: "plus(item) + 1",
+                },
+                Step::Say("Composed."),
+            ],
+        },
+        // A gem enchanting an item (§6.4): extra life by the gem's kind and grade, kept when
+        // higher; the gem is spent either way.
+        Work {
+            kind: combine::ENCHANT,
+            checks: &[(IS_GEM, "That isn't a gem.")],
+            steps: &[
+                Step::Set {
+                    item: "item",
+                    name: "enchant",
+                    value: "max(enchant(item), roll)",
+                },
+                Step::Erase {
+                    item: "gem",
+                    when: "",
+                },
+                Step::Say("The item is enchanted."),
+            ],
+        },
+    ]
+};
+
+/// What an enchanting gem gives: by its grade and kind (items §6.4 table).
+const ENCHANT_ROLL: &str = "if(t(gem) % 10 == 1, random(1, 59), if(t(gem) % 10 == 2, random(e2, e2 + 49), random(e3, e3 + if(t(gem) / 10 % 10 == 1, 55, 59))))";
+const ENCHANT_GRADE2: &str = "if(t(gem) / 10 % 10 == 0, 60, if(t(gem) / 10 % 10 == 1, 100, if(t(gem) / 10 % 10 == 3, 80, if(t(gem) / 10 % 10 == 5 || t(gem) / 10 % 10 == 6, 60, 40))))";
+const ENCHANT_GRADE3: &str = "if(t(gem) / 10 % 10 == 1, 200, if(t(gem) / 10 % 10 == 2, 90, if(t(gem) / 10 % 10 == 4, 70, if(t(gem) / 10 % 10 == 5 || t(gem) / 10 % 10 == 6, 140, 170))))";
+
+/// Items worked together (`on_combine`): each of [`WORKS`] on its kind, its checks in turn,
+/// then its steps.
+fn combine(g: &mut Graph, top: f32) {
+    let event = node(g, "event.combine", [0.0, top], &[]);
+    let pin = |p: &str| Operand::Pin {
+        node: event,
+        pin: p.into(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let mut lets: Vec<(String, Operand)> = vec![
+        ("kind".into(), pin("kind")),
+        ("item".into(), pin("item1")),
+        ("gem".into(), pin("item2")),
+        ("pos".into(), pin("value")),
+    ];
+    for i in 2..=5 {
+        lets.push((format!("item{i}"), pin(&format!("item{i}"))));
+    }
+    let write = |w: &mut ExprWriter, lets: &mut Vec<(String, Operand)>, name: &str, text: &str| {
+        let value = w
+            .write(text, &mut |w, n, args| item_name(w, lets, n, args))
+            .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"));
+        if !name.is_empty() {
+            lets.push((name.to_owned(), value.clone()));
+        }
+        value
+    };
+    write(
+        &mut w,
+        &mut lets,
+        "socket",
+        "if(pos == 1, gem1(item), gem2(item))",
+    );
+    write(&mut w, &mut lets, "e2", ENCHANT_GRADE2);
+    write(&mut w, &mut lets, "e3", ENCHANT_GRADE3);
+    write(&mut w, &mut lets, "roll", ENCHANT_ROLL);
+    let mut steps: Vec<((u32, &'static str), u32)> = Vec::new();
+    let mut from = (event, "then");
+    for work in &WORKS {
+        let is = write(&mut w, &mut lets, "", &format!("kind == {}", work.kind));
+        let which = w.node("flow.branch", &[]);
+        w.feed(&is, which, "condition");
+        steps.push((from, which));
+        from = (which, "false");
+        let mut at = (which, "true");
+        for (check, refusal) in work.checks {
+            let ok = write(&mut w, &mut lets, "", check);
+            let branch = w.node("flow.branch", &[]);
+            w.feed(&ok, branch, "condition");
+            steps.push((at, branch));
+            let say = w.node("player.message", &[("text", text(refusal))]);
+            steps.push(((branch, "false"), say));
+            at = (branch, "true");
+        }
+        for step in work.steps {
+            let mut nodes = Vec::new();
+            match step {
+                Step::Set { item, name, value } => {
+                    let id = write(&mut w, &mut lets, "", item);
+                    // A socket: both written, only the one `pos` names changed.
+                    let sets: Vec<(&str, String)> = match *name {
+                        "socket" => vec![
+                            ("gem1", format!("if(pos == 1, {value}, gem1({item}))")),
+                            ("gem2", format!("if(pos != 1, {value}, gem2({item}))")),
+                        ],
+                        other => vec![(other, (*value).to_owned())],
+                    };
+                    for (attr, value) in sets {
+                        let v = write(&mut w, &mut lets, "", &value);
+                        let set = w.node("held.set_attr", &[("name", text(attr))]);
+                        w.feed(&id, set, "item");
+                        w.feed(&v, set, "value");
+                        nodes.push(set);
+                    }
+                }
+                // Not wanted: item 0, which erases nothing.
+                Step::Erase { item, when } => {
+                    let id = match *when {
+                        "" => write(&mut w, &mut lets, "", item),
+                        when => write(&mut w, &mut lets, "", &format!("if({when}, {item}, 0)")),
+                    };
+                    let erase = w.node("held.erase", &[]);
+                    w.feed(&id, erase, "item");
+                    nodes.push(erase);
+                }
+                Step::Say(line) => nodes.push(w.node("player.message", &[("text", text(line))])),
+            }
+            for node in nodes {
+                steps.push((at, node));
+                at = (node, "then");
+            }
+        }
+    }
+    for (from, to) in steps {
+        wire(g, from, (to, "exec"));
+    }
+}
+
+/// Names the item works use: their pins and values (`lets`), `t(x)` an item's type, `plus`,
+/// `gem1`, `gem2`, `enchant` its numbers (a +N stone's plus is its grade), `weapon(x)`, and
+/// `fits(x)`: item `x` may be composed into the main item.
+fn item_name(
+    w: &mut ExprWriter,
+    lets: &[(String, Operand)],
+    name: &str,
+    args: &[Operand],
+) -> Option<Operand> {
+    if let Some((_, v)) = lets.iter().find(|(n, _)| n == name) {
+        return Some(v.clone());
+    }
+    let pin = |node| Operand::Pin {
+        node,
+        pin: "value".into(),
+    };
+    let [x] = args else {
+        return None;
+    };
+    let ty = |w: &mut ExprWriter| {
+        let n = w.node("held.type", &[]);
+        w.feed(x, n, "item");
+        pin(n)
+    };
+    let derived = |w: &mut ExprWriter, text: &str| {
+        let t = ty(w);
+        w.write(text, &mut |w, n, a| match n {
+            "x" => Some(x.clone()),
+            "t" if a.is_empty() => Some(t.clone()),
+            _ => item_name(w, lets, n, a),
+        })
+        .ok()
+    };
+    match name {
+        "t" => Some(ty(w)),
+        "plus" => derived(w, "if(t / 10000 == 73, t % 10, attr_plus(x))"),
+        "weapon" => derived(w, "t / 100000 == 4 || t / 100000 == 5"),
+        // A +N stone, or the main item's sort (weapons: one- or two-handed, bows only with
+        // bows, backswords only with backswords; others their subtype).
+        "fits" => {
+            let main = lets
+                .iter()
+                .find(|(n, _)| n == "item")
+                .map(|(_, v)| v.clone())?;
+            let m = {
+                let n = w.node("held.type", &[]);
+                w.feed(&main, n, "item");
+                pin(n)
+            };
+            let t = ty(w);
+            w.write(
+                "t / 10000 == 73 || (m / 100000 == 4 || m / 100000 == 5) && t / 100000 == m / 100000 && (m / 1000 != 500 || t / 1000 == 500) && (m / 1000 == 500 || t / 1000 != 500) && (m / 1000 != 421 || t / 1000 == 421) && (m / 1000 == 421 || t / 1000 != 421) || m / 100000 != 4 && m / 100000 != 5 && t / 1000 == m / 1000",
+                &mut |_, n, _| match n {
+                    "t" => Some(t.clone()),
+                    "m" => Some(m.clone()),
+                    _ => None,
+                },
+            )
+            .ok()
+        }
+        _ => {
+            let attr = name.strip_prefix("attr_").unwrap_or(name);
+            if !matches!(attr, "plus" | "gem1" | "gem2" | "enchant" | "bless") {
+                return None;
+            }
+            let n = w.node("held.attr", &[("name", text(attr))]);
+            w.feed(x, n, "item");
+            Some(pin(n))
+        }
+    }
 }
 
 /// The NPC upgrades of TQ's action 509, by the number the converter raises them with.
@@ -1266,9 +1634,22 @@ mod tests {
         assert_eq!(hit, 50);
         // 100 life taken, 70% less for the level difference.
         let exp = formulas
-            .int("hit_exp", (attacker, target, 100_i64))
+            .int("hit_exp", (attacker.clone(), target.clone(), 100_i64))
             .unwrap();
         assert_eq!(exp, 30);
+        // A spell of power 100: ×1.8 for the level difference; a 150% physical skill: 50 × 1.5.
+        let skill = |power: i64| {
+            let mut skill = c3_script::rhai::Map::new();
+            skill.insert("power".into(), power.into());
+            skill
+        };
+        let spell = (attacker.clone(), target.clone(), skill(100));
+        assert_eq!(formulas.int("skill_hit", spell).unwrap(), 180);
+        let strike = (attacker.clone(), target.clone(), skill(30_150));
+        assert_eq!(formulas.int("skill_hit", strike).unwrap(), 75);
+        // A bow: 54 attack against 50 dodge less 25, 25% off.
+        attacker.insert("worn4".into(), 500_003_i64.into());
+        assert_eq!(formulas.int("hit", (attacker, target)).unwrap(), 41);
         let _ = std::fs::remove_dir_all(tables);
     }
 }

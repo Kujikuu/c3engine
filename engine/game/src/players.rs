@@ -283,6 +283,23 @@ impl Sim {
         self.events.push(Event::Dressed { player: id });
     }
 
+    /// Items `items` (the player's own, up to five) worked together as `kind`:
+    /// `on_combine(kind, item1, ..., item5, value)`, missing ones 0.
+    pub fn combine(&mut self, id: EntityId, kind: u32, items: &[u32], value: i64) {
+        let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
+            return;
+        };
+        let held = |item: &u32| p.bag.iter().chain(&p.equipment).any(|i| i.id == *item);
+        if items.is_empty() || items.len() > 5 || !items.iter().all(held) {
+            return;
+        }
+        let mut args: Vec<c3_script::Dynamic> = vec![i64::from(kind).into()];
+        args.extend((0..5).map(|i| i64::from(items.get(i).copied().unwrap_or(0)).into()));
+        args.push(value.into());
+        self.script_event(id, "on_combine", args);
+        self.events.push(Event::Dressed { player: id });
+    }
+
     /// Dresses the player in a new item of `kind` (starting gear); false if it isn't worn.
     pub fn equip(&mut self, id: EntityId, kind: u32) -> bool {
         if self.rules.item(kind).and_then(|t| t.slot).is_none() || !self.players.contains_key(&id) {
@@ -396,10 +413,12 @@ impl Sim {
     /// Recomputes the player's stats from its level and what it wears (broken items give
     /// nothing; each quality step adds its share).
     pub(crate) fn refresh_stats(&mut self, id: EntityId) {
-        let Some(p) = self.players.get(&id) else {
+        if !self.players.contains_key(&id) {
             return;
-        };
-        let attributes = self.attributes_of(p);
+        }
+        // Its attributes and what it wears (the fighter's facts).
+        let attributes = self.player_fighter(id).facts;
+        let p = &self.players[&id];
         let base = self.rules.player_stats(&crate::StatsFor {
             level: p.level,
             profession: p.profession,
