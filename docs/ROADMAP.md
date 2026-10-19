@@ -656,8 +656,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         hit, the hero's skills as MsgMagicInfo (on entering and when learned)
   - [x] Trade (MsgTrade 1056), warehouse (MsgPackage 1102, saved money), gems (1027),
         compose (2036) and enchant
-  - [ ] Skill levels and experience (the engine keeps skills without them) and weapon
-        skills as MsgWeaponSkill 1025
+  - [x] Weapon skills as MsgWeaponSkill 1025 (on entering, and as hits raise them)
+  - [ ] Skill levels and experience (the engine keeps skills without them)
   - [x] Items and money dropped on the ground (MsgItem 3 and 12; a dropped item keeps its
         plus and gems) and picked up (MsgMapItem 1101)
   - [x] Teams: MsgTeam 1023 (create, invite, accept, leave, dismiss, kick) and the member

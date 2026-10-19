@@ -134,6 +134,20 @@ fn guild_of(sim: &Sim, p: &Player) -> Option<(u32, u8)> {
     ))
 }
 
+/// Player `p`'s weapon skills by weapon subtype: level and experience (the rules keep them
+/// as attributes `weapon_<type>` and `weapon_exp_<type>`).
+fn weapon_skills(p: &Player) -> BTreeMap<u32, (u16, u32)> {
+    let attr = |name: String| p.attributes.get(&name).copied().unwrap_or(0);
+    (p.attributes.iter())
+        .filter_map(|(name, level)| {
+            let kind: u32 = name.strip_prefix("weapon_")?.parse().ok()?;
+            let level = u16::try_from((*level).clamp(0, 0xFFFF)).unwrap_or(0);
+            let exp = u32::try_from(attr(format!("weapon_exp_{kind}")).max(0)).unwrap_or(0);
+            (level > 0).then_some((kind, (level, exp)))
+        })
+        .collect()
+}
+
 /// A learned skill as MsgMagicInfo (skills keep no level or experience yet).
 fn magic_info(skill: u32) -> Vec<u8> {
     pk::magic_info(u16::try_from(skill).unwrap_or(0), 0, 0)
@@ -376,6 +390,11 @@ impl ConquerClient {
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
         out.extend(p.skills.iter().map(|s| magic_info(*s)));
+        out.extend(
+            weapon_skills(p)
+                .into_iter()
+                .map(|(t, (l, x))| pk::weapon_skill(t, l, x)),
+        );
         self.points = points(p);
         self.me = Some(p.clone());
         Ok(out)
@@ -403,6 +422,11 @@ impl ConquerClient {
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
         out.extend(p.skills.iter().map(|s| magic_info(*s)));
+        out.extend(
+            weapon_skills(&p)
+                .into_iter()
+                .map(|(t, (l, x))| pk::weapon_skill(t, l, x)),
+        );
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
         self.npcs = sim.npcs().to_vec();
@@ -482,6 +506,12 @@ impl ConquerClient {
         let id = self.hero_id();
         let learned = (new.skills.iter()).filter(|s| !old.skills.contains(s));
         let mut out: Vec<Vec<u8>> = learned.map(|s| magic_info(*s)).collect();
+        let before = weapon_skills(old);
+        out.extend(
+            (weapon_skills(new).into_iter())
+                .filter(|(t, now)| before.get(t) != Some(now))
+                .map(|(t, (l, x))| pk::weapon_skill(t, l, x)),
+        );
         let changed: Vec<(u32, u64)> = Self::stats(new, points(new))
             .into_iter()
             .zip(Self::stats(old, self.points))

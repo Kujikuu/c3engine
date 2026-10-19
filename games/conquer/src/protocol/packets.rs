@@ -547,6 +547,14 @@ pub fn attributes(id: u32, values: &[(u32, u64)]) -> Vec<u8> {
     })
 }
 
+/// A weapon skill: the weapon subtype, its level and experience (MsgWeaponSkill 1025).
+pub const WEAPON_SKILL: u16 = 1025;
+pub fn weapon_skill(kind: u32, level: u16, exp: u32) -> Vec<u8> {
+    packet(WEAPON_SKILL, |w| {
+        w.u32(kind).u16(level).u16(0).u32(exp);
+    })
+}
+
 /// A learned skill: its type, level and experience (MsgMagicInfo 1103).
 pub const MAGIC_INFO: u16 = 1103;
 pub fn magic_info(kind: u16, level: u16, exp: u32) -> Vec<u8> {
