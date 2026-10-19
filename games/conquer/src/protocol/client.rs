@@ -344,10 +344,13 @@ pub struct ConquerClient {
     steps_to: Option<CellPos>,
     /// The hero's team as last shown.
     team: Vec<c3_game::Mate>,
-    /// The hero's guild and rank as last shown (`Some(None)`: shown as none).
-    guild: Option<Option<(u32, u8)>>,
+    /// The hero's guild, rank, fund and member count as last shown (`Some(None)`: shown
+    /// as none).
+    guild: Option<Option<(u32, u8, u32, u32)>>,
     /// The guild names the client was told, by id.
     guild_names: BTreeMap<u32, String>,
+    /// The guild of each player in view that has one.
+    seen_guilds: HashMap<EntityId, u32>,
 }
 
 impl ConquerClient {
@@ -651,7 +654,11 @@ impl ConquerClient {
 
     /// The name of player `p`'s guild, the first time the client meets it.
     fn name_guild(&mut self, sim: &Sim, p: &Player) -> Option<Vec<u8>> {
-        let (id, _) = guild_of(sim, p)?;
+        let Some((id, _)) = guild_of(sim, p) else {
+            self.seen_guilds.remove(&p.id);
+            return None;
+        };
+        self.seen_guilds.insert(p.id, id);
         let name = &sim.world_state().guilds.get(&id)?.name;
         if self.guild_names.get(&id) == Some(name) {
             return None;
@@ -660,19 +667,33 @@ impl ConquerClient {
         Some(pk::name(pk::NAME_GUILD, id, name))
     }
 
+    /// The guild of player `e` in view.
+    fn guild_of_seen(&self, e: EntityId) -> Option<u32> {
+        self.seen_guilds.get(&e).copied()
+    }
+
     /// The hero's guild, when it changed: its details and name.
     fn guild_changes(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
         let Some(p) = self.hero.and_then(|h| sim.player(h)) else {
             return Vec::new();
         };
-        let now = guild_of(sim, p);
-        if self.guild == Some(now) {
+        let guilds = &sim.world_state().guilds;
+        let info = guild_of(sim, p).and_then(|(id, rank)| {
+            let g = guilds.get(&id)?;
+            Some(pk::GuildInfo {
+                id,
+                fund: u32::try_from(g.fund.max(0)).unwrap_or(u32::MAX),
+                members: u32::try_from(g.members.len()).unwrap_or(u32::MAX),
+                rank,
+                leader: &g.leader,
+            })
+        });
+        let shown = info.as_ref().map(|i| (i.id, i.rank, i.fund, i.members));
+        if self.guild == Some(shown) {
             return Vec::new();
         }
-        self.guild = Some(now);
-        let guilds = &sim.world_state().guilds;
-        let Some(((id, rank), g)) = now.and_then(|(id, r)| Some(((id, r), guilds.get(&id)?)))
-        else {
+        self.guild = Some(shown);
+        let Some(info) = info else {
             return vec![pk::guild_info(&pk::GuildInfo {
                 id: 0,
                 fund: 0,
@@ -681,16 +702,11 @@ impl ConquerClient {
                 leader: "",
             })];
         };
-        self.guild_names.insert(id, g.name.clone());
+        let name = &guilds[&info.id].name;
+        self.guild_names.insert(info.id, name.clone());
         vec![
-            pk::name(pk::NAME_GUILD, id, &g.name),
-            pk::guild_info(&pk::GuildInfo {
-                id,
-                fund: u32::try_from(g.fund.max(0)).unwrap_or(u32::MAX),
-                members: u32::try_from(g.members.len()).unwrap_or(u32::MAX),
-                rank,
-                leader: &g.leader,
-            }),
+            pk::name(pk::NAME_GUILD, info.id, name),
+            pk::guild_info(&info),
         ]
     }
 
@@ -1010,6 +1026,10 @@ impl ConquerClient {
                     N::Closed => vec![pk::trade(them, pk::trade::FAIL)],
                 }
             }
+            // Invited into a guild: the client asks the hero.
+            Event::GuildInvited { player, inviter } if Some(*player) == hero => {
+                vec![pk::guild(pk::guild::INVITE_JOIN, Ids::player(*inviter))]
+            }
             // Someone asks to join the hero's team: the client asks the hero.
             Event::TeamApplied { player, applicant } if Some(*player) == hero => {
                 vec![pk::team(pk::team::APPLY, Ids::player(*applicant))]
@@ -1209,6 +1229,23 @@ impl ConquerClient {
                 if let Some(name) = self.guild_names.get(&id) {
                     out.push(pk::name(pk::NAME_GUILD, id, name));
                 }
+            }
+            Request::Guild { action: a, id } => {
+                use c3_game::GuildAction as G;
+                let player = ids.entity(id);
+                let action = match (a, player) {
+                    (pk::guild::INVITE_JOIN, Some(e)) => Some(G::Invite(e)),
+                    (pk::guild::APPLY_JOIN, Some(e)) => Some(G::Join(e)),
+                    (pk::guild::LEAVE, _) => Some(G::Leave),
+                    (pk::guild::KICK, Some(e)) => Some(G::Kick(e)),
+                    (pk::guild::DONATE, _) => Some(G::Donate(id.into())),
+                    (pk::guild::ALLY, Some(e)) => self.guild_of_seen(e).map(|g| G::Ally(g, true)),
+                    (pk::guild::CLEAR_ALLY, _) => Some(G::Ally(id, false)),
+                    (pk::guild::ENEMY, _) => Some(G::Enemy(id, true)),
+                    (pk::guild::CLEAR_ENEMY, _) => Some(G::Enemy(id, false)),
+                    _ => None,
+                };
+                inputs.extend(action.map(Input::Guild));
             }
             Request::Team { action: a, id } => {
                 let other = ids.entity(id);

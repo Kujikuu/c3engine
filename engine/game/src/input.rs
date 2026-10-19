@@ -20,6 +20,8 @@ pub enum Input {
     PickUp(EntityId),
     /// Make, join, leave or run a team.
     Team(crate::TeamAction),
+    /// Join, leave or run a guild.
+    Guild(crate::GuildAction),
     /// Drop bag item `0`, or this much money, where the player stands.
     Drop(u32),
     DropMoney(u64),
@@ -120,6 +122,7 @@ impl Sim {
             Input::PickUp(item) => self.pick_up(id, item),
             Input::Drop(item) => self.drop_item(id, item),
             Input::Team(action) => self.team(id, action),
+            Input::Guild(action) => self.guild(id, action),
             Input::DropMoney(amount) => {
                 if self.living(id).is_some() {
                     self.drop_money_of(id, i64::try_from(amount).unwrap_or(i64::MAX));

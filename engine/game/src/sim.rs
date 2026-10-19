@@ -75,6 +75,8 @@ pub struct Sim {
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
     /// Who asked to join which leader's team, and the teams closed to newcomers.
     pub(crate) team_applies: BTreeMap<EntityId, EntityId>,
+    /// Who was invited into which guild.
+    pub(crate) guild_invites: BTreeMap<EntityId, u32>,
     pub(crate) closed_teams: std::collections::BTreeSet<EntityId>,
     /// Players on the host's other maps, for teams across maps.
     pub(crate) elsewhere: BTreeMap<EntityId, crate::teams::Mate>,
@@ -138,6 +140,7 @@ impl Sim {
             world_timers: Vec::new(),
             team_invites: BTreeMap::new(),
             team_applies: BTreeMap::new(),
+            guild_invites: BTreeMap::new(),
             closed_teams: std::collections::BTreeSet::new(),
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),

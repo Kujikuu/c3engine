@@ -1744,3 +1744,46 @@ fn players_apply_to_open_teams() {
     sim.input(lead, Input::Team(TeamAction::Accept(comer)));
     assert_eq!(sim.team_members(lead), [lead, comer]);
 }
+
+#[test]
+fn guild_leaders_invite_kick_and_members_give() {
+    use crate::{GuildAction, Input};
+    use c3_script::WorldChange;
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let lead = sim.add_player("Lead", (5, 5), 1);
+    let comer = sim.add_player("Comer", (6, 5), 1);
+    sim.set_money(comer, 500);
+    sim.change_world(WorldChange::CreateGuild {
+        id: 7,
+        name: "Wolves".into(),
+        leader: "Lead".into(),
+        rank: 100,
+        fund: 0,
+        master: 0,
+    });
+    sim.input(comer, Input::Guild(GuildAction::Join(lead)));
+    assert_eq!(sim.world_state().guild_of("Comer"), None, "not invited");
+    sim.input(lead, Input::Guild(GuildAction::Invite(comer)));
+    assert!(sim.take_events().contains(&Event::GuildInvited {
+        player: comer,
+        inviter: lead
+    }));
+    sim.input(comer, Input::Guild(GuildAction::Join(lead)));
+    let member_rank = i64::from(sim.settings.guild_member_rank);
+    assert_eq!(sim.world_state().guild_of("Comer"), Some((7, member_rank)));
+    sim.input(comer, Input::Guild(GuildAction::Donate(200)));
+    assert_eq!(sim.world_state().guilds[&7].fund, 200);
+    assert_eq!(sim.player(comer).unwrap().money, 300);
+    sim.input(lead, Input::Guild(GuildAction::Leave));
+    assert!(
+        sim.world_state().guild_of("Lead").is_some(),
+        "a leader stays"
+    );
+    sim.input(lead, Input::Guild(GuildAction::Kick(comer)));
+    assert_eq!(sim.world_state().guild_of("Comer"), None);
+    assert_eq!(
+        sim.take_world_changes().len(),
+        4,
+        "each change goes to the host"
+    );
+}

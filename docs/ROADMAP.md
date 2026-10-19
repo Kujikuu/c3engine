@@ -671,8 +671,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] Teams: the money and item pick-up locks (10 to 13)
   - [x] Guilds shown: each player's guild and rank in MsgPlayer, the hero's guild
         (MsgSyndicateAttributeInfo 1106), guild names (MsgName 3, asked by MsgSyndicate 6)
-  - [ ] Guild actions from the client (MsgSyndicate join, invite, leave, kick, donate,
-        allies and enemies) and the member list
+  - [x] Guild actions (engine `GuildAction`, MsgSyndicate 1, 2, 3, 4, 7 to 11): the
+        leader invites, kicks and names allies and enemies; members join, leave and
+        donate; the hero's guild info follows its fund and members
+  - [ ] The guild member list (MsgName 11) and applying to a guild's leader
   - [ ] Each of the above checked with the real Conquer.exe
 
 ## M13: Any game of the kind (Eudemons-like or the user's own)

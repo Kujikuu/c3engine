@@ -29,8 +29,27 @@ pub const GUILD_INFO: u16 = 1106;
 /// A guild action about a guild or player (MsgSyndicate).
 pub const GUILD: u16 = 1107;
 pub mod guild {
+    /// Accepting an invitation (`id` the inviter); a leader inviting (`id` the player).
+    pub const APPLY_JOIN: u16 = 1;
+    pub const INVITE_JOIN: u16 = 2;
+    pub const LEAVE: u16 = 3;
+    pub const KICK: u16 = 4;
     /// The client asks a guild's name.
     pub const QUERY_NAME: u16 = 6;
+    /// Allies (`id` a player of the other guild, or the guild cleared) and enemies (guilds).
+    pub const ALLY: u16 = 7;
+    pub const CLEAR_ALLY: u16 = 8;
+    pub const ENEMY: u16 = 9;
+    pub const CLEAR_ENEMY: u16 = 10;
+    /// Money (`id` the amount) into the guild's fund.
+    pub const DONATE: u16 = 11;
+}
+
+/// MsgSyndicate `action` about `id`.
+pub fn guild(action: u16, id: u32) -> Vec<u8> {
+    packet(GUILD, |w| {
+        w.u16(action).u16(0).u32(id);
+    })
 }
 /// MsgName kind naming a guild (`data` its id).
 pub const NAME_GUILD: u8 = 3;

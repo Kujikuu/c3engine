@@ -168,6 +168,8 @@ pub fn conquer_settings() -> ProjectSettings {
     // Gems: socket value n is item type 700000 + n (items §6).
     s.gameplay.sockets = ["gem1", "gem2"].map(String::from).to_vec();
     s.gameplay.socket_item_base = 700_000;
+    // TQ's rank of a plain guild member.
+    s.gameplay.guild_member_rank = 50;
     s.gameplay.new_character = game::new_character();
     s.network.fronts.push(c3_core::settings::FrontSettings {
         kind: FRONT_KIND.into(),

@@ -94,6 +94,7 @@ impl Event {
             | Event::Trade { player, .. }
             | Event::TeamInvited { player, .. }
             | Event::TeamApplied { player, .. }
+            | Event::GuildInvited { player, .. }
             | Event::StorageChanged { player, .. } => Some(player),
             _ => None,
         }

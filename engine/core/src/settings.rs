@@ -378,6 +378,9 @@ pub struct GameplaySettings {
     /// Items one storage NPC keeps for a player.
     #[serde(default = "storage_size")]
     pub storage_size: u32,
+    /// The rank a player joining a guild gets (the game's rank numbers).
+    #[serde(default = "guild_member_rank")]
+    pub guild_member_rank: u32,
     /// Chance (percent) that a worn item with durability loses a point when its wearer hits
     /// (weapons) or is hit (armour).
     pub wear_percent: u32,
@@ -396,6 +399,10 @@ pub struct GameplaySettings {
 
 fn storage_size() -> u32 {
     20
+}
+
+fn guild_member_rank() -> u32 {
+    1
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -426,6 +433,7 @@ impl Default for GameplaySettings {
             item_attributes: Vec::new(),
             sockets: Vec::new(),
             storage_size: storage_size(),
+            guild_member_rank: guild_member_rank(),
             socket_item_base: 0,
             equipment_slots: Vec::new(),
             qualities: ["Common", "Fine", "Rare", "Epic", "Legendary"]
