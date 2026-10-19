@@ -110,6 +110,19 @@ impl GuiData for HeroData<'_> {
             "storage.amount" | "trade.amount" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
+            // Team member `n`'s name (the leader first), empty past the team's end.
+            _ if key.starts_with("team.member.") => {
+                let n: usize = key.strip_prefix("team.member.")?.parse().ok()?;
+                // A server sends the team; a local game asks its simulation.
+                let local;
+                let mates = if self.player.mates.is_empty() {
+                    local = self.view.sim.team_mates(self.player.id);
+                    &local
+                } else {
+                    &self.player.mates
+                };
+                Some(mates.get(n).map(|m| m.name.clone()).unwrap_or_default())
+            }
             // The trade partner's name.
             "trade.name" => (self.state.trade.as_ref())
                 .and_then(|t| self.view.sim.player(t.partner))

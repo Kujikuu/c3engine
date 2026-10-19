@@ -215,6 +215,8 @@ pub struct GameUi {
     /// The game UI's state: the storage NPC whose warehouse is open, what is typed in its
     /// fields.
     gui_state: gui_data::GuiState,
+    /// Whether the hero is in a team (as last drawn).
+    in_team: bool,
 }
 
 impl GameUi {
@@ -265,6 +267,19 @@ impl GameUi {
                 actions.push(UiAction::Game(c3_game::Input::TradeMoney(amount)));
             }
             "trade_accept" => actions.push(UiAction::Game(c3_game::Input::TradeAccept)),
+            // The team dialog's first button: make a team, or leave the one the hero is in
+            // (a leader invites players by clicking them).
+            "team_main" => {
+                let action = if self.in_team {
+                    c3_game::TeamAction::Leave
+                } else {
+                    c3_game::TeamAction::Create
+                };
+                actions.push(UiAction::Game(c3_game::Input::Team(action)));
+            }
+            "team_leave" => actions.push(UiAction::Game(c3_game::Input::Team(
+                c3_game::TeamAction::Leave,
+            ))),
             "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
@@ -421,6 +436,7 @@ impl GameUi {
         hud::team_list(ui, view, player);
         radar::show(ui, view);
         quests::npc_marks(&ui.painter_at(view.rect), view);
+        self.in_team = player.team.is_some();
         match &self.gui {
             Some(gui) => {
                 let data = gui_data::HeroData {

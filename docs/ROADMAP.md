@@ -675,6 +675,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         to trade told in chat (layout screenshot; trade state unit-tested)
   - [ ] Trade: asking and accepting from the UI (no way to start a trade from it yet),
         checked live with two clients
+  - [x] The team (CDlgGroup 141): its members' names in the five places (a local game asks
+        its simulation), make or leave a team, break it up (screenshot)
+  - [ ] Team: inviting and kicking from the dialog (they need a player picked), the
+        members' faces, the auto-join and pick-up options
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,
