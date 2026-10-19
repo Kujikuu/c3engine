@@ -834,6 +834,20 @@ impl<'a> Builder<'a> {
             1073 | 1074 => self.statistic(g, a, column),
             1080 | 1081 => self.timestamp(g, a, column),
             // Male: Conquer's male bodies are 3 and 4 (TQ: lookface 1003, 1004).
+            // Rebirth: Conquer's rules blueprint answers the signal (progression §8).
+            1040 => match (int(0), int(1)) {
+                (Some(profession), Some(look)) => {
+                    let rule = int(2).unwrap_or(1);
+                    let values = [
+                        ("name", txt("rebirth")),
+                        ("a", num(profession)),
+                        ("b", num(look)),
+                        ("c", num(rule)),
+                    ];
+                    Self::plain(g, "flow.raise", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // An NPC goes to a cell of a map (TQ hides one by sending it to 0, 0).
             301 => match (int(0), int(1), int(2)) {
                 (Some(map), Some(x), Some(y)) => {
@@ -1486,6 +1500,27 @@ impl<'a> Builder<'a> {
                 );
                 let cmp = self.compare_node(g, cps, op, v, column);
                 Self::branch(g, cmp, column)
+            }
+            ("profession", "set") => Self::plain(
+                g,
+                "player.set_profession",
+                &[("profession", num(v))],
+                column,
+            ),
+            // TQ's `level +=` raises one level whatever it says, and answers false.
+            ("level", "+=") => {
+                let level = g.node("player.level", &[], column);
+                let up = g.node("math.add", &[("b", num(1))], column);
+                g.data(level, up, "a");
+                let set = g.node("player.set_level", &[], column);
+                g.data(up, set, "level");
+                let exp = g.node("player.set_exp", &[("exp", num(0))], column);
+                g.exec((set, "then"), exp);
+                Emitted {
+                    entry: Some(set),
+                    ok: None,
+                    fail: Some((exp, "then")),
+                }
             }
             ("iterator", "=") => Self::plain(
                 g,

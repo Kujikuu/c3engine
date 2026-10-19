@@ -12,6 +12,8 @@ use std::collections::BTreeMap;
 pub const MONSTER_TABLE: &str = "cq_monstertype";
 /// The engine table of attribute points by class and level (key: class × 1000 + level).
 pub const POINTS_TABLE: &str = "points";
+/// The engine table of rebirths (key: profession × 100000 + new profession × 10 + rule).
+pub const REBIRTHS_TABLE: &str = "rebirths";
 
 /// `attack_user` bit: attacks players on sight (`ATKUSER_ACTIVE`).
 const ACTIVE: i64 = 0x02;
@@ -163,12 +165,13 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
         }
     };
     out.extend([skills, statuses]);
-    let makers: [(&str, &TableMaker); 5] = [
+    let makers: [(&str, &TableMaker); 6] = [
         (MONSTER_TABLE, &|t| monsters(t, &magic_types)),
         (crate::server_data::ITEM_TABLE, &items),
         ("cq_levexp", &levels),
         ("cq_goods", &shops),
         ("cq_point_allot", &points),
+        ("cq_rebirth", &rebirths),
     ];
     for (name, make) in makers {
         match find(name) {
@@ -421,6 +424,36 @@ fn shops(t: &Table) -> Table {
         ]);
     }
     out.table
+}
+
+/// Who may be reborn as what (`cq_rebirth`), keyed profession × 100000 + new profession × 10
+/// + rule (the rebirth's number): the level needed, and the level after.
+fn rebirths(t: &Table) -> Table {
+    let column = |name: &str, doc: &str| Column {
+        doc: doc.into(),
+        ..Column::new(name, ColumnKind::Int)
+    };
+    let mut out = Table::new(
+        REBIRTHS_TABLE,
+        vec![
+            column(
+                "key",
+                "Profession × 100000 + new profession × 10 + rule (1st or 2nd)",
+            ),
+            column("need_level", "The level needed"),
+            column("new_level", "The level after"),
+        ],
+    );
+    out.doc = "Rebirths: who may be reborn as what (TQ's cq_rebirth)".into();
+    for r in rows(t) {
+        let key = r.int("need_prof") * 100_000 + r.int("new_prof") * 10 + r.int("metepsychosis");
+        out.rows.push(vec![
+            int(key),
+            int(r.int("need_level")),
+            int(r.int("new_level")),
+        ]);
+    }
+    out
 }
 
 /// The points each class has at each level (`cq_point_allot`), keyed class × 1000 + level.

@@ -192,6 +192,10 @@ impl Sim {
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
             Effect::Life(change) => self.script_life(id, change),
             Effect::DropMoney(amount) => self.drop_money_of(id, amount),
+            Effect::Signal { name, args } => {
+                let args = args.iter().map(|&a| a.into()).collect();
+                self.script_event(id, &name, args);
+            }
             Effect::MoveNpc { npc, map, cell } => {
                 if let (Ok(npc), Ok(map)) = (u32::try_from(npc), u32::try_from(map)) {
                     self.move_npc(npc, map, (cell.0 as i32, cell.1 as i32));
@@ -415,6 +419,18 @@ impl Sim {
         p.money = after.money.max(0) as u64;
         p.flags = after.flags.clone();
         p.look.hair = u32::try_from(after.hair).unwrap_or(p.look.hair);
+        p.look.body = u32::try_from(after.body).unwrap_or(p.look.body);
+        p.profession = u32::try_from(after.profession).unwrap_or(p.profession);
+        if after.level != before.level {
+            p.level = u32::try_from(after.level.max(1)).unwrap_or(p.level);
+            self.events.push(Event::LeveledUp {
+                player: id,
+                level: p.level,
+            });
+        }
+        if after.exp != before.exp {
+            p.exp = u64::try_from(after.exp.max(0)).unwrap_or(0);
+        }
         // Attributes at their default aren't kept.
         let defaults: BTreeMap<&str, i64> = (self.settings.attributes.iter())
             .map(|a| (a.name.as_str(), a.default))

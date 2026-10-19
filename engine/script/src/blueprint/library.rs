@@ -272,6 +272,13 @@ pub const NODES: &[NodeDef] = &[
     event("event.talk", "On talking (an NPC)", "talk", &[]),
     // A function of its own name (an answer's `next`, or one the game calls).
     event("event.custom", "Custom event", "", &[]),
+    // A signal of its own name with three numbers (raised by Raise signal).
+    event(
+        "event.signal",
+        "On a signal",
+        "",
+        &[("a", Number), ("b", Number), ("c", Number)],
+    ),
     // The rules' formulas (each ends at a Return giving the answer).
     formula(
         "formula.player_stats",
@@ -938,6 +945,54 @@ pub const NODES: &[NodeDef] = &[
         "lose_exp({amount});",
     ),
     pure("player.exp", "Experience", "Player", &[], Number, "exp()"),
+    action(
+        "flow.raise",
+        "Raise signal",
+        "Flow",
+        &[("name", Text), ("a", Number), ("b", Number), ("c", Number)],
+        &[],
+        "raise({name}, {a}, {b}, {c});",
+    ),
+    pure(
+        "item.worn_id",
+        "Worn item's id",
+        "Items",
+        &[("slot", Number)],
+        Number,
+        "worn_id({slot})",
+    ),
+    action(
+        "player.set_level",
+        "Set level",
+        "Player",
+        &[("level", Number)],
+        &[],
+        "set_level({level});",
+    ),
+    action(
+        "player.set_exp",
+        "Set experience",
+        "Player",
+        &[("exp", Number)],
+        &[],
+        "set_exp({exp});",
+    ),
+    action(
+        "player.set_profession",
+        "Set profession",
+        "Player",
+        &[("profession", Number)],
+        &[],
+        "set_profession({profession});",
+    ),
+    action(
+        "player.set_body",
+        "Set body",
+        "Player",
+        &[("body", Number)],
+        &[],
+        "set_body({body});",
+    ),
     pure(
         "held.type",
         "Item's type",

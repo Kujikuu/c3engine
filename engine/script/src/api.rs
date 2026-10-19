@@ -249,6 +249,40 @@ fn more(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("add_mana", effect(shared, Effect::Mana));
     engine.register_fn("drop_money", effect(shared, Effect::DropMoney));
     let s = shared.clone();
+    engine.register_fn("raise", move |name: &str, a: i64, b: i64, c: i64| {
+        with(&s, |call| {
+            call.effects.push(Effect::Signal {
+                name: name.to_owned(),
+                args: [a, b, c],
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("worn_id", move |slot: i64| {
+        with(&s, |c| {
+            let worn = c.player.worn.get(&slot).copied();
+            (c.player.held.iter())
+                .find(|(_, i)| i.worn && Some(i.kind) == worn)
+                .map_or(0, |(id, _)| *id)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_level", move |level: i64| {
+        with(&s, |c| c.player.level = level.max(1))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_exp", move |exp: i64| {
+        with(&s, |c| c.player.exp = exp.max(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_profession", move |p: i64| {
+        with(&s, |c| c.player.profession = p.max(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_body", move |body: i64| {
+        with(&s, |c| c.player.body = body.max(0))
+    });
+    let s = shared.clone();
     engine.register_fn("move_npc", move |npc: i64, map: i64, x: i64, y: i64| {
         with(&s, |c| {
             c.effects.push(Effect::MoveNpc {

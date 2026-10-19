@@ -53,6 +53,7 @@ pub fn rules_blueprint() -> Blueprint {
     revive(&mut bp.events, next_lane(200.0));
     xp_bar(&mut bp.events, next_lane(500.0));
     upgrades(&mut bp.events, next_lane(900.0));
+    rebirth(&mut bp.events, next_lane(1200.0));
     bp.functions.push(allot());
     bp
 }
@@ -642,6 +643,163 @@ fn upgrade_name(
     })
 }
 
+/// A rebirth's key in the rebirths table.
+const REBIRTH_KEY: &str = "profession * 100000 + to * 10 + rule";
+/// The points a rebirth leaves to spend (progression §8.2, RebirthPoints).
+const REBIRTH_POINTS: &str = "if(rule == 1, if(profession == 135, ((min(level, 130) - 110) / 2 + 1) * ((min(level, 130) - 110) / 2) / 2 + 72, (min(level, 130) - 120) * (min(level, 130) - 119) / 2 + 72), max(min(max(level - 120, 0), 10) * (min(max(level - 120, 0), 10) + 1) / 2 + new_level * 3 - 3 + max(strength + agility + vitality + spirit + attribute_points - level * 3 - 7, 0), 0))";
+
+/// Rebirth (progression §8), the signal NPCs raise with the new profession, look and rule:
+/// a profession, level and rebirth count the rebirths table allows; the class's starting
+/// points and the points left to spend; the new look, level and profession; worn equipment
+/// back to its lowest level.
+fn rebirth(g: &mut Graph, top: f32) {
+    let signal = node(g, "event.signal", [0.0, top], &[("name", text("rebirth"))]);
+    let pin = |p: &str| Operand::Pin {
+        node: signal,
+        pin: p.into(),
+    };
+    let mut names = Names {
+        pins: Vec::new(),
+        default_record: None,
+        lets: vec![
+            ("to".into(), pin("a")),
+            ("look".into(), pin("b")),
+            ("rule".into(), pin("c")),
+        ],
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let rebirths = text(crate::rules::REBIRTHS_TABLE);
+    let write = |w: &mut ExprWriter, names: &mut Names, name: &str, text: &str| {
+        let value = w
+            .write(text, &mut |w, n, args| {
+                if let Some((_, v)) = names.lets.iter().find(|(l, _)| l == n) {
+                    return Some(v.clone());
+                }
+                rebirth_name(w, &rebirths, names, n, args)
+            })
+            .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"));
+        if !name.is_empty() {
+            names.lets.push((name.to_owned(), value.clone()));
+        }
+        value
+    };
+    write(&mut w, &mut names, "key", REBIRTH_KEY);
+    write(&mut w, &mut names, "new_level", "column(key, 1)");
+    let allowed = write(
+        &mut w,
+        &mut names,
+        "",
+        "has(key) && rebirths < rule && level >= column(key, 0)",
+    );
+    let points = write(&mut w, &mut names, "", REBIRTH_POINTS);
+    write(&mut w, &mut names, "p", "if(to == 0, 20, to)");
+    let stats = [
+        ("strength", "if(p >= 100, 0, if(p / 10 == 4, 2, 5))"),
+        ("agility", "if(p >= 100, 2, if(p / 10 == 4, 7, 2))"),
+        ("vitality", "if(p >= 100, 3, if(p / 10 == 4, 1, 3))"),
+        ("spirit", "if(p >= 100, 5, 0)"),
+    ];
+    let stats: Vec<(&str, Operand)> = (stats.iter())
+        .map(|(name, text)| (*name, write(&mut w, &mut names, "", text)))
+        .collect();
+    let new_level = names
+        .lets
+        .iter()
+        .find(|(n, _)| n == "new_level")
+        .map(|(_, v)| v.clone())
+        .expect("written");
+    let body = write(&mut w, &mut names, "", "look % 1000");
+    let branch = w.node("flow.branch", &[]);
+    w.feed(&allowed, branch, "condition");
+    // Points first (they count the old stats), then the rest.
+    let mut steps = Vec::new();
+    let set_attr = |w: &mut ExprWriter, name: &str, value: &Operand| {
+        let n = w.node("player.set_attr", &[("name", text(name))]);
+        w.feed(value, n, "value");
+        n
+    };
+    steps.push(set_attr(&mut w, "attribute_points", &points));
+    for (name, value) in &stats {
+        steps.push(set_attr(&mut w, name, value));
+    }
+    let profession = w.node("player.set_profession", &[]);
+    w.feed(&pin("a"), profession, "profession");
+    let level = w.node("player.set_level", &[]);
+    w.feed(&new_level, level, "level");
+    let exp = w.node("player.set_exp", &[("exp", Literal::Number(0.0))]);
+    let look = w.node("player.set_body", &[]);
+    w.feed(&body, look, "body");
+    // The profession changes last: the formulas above read the old one.
+    steps.extend([level, exp, look]);
+    steps.push(set_attr(&mut w, "rebirths", &pin("c")));
+    // Worn equipment drops to its lowest level (progression §8.3).
+    for slot in 1..=9 {
+        let id = {
+            let n = w.node(
+                "item.worn_id",
+                &[("slot", Literal::Number(f64::from(slot)))],
+            );
+            Operand::Pin {
+                node: n,
+                pin: "value".into(),
+            }
+        };
+        let t = {
+            let n = w.node("held.type", &[]);
+            w.feed(&id, n, "item");
+            Operand::Pin {
+                node: n,
+                pin: "value".into(),
+            }
+        };
+        let down = w
+            .write(
+                "if(t / 10000 == 11 || t / 10000 == 13 || t / 10000 == 14 || t / 100000 == 9, t - (t / 10 % 100) * 10, if(t / 10000 == 15 || t / 10000 == 16, t - (t / 10 % 100) * 10 + 10, if(t / 10000 == 12 || t / 100000 == 4 || t / 100000 == 5, t - (t / 10 % 100) * 10 + 20, t)))",
+                &mut |_, n, _| (n == "t").then(|| t.clone()),
+            )
+            .expect("a plain formula");
+        let set = w.node("held.set_type", &[]);
+        w.feed(&id, set, "item");
+        w.feed(&down, set, "type");
+        steps.push(set);
+    }
+    steps.push(profession);
+    wire(g, (signal, "then"), (branch, "exec"));
+    chain(g, (branch, "true"), &steps);
+}
+
+/// Names the rebirth formulas use: the player's values, `has(key)` and `column(key, i)` of
+/// the rebirths table (0 the level needed, 1 the level after).
+fn rebirth_name(
+    w: &mut ExprWriter,
+    table: &Literal,
+    names: &Names,
+    name: &str,
+    args: &[Operand],
+) -> Option<Operand> {
+    let node = match (name, args) {
+        ("has", [key]) => {
+            let n = w.node("table.has_row", &[("table", table.clone())]);
+            w.feed(key, n, "key");
+            n
+        }
+        ("column", [key, Operand::Number(i)]) => {
+            let column = if *i == 0.0 { "need_level" } else { "new_level" };
+            let n = w.node(
+                "table.lookup",
+                &[("table", table.clone()), ("column", text(column))],
+            );
+            w.feed(key, n, "key");
+            n
+        }
+        _ => return player_value(w, names, name),
+    };
+    Some(Operand::Pin {
+        node,
+        pin: "value".into(),
+    })
+}
+
 /// Coming back to life fills the stamina (battle spec S9).
 fn revive(g: &mut Graph, top: f32) {
     let event = node(g, "event.revive", [0.0, top], &[]);
@@ -681,7 +839,7 @@ fn player_value(w: &mut ExprWriter, names: &Names, name: &str) -> Option<Operand
             w.feed(&kind, lookup, "key");
             lookup
         }
-        "strength" | "agility" | "vitality" | "spirit" => {
+        "strength" | "agility" | "vitality" | "spirit" | "rebirths" | "attribute_points" => {
             w.node("player.attr", &[("name", text(name))])
         }
         _ => return names.resolve(w, name),

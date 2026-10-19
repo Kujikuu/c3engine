@@ -6,15 +6,46 @@ use crate::{EntityId, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /goto X Y · /map ID X Y · /quest ID STATE [KILLS]";
+pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
+    /// `/signal NAME [A B C]` (game masters): raises signal NAME for the player, as a
+    /// script's `raise` does.
+    fn signal_command(&mut self, id: EntityId, words: &[&str]) -> Result<String, String> {
+        let gm = self
+            .players
+            .get(&id)
+            .is_some_and(|p| self.settings.is_gm(&p.name));
+        if !gm {
+            return Err("Only game masters can use commands.".into());
+        }
+        let (name, numbers) = words.split_first().ok_or("Usage: /signal NAME [A B C]")?;
+        let mut args = [0_i64; 3];
+        for (slot, word) in args.iter_mut().zip(numbers) {
+            *slot = word
+                .parse()
+                .map_err(|_| format!("\"{word}\" is not a number"))?;
+        }
+        let values = args.iter().map(|&a| a.into()).collect();
+        self.script_event(id, name, values);
+        Ok(format!(
+            "Raised {name} {} {} {}.",
+            args[0], args[1], args[2]
+        ))
+    }
+
     pub fn command(&mut self, id: EntityId, line: &str) -> Result<String, String> {
         // Everyone runs their team.
         let all: Vec<&str> = line.trim_start_matches('/').split_whitespace().collect();
         if all.first().is_some_and(|w| w.eq_ignore_ascii_case("team")) {
             return self.team_command(id, &all[1..]);
+        }
+        if all
+            .first()
+            .is_some_and(|w| w.eq_ignore_ascii_case("signal"))
+        {
+            return self.signal_command(id, &all[1..]);
         }
         let mut words = line.trim_start_matches('/').split_whitespace();
         let name = words.next().unwrap_or_default().to_lowercase();

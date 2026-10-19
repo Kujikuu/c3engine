@@ -195,7 +195,7 @@ impl<'a> Compiler<'a> {
                 continue;
             };
             let function = match def.id {
-                "event.custom" => match node.values.get("name") {
+                "event.custom" | "event.signal" => match node.values.get("name") {
                     Some(Literal::Text(n)) if !n.trim().is_empty() => ident(n.trim()),
                     _ => {
                         self.problem(&GraphRef::Events, Some(node.id), "Name the event");

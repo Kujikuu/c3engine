@@ -79,6 +79,19 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "raise(name, a, b, c)",
+        "Signals `name` with three numbers: every script and blueprint with fn name(a, b, c) \
+         (a Signal event) runs it after this step",
+    ),
+    (
+        "worn_id(slot)",
+        "The id of the item worn in `slot` (0: none), for the item functions",
+    ),
+    (
+        "set_level(n) / set_exp(n) / set_profession(n) / set_body(n)",
+        "Sets the player's level, experience, profession or body (rebirth, promotion)",
+    ),
+    (
         "move_npc(npc, map, x, y)",
         "Moves NPC `npc` to a cell of game map `map` (another map: it leaves this one for it)",
     ),

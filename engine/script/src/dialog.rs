@@ -187,6 +187,12 @@ pub enum Effect {
     Mana(i64),
     /// The player drops this much of its money where it stands.
     DropMoney(i64),
+    /// Signal `name` with three numbers, run by every events script and blueprint that
+    /// answers it (`fn name(a, b, c)`) once this step is done.
+    Signal {
+        name: String,
+        args: [i64; 3],
+    },
     /// NPC `npc` goes to `cell` of game map `map` (another map: it leaves this one).
     MoveNpc {
         npc: i64,
