@@ -540,11 +540,22 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Conquer's formulas as formula graphs: a project's formulas (rules.rhai or formula
         blueprints) now answer over any game's own rules, Conquer's included
 
-## M11: MCP and AI integration (moved before Conquer; the Studio assistant panel is dropped)
-- [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude
+## M11: MCP and AI integration (moved before Conquer; the Studio assistant panel is dropped) [x] (complete 2026-10-19)
+- [x] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude
       Code): maps, tables, settings, assets, dialogues, scripts and graphs, play-testing
-- [ ] Project context for AI: schemas, tables, map summaries, the node library and docs the
+  - Done 2026-10-19 on rmcp (stdio): `c3-mcp <project>` opens a project on its own (headless),
+    `c3-mcp --live [addr]` drives the open Studio (Window > Live Link, `--live`), whose
+    documents take the calls so they show at once and undo with Ctrl+Z; a call never
+    discards a person's unsaved work. 26 tools in `engine/agent` (c3-agent): query/edit/create
+    maps, read/edit/create tables, settings, dialogues, scripts, blueprints, assets, undo,
+    redo, save, and `playtest` (a game-master player doing inputs on a map without a window,
+    answering each step's events and dialogue page and the player at the end). Maps save
+    through the game (`GameModule::save_map`), as the Studio's do
+- [x] Project context for AI: schemas, tables, map summaries, the node library and docs the
       model can query
+  - Done 2026-10-19: project_overview, command_schemas (every command and query kind),
+    read_table (columns with meaning and references), query_map summaries, node_library,
+    script_reference, read_docs (docs/AGENTS.md, the agent's guide, and the engine's docs)
 
 ## M12: Conquer as a complete project (on the engine)
 - [ ] Full import in one step: the client's files plus TQ's server data (an SQL dump such as

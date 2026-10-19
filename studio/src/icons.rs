@@ -75,6 +75,7 @@ pub const PAUSE: &str = "\u{E39E}";
 pub const PENCIL_SIMPLE: &str = "\u{E3B4}";
 pub const PERSON_SIMPLE: &str = "\u{E72E}";
 pub const PLAY: &str = "\u{E3D0}";
+pub const PLUGS_CONNECTED: &str = "\u{EB5A}";
 pub const PLUS: &str = "\u{E3D4}";
 pub const PROHIBIT: &str = "\u{E3DE}";
 pub const PUZZLE_PIECE: &str = "\u{E596}";

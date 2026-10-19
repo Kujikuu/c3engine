@@ -982,6 +982,20 @@ impl Studio {
         label
     }
 
+    /// The open blueprint's document, for commands from elsewhere (an agent's).
+    pub(crate) fn blueprint_doc(&mut self) -> Option<&mut ValueDoc<Blueprint>> {
+        self.blueprint_editor.as_mut().map(|e| &mut e.doc)
+    }
+
+    /// The open blueprint changed from elsewhere: the canvas shows it and it is saved (and
+    /// compiled), as every change of the canvas is.
+    pub(crate) fn blueprint_doc_changed(&mut self) {
+        if let Some(editor) = &mut self.blueprint_editor {
+            editor.revision += 1;
+            self.save_blueprint();
+        }
+    }
+
     pub(crate) fn blueprint_history(&self) -> Option<(String, Vec<c3_edit::HistoryEntry>)> {
         let editor = self.blueprint_editor.as_ref()?;
         Some((format!("Blueprint {}", editor.name), editor.doc.history()))

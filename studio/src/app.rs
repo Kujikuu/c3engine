@@ -157,6 +157,8 @@ pub struct Studio {
     pub(crate) character_editor: Option<crate::character_editor::CharacterEditor>,
     pub(crate) ui_editor: Option<crate::ui_editor::UiEditor>,
     pub(crate) blueprint_editor: Option<crate::blueprint_editor::BlueprintEditor>,
+    /// Where agents' calls arrive while the live link is on (Window > Live link).
+    pub(crate) live_link: Option<c3_agent::live::Listener>,
     /// Panels asked to the front while the dock was drawing.
     pub(crate) panel_requests: Vec<crate::shell::Panel>,
     pub(crate) drawing_dock: bool,
@@ -270,6 +272,7 @@ impl Studio {
             character_editor: None,
             ui_editor: None,
             blueprint_editor: None,
+            live_link: None,
             panel_requests: Vec::new(),
             drawing_dock: false,
             hover: None,
@@ -330,6 +333,9 @@ impl Studio {
         }
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
+        }
+        if args.iter().any(|a| a == "--live") {
+            s.set_live_link(true);
         }
         // A tool by its number key (1-6), and the Ground tool's image.
         if let Some(tool) = flag("--tool")
@@ -797,20 +803,11 @@ impl Studio {
         let project = self.project.as_ref().ok_or("no project is open")?;
         match map {
             MapRef::Client(path) => {
-                let client = self
-                    .client
+                let game = self
+                    .game
                     .as_ref()
                     .ok_or("the project's content isn't loaded")?;
-                // Content used in place belongs to the original client: keep its original.
-                let backup = !project.content_in_project();
-                client.save_map(scene, path, backup)?;
-                if let Some(ground) = ground {
-                    client.save_ground(ground, backup)?;
-                }
-                // DMaps hold no population: it lives next to the project's maps.
-                let file = project.population_file(map.name());
-                c3_scene::native::save_population(&scene.population(), &file)
-                    .map_err(|e| e.to_string())
+                game.save_map(project, path, scene, ground)
             }
             MapRef::Project(name) => c3_scene::native::save_scene(scene, &project.map_file(name))
                 .map_err(|e| e.to_string()),
@@ -1427,6 +1424,7 @@ impl eframe::App for Studio {
             ));
         }
         self.hot_reload();
+        self.serve_agents();
         self.sync_console();
 
         let bar = egui::Frame::new()

@@ -172,8 +172,14 @@ fn to_json(settings: &ProjectSettings) -> Value {
             "pick_up": {"hotspot": null}, "portal": {"hotspot": null}
         },
         "camera": {"tilt_deg": null},
-        "gameplay": {"start_cell": null},
-        "network": {"front": []}
+        "gameplay": {
+            "start_cell": null, "currencies": [], "equipment_slots": [],
+            "new_character": {"skills": []}
+        },
+        "maps": [],
+        "network": {"front": [], "server": [], "group": [], "local_icon": ""},
+        "ui": {"skins": []},
+        "characters": {"class": []}
     });
     fill_missing(&mut value, &defaults_with_options);
     value

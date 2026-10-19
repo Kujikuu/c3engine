@@ -256,6 +256,19 @@ impl Studio {
                 }
             }
             ui.separator();
+            let live = self.live_link.is_some();
+            let label = theme::icon_text(icons::PLUGS_CONNECTED, "Live Link (AI agents)");
+            if ui
+                .add(egui::Button::selectable(live, label))
+                .on_hover_text(
+                    "Lets AI agents work in this Studio through c3-mcp --live: their changes \
+                     show here and undo with Ctrl+Z",
+                )
+                .clicked()
+            {
+                self.set_live_link(!live);
+            }
+            ui.separator();
             if ui
                 .button(theme::icon_text(icons::LAYOUT, "Reset Layout"))
                 .clicked()

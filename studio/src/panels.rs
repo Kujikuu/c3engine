@@ -630,6 +630,14 @@ impl Studio {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if let Some(link) = &self.live_link {
+                    ui.label(
+                        RichText::new(theme::icon_text(icons::PLUGS_CONNECTED, "Live link"))
+                            .color(theme::ACCENT),
+                    )
+                    .on_hover_text(format!("AI agents reach this Studio at {}", link.addr));
+                    ui.separator();
+                }
                 let hint = if self.workspace == Workspace::Models {
                     "Drag to orbit · Scroll zooms · Space play/pause · ← → step · F reset"
                         .to_owned()

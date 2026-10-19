@@ -50,8 +50,10 @@ c3engine/
     edit/      c3-edit: headless editing API. Typed serializable
                commands with undo/redo (scenes, tables, settings, assets), queries and their
                schemas. Used by the Studio UI, the AI assistant and the MCP server alike
-    ai/        (planned) c3-ai: Claude API client and the bridge exposing c3-edit commands
-               and queries to the model as tools
+    agent/     c3-agent: c3-edit as tools for AI agents (maps, tables, settings, dialogues,
+               scripts, blueprints, assets, undo/save, context, headless play-testing) on a
+               `Workspace`: `Headless` (a project on its own) or the Studio (`live`: tool
+               calls carried over a local TCP link to a running Studio)
   formats/
     c3/        c3-formats-tq: TQ format plugins (read + write)
     gltf/      c3-formats-gltf: glTF 2.0 models and animations as engine models
@@ -71,18 +73,21 @@ c3engine/
                UI layer) or views a Conquer client's maps (`main.rs` viewer)
     server/    c3-server: serves any game project's maps to clients (engine protocol, optional
                Conquer 5065 front; accounts and characters in `<project>/server/accounts`)
-    mcp/       (planned) c3-mcp: MCP server exposing c3-edit to external AI agents
+    mcp/       c3-mcp: MCP server (rmcp, stdio) serving c3-agent's tools, headless on a
+               project or live through the Studio
   docs/        this documentation (source of truth for context)
 ```
 
 ## Editing: one command layer
 ```
-Studio UI ─┐
-Assistant ─┼─► c3-edit commands (typed, serializable, undoable) ─► project (engine types) ─► save
-MCP agents ┘        ▲ queries (read-only, schema-described)
+Studio UI ──────────────────────────┐
+MCP agent ─► c3-mcp ─► c3-agent tools ┼─► c3-edit commands (typed, serializable, undoable) ─► save
+                         │ headless   │        ▲ queries (read-only, schema-described)
+                         └ live link ─┘ (the Studio's open documents)
 ```
-Every change to a project is a command: the Studio's tools build commands, the assistant gets
-them as tools, and external agents call them over MCP. One undo history records all of them.
+Every change to a project is a command: the Studio's tools build commands and external agents
+call them over MCP, as c3-agent's tools. Live, the agent's commands run on the Studio's own
+documents, so one undo history records both.
 
 ## Data flow (maps)
 ```

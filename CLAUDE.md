@@ -39,7 +39,7 @@ append decisions, document formats as you implement them.
 - Screenshots for verification: `& .\scripts\shot.ps1 -App client|studio -Out x.png -AppArgs @(<app args>)` (`PrintWindow`, works when the window is behind others).
   Studio test flags (project path first): `--map <path> --cell x,y --pick x,y --online --play --walk x,y --talk <npc>
   --attack --bag --quests --say "/cmd" --script <name> --table <name> --dialogue <name> --node <id>
-  --show <panel> --exec <commands.json> --new-map [name] --make-map <name> --new-table <name> --settings [section] --touch --controls --effect <path> --asset-exec <commands.json>`; `--model` takes a TQ id or a glTF asset path. `doc` = model + undo + save
+  --show <panel> --live --exec <commands.json> --new-map [name] --make-map <name> --new-table <name> --settings [section] --touch --controls --effect <path> --asset-exec <commands.json>`; `--model` takes a TQ id or a glTF asset path. `doc` = model + undo + save
   (unit-tested), `editor` = tools mapping pointer → edits, `map_view` = drawing + camera only. Reusable widgets go in `theme.rs`, the overlay palette in `map_view::colors`.
 - Nothing in `engine/` or `studio/` references Conquer (except `studio/src/tq_plugin.rs`, the
   Studio's game plugin); game code goes in `games/`. Generic play code (world, actors,
@@ -48,6 +48,9 @@ append decisions, document formats as you implement them.
 - Tunable values are Project Settings (`c3_core::settings`), never new constants: add the field
   (with a default and a rule in `problems()`), read it where it applies, show it in
   `studio/src/project_settings.rs`.
+- AI agents: `c3-mcp <project>` (headless) or `c3-mcp --live` (the Studio with Window > Live
+  Link / `--live`) serves `engine/agent`'s tools over MCP; a new kind of edit gets its tool
+  there (and its live half in `studio/src/agent_link.rs`). Agent guide: `docs/AGENTS.md`.
 - Every format parser needs a round-trip test on real files from
   `D:\Conquer2\Tools\eosource\client5065` (skip gracefully if absent).
 - Build: `cargo build` · Test: `cargo test` · Lint: `cargo clippy --all-targets`.

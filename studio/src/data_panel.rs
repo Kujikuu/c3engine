@@ -78,7 +78,7 @@ impl DataPanel {
     }
 
     /// The table changed: refilter on the next frame.
-    fn changed(&mut self) {
+    pub(crate) fn changed(&mut self) {
         self.filtered = None;
     }
 

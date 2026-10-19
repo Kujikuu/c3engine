@@ -113,6 +113,22 @@ impl ScriptPanel {
             .unwrap_or_default()
     }
 
+    /// The open script's document, the editor's typing recorded first (commands from
+    /// elsewhere, an agent's, go on from there).
+    pub(crate) fn recorded_doc(&mut self) -> Option<&mut ScriptDoc> {
+        let open = self.open.as_mut()?;
+        open.doc.end_typing();
+        Some(&mut open.doc)
+    }
+
+    /// The open script's document changed from elsewhere: the editor shows it.
+    pub(crate) fn doc_changed(&mut self) {
+        if let Some(open) = &mut self.open {
+            open.text = open.doc.text().to_owned();
+        }
+        self.check();
+    }
+
     fn check(&mut self) {
         let Some(open) = &mut self.open else { return };
         let checker = self

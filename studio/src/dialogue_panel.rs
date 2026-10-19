@@ -118,6 +118,21 @@ pub struct DialoguePanel {
 }
 
 impl DialoguePanel {
+    /// The open dialogue's document, the canvas's edits recorded first (commands from
+    /// elsewhere, an agent's, go on from there).
+    pub(crate) fn recorded_doc(&mut self) -> Option<&mut DialogueDoc> {
+        let open = self.open.as_mut()?;
+        open.commit();
+        Some(&mut open.doc)
+    }
+
+    /// The open dialogue's document changed from elsewhere: the canvas shows it.
+    pub(crate) fn doc_changed(&mut self) {
+        if let Some(open) = &mut self.open {
+            open.graph = open.doc.graph().clone();
+            open.problems = open.graph.problems();
+        }
+    }
     pub fn is_dirty(&self) -> bool {
         self.open.as_ref().is_some_and(OpenDialogue::is_dirty)
     }

@@ -7,6 +7,7 @@
 //! `--import` open those dialogs. `--exec` runs a JSON list of `c3_edit` scene commands on the
 //! `--map` as one undo step.
 
+mod agent_link;
 mod app;
 mod arrange;
 mod asset_import;
