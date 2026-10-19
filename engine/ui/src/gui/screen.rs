@@ -425,15 +425,16 @@ impl Painter<'_, '_> {
                 let height = (control.size + 6.0) * self.place.scale;
                 let font = crate::fonts::font(control.size * self.place.scale);
                 let [r, g, b] = control.color;
+                // Rows fill `cols` columns, left to right.
+                let cols = control.cols.max(1) as usize;
+                let width = rect.width() / cols as f32;
                 for (index, row) in rows.iter().enumerate() {
-                    let top = rect.top() + index as f32 * height;
+                    let top = rect.top() + (index / cols) as f32 * height;
                     if top + height > rect.bottom() + 0.5 {
                         break;
                     }
-                    let line = Rect::from_min_size(
-                        Pos2::new(rect.left(), top),
-                        Vec2::new(rect.width(), height),
-                    );
+                    let left = rect.left() + (index % cols) as f32 * width;
+                    let line = Rect::from_min_size(Pos2::new(left, top), Vec2::new(width, height));
                     let id =
                         self.ui
                             .scope_id()
