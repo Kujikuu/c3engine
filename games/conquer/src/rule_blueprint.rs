@@ -29,7 +29,7 @@ const MANA: &str =
 /// per 5 levels.
 const HIT_CHANCE: &str = "min(max(if(attacker.monster == 0, attacker.agility, attacker.dexterity) / 2 - target.dodge + 100, 10), 90) + if(attacker.monster == 0 && target.monster != 0 && attacker.level > target.level, (attacker.level - target.level) / 5 * 10, 0)";
 /// Melee damage (battle §2.4–2.6), worked out in steps; nothing when it misses.
-const HIT_STEPS: [(&str, &str); 12] = [
+const HIT_STEPS: [(&str, &str); 14] = [
     // The attack: the roll, Dragon gems, and against a monster the level difference.
     (
         "pve",
@@ -74,15 +74,22 @@ const HIT_STEPS: [(&str, &str); 12] = [
     ),
     // A player target: Tortoise gems take half, rebirths a share, blessing its percent.
     (
+        "lucky_hit",
+        // Lucky time (battle §2.7): 3% (1% against players) of hits do double.
+        "attacker.monster == 0 && attacker.lucky_time > 0 && random(0, 99) < if(target.monster != 0, 3, 1)",
+    ),
+    ("hit_raw", "if(lucky_hit, raw * 2, raw)"),
+    (
         "tortoise",
-        "if(target.monster == 0, raw - raw / 2 * min(target.socket_gem_defence, 100) / 100, raw)",
+        "if(target.monster == 0, hit_raw - hit_raw / 2 * min(target.socket_gem_defence, 100) / 100, hit_raw)",
     ),
     (
         "reborn",
         "if(target.monster != 0, if(target.defence2 > 0, tortoise * target.defence2 / 10000, tortoise), tortoise * if(target.rebirths >= 2, if(attacker.monster != 0 || attacker.rebirths >= 2, 7000, 5000), if(target.rebirths >= 1 && target.profession % 10 >= 3, 7000, 10000)) / 10000)",
     ),
 ];
-const HIT: &str = "if(attacker.chance < chance, max(reborn - if(target.monster == 0, reborn * min(target.worn_bless, 100) / 100, 0), 1), 0)";
+/// A player in lucky time takes nothing from 2% of hits (battle §2.5a).
+const HIT: &str = "if(attacker.chance < chance && !(target.monster == 0 && target.lucky_time > 0 && random(0, 99) < 2), max(reborn - if(target.monster == 0, reborn * min(target.worn_bless, 100) / 100, 0), 1), 0)";
 
 /// Experience (battle exp §1–3): the life taken (and on a kill 5% of the monster's), Rainbow
 /// gems' percent more, then the level difference's factor (the XP one under an XP skill).
@@ -113,7 +120,7 @@ pub fn rules_blueprint() -> Blueprint {
     death(&mut bp.events, next_lane(700.0));
     revive(&mut bp.events, next_lane(200.0));
     xp_bar(&mut bp.events, next_lane(500.0));
-    weapon_skill(&mut bp.events, next_lane(900.0));
+    weapon_skills(&mut bp.events, next_lane(1800.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
@@ -468,11 +475,28 @@ const XP_TIMER: &str = "xp";
 /// Experience a weapon skill level needs (battle exp §9, TQ's NEED table, levels 1–19).
 const WEAPON_NEED: &str = "if(lvl == 1, 1200, if(lvl == 2, 68000, if(lvl == 3, 250000, if(lvl == 4, 640000, if(lvl == 5, 1600000, if(lvl == 6, 4000000, if(lvl == 7, 10000000, if(lvl == 8, 22000000, if(lvl == 9, 40000000, if(lvl == 10, 90000000, if(lvl == 11, 95000000, if(lvl == 12, 142500000, if(lvl == 13, 213750000, if(lvl == 14, 320625000, if(lvl == 15, 480937500, if(lvl == 16, 721406250, if(lvl == 17, 1082109375, if(lvl == 18, 1623164062, if(lvl == 19, 2100000000, 0)))))))))))))))))))";
 
-/// Weapon skills learn from hits (battle exp §9): the life a hit took, Violet gems' percent
-/// more, less above level 12, into the skill of the right-hand weapon (bare hands: skill 0),
-/// which a first hit learns at level 1; past a level's need the skill goes up (to 20).
-fn weapon_skill(g: &mut Graph, top: f32) {
+/// The hand whose weapon skill a hit teaches.
+#[derive(Clone, Copy, PartialEq)]
+enum WeaponHand {
+    /// Its weapon's skill, or bare hands' (skill 0).
+    Right,
+    /// A weapon there learns half.
+    Left,
+}
+
+/// Each hit teaches both hands' weapon skills.
+fn weapon_skills(g: &mut Graph, top: f32) {
     let event = node(g, "event.hit", [0.0, top], &[]);
+    let seq = node(g, "flow.sequence", [130.0, top], &[]);
+    wire(g, (event, "then"), (seq, "exec"));
+    weapon_skill(g, top, event, (seq, "then 0"), WeaponHand::Right);
+    weapon_skill(g, top + 900.0, event, (seq, "then 1"), WeaponHand::Left);
+}
+
+/// Weapon skills learn from hits (battle exp §9): the life a hit took, Violet gems' percent
+/// more, less above level 12, into the skill of the hand's weapon, which a first hit learns at
+/// level 1; past a level's need the skill goes up (to 20).
+fn weapon_skill(g: &mut Graph, top: f32, event: u32, from: (u32, &'static str), hand: WeaponHand) {
     let names = Names {
         pins: vec![("damage", event), ("player", event)],
         default_record: None,
@@ -484,7 +508,12 @@ fn weapon_skill(g: &mut Graph, top: f32) {
         pin: "player".into(),
     };
     let mut names = names;
-    names.define(&mut w, "t", "player.worn4 / 1000");
+    let (worn, share) = match hand {
+        WeaponHand::Right => ("player.worn4", "100"),
+        WeaponHand::Left => ("player.worn5", "50"),
+    };
+    names.define(&mut w, "t", &format!("{worn} / 1000"));
+    names.define(&mut w, "share", share);
     let t = names.resolve(&mut w, "t").expect("defined");
     // The skill's level and experience: attributes weapon_<t> and weapon_exp_<t>.
     let named = |w: &mut ExprWriter, prefix: &str| {
@@ -503,7 +532,7 @@ fn weapon_skill(g: &mut Graph, top: f32) {
     names.define(
         &mut w,
         "gained",
-        "damage * (100 + player.socket_gem_skill_exp) / 100",
+        "damage * (100 + player.socket_gem_skill_exp) / 100 * share / 100",
     );
     names.define(
         &mut w,
@@ -541,7 +570,17 @@ fn weapon_skill(g: &mut Graph, top: f32) {
         &[("text", text("Your weapon skill went up a level."))],
     );
     let keep = set(&mut w, &names, &exp_name, "new");
-    wire(g, (event, "then"), (new_skill, "exec"));
+    // The left hand learns only with a one-handed weapon in it; arrows (50) never.
+    let held = branch_on(
+        &mut w,
+        &names,
+        match hand {
+            WeaponHand::Right => "t != 50",
+            WeaponHand::Left => "t / 100 == 4",
+        },
+    );
+    wire(g, from, (held, "exec"));
+    wire(g, (held, "true"), (new_skill, "exec"));
     chain(g, (new_skill, "true"), &[learn_level, learn_exp]);
     wire(g, (new_skill, "false"), (grows, "exec"));
     wire(g, (grows, "true"), (up, "exec"));

@@ -127,6 +127,12 @@ pub fn conquer_settings() -> ProjectSettings {
         attribute("virtue", "Earned by mentoring new players", 0, None),
         attribute("stamina", "Spent by XP skills and jumping", 100, Some(100)),
         attribute("xp", "Fills toward an XP skill", 0, Some(100)),
+        attribute(
+            "lucky_time",
+            "Lucky time left, in seconds: double hits, dodged blows",
+            0,
+            Some(7200),
+        ),
     ];
     // TQ's item columns beside type, amount and durability (`cq_item`).
     s.gameplay.item_attributes = [

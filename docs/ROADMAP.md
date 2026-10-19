@@ -608,9 +608,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
         Superman, the armour floor, rebirth defence, blessing; battle experience
   - [x] Weapon proficiency: 1% damage a level above 12, experience from hits with Violet
         gems, learnt on the first hit, levels to 20 (`on_hit` / On hitting a monster)
-  - [ ] The left hand's half share of weapon experience, training goals' cut
-  - [ ] Critical lucky hits and lucky time, team experience sharing, Moon gems' magic
-        experience
+  - [x] The left hand's half share of weapon experience; lucky time's double hits and
+        dodged blows (`lucky_time` attribute)
+  - [ ] Equipping into the left hand by the client's slot (the engine's Use takes the item
+        type's slot), training goals' cut, what gives lucky time and its countdown
+  - [ ] Team experience sharing by TQ's rule, Moon gems' magic experience
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
   - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones
