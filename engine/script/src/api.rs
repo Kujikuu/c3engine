@@ -416,10 +416,16 @@ fn more(engine: &mut Engine, shared: &Shared) {
             let npcs = c.player.map_npcs.iter();
             let kind: i64 = value.trim().parse().unwrap_or(-1);
             (match field {
-                "name" => npcs.filter(|(n, _)| n == value).count(),
-                "kind" => npcs.filter(|(_, k)| *k == kind).count(),
+                "name" => npcs.filter(|(n, _, _)| n == value).count(),
+                "kind" => npcs.filter(|(_, k, _)| *k == kind).count(),
                 _ => npcs.count(),
             }) as i64
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("npc_near", move |kind: i64, range: i64| {
+        with(&s, |c| {
+            (c.player.map_npcs.iter()).any(|(_, k, d)| *k == kind && *d <= range)
         })
     });
     let s = shared.clone();

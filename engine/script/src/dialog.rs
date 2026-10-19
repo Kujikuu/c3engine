@@ -82,8 +82,8 @@ pub struct PlayerState {
     pub police: Vec<String>,
     /// Maps made while playing (players' homes), by their new id.
     pub map_copies: BTreeMap<i64, MapCopyView>,
-    /// The NPCs on the player's map: their names and kinds.
-    pub map_npcs: Vec<(String, i64)>,
+    /// The NPCs on the player's map: their names, kinds and distances from the player.
+    pub map_npcs: Vec<(String, i64, i64)>,
     pub map_owners: BTreeMap<i64, i64>,
     /// The living monsters on the player's map, by their type's name.
     pub monsters: BTreeMap<String, i64>,

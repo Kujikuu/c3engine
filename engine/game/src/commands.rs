@@ -2,11 +2,11 @@
 //! on the server later.
 
 use crate::sim::Sim;
-use crate::{EntityId, Task};
+use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -76,6 +76,16 @@ impl Sim {
                 let count = args.get(1).copied().unwrap_or(1).clamp(1, 10_000) as u32;
                 let given = self.give_items(id, kind, count);
                 Ok(format!("Gave {given} × {name}."))
+            }
+            "durability" => {
+                let item = u32::try_from(arg(0)?).map_err(|_| "Bad item".to_owned())?;
+                let value = u32::try_from(arg(1)?.max(0)).unwrap_or(0);
+                let p = self.players.get_mut(&id).expect("checked above");
+                let held = (p.bag.iter_mut().chain(p.equipment.iter_mut())).find(|i| i.id == item);
+                let held = held.ok_or_else(|| format!("You hold no item {item}."))?;
+                held.durability = value;
+                self.events.push(Event::Dressed { player: id });
+                Ok(format!("Item {item}'s durability set to {value}."))
             }
             "level" => {
                 let level = arg(0)?.clamp(1, 1000) as u32;

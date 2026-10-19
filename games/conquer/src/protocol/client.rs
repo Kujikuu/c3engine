@@ -195,7 +195,11 @@ fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> 
     let stacked = t.is_some_and(|t| t.stack > 1);
     let (amount, limit) = match t {
         Some(t) if stacked => (i.count, t.stack),
-        Some(t) => (i.durability * 100, t.durability * 100),
+        // Its own max durability (Kylin gems, repairs' decay), else its type's.
+        Some(t) => {
+            let max = u32::try_from(attr("max_dur")).ok().filter(|&m| m > 0);
+            (i.durability * 100, max.unwrap_or(t.durability) * 100)
+        }
         None => (1, 1),
     };
     let short = |v: u32| u16::try_from(v).unwrap_or(u16::MAX);
@@ -1273,6 +1277,11 @@ impl ConquerClient {
                 item::ENCHANT => inputs.push(Input::Combine {
                     kind: pk::combine::ENCHANT,
                     items: vec![item_id, data],
+                    value: 0,
+                }),
+                item::REPAIR => inputs.push(Input::Combine {
+                    kind: pk::combine::REPAIR,
+                    items: vec![item_id],
                     value: 0,
                 }),
                 _ => {}

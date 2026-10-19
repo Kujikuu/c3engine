@@ -1547,25 +1547,42 @@ enum Step {
         item: &'static str,
         when: &'static str,
     },
+    /// Node `def` run with its pins worked out (a 0 amount or item when not wanted).
+    Run {
+        def: &'static str,
+        pins: &'static [(&'static str, &'static str)],
+    },
     /// The player told `text`.
     Say(&'static str),
 }
+
+/// Kylin gems' max-durability percent by socket value (items §4.1).
+const KYLIN: &str = "if(g == 41, 50, if(g == 42, 100, if(g == 43, 200, 0)))";
+/// The gem NPC (kind 7) within 20 cells (items §6.1).
+const NEAR_GEM_NPC: (&str, &str) = ("near_npc(7, 20)", "Find the gem setter to do that.");
 
 /// A gem item (700xxx); an open socket holds 255.
 const IS_GEM: &str = "t(gem) / 10000 == 70";
 
 /// TQ's ways of working items together, as `Input::Combine` raises them.
-const WORKS: [Work; 4] = {
+const WORKS: [Work; 5] = {
     use crate::protocol::packets::combine;
     [
         // A gem set in an open socket (§6.1; no restriction of gem to item).
         Work {
             kind: combine::EMBED,
             checks: &[
+                NEAR_GEM_NPC,
                 (IS_GEM, "That isn't a gem."),
                 ("socket == 255", "That socket isn't open."),
             ],
             steps: &[
+                // A Kylin gem raises the item's max durability by its percent.
+                Step::Set {
+                    item: "item",
+                    name: "max_dur",
+                    value: "if(kylin(t(gem) % 1000) > 0, maxdur(item) * (100 + kylin(t(gem) % 1000)) / 100, attr_max_dur(item))",
+                },
                 Step::Set {
                     item: "item",
                     name: "socket",
@@ -1581,8 +1598,24 @@ const WORKS: [Work; 4] = {
         // The gem in a socket taken out: destroyed, the socket open again.
         Work {
             kind: combine::REMOVE_GEM,
-            checks: &[("socket != 0 && socket != 255", "There is no gem there.")],
+            checks: &[
+                NEAR_GEM_NPC,
+                ("socket != 0 && socket != 255", "There is no gem there."),
+            ],
             steps: &[
+                // A Kylin gem's percent taken back off; durability no more than the max.
+                Step::Set {
+                    item: "item",
+                    name: "max_dur",
+                    value: "if(kylin(socket) > 0, maxdur(item) * 100 / (100 + kylin(socket)), attr_max_dur(item))",
+                },
+                Step::Run {
+                    def: "held.set_durability",
+                    pins: &[
+                        ("item", "item"),
+                        ("durability", "min(dur(item), maxdur(item))"),
+                    ],
+                },
                 Step::Set {
                     item: "item",
                     name: "socket",
@@ -1654,8 +1687,57 @@ const WORKS: [Work; 4] = {
                 Step::Say("The item is enchanted."),
             ],
         },
+        // A repair at a blacksmith (§5.1): the lost durability's share of three quarters of
+        // the price (more for quality), or 5 Meteors for a broken item; the max durability
+        // decays when repaired below 1.5 (1.9 for weapons and shields), by up to a fifth, to
+        // no less than 1.
+        Work {
+            kind: combine::REPAIR,
+            checks: &[
+                ("near_npc(1, 20)", "Find a blacksmith to do that."),
+                ("dur(item) < maxdur(item)", "It needs no repair."),
+                (
+                    "dur(item) > 0 || meteors >= 5",
+                    "A broken item takes 5 Meteors to repair.",
+                ),
+                (
+                    "dur(item) == 0 || money >= repair_cost",
+                    "You don't have the money for it.",
+                ),
+            ],
+            steps: &[
+                Step::Run {
+                    def: "item.take_between",
+                    pins: &[
+                        ("low", "1088001"),
+                        ("high", "1088001"),
+                        ("count", "if(dur(item) == 0, 5, 0)"),
+                    ],
+                },
+                Step::Run {
+                    def: "player.take_money",
+                    pins: &[("amount", "if(dur(item) > 0, repair_cost, 0)")],
+                },
+                Step::Set {
+                    item: "item",
+                    name: "max_dur",
+                    value: "if(dur(item) * 100 < decay_below, max(100, maxdur(item) * 100 - min(dur(item) * 100 * 2 / 3 * maxdur(item) * 100 / decay_below, maxdur(item) * 100 / 5)) / 100, attr_max_dur(item))",
+                },
+                Step::Run {
+                    def: "held.set_durability",
+                    pins: &[("item", "item"), ("durability", "maxdur(item)")],
+                },
+                Step::Say("The item is repaired."),
+            ],
+        },
     ]
 };
+
+/// What repairing costs (§5.1): `price × lost × 3 / (max × 4)`, ×1.1–1.5 by quality.
+const REPAIR_COST: &str = "price(item) * (maxdur(item) - dur(item)) * 3 / (maxdur(item) * 4) * if(t(item) % 10 == 6, 11, if(t(item) % 10 == 7, 12, if(t(item) % 10 == 8, 13, if(t(item) % 10 == 9, 15, 10)))) / 10";
+/// Below this durability (in hundredths) a repair lowers the max: 190 for weapons, 150 else.
+const DECAY_BELOW: &str =
+    "if(t(item) / 100000 == 4 || t(item) / 100000 == 5 || t(item) / 100000 == 7, 190, 150)";
 
 /// What an enchanting gem gives: by its grade and kind (items §6.4 table).
 const ENCHANT_ROLL: &str = "if(t(gem) % 10 == 1, random(1, 59), if(t(gem) % 10 == 2, random(e2, e2 + 49), random(e3, e3 + if(t(gem) / 10 % 10 == 1, 55, 59))))";
@@ -1695,6 +1777,8 @@ fn combine(g: &mut Graph, top: f32) {
         "socket",
         "if(pos == 1, gem1(item), gem2(item))",
     );
+    write(&mut w, &mut lets, "repair_cost", REPAIR_COST);
+    write(&mut w, &mut lets, "decay_below", DECAY_BELOW);
     write(&mut w, &mut lets, "e2", ENCHANT_GRADE2);
     write(&mut w, &mut lets, "e3", ENCHANT_GRADE3);
     write(&mut w, &mut lets, "roll", ENCHANT_ROLL);
@@ -1747,6 +1831,14 @@ fn combine(g: &mut Graph, top: f32) {
                     w.feed(&id, erase, "item");
                     nodes.push(erase);
                 }
+                Step::Run { def, pins } => {
+                    let node = w.node(def, &[]);
+                    for (pin, value) in *pins {
+                        let v = write(&mut w, &mut lets, "", value);
+                        w.feed(&v, node, pin);
+                    }
+                    nodes.push(node);
+                }
                 Step::Say(line) => nodes.push(w.node("player.message", &[("text", text(line))])),
             }
             for node in nodes {
@@ -1776,6 +1868,32 @@ fn item_name(
         node,
         pin: "value".into(),
     };
+    // The player's money and Meteors, NPCs near, Kylin gems' percent.
+    match (name, args) {
+        ("money", []) => return Some(pin(w.node("player.money", &[]))),
+        ("meteors", []) => {
+            let n = w.node(
+                "item.count_between",
+                &[
+                    ("low", Literal::Number(1_088_001.0)),
+                    ("high", Literal::Number(1_088_001.0)),
+                ],
+            );
+            return Some(pin(n));
+        }
+        ("near_npc", [kind, range]) => {
+            let n = w.node("npc.near", &[]);
+            w.feed(kind, n, "kind");
+            w.feed(range, n, "range");
+            return Some(pin(n));
+        }
+        ("kylin", [g]) => {
+            return w
+                .write(KYLIN, &mut |_, n, _| (n == "g").then(|| g.clone()))
+                .ok();
+        }
+        _ => {}
+    }
     let [x] = args else {
         return None;
     };
@@ -1797,6 +1915,30 @@ fn item_name(
         "t" => Some(ty(w)),
         "plus" => derived(w, "if(t / 10000 == 73, t % 10, attr_plus(x))"),
         "weapon" => derived(w, "t / 100000 == 4 || t / 100000 == 5"),
+        "dur" => {
+            let n = w.node("held.durability", &[]);
+            w.feed(x, n, "item");
+            Some(pin(n))
+        }
+        "price" | "typedur" => {
+            let column = if name == "price" {
+                "price"
+            } else {
+                "durability"
+            };
+            let t = ty(w);
+            let n = w.node(
+                "table.lookup",
+                &[
+                    ("table", text(c3_play::data_rules::ITEMS)),
+                    ("column", text(column)),
+                ],
+            );
+            w.feed(&t, n, "key");
+            Some(pin(n))
+        }
+        // Its own max durability, else its type's.
+        "maxdur" => derived(w, "if(attr_max_dur(x) > 0, attr_max_dur(x), typedur(x))"),
         // A +N stone, or the main item's sort (weapons: one- or two-handed, bows only with
         // bows, backswords only with backswords; others their subtype).
         "fits" => {
@@ -1822,7 +1964,10 @@ fn item_name(
         }
         _ => {
             let attr = name.strip_prefix("attr_").unwrap_or(name);
-            if !matches!(attr, "plus" | "gem1" | "gem2" | "enchant" | "bless") {
+            if !matches!(
+                attr,
+                "plus" | "gem1" | "gem2" | "enchant" | "bless" | "max_dur"
+            ) {
                 return None;
             }
             let n = w.node("held.attr", &[("name", text(attr))]);

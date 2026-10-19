@@ -161,7 +161,7 @@ pub fn conquer_settings() -> ProjectSettings {
     ];
     // TQ's item columns beside type, amount and durability (`cq_item`).
     s.gameplay.item_attributes = [
-        "plus", "gem1", "gem2", "bless", "enchant", "color", "ident", "data",
+        "plus", "gem1", "gem2", "bless", "enchant", "color", "ident", "data", "max_dur",
     ]
     .map(String::from)
     .to_vec();

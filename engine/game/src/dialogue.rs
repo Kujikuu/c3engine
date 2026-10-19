@@ -719,9 +719,18 @@ impl Sim {
             wanted: self.world.wanted_views(),
             bounties: self.world.bounty_views(),
             police: self.world.police.iter().map(|(n, _)| n.clone()).collect(),
-            map_npcs: (self.npcs.iter())
-                .map(|n| (n.name.clone(), i64::from(n.kind)))
-                .collect(),
+            map_npcs: {
+                let at = self.players[&id].cell;
+                (self.npcs.iter())
+                    .map(|n| {
+                        (
+                            n.name.clone(),
+                            i64::from(n.kind),
+                            i64::from(distance(n.cell, at)),
+                        )
+                    })
+                    .collect()
+            },
             map_copies: (self.world.map_copies.iter())
                 .map(|(id, c)| (i64::from(*id), c.clone()))
                 .collect(),

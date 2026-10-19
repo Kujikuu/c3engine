@@ -677,8 +677,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Moon gems' magic experience (their percent on a cast's skill experience)
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
-  - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones
-        (Msg 1028)
+  - [x] Kylin gems' max durability (an item's own `max_dur`, set and taken back with the gem),
+        the gem setter's nearness (`npc_near`, kind 7 within 20)
+  - [x] Repairs (MsgItem 14): TQ's cost by lost durability and quality, 5 Meteors for a broken
+        item, the max durability's decay, next to a blacksmith (play-tested: 61 silver for a
+        blade at 3 durability; GM `/durability ITEM N`)
+  - [ ] Fusing gear into +1 stones (Msg 1028, `cq_fuse`)
   - [x] Profession promotions and rebirth end to end (NPC chains converted and played):
         WarriorGod promotes a Warrior with TQ's checks, skills and reward; Eternity's whole
         rebirth conversation reborns a Trojan King as a Warrior (stone, gem, skills, points,

@@ -267,6 +267,8 @@ pub mod item {
     pub const PING: u16 = 27;
     /// A gem (data) enchanting an item (id): its extra life (items spec §6.4).
     pub const ENCHANT: u16 = 28;
+    /// A bag item (id) repaired at a blacksmith.
+    pub const REPAIR: u16 = 14;
 }
 
 /// The client cues Conquer's front sends (`client_cue`): a MsgAction of an action type (with
@@ -290,6 +292,8 @@ pub mod combine {
     pub const COMPOSE: u32 = 3;
     /// A gem enchanting an item.
     pub const ENCHANT: u32 = 4;
+    /// A worn-down item repaired (MsgItem 14).
+    pub const REPAIR: u32 = 5;
 }
 
 /// Status flag of a dead role.

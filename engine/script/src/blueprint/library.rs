@@ -217,6 +217,14 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     pure(
+        "npc.near",
+        "NPC of a kind near",
+        "NPCs",
+        &[("kind", Number), ("range", Number)],
+        Bool,
+        "npc_near({kind}, {range})",
+    ),
+    pure(
         "npc.count",
         "NPCs on the map",
         "NPCs",
