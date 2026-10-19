@@ -79,6 +79,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "map_players(map, alive)",
+        "How many players are on game map `map` (only the living with `alive`)",
+    ),
+    (
         "held_of(type)",
         "The ids of the player's items of `type` in the bag, for the item functions",
     ),

@@ -410,6 +410,17 @@ impl Sim {
             killed_by_monster: p.killed_by_monster.into(),
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
+            map_players: {
+                // Other maps as the host last said; this one as it is.
+                let here = (
+                    self.players.len() as i64,
+                    self.players.values().filter(|p| p.is_alive()).count() as i64,
+                );
+                (self.map_population.iter())
+                    .map(|(&m, &(all, alive))| (i64::from(m), (i64::from(all), i64::from(alive))))
+                    .chain(self.map_ids.iter().map(|&m| (i64::from(m), here)))
+                    .collect()
+            },
             body: p.look.body.into(),
             hair: p.look.hair.into(),
         }

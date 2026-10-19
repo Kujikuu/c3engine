@@ -977,6 +977,14 @@ pub const NODES: &[NodeDef] = &[
     ),
     pure("player.exp", "Experience", "Player", &[], Number, "exp()"),
     pure(
+        "world.map_players",
+        "Players on a map",
+        "World",
+        &[("map", Map), ("alive", Bool)],
+        Number,
+        "map_players({map}, {alive})",
+    ),
+    pure(
         "player.level_after",
         "Level after experience",
         "Player",

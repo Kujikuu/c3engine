@@ -137,6 +137,7 @@ impl GameServer {
             }
         }
         self.share_rosters();
+        self.share_map_population();
         let mut travels = Vec::new();
         for (index, map) in self.maps.iter_mut().enumerate() {
             map.sim.advance(ms);
@@ -181,6 +182,21 @@ impl GameServer {
             let others = roster.iter().filter(|(i, _)| *i != index);
             map.sim
                 .set_elsewhere(others.map(|(_, m)| m.clone()).collect());
+        }
+    }
+
+    /// Tells every map how many players (all, alive) are on each map, for scripts.
+    fn share_map_population(&mut self) {
+        let mut population = std::collections::BTreeMap::new();
+        for map in &self.maps {
+            let all = map.sim.players().count() as u32;
+            let alive = map.sim.players().filter(|p| p.is_alive()).count() as u32;
+            for &id in map.sim.map_ids() {
+                population.insert(id, (all, alive));
+            }
+        }
+        for map in &mut self.maps {
+            map.sim.set_map_population(population.clone());
         }
     }
 

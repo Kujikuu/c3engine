@@ -38,6 +38,9 @@ pub struct Sim {
     pub(crate) scripts: Option<c3_script::ScriptHost>,
     /// Game map ids of this map (script teleports within it work).
     pub(crate) map_ids: Vec<u32>,
+    /// Players on each game map the host runs (all, alive), for scripts; this map's own
+    /// are counted here.
+    pub(crate) map_population: std::collections::BTreeMap<u32, (u32, u32)>,
     /// Players may attack each other here.
     pub(crate) pk: bool,
     /// Fights between players here bring no crime and no PK points.
@@ -95,6 +98,7 @@ impl Sim {
             events: Vec::new(),
             scripts: None,
             map_ids: Vec::new(),
+            map_population: std::collections::BTreeMap::new(),
             pk: false,
             pk_free: false,
             revive_point: None,
@@ -117,6 +121,16 @@ impl Sim {
         &self,
     ) -> Option<std::rc::Rc<std::cell::RefCell<c3_script::debug::DebugLog>>> {
         self.scripts.as_ref().map(c3_script::ScriptHost::debug)
+    }
+
+    /// The game map ids this map answers to (its scripts' teleports, population counts).
+    pub fn map_ids(&self) -> &[u32] {
+        &self.map_ids
+    }
+
+    /// How many players (all, alive) are on each game map the host runs, for scripts.
+    pub fn set_map_population(&mut self, population: std::collections::BTreeMap<u32, (u32, u32)>) {
+        self.map_population = population;
     }
 
     pub fn set_scripts(&mut self, host: c3_script::ScriptHost, map_ids: Vec<u32>) {

@@ -1037,6 +1037,25 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             516 => self.pick_worn(g, a, &tokens, column),
+            // Players (or the living) on map `data`, compared (map spec 302).
+            302 => match (
+                tokens.first().map(|t| t.to_ascii_lowercase()),
+                tokens.get(1).copied(),
+                int(2),
+            ) {
+                (Some(cmd), Some(op), Some(n)) if cmd == "map_user" || cmd == "alive_user" => {
+                    let alive = Literal::Bool(cmd == "alive_user");
+                    let count = g.node(
+                        "world.map_players",
+                        &[("map", num(a.data)), ("alive", alive)],
+                        column,
+                    );
+                    let op = if matches!(op, "<=" | ">=") { op } else { "==" };
+                    let cmp = self.compare_node(g, count, op, n, column);
+                    Self::branch(g, cmp, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             1084 | 1086 => self.level_exp(g, a, &tokens, column),
             517 => self.equip_attr(g, a, &tokens, column),
             // Writing a log row: nothing the game shows or keeps.

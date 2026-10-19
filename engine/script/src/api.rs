@@ -310,6 +310,13 @@ fn more(engine: &mut Engine, shared: &Shared) {
     let s = shared.clone();
     engine.register_fn("map_pk_free", move || with(&s, |c| c.player.map_pk_free));
     let s = shared.clone();
+    engine.register_fn("map_players", move |map: i64, alive: bool| {
+        with(&s, |c| {
+            (c.player.map_players.get(&map))
+                .map_or(0, |&(all, living)| if alive { living } else { all })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("killed_by_monster", move || {
         with(&s, |c| c.player.killed_by_monster)
     });
