@@ -652,6 +652,15 @@ run on the server and the local session alike, and are edited through c3-edit wi
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)
+  - [x] Spells: MsgInteract MAGICATTACK unscrambled into casts, MsgMagicEffect with each
+        hit, the hero's skills as MsgMagicInfo (on entering and when learned)
+  - [x] Trade (MsgTrade 1056), warehouse (MsgPackage 1102, saved money), gems (1027),
+        compose (2036) and enchant
+  - [ ] Skill levels and experience (the engine keeps skills without them) and weapon
+        skills as MsgWeaponSkill 1025
+  - [ ] Items and money dropped on the ground and picked up (MsgMapItem 1101)
+  - [ ] Teams (MsgTeam 1023), guilds (MsgSyndicate 1107 and names), friends (1019)
+  - [ ] Each of the above checked with the real Conquer.exe
 
 ## M13: Any game of the kind (Eudemons-like or the user's own)
 - [ ] Social and companion systems as engine modules a game switches on and shapes with data:

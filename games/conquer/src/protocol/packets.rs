@@ -110,7 +110,45 @@ pub mod attr {
 pub mod interact {
     pub const ATTACK: u16 = 2;
     pub const KILL: u16 = 14;
+    /// A spell cast: its type, level, target and cell come scrambled (packets spec 1022).
+    pub const MAGIC: u16 = 21;
     pub const SHOOT: u16 = 25;
+}
+
+/// Magic whose level word is scrambled once more (packets spec 1022 MAGICATTACK).
+const MAGIC_SCRAMBLED: [u16; 8] = [1000, 1001, 1002, 1030, 1125, 1150, 1160, 1165];
+
+/// A spell the client casts, unscrambled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Spell {
+    pub kind: u16,
+    pub level: u16,
+    /// The target's id (0: the ground).
+    pub target: u32,
+    pub cell: (u16, u16),
+}
+
+/// Unscrambles MsgInteract MAGICATTACK fields, keyed by the caster's id `hero`
+/// (packets spec 1022); `None` when its level check fails.
+pub fn spell(hero: u32, ts: u32, target: u32, cell: (u16, u16), data: (u16, u16)) -> Option<Spell> {
+    let key = hero as u16;
+    let kind = (data.0 ^ key ^ 0x915D).rotate_left(3).wrapping_add(0x14BE);
+    let mut level = data.1;
+    if MAGIC_SCRAMBLED.contains(&kind) {
+        level ^= 0x6279;
+    }
+    if (((level >> 8) ^ 0x37) & 0xFF) as u32 != ts & 0xFF {
+        return None;
+    }
+    Some(Spell {
+        kind,
+        level: (level & 0xFF) ^ 0x21,
+        target: (target.rotate_left(19) ^ hero ^ 0x5F2D_2463).wrapping_add(0x8B90_B51A),
+        cell: (
+            (cell.0 ^ key ^ 0x2ED6).rotate_left(1).wrapping_sub(0x22EE),
+            (cell.1 ^ key ^ 0xB99B).rotate_left(5).wrapping_add(0x76DE),
+        ),
+    })
 }
 
 /// MsgItem actions.
@@ -431,6 +469,28 @@ pub fn attributes(id: u32, values: &[(u32, u64)]) -> Vec<u8> {
     })
 }
 
+/// A learned skill: its type, level and experience (MsgMagicInfo 1103).
+pub const MAGIC_INFO: u16 = 1103;
+pub fn magic_info(kind: u16, level: u16, exp: u32) -> Vec<u8> {
+    packet(MAGIC_INFO, |w| {
+        w.u32(exp).u16(kind).u16(level);
+    })
+}
+
+/// A spell cast by `caster` at a role or cell, with what it did to each role reached
+/// (MsgMagicEffect 1105).
+pub const MAGIC_EFFECT: u16 = 1105;
+pub fn magic_effect(caster: u32, at: u32, kind: u16, level: u16, hits: &[(u32, u32)]) -> Vec<u8> {
+    let hits = &hits[..hits.len().min(255)];
+    packet(MAGIC_EFFECT, |w| {
+        w.u32(caster).u32(at).u16(kind).u16(level);
+        w.u8(hits.len() as u8).u8(0).u8(0).u8(0);
+        for (role, damage) in hits {
+            w.u32(*role).u32(*damage).i32(0);
+        }
+    })
+}
+
 pub fn interact(kind: u16, sender: u32, target: u32, cell: (u16, u16), data: u32) -> Vec<u8> {
     packet(INTERACT, |w| {
         w.u32(0)
@@ -519,9 +579,13 @@ pub enum Request {
         dir: u8,
         run: bool,
     },
+    /// A MsgInteract: its kind, target, time stamp, cell and data words.
     Interact {
         kind: u16,
         target: u32,
+        ts: u32,
+        cell: (u16, u16),
+        data: (u16, u16),
     },
     Item {
         action: u16,
@@ -606,12 +670,18 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             }
         }
         INTERACT => {
-            r.skip(8)?;
-            let target = r.u32()?;
+            let ts = r.u32()?;
             r.skip(4)?;
+            let target = r.u32()?;
+            let cell = (r.u16()?, r.u16()?);
+            let kind = r.u16()?;
+            r.skip(2)?;
             Request::Interact {
-                kind: r.u16()?,
+                kind,
                 target,
+                ts,
+                cell,
+                data: (r.u16()?, r.u16()?),
             }
         }
         ITEM => {

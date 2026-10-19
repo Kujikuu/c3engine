@@ -3,7 +3,7 @@
 
 use super::packets::{self as pk, Request, Spawn, action, attr, channel, interact, item};
 use crate::character::player_look;
-use c3_game::{EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
+use c3_game::{CastAt, EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
 use c3_online::Welcome;
 use c3_scene::{CellPos, Npc, path};
 use std::collections::{BTreeMap, HashMap};
@@ -121,6 +121,11 @@ fn status(p: &Player, rules: &dyn Rules) -> u32 {
             c3_game::NameMark::Red => pk::STATUS_RED,
             c3_game::NameMark::Black => pk::STATUS_BLACK,
         }
+}
+
+/// A learned skill as MsgMagicInfo (skills keep no level or experience yet).
+fn magic_info(skill: u32) -> Vec<u8> {
+    pk::magic_info(u16::try_from(skill).unwrap_or(0), 0, 0)
 }
 
 /// Stored item `i` as a warehouse list's entry.
@@ -350,6 +355,7 @@ impl ConquerClient {
         out.extend(
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
+        out.extend(p.skills.iter().map(|s| magic_info(*s)));
         self.points = points(p);
         self.me = Some(p.clone());
         Ok(out)
@@ -376,6 +382,7 @@ impl ConquerClient {
         out.extend(
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
+        out.extend(p.skills.iter().map(|s| magic_info(*s)));
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
         self.npcs = sim.npcs().to_vec();
@@ -453,13 +460,15 @@ impl ConquerClient {
     fn hero_changes(&self, old: &Player, new: &Player, sim: &Sim) -> Vec<Vec<u8>> {
         let rules = sim.rules();
         let id = self.hero_id();
+        let learned = (new.skills.iter()).filter(|s| !old.skills.contains(s));
+        let mut out: Vec<Vec<u8>> = learned.map(|s| magic_info(*s)).collect();
         let changed: Vec<(u32, u64)> = Self::stats(new, points(new))
             .into_iter()
             .zip(Self::stats(old, self.points))
             .filter(|(n, o)| n != o)
             .map(|(n, _)| n)
             .collect();
-        let mut out = Vec::new();
+
         if !changed.is_empty() {
             out.push(pk::attributes(id, &changed));
         }
@@ -562,11 +571,95 @@ impl ConquerClient {
             }
         }
         if self.entered {
-            for event in &update.events {
-                out.extend(self.event(event, ids, sim));
+            let mut shown = Vec::new();
+            for (at, event) in update.events.iter().enumerate() {
+                if shown.contains(&at) {
+                    continue;
+                }
+                if let Event::Cast { .. } = event {
+                    let (packets, hits) = self.cast(event, &update.events[at + 1..], ids);
+                    shown.extend(hits.into_iter().map(|hit| at + 1 + hit));
+                    out.extend(packets);
+                } else {
+                    out.extend(self.event(event, ids, sim));
+                }
             }
         }
         out
+    }
+
+    /// The client's spell cast (scrambled MsgInteract fields) as the engine's cast.
+    fn cast_input(
+        &self,
+        ts: u32,
+        target: u32,
+        cell: (u16, u16),
+        data: (u16, u16),
+        ids: &Ids,
+    ) -> Option<Input> {
+        let spell = pk::spell(self.hero_id(), ts, target, cell, data)?;
+        let at = if spell.target == self.hero_id() {
+            CastAt::Me
+        } else if let Some(e) = ids.entity(spell.target) {
+            CastAt::Entity(e)
+        } else {
+            CastAt::Cell((spell.cell.0.into(), spell.cell.1.into()))
+        };
+        Some(Input::Cast {
+            skill: spell.kind.into(),
+            at,
+        })
+    }
+
+    /// A spell cast as one MsgMagicEffect carrying its hits (the `Attacked` events that
+    /// follow it, whose indexes in `after` it returns), and the life each target is left.
+    fn cast(&self, event: &Event, after: &[Event], ids: &mut Ids) -> (Vec<Vec<u8>>, Vec<usize>) {
+        let Event::Cast {
+            caster,
+            skill,
+            cell,
+            targets,
+        } = event
+        else {
+            return (Vec::new(), Vec::new());
+        };
+        let Some(by) = self.client_id(*caster, ids) else {
+            return (Vec::new(), Vec::new());
+        };
+        let mut hits = Vec::new();
+        let mut used = Vec::new();
+        let mut lives = Vec::new();
+        for (i, e) in after.iter().enumerate() {
+            if let Event::Attacked {
+                attacker,
+                target,
+                damage,
+            } = e
+                && attacker == caster
+                && targets.contains(target)
+                && let Some(t) = self.client_id(*target, ids)
+            {
+                hits.push((t, *damage));
+                used.push(i);
+                lives.push(pk::attributes(
+                    t,
+                    &[(attr::LIFE, self.life(*target).into())],
+                ));
+            }
+        }
+        // A spell at one role names it; else its cell.
+        let at = match targets.as_slice() {
+            [one] if hits.len() <= 1 => self.client_id(*one, ids),
+            _ => None,
+        }
+        .unwrap_or_else(|| {
+            let (x, y) = cell16(*cell);
+            u32::from(x) | u32::from(y) << 16
+        });
+        let kind = u16::try_from(*skill).unwrap_or(0);
+        let mut out = vec![pk::magic_effect(by, at, kind, 0, &hits)];
+        out.extend(lives);
+        (out, used)
     }
 
     /// The client's id of `id` (the hero or a role in view).
@@ -906,7 +999,17 @@ impl ConquerClient {
                 }
                 inputs.push(Input::Walk(to));
             }
-            Request::Interact { kind, target }
+            Request::Interact {
+                kind: interact::MAGIC,
+                target,
+                ts,
+                cell,
+                data,
+            } => {
+                self.steps_to = None;
+                inputs.extend(self.cast_input(ts, target, cell, data, ids));
+            }
+            Request::Interact { kind, target, .. }
                 if kind == interact::ATTACK || kind == interact::SHOOT =>
             {
                 if let Some(e) = ids.entity(target) {

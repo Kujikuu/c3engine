@@ -247,3 +247,53 @@ fn conquer_clients_log_in_walk_and_meet() {
     drop(server);
     let _ = std::fs::remove_dir_all(&accounts);
 }
+
+/// MsgInteract MAGICATTACK fields scrambled as the client does (the inverse of `pk::spell`).
+fn scramble(hero: u32, ts: u32, spell: pk::Spell) -> (u32, (u16, u16), (u16, u16)) {
+    let key = hero as u16;
+    let kind = spell.kind.wrapping_sub(0x14BE).rotate_right(3) ^ key ^ 0x915D;
+    let mut level = ((ts as u16 & 0xFF) ^ 0x37) << 8 | (spell.level ^ 0x21);
+    if [1000, 1001, 1002, 1030, 1125, 1150, 1160, 1165].contains(&spell.kind) {
+        level ^= 0x6279;
+    }
+    let target = (spell.target.wrapping_sub(0x8B90_B51A) ^ hero ^ 0x5F2D_2463).rotate_right(19);
+    let x = spell.cell.0.wrapping_add(0x22EE).rotate_right(1) ^ key ^ 0x2ED6;
+    let y = spell.cell.1.wrapping_sub(0x76DE).rotate_right(5) ^ key ^ 0xB99B;
+    (target, (x, y), (kind, level))
+}
+
+#[test]
+fn spells_unscramble() {
+    let hero = 1_000_123;
+    for spell in [
+        pk::Spell {
+            kind: 1000,
+            level: 3,
+            target: 400_017,
+            cell: (312, 288),
+        },
+        pk::Spell {
+            kind: 1045,
+            level: 0,
+            target: 0,
+            cell: (55, 701),
+        },
+    ] {
+        let ts = 0x1234_56AB;
+        let (target, cell, data) = scramble(hero, ts, spell);
+        assert_eq!(pk::spell(hero, ts, target, cell, data), Some(spell));
+        // A forged level word fails the time-stamp check.
+        assert_eq!(pk::spell(hero, ts + 1, target, cell, data), None);
+    }
+}
+
+#[test]
+fn a_spell_shows_its_hits() {
+    let packet = pk::magic_effect(7, 9, 1000, 2, &[(9, 120), (11, 80)]);
+    assert_eq!(packet_type(&packet).ok(), Some(pk::MAGIC_EFFECT));
+    assert_eq!(packet.len(), 20 + 2 * 12);
+    assert_eq!(u32_at(&packet, 4), 7);
+    assert_eq!(packet[16], 2);
+    assert_eq!(u32_at(&packet, 20), 9);
+    assert_eq!(u32_at(&packet, 24), 120);
+}
