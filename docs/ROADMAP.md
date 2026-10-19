@@ -655,7 +655,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
         Action, Team, PK and Guild; `c3-client --dialog N` opens one (screenshots: warehouse,
         team, actions)
   - [ ] 146 drafted controls without a skin section (built at run time in the client)
-  - [ ] Data and actions per dialog: status (child pages 131's role, weapon, mission), the
+  - [x] Dialog pages (a dialog inside a dialog, `page:<id>` tabs) and bindings for any
+        attribute (`hero.attr.<name>`), attack, defence, dodge, PK, profession; the status
+        dialog's role page shows name, level, PK, attributes and points (screenshot)
+  - [ ] Status: the profession's name, spouse, guild and rank, the details view, adding
+        points, the weapon skill and equipment pages' contents
+  - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,
         trade, NPC talk) rather than buttons

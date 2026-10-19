@@ -125,7 +125,18 @@ impl Gui {
         };
         painter.picture(dialog, &dialog.ani, Pos2::ZERO, None);
         for control in (self.controls.iter()).filter(|c| c.parent == dialog.id) {
-            painter.control(control, self.rect(control), data, &mut events);
+            if control.kind != ControlKind::Dialog {
+                painter.control(control, self.rect(control), data, &mut events);
+            }
+        }
+        // The page that shows, drawn where the dialog places it.
+        if let Some(page) = self.shown_page(dialog.id) {
+            let r = self.rect(page);
+            let inner = Place {
+                origin: place.screen(r.x as f32, r.y as f32),
+                ..place
+            };
+            events.extend(self.paint_dialog(painter.ui, page, inner, data, painter.textures, live));
         }
         events
     }

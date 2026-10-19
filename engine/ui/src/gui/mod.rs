@@ -302,6 +302,30 @@ impl Gui {
         self.open.insert(id);
     }
 
+    /// Shows page `id` of its dialog, hiding the dialog's other pages.
+    pub fn show_page(&mut self, id: u32) {
+        let Some(parent) = (self.controls.iter()).find(|c| c.id == id && c.parent != 0) else {
+            return;
+        };
+        let parent = parent.parent;
+        for sibling in self.pages(parent).map(|c| c.id).collect::<Vec<_>>() {
+            self.open.remove(&sibling);
+        }
+        self.open.insert(id);
+    }
+
+    /// The pages of dialog `id`: dialogs placed inside it.
+    pub fn pages(&self, id: u32) -> impl Iterator<Item = &Control> {
+        (self.controls.iter()).filter(move |c| c.parent == id && c.kind == ControlKind::Dialog)
+    }
+
+    /// The page of dialog `id` that shows: the one opened, else its first.
+    pub fn shown_page(&self, id: u32) -> Option<&Control> {
+        let mut pages = self.pages(id).peekable();
+        let first = pages.peek().copied();
+        self.pages(id).find(|p| self.open.contains(&p.id)).or(first)
+    }
+
     /// Opens dialog `id`, or closes it when it is open.
     pub fn toggle(&mut self, id: u32) {
         if !self.open.remove(&id) {

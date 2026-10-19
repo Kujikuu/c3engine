@@ -26,7 +26,18 @@ impl GuiData for HeroData<'_> {
             "hero.running" => f64::from(u8::from(p.running)),
             "hero.bag_count" => p.bag.len() as f64,
             "hero.bag_size" => self.view.sim.bag_size() as f64,
-            _ => return None,
+            "hero.attack_min" => p.stats.attack_min.into(),
+            "hero.attack_max" => p.stats.attack_max.into(),
+            "hero.defence" => p.stats.defence.into(),
+            "hero.dodge" => p.stats.dodge.into(),
+            "hero.dexterity" => p.stats.dexterity.into(),
+            "hero.pk" => p.pk.into(),
+            "hero.profession" => p.profession.into(),
+            // Any of the hero's attributes (`hero.attr.strength`), 0 when it has none.
+            _ => {
+                let name = key.strip_prefix("hero.attr.")?;
+                p.attributes.get(name).copied().unwrap_or(0) as f64
+            }
         })
     }
 

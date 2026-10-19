@@ -175,7 +175,8 @@ impl GameUi {
     }
     /// Carries out what the player clicked on the data-driven UI. Actions name the engine's
     /// windows (`bag`, `quests`, `menu`, `chat`), a game input (`run`, `sound`), or open a
-    /// dialog of the UI (`toggle:<dialog id>`).
+    /// dialog of the UI (`toggle:<dialog id>`) or show one of a dialog's pages
+    /// (`page:<page id>`).
     fn gui_event(&mut self, event: gui::GuiEvent, actions: &mut Vec<UiAction>) {
         let gui::GuiEvent::Action(action) = event else {
             return;
@@ -188,10 +189,13 @@ impl GameUi {
             "sound" => actions.push(UiAction::ToggleSound),
             "run" => actions.push(UiAction::ToggleRun),
             other => {
-                if let Some(id) = other.strip_prefix("toggle:").and_then(|i| i.parse().ok())
-                    && let Some(gui) = &mut self.gui
-                {
-                    gui.toggle(id);
+                let id = |prefix: &str| other.strip_prefix(prefix).and_then(|i| i.parse().ok());
+                if let Some(gui) = &mut self.gui {
+                    if let Some(dialog) = id("toggle:") {
+                        gui.toggle(dialog);
+                    } else if let Some(page) = id("page:") {
+                        gui.show_page(page);
+                    }
                 }
             }
         }
