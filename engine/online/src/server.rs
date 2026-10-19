@@ -358,11 +358,14 @@ impl GameServer {
         let Some(mut save) = self.maps[from].sim.save_player(hero) else {
             return;
         };
-        self.maps[from].sim.remove_player(hero);
+        // The hero keeps its team on the next map.
+        let team = self.maps[from].sim.team_of(hero);
+        self.maps[from].sim.travel_out(hero);
         let world = &mut self.maps[to];
         save.map = world.key.clone();
         save.cell = cell;
         world.sim.add_saved_player_as(&save, hero);
+        world.sim.set_team(hero, team);
         let welcome = Welcome {
             hero,
             map: world.key.clone(),

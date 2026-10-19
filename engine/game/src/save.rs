@@ -193,12 +193,29 @@ impl Sim {
         })
     }
 
+    /// The team player `id` is in (its leader's id), to carry it to another map.
+    pub fn team_of(&self, id: EntityId) -> Option<EntityId> {
+        self.players.get(&id).and_then(|p| p.team)
+    }
+
+    /// Puts player `id` in `leader`'s team (one it was in on another map).
+    pub fn set_team(&mut self, id: EntityId, leader: Option<EntityId>) {
+        if let Some(p) = self.players.get_mut(&id) {
+            p.team = leader;
+        }
+    }
+
     /// Takes player `id` out of the world (logged out).
     pub fn remove_player(&mut self, id: EntityId) {
-        // Teams live on one map: leaving it leaves the team.
+        // Logging out leaves the team.
         if let Some(leader) = self.players.get(&id).and_then(|p| p.team) {
             self.leave_team(id, leader);
         }
+        self.travel_out(id);
+    }
+
+    /// Takes player `id` off this map to another (it keeps its team; see [`Self::team_of`]).
+    pub fn travel_out(&mut self, id: EntityId) {
         self.team_invites.remove(&id);
         if let Some(p) = self.players.remove(&id) {
             self.index.remove(id, p.cell);

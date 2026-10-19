@@ -503,7 +503,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Team nodes, on a new team system: /team create, invite, join, leave, kick (up to 5);
         teammates near a kill share its experience; the team shows down the left; scripts and
         nodes see the team (in a team, size, leader) and tell it
-  - [ ] Teams across maps (a team lives on one map; travelling leaves it)
+  - [x] Teams across maps: a hero keeps its team when travelling (logging out leaves it)
+  - [ ] Team actions between maps (invites, messages, the team list and shared kills reach
+        teammates on the same map only)
 - [x] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
       talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
   - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom
