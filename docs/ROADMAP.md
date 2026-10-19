@@ -694,8 +694,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] A dialog opened closes those it would cover (TQ's side panels swap)
   - [x] UI sounds: settings [ui] sound_open / sound_close / sound_click, Conquer's
         DlgOpen, DlgClose and BtnClick (not heard in a test yet)
-  - [ ] The minimap window, per-control sounds (Dlg_Ok, Sell, Equip) of
-        clicks and windows
+  - [ ] The minimap window, per-control sounds (Dlg_Ok, Sell, Equip)
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)
