@@ -44,6 +44,10 @@ pub(crate) fn tools() -> Vec<Tool> {
                 "type": "object",
                 "description": "The player's attributes to start with, by name (strength: 30)",
             },
+            "texts": {
+                "type": "object",
+                "description": "Text variables the player starts with, by name (mate: \"Ann\")",
+            },
             "skills": {
                 "type": "array",
                 "items": { "type": "integer" },
@@ -102,6 +106,9 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
         save.attributes.extend(attributes);
     }
     save.skills = opt_arg::<Vec<u32>>(args, "skills")?.unwrap_or_default();
+    if let Some(texts) = opt_arg::<std::collections::BTreeMap<String, String>>(args, "texts")? {
+        save.texts.extend(texts);
+    }
     let player = sim.add_saved_player(&save);
     sim.logged_in(player);
     let mut log = vec![report(&mut sim, player, json!("enter"))];

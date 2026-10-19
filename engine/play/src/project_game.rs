@@ -191,6 +191,10 @@ impl GameModule for ProjectGame {
         self.game.portal_effect()
     }
 
+    fn map_key(&self, id: u32) -> Option<String> {
+        self.game.map_key(id)
+    }
+
     fn radar_mark(&self, kind: &str) -> Option<Image> {
         self.game.radar_mark(kind)
     }

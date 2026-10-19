@@ -36,8 +36,8 @@ mod tables;
 
 pub use conversation::{Conversation, Step};
 pub use dialog::{
-    BountyView, DialogOption, DialogPage, Effect, GuildView, HeldItem, NpcInfo, PlayerState, Reply,
-    WantedView, WorldChange,
+    BountyView, DialogOption, DialogPage, Effect, GuildView, HeldItem, MapCopyView, NpcInfo,
+    PlayerState, Reply, WantedView, WorldChange,
 };
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
@@ -81,6 +81,18 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "npc_count(field, value)",
+        "The NPCs on the player's map: all, or those of `name` or `kind` `value`",
+    ),
+    (
+        "create_npc(map, x, y, name, look, kind, script)",
+        "An NPC made on map `map` (here, or carried there) with its look, kind and talk script",
+    ),
+    (
+        "make_map_copy(base, x, y, level) / map_copy(id, field) / set_map_copy(id, field, value) / map_copy_of(owner)",
+        "Maps made while playing (homes): a copy of map `base` owned by the player (its new id), its `base`, `x`, `y` or `level` read and set, an owner's latest one (0: none)",
+    ),
     (
         "create_sub_guild(name, level, cost, fund) / change_sub_leader(name, level)",
         "A sub-guild under the guild the player leads, led by its first teammate here (its guild, of `level`); the parent pays `cost`. A sub-guild handed to that teammate",

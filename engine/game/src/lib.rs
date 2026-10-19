@@ -33,6 +33,8 @@ mod teams;
 mod trades;
 pub use trades::TradeNews;
 mod world_state;
+/// A map made while playing, as the world state keeps it.
+pub use c3_script::MapCopyView;
 pub use teams::{Mate, TEAM_SIZE, TeamAction, TeamOp};
 pub use world_state::{GUILD_RELATIONS, Guild, WorldState};
 

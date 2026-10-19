@@ -78,6 +78,10 @@ pub struct PlayerState {
     pub bounties: BTreeMap<i64, BountyView>,
     /// The police wanted list: players' names, the highest level first.
     pub police: Vec<String>,
+    /// Maps made while playing (players' homes), by their new id.
+    pub map_copies: BTreeMap<i64, MapCopyView>,
+    /// The NPCs on the player's map: their names and kinds.
+    pub map_npcs: Vec<(String, i64)>,
     pub map_owners: BTreeMap<i64, i64>,
     /// The living monsters on the player's map, by their type's name.
     pub monsters: BTreeMap<String, i64>,
@@ -146,6 +150,17 @@ pub struct WantedView {
     pub bounty: i64,
 }
 
+/// A map made while playing as scripts see it: the map it copies (`base`), its owner, where
+/// one arrives (`x`, `y`) and its level.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MapCopyView {
+    pub base: i64,
+    pub owner: String,
+    pub x: i64,
+    pub y: i64,
+    pub level: i64,
+}
+
 /// A bounty on a killer as scripts see it: the one killed (`target`), the killer
 /// (`hunter`), what the reward is paid in (`kind`) and how much (0: not set yet).
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -210,6 +225,11 @@ pub enum WorldChange {
         target: String,
         payer: String,
         bounty: i64,
+    },
+    /// Map `id`, made while playing, set as `copy`.
+    MapCopy {
+        id: i64,
+        copy: MapCopyView,
     },
     /// Guild `guild` led by its member `name` from now on.
     GuildLeader {
@@ -414,6 +434,15 @@ pub enum Effect {
         from: i64,
         to: i64,
         cell: (i64, i64),
+    },
+    /// An NPC made on map `map` at `cell`: its name, look, kind and talk script.
+    CreateNpc {
+        map: i64,
+        cell: (i64, i64),
+        name: String,
+        look: i64,
+        kind: i64,
+        script: String,
     },
     /// Status `status` on the player for `secs` (its type's own time: 0); taken off.
     AddStatusFor {

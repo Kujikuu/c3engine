@@ -84,6 +84,8 @@ pub struct Sim {
     pub(crate) team_ops: Vec<(EntityId, crate::teams::TeamOp)>,
     /// NPCs that left for other maps, for the host to bring there.
     pub(crate) npc_moves: Vec<(u32, c3_scene::Npc)>,
+    /// NPCs this map made while playing (their ids follow on).
+    pub(crate) npcs_made: u32,
 }
 
 impl Sim {
@@ -145,6 +147,7 @@ impl Sim {
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),
             npc_moves: Vec::new(),
+            npcs_made: 0,
         };
         sim.fill_spawns();
         sim

@@ -46,6 +46,9 @@ pub struct WorldState {
     /// The police wanted list: names and levels, the highest level first.
     #[serde(default)]
     pub police: Vec<(String, i64)>,
+    /// Maps made while playing (players' homes), by their new id.
+    #[serde(default)]
+    pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
 }
 
 /// A bounty on a killer: the one killed, the killer, the reward's kind and amount.
@@ -166,6 +169,11 @@ impl WorldState {
                         bounty: *bounty,
                     };
                     self.wanted.insert(id, entry);
+                }
+            }
+            WorldChange::MapCopy { id, copy } => {
+                if let Ok(id) = u32::try_from(*id) {
+                    self.map_copies.insert(id, copy.clone());
                 }
             }
             WorldChange::GuildLeader { guild, name } => {

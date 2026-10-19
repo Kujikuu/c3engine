@@ -129,6 +129,12 @@ pub trait GameModule {
         save_project_scene(project, key, scene)
             .unwrap_or_else(|| Err(format!("the project has no map \"{key}\"")))
     }
+    /// The key of the game's map `id` when the project's map list has none (a map file the
+    /// game knows by number: TQ's map docs).
+    fn map_key(&self, id: u32) -> Option<String> {
+        let _ = id;
+        None
+    }
     /// The game's ids of map `key` (script teleports, music regions, protocols).
     fn map_ids(&self, key: &str) -> Vec<u32> {
         let _ = key;

@@ -50,10 +50,15 @@ pub fn project_maps(project: Project, settings: ProjectSettings, open: OpenGame)
         let maps = MapList::new(&project, &*game, &settings);
         let source = move |key: MapKey| {
             let (key, map_ids) = match key {
-                MapKey::Id(id) => maps
-                    .by_id(id)
-                    .map(|m| (m.key.clone(), m.ids.clone()))
-                    .ok_or_else(|| format!("there is no map {id}"))?,
+                // A listed map, else a map file the game knows by that number.
+                MapKey::Id(id) => match maps.by_id(id) {
+                    Some(m) => (m.key.clone(), m.ids.clone()),
+                    None => (
+                        game.map_key(id)
+                            .ok_or_else(|| format!("there is no map {id}"))?,
+                        vec![id],
+                    ),
+                },
                 MapKey::Key(key) => maps.by_key(key).map_or_else(
                     || (key.to_owned(), game.map_ids(key)),
                     |m| (m.key.clone(), m.ids.clone()),

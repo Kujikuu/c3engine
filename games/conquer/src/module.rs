@@ -289,6 +289,10 @@ impl GameModule for ConquerModule {
         self.content.map_ids_for_path(key)
     }
 
+    fn map_key(&self, id: u32) -> Option<String> {
+        Some(self.content.map_path(id)?.replace('\\', "/"))
+    }
+
     fn tilt_deg(&self) -> f32 {
         self.content.oblique_angle()
     }

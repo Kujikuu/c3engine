@@ -358,3 +358,43 @@ fn portals_move_players_to_maps_loaded_when_needed() {
     drop(server);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn maps_made_while_playing_are_served_as_copies() {
+    let dir = std::env::temp_dir().join(format!("c3-online-{}-copy", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // The world state says map 1000001 is a copy of map 8 (a home), arrived at on (5, 6).
+    let mut world = c3_game::WorldState::default();
+    let copy = c3_game::MapCopyView {
+        base: 8,
+        owner: "dave".into(),
+        x: 5,
+        y: 6,
+        level: 1,
+    };
+    world.map_copies.insert(1_000_001, copy);
+    std::fs::write(dir.join("_world.ron"), ron::to_string(&world).unwrap()).unwrap();
+    let (mut plain, load) = portal_world();
+    plain.set_portals(&[c3_scene::Portal {
+        cell: (12, 10),
+        id: 1,
+        to: Some(c3_scene::PortalTarget {
+            map: 1_000_001,
+            cell: (5, 6),
+        }),
+    }]);
+    let mut server = server_in(&dir, plain, Some(load));
+    let mut a = Player::join(&mut server, "dave", "pw").unwrap();
+    a.conn.send(Input::Walk((12, 10)));
+    run_until(&mut server, &mut [&mut a], |p| p[0].map == "cave@1000001");
+    assert!(
+        server
+            .take_log()
+            .iter()
+            .any(|l| l == "Loaded map cave@1000001"),
+        "the copy was loaded from map 8 under its own id"
+    );
+    drop(server);
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -426,7 +426,29 @@ impl GameServer {
             .load_map
             .as_mut()
             .ok_or("the server runs only the maps it started with")?;
-        let world = load(key)?;
+        // A map made while playing: the map it copies, under its own id and key.
+        let copy = match key {
+            MapKey::Id(id) => (self.world.map_copies.get(&id)).map(|c| (id, c.clone())),
+            MapKey::Key(_) => None,
+        };
+        let world = match copy {
+            Some((id, copy)) => {
+                let base =
+                    u32::try_from(copy.base).map_err(|_| format!("map {id} copies no map"))?;
+                let mut world = load(MapKey::Id(base))?;
+                // The file the copy shows, then `@` and the copy's id (a map list key).
+                let file = world
+                    .key
+                    .rsplit_once('@')
+                    .map_or(world.key.as_str(), |(f, _)| f);
+                world.key = format!("{file}@{id}");
+                world.map_ids = vec![id];
+                world.sim.set_map_ids(vec![id]);
+                world.start = (copy.x as i32, copy.y as i32);
+                world
+            }
+            None => load(key)?,
+        };
         self.log.push(format!("Loaded map {}", world.key));
         // The first map runs the world events.
         let mut world = world;

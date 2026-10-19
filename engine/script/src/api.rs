@@ -2,8 +2,8 @@
 //! They act on the [`Call`] being run; outside a call they fail with a clear error.
 
 use crate::dialog::{
-    BountyView, DialogOption, DialogPage, Effect, GuildView, NpcInfo, PlayerState, WantedView,
-    WorldChange,
+    BountyView, DialogOption, DialogPage, Effect, GuildView, MapCopyView, NpcInfo, PlayerState,
+    WantedView, WorldChange,
 };
 use crate::quest::{self, DONE, NOT_TAKEN, Quest, TAKEN};
 use crate::tables::Tables;
@@ -409,6 +409,35 @@ fn more(engine: &mut Engine, shared: &Shared) {
     wanted(engine, shared);
     bounties(engine, shared);
     police(engine, shared);
+    map_copies(engine, shared);
+    let s = shared.clone();
+    engine.register_fn("npc_count", move |field: &str, value: &str| {
+        with(&s, |c| {
+            let npcs = c.player.map_npcs.iter();
+            let kind: i64 = value.trim().parse().unwrap_or(-1);
+            (match field {
+                "name" => npcs.filter(|(n, _)| n == value).count(),
+                "kind" => npcs.filter(|(_, k)| *k == kind).count(),
+                _ => npcs.count(),
+            }) as i64
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn(
+        "create_npc",
+        move |map: i64, x: i64, y: i64, name: &str, look: i64, kind: i64, script: &str| {
+            with(&s, |c| {
+                c.effects.push(Effect::CreateNpc {
+                    map,
+                    cell: (x, y),
+                    name: name.to_owned(),
+                    look,
+                    kind,
+                    script: script.to_owned(),
+                })
+            })
+        },
+    );
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -1109,6 +1138,81 @@ fn attributes(engine: &mut Engine, shared: &Shared) {
 }
 
 /// The player's guild and the others: reading them, and changes for every map.
+/// Maps made while playing (players' homes), shared by every map: made, their fields read
+/// and set, an owner's found.
+fn map_copies(engine: &mut Engine, shared: &Shared) {
+    let change = |c: &mut Call, id: i64, copy: MapCopyView| {
+        c.effects.push(Effect::World(WorldChange::MapCopy {
+            id,
+            copy: copy.clone(),
+        }));
+        c.player.map_copies.insert(id, copy);
+    };
+    let s = shared.clone();
+    engine.register_fn(
+        "make_map_copy",
+        move |base: i64, x: i64, y: i64, level: i64| {
+            with(&s, |c| {
+                let id = c
+                    .player
+                    .map_copies
+                    .keys()
+                    .next_back()
+                    .map_or(FIRST_MAP_COPY, |l| l + 1);
+                let copy = MapCopyView {
+                    base,
+                    owner: c.player.name.clone(),
+                    x,
+                    y,
+                    level,
+                };
+                change(c, id, copy);
+                id
+            })
+        },
+    );
+    let s = shared.clone();
+    engine.register_fn("map_copy", move |id: i64, field: &str| {
+        with(&s, |c| {
+            c.player.map_copies.get(&id).map_or(0, |m| match field {
+                "base" => m.base,
+                "x" => m.x,
+                "y" => m.y,
+                "level" => m.level,
+                _ => 0,
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_map_copy", move |id: i64, field: &str, value: i64| {
+        with(&s, |c| {
+            let Some(mut copy) = c.player.map_copies.get(&id).cloned() else {
+                return;
+            };
+            match field {
+                "base" => copy.base = value,
+                "x" => copy.x = value,
+                "y" => copy.y = value,
+                "level" => copy.level = value,
+                _ => return,
+            }
+            change(c, id, copy);
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("map_copy_of", move |owner: &str| {
+        with(&s, |c| {
+            (c.player.map_copies.iter())
+                .rev()
+                .find(|(_, m)| m.owner == owner)
+                .map_or(0, |(id, _)| *id)
+        })
+    });
+}
+
+/// The first id of maps made while playing (TQ's dynamic maps are over 1,000,000).
+const FIRST_MAP_COPY: i64 = 1_000_001;
+
 /// The police wanted list every map shares (TQ's PoliceWanted): players put on and taken off,
 /// walked by index, looked for.
 fn police(engine: &mut Engine, shared: &Shared) {
@@ -1631,7 +1735,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Wanted { .. }
         | WorldChange::Bounty { .. }
         | WorldChange::Police { .. }
-        | WorldChange::GuildLeader { .. } => {}
+        | WorldChange::GuildLeader { .. }
+        | WorldChange::MapCopy { .. } => {}
     }
 }
 

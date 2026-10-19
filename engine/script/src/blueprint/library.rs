@@ -216,6 +216,67 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    pure(
+        "npc.count",
+        "NPCs on the map",
+        "NPCs",
+        &[("field", Text), ("value", Text)],
+        Number,
+        "npc_count({field}, {value})",
+    ),
+    action(
+        "npc.create",
+        "Make an NPC",
+        "NPCs",
+        &[
+            ("map", Number),
+            ("x", Number),
+            ("y", Number),
+            ("name", Text),
+            ("look", Number),
+            ("kind", Number),
+            ("script", Text),
+        ],
+        &[],
+        "create_npc({map}, {x}, {y}, {name}, {look}, {kind}, {script});",
+    ),
+    action(
+        "map_copy.make",
+        "Make a copy of a map",
+        "Maps",
+        &[
+            ("base", Number),
+            ("x", Number),
+            ("y", Number),
+            ("level", Number),
+        ],
+        &[("id", Number)],
+        "make_map_copy({base}, {x}, {y}, {level})",
+    ),
+    pure(
+        "map_copy.get",
+        "Map copy's field",
+        "Maps",
+        &[("id", Number), ("field", Text)],
+        Number,
+        "map_copy({id}, {field})",
+    ),
+    action(
+        "map_copy.set",
+        "Set a map copy's field",
+        "Maps",
+        &[("id", Number), ("field", Text), ("value", Number)],
+        &[],
+        "set_map_copy({id}, {field}, {value});",
+    ),
+    pure(
+        "map_copy.of",
+        "Map copy of an owner",
+        "Maps",
+        &[("owner", Text)],
+        Number,
+        "map_copy_of({owner})",
+    ),
     action(
         "guild.create_sub",
         "Found a sub-guild",

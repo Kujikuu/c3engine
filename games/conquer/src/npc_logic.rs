@@ -63,11 +63,35 @@ const WANTED_BOUNTY: &str = "wanted_bounty";
 pub(crate) const WANTED_ORDER: &str = "wanted_order";
 /// The player variable holding the spouse's name (empty: single).
 pub(crate) const MATE: &str = "mate";
+/// The player attribute holding the id of its home (a map made while playing).
+const HOME: &str = "home_id";
 /// The player variable holding the police-wanted name the player took on (3011).
 pub(crate) const POLICE_TARGET: &str = "police_target";
 const WANTED_MODIFY: &str = "wanted_modify";
 
+/// The blueprint an NPC made while playing (2007) talks by: its first task's.
+fn created_npc_blueprint(first_task: u32) -> String {
+    format!("tq/dyn_{first_task}")
+}
+
 impl NpcLogic {
+    /// The tasks of NPCs TQ's actions make while playing (2007, and 403 laid by players), by
+    /// the first.
+    fn created_npc_tasks(&self) -> BTreeMap<u32, Vec<u32>> {
+        (self.actions.values())
+            .filter(|a| matches!(a.kind, 2007 | 403))
+            .filter_map(|a| {
+                let tokens: Vec<&str> = a.param.split_whitespace().collect();
+                let first = if a.kind == 2007 { 12 } else { 9 };
+                let tasks: Vec<u32> = (first..first + 8)
+                    .filter_map(|i| tokens.get(i)?.parse::<u32>().ok())
+                    .filter(|&t| t != 0)
+                    .collect();
+                Some((*tasks.first()?, tasks))
+            })
+            .collect()
+    }
+
     /// The `cq_action` and `cq_task` rows of an SQL dump.
     pub fn from_sql(sql: &str) -> Self {
         let mut logic = Self::default();
@@ -197,6 +221,18 @@ pub fn convert(
         };
         out.scripts
             .insert(npc, c3_script::blueprint::graph_script(&name));
+    }
+    // NPCs made while playing (2007) talk by their first tasks' blueprints.
+    for (first, tasks) in logic.created_npc_tasks() {
+        let mut builder = Builder::new(logic, items);
+        builder.npc(&tasks);
+        converted_actions += builder.actions_seen.len();
+        for (kind, n) in builder.skipped {
+            *skipped.entry(kind).or_default() += n;
+        }
+        missing.extend(builder.missing);
+        out.blueprints
+            .push((created_npc_blueprint(first), builder.blueprint));
     }
     let not_converted: usize = skipped.values().sum();
     out.report.push(format!(
@@ -1131,6 +1167,197 @@ impl<'a> Builder<'a> {
                 let listed = g.node("police.has", &[], column);
                 g.data(me, listed, "name");
                 Self::branch(g, listed, column)
+            }
+            // A home made (1033: a copy of map doc `mapdoc` arrived at on its portal, of
+            // `res_lev`), kept with the player; the player's home or its spouse's entered.
+            1033 => {
+                let [Some(base), Some(x), Some(y), Some(level)] = [3, 5, 6, 9].map(int) else {
+                    return self.not_converted(g, a, column);
+                };
+                let values = [
+                    ("base", num(base)),
+                    ("x", num(x)),
+                    ("y", num(y)),
+                    ("level", num(level)),
+                ];
+                let make = g.node("map_copy.make", &values, column);
+                let keep = g.node("player.set_attr", &[("name", txt(HOME))], column);
+                g.wire((make, "id"), (keep, "value"));
+                g.exec((make, "then"), keep);
+                Emitted {
+                    entry: Some(make),
+                    ok: Some((keep, "then")),
+                    fail: None,
+                }
+            }
+            1034 | 1035 => {
+                let home = if a.kind == 1034 {
+                    g.node("player.attr", &[("name", txt(HOME))], column)
+                } else {
+                    let mate = g.node("player.text_var", &[("name", txt(MATE))], column);
+                    let of = g.node("map_copy.of", &[], column);
+                    g.data(mate, of, "owner");
+                    of
+                };
+                let there = self.compare_node(g, home, ">", 0, column);
+                let field = |g: &mut Canvas, f: &str| {
+                    let n = g.node("map_copy.get", &[("field", txt(f))], column);
+                    g.data(home, n, "id");
+                    n
+                };
+                let (x, y) = (field(g, "x"), field(g, "y"));
+                let go = g.node("player.teleport", &[], column);
+                g.data(home, go, "map");
+                g.data(x, go, "x");
+                g.data(y, go, "y");
+                self.guarded(g, &[there], None, &[go], column)
+            }
+            // A map's attributes (306 `field op n [map]`) on a map made while playing (a home):
+            // its level (`res_lev`), portal and map doc; a map doc compared (the player's map).
+            306 => self.map_attribute(g, a, &tokens, column),
+            // An NPC made while playing: name, kind, look, its map and cell, its first task's
+            // blueprint (TQ's `name type sort lookface ownertype ownerid mapid x y ... task0`).
+            2007 => {
+                let (Some(name), Some(kind), Some(look)) = (tokens.first(), int(1), int(3)) else {
+                    return self.not_converted(g, a, column);
+                };
+                let place =
+                    [6, 7, 8].map(|i| tokens.get(i).and_then(|t| self.number(g, t, column)));
+                let [Some(map), Some(x), Some(y)] = place else {
+                    return self.not_converted(g, a, column);
+                };
+                let script = (tokens.get(12).and_then(|t| t.parse::<u32>().ok()))
+                    .filter(|&t| t != 0)
+                    .map(|t| c3_script::blueprint::graph_script(&created_npc_blueprint(t)))
+                    .unwrap_or_default();
+                let values = [
+                    ("name", txt(name)),
+                    ("look", num(look)),
+                    ("kind", num(kind)),
+                    ("script", txt(&script)),
+                ];
+                let create = g.node("npc.create", &values, column);
+                self.feed(g, &map, create, "map");
+                self.feed(g, &x, create, "x");
+                self.feed(g, &y, create, "y");
+                Emitted {
+                    entry: Some(create),
+                    ok: Some((create, "then")),
+                    fail: None,
+                }
+            }
+            // An NPC laid by the player (furniture, a booth): TQ lets the client place it, then
+            // runs task `idNextTask`, whose 403 makes it. Here the task runs at once and the
+            // NPC goes where the player stands.
+            401 => {
+                let next = int(0)
+                    .and_then(|t| self.logic.tasks.get(&(t as u32)))
+                    .map(|t| t.next);
+                match next.filter(|&n| n != 0) {
+                    Some(action) => {
+                        let call = self.call(g, action, column);
+                        Emitted {
+                            entry: Some(call),
+                            ok: Some((call, "then")),
+                            fail: None,
+                        }
+                    }
+                    None => self.not_converted(g, a, column),
+                }
+            }
+            403 => {
+                let (Some(name), Some(kind), Some(look)) = (tokens.first(), int(1), int(3)) else {
+                    return self.not_converted(g, a, column);
+                };
+                let script = (tokens.get(9).and_then(|t| t.parse::<u32>().ok()))
+                    .filter(|&t| t != 0)
+                    .map(|t| c3_script::blueprint::graph_script(&created_npc_blueprint(t)))
+                    .unwrap_or_default();
+                let values = [
+                    ("name", txt(name)),
+                    ("look", num(look)),
+                    ("kind", num(kind)),
+                    ("script", txt(&script)),
+                ];
+                let create = g.node("npc.create", &values, column);
+                for (pin, def) in [("map", "player.map"), ("x", "player.x"), ("y", "player.y")] {
+                    let at = g.node(def, &[], column);
+                    g.data(at, create, pin);
+                }
+                Emitted {
+                    entry: Some(create),
+                    ok: Some((create, "then")),
+                    fail: None,
+                }
+            }
+            // A guild's teleport beacon (208): NPC `target`, when the player's guild owns it,
+            // keeps the map and cell given (world variables `npc<id>.data0..2`). TQ's result
+            // is left over from its call: the chain goes on by its failure way.
+            208 => {
+                let Some(target) = int(0) else {
+                    return self.not_converted(g, a, column);
+                };
+                let place =
+                    [1, 2, 3].map(|i| tokens.get(i).and_then(|t| self.number(g, t, column)));
+                let [Some(map), Some(x), Some(y)] = place else {
+                    return self.not_converted(g, a, column);
+                };
+                let flag = |field: &str| txt(&format!("npc{target}.{field}"));
+                let owner = g.node("world.flag", &[("name", flag("ownerid"))], column);
+                let guild = g.node("guild.id", &[], column);
+                let mine = g.node("logic.equal", &[], column);
+                g.data(owner, mine, "a");
+                g.data(guild, mine, "b");
+                let mut sets = Vec::new();
+                for (field, value) in [("data0", &map), ("data1", &x), ("data2", &y)] {
+                    let set = g.node("world.set_flag", &[("name", flag(field))], column);
+                    self.feed(g, value, set, "value");
+                    sets.push(set);
+                }
+                let mut done = self.guarded(g, &[mine], None, &sets, column);
+                let after = g.node("flow.reroute_exec", &[], column);
+                g.exec(done.ok.take().expect("set"), after);
+                g.exec(done.fail.take().expect("refused"), after);
+                done.fail = Some((after, "then"));
+                done
+            }
+            // TQ knows no action of type 0: it fails.
+            0 => Self::never(g, column),
+            // NPCs on the player's map counted: all, furniture (kinds 25 and 101), by name or
+            // kind.
+            402 => {
+                let (Some(field), Some(data), Some(&op), Some(n)) = (
+                    tokens.first().map(|t| t.to_ascii_lowercase()),
+                    tokens.get(1),
+                    tokens.get(2),
+                    int(3),
+                ) else {
+                    return self.not_converted(g, a, column);
+                };
+                let count = |g: &mut Canvas, field: &str, value: &str| {
+                    g.node(
+                        "npc.count",
+                        &[("field", txt(field)), ("value", txt(value))],
+                        column,
+                    )
+                };
+                let total = match field.as_str() {
+                    "all" | "name" => count(g, &field, data),
+                    "type" => count(g, "kind", data),
+                    "furniture" => {
+                        let (a1, b1) = (count(g, "kind", "25"), count(g, "kind", "101"));
+                        let sum = g.node("math.add", &[], column);
+                        g.data(a1, sum, "a");
+                        g.data(b1, sum, "b");
+                        sum
+                    }
+                    _ => return self.not_converted(g, a, column),
+                };
+                if !matches!(op, "<" | "==") {
+                    return self.not_converted(g, a, column);
+                }
+                let cmp = self.compare_node(g, total, op, n, column);
+                Self::branch(g, cmp, column)
             }
             // A sub-guild named as typed: founded for the first teammate (708: level, cost,
             // fund), or handed to it (709: level).
@@ -2505,7 +2732,8 @@ impl<'a> Builder<'a> {
                 return Some(Number::Node(owner));
             }
             // Nobody has a home in this port.
-            "%user_home_id" => return Some(Number::Literal(0)),
+            // The player's home: a map made while playing, its id kept with the player.
+            "%user_home_id" => return node(g, "player.attr", &[("name", txt(HOME))]),
             // Unused CP cards of the account (billing): none here.
             "%emoney_card1" | "%emoney_card2" => return Some(Number::Literal(0)),
             // DragonBalls sent to TQ's web side (billing): none here.
@@ -2528,6 +2756,57 @@ impl<'a> Builder<'a> {
             // A literal as a sum with nothing.
             Number::Literal(v) => g.node("math.add", &[("a", num(v)), ("b", num(0))], column),
         }
+    }
+
+    /// 306 on the fields kept for maps made while playing: `res_lev` (`level`), `portal0_x`
+    /// and `portal0_y`, `mapdoc` (`base`); a map without a 4th token is the player's (only
+    /// `mapdoc ==` is asked of it: its id).
+    fn map_attribute(
+        &mut self,
+        g: &mut Canvas,
+        a: &Action,
+        tokens: &[&str],
+        column: i32,
+    ) -> Emitted {
+        let (Some(field), Some(&op), Some(n)) = (
+            tokens.first().map(|t| t.to_ascii_lowercase()),
+            tokens.get(1),
+            tokens.get(2).and_then(|t| t.parse::<i64>().ok()),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        let Some(map) = tokens.get(3).and_then(|t| self.number(g, t, column)) else {
+            if field == "mapdoc" && op == "==" {
+                let here = g.node("player.map", &[], column);
+                let same = self.compare_node(g, here, "==", n, column);
+                return Self::branch(g, same, column);
+            }
+            return self.not_converted(g, a, column);
+        };
+        let field = match field.as_str() {
+            "res_lev" => "level",
+            "portal0_x" => "x",
+            "portal0_y" => "y",
+            "mapdoc" => "base",
+            _ => return self.not_converted(g, a, column),
+        };
+        if op == "=" {
+            let set = g.node(
+                "map_copy.set",
+                &[("field", txt(field)), ("value", num(n))],
+                column,
+            );
+            self.feed(g, &map, set, "id");
+            return Emitted {
+                entry: Some(set),
+                ok: Some((set, "then")),
+                fail: None,
+            };
+        }
+        let get = g.node("map_copy.get", &[("field", txt(field))], column);
+        self.feed(g, &map, get, "id");
+        let cmp = self.compare_node(g, get, op, n, column);
+        Self::branch(g, cmp, column)
     }
 
     /// A step that always fails (TQ's unknown or unimplemented ones, empty billing).

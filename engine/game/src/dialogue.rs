@@ -364,6 +364,14 @@ impl Sim {
                     self.travel(player, to);
                 }
             }
+            Effect::CreateNpc {
+                map,
+                cell,
+                name,
+                look,
+                kind,
+                script,
+            } => self.create_npc(map, cell, name, look, kind, script),
             Effect::AddStatusFor { status, secs } => {
                 if let Ok(status) = u32::try_from(status) {
                     let ms = (secs > 0).then(|| secs as u64 * 1000);
@@ -503,6 +511,45 @@ impl Sim {
         self.npcs.retain(|n| n.id != npc.id);
         self.npcs.push(npc.clone());
         self.events.push(Event::NpcArrived(npc));
+    }
+
+    /// An NPC made while playing: here when `map` is this map's, else carried there by the
+    /// host. Its id is above any of the game's, unique to this map's own map id.
+    fn create_npc(
+        &mut self,
+        map: i64,
+        cell: (i64, i64),
+        name: String,
+        look: i64,
+        kind: i64,
+        script: String,
+    ) {
+        let (Ok(map), Ok(x), Ok(y)) = (
+            u32::try_from(map),
+            i32::try_from(cell.0),
+            i32::try_from(cell.1),
+        ) else {
+            return;
+        };
+        self.npcs_made += 1;
+        let home = self.map_ids.first().copied().unwrap_or(0) % 100_000;
+        let npc = c3_scene::Npc {
+            id: 3_000_000_000u32
+                .wrapping_add(home.wrapping_mul(10_000))
+                .wrapping_add(self.npcs_made),
+            name,
+            cell: (x, y),
+            direction: 0,
+            look: u32::try_from(look).unwrap_or(0),
+            kind: u32::try_from(kind).unwrap_or(0),
+            script,
+            extra: Default::default(),
+        };
+        if self.map_ids.contains(&map) {
+            self.arrive_npc(npc);
+        } else {
+            self.npc_moves.push((map, npc));
+        }
     }
 
     /// A mirror follows the server's NPCs moving and arriving.
@@ -656,6 +703,12 @@ impl Sim {
             wanted: self.world.wanted_views(),
             bounties: self.world.bounty_views(),
             police: self.world.police.iter().map(|(n, _)| n.clone()).collect(),
+            map_npcs: (self.npcs.iter())
+                .map(|n| (n.name.clone(), i64::from(n.kind)))
+                .collect(),
+            map_copies: (self.world.map_copies.iter())
+                .map(|(id, c)| (i64::from(*id), c.clone()))
+                .collect(),
             map_owners: (self.world.map_owners.iter())
                 .map(|(&m, &g)| (i64::from(m), i64::from(g)))
                 .collect(),

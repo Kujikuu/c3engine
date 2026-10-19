@@ -608,8 +608,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
         revive and level-up hooks, the system timer every minute (52 chains, world events
         with no player), delayed chains (126), traps (424 placed, 144 types, `trap_<type>`,
         2101/2102), map effects, fireworks, chains for a map's players (2013)
-  - [ ] Left in the trigger chains: NPCs placed by players (401/402), destructible NPCs
-        (training goals' link chains)
+  - [x] Every TQ action of the dump converts (0 left in NPC chains and triggers): NPCs made
+        while playing (2007, 403; their tasks' blueprints `tq/dyn_<task>`, carried to their
+        map), NPCs laid by players (401 runs the laying task at once, at the player's cell),
+        NPCs counted (402), guild teleport beacons (208), TQ's unknown type 0 failing
+  - [ ] NPC laying through the client's placement (MsgNpc 2031 EVENT_LAYNPC and its answer),
+        destructible NPCs (training goals' link chains)
   - [x] The wanted list (3001-3008) on the shared world state (`wanted.*` nodes) and text
         variables kept with the player (`text_var`); play-tested: Sunfer takes a 200,000
         bounty on a name typed
@@ -627,7 +631,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
         the police list's guild and PK columns, taking players off at logout
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
         node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)
-  - [ ] Player homes (306 on `%user_home_id`, 1033-1035, 2007 item boxes)
+  - [x] Player homes: maps made while playing on the shared world state (a copy of a map by
+        its game id, served under its own id and key `file@id`, loaded when first needed);
+        1033 makes the home (`home_id`), 1034/1035 enter it or the spouse's, 306 reads and
+        sets its level, portal and map doc, 2007 puts its item box in (play-tested: the
+        House Admin sells a house to a married player; the server serves a copy in a test)
+  - [ ] Homes: teammates following into a home (1034), the team's visits
   - [x] Married (1025), divorce (1024) and the couple's team (1102 `mate`) on the spouse's
         name kept with the player (`mate`; teammates' names in scripts)
   - [ ] Marrying (the client's proposal), the spouse told of a divorce
