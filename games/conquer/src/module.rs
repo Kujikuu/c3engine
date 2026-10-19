@@ -130,6 +130,24 @@ pub fn conquer_settings() -> ProjectSettings {
         hair,
     })
     .to_vec();
+    let classes = [
+        ("Trojan", 10, 10025),
+        ("Warrior", 20, 10022),
+        ("Archer", 40, 10028),
+        ("Taoist", 100, 10031),
+    ];
+    s.characters.classes = (0..8)
+        .map(|i| {
+            let (name, profession, text) = classes[i % 4];
+            c3_core::settings::CreationClass {
+                name: name.into(),
+                description: format!("@ini/StrRes.ini:{text}"),
+                profession,
+                looks: if i < 4 { vec![0, 1] } else { vec![2, 3] },
+                showcase: Some(i as u32),
+            }
+        })
+        .collect();
     s
 }
 
@@ -301,6 +319,7 @@ impl Looks for ConquerModule {
     fn character(&self, look: &Look, act: u32) -> Result<Character, String> {
         match look.kind {
             LookKind::Npc => self.content.npc_character(look.body),
+            LookKind::Showcase => self.content.showcase_character(look.body),
             LookKind::Model => {
                 let (model, texture) = self.content.load_model(look.body.into())?;
                 Ok(Character::single(PartModel::plain(model, texture)))
@@ -314,7 +333,7 @@ impl Looks for ConquerModule {
     fn motions(&self, character: &Character, look: &Look, act: u32) -> CharacterMotions {
         match look.kind {
             // NPCs and plain models keep their own motion.
-            LookKind::Npc | LookKind::Model => CharacterMotions::default(),
+            LookKind::Npc | LookKind::Model | LookKind::Showcase => CharacterMotions::default(),
             _ => self
                 .content
                 .character_motions(character, &RoleLook::from_look(look), act),
@@ -323,7 +342,7 @@ impl Looks for ConquerModule {
 
     fn frame_ms(&self, look: &Look, act: u32) -> u32 {
         match look.kind {
-            LookKind::Npc | LookKind::Model => NPC_FRAME_MS,
+            LookKind::Npc | LookKind::Model | LookKind::Showcase => NPC_FRAME_MS,
             _ => self.content.frame_interval(&RoleLook::from_look(look), act),
         }
     }

@@ -40,6 +40,9 @@ pub struct PlayerSave {
     /// Body and hair chosen when it was made.
     #[serde(default, skip_serializing_if = "is_default_look")]
     pub look: crate::PlayerLook,
+    /// The profession chosen when it was made (0: none).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub profession: u32,
 }
 
 fn is_default_look(look: &crate::PlayerLook) -> bool {
@@ -128,6 +131,7 @@ impl PlayerSave {
             pk_kills: 0,
             flags: BTreeMap::new(),
             look: Default::default(),
+            profession: 0,
         }
     }
 }
@@ -156,6 +160,7 @@ impl Sim {
         p.equipment = worn;
         p.flags = save.flags.clone();
         p.look = save.look;
+        p.profession = save.profession;
         self.refresh_stats(id);
         let p = self.players.get_mut(&id).expect("just added");
         // A save without life (a new character) starts full.
@@ -190,6 +195,7 @@ impl Sim {
             pk_kills: p.pk_kills,
             flags: p.flags.clone(),
             look: p.look,
+            profession: p.profession,
         })
     }
 

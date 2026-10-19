@@ -579,6 +579,28 @@ pub struct CharacterSettings {
     pub per_account: u32,
     /// The looks character creation offers, in order (none: the game's default look).
     pub looks: Vec<CreationLook>,
+    /// The classes creation offers first (TQ's RoleChoose), each with some of the looks
+    /// (none: creation starts at the looks).
+    #[serde(rename = "class", skip_serializing_if = "Vec::is_empty")]
+    pub classes: Vec<CreationClass>,
+}
+
+/// A class character creation offers: its name, what it is, the profession it gives and
+/// the looks it may wear.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CreationClass {
+    pub name: String,
+    /// Text, or `@file:key`: the text of line `key=…` of a game file (`\n` breaks lines).
+    pub description: String,
+    /// The profession it gives, as the game numbers them.
+    pub profession: u32,
+    /// Which creation looks it offers, by index (none: all of them).
+    pub looks: Vec<usize>,
+    /// The figure shown while it is picked: one of the game's showcase figures (none: its
+    /// first look).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub showcase: Option<u32>,
 }
 
 impl Default for CharacterSettings {
@@ -586,6 +608,7 @@ impl Default for CharacterSettings {
         Self {
             per_account: 3,
             looks: Vec::new(),
+            classes: Vec::new(),
         }
     }
 }

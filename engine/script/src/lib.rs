@@ -181,6 +181,10 @@ pub const API: &[(&str, &str)] = &[
         "The player's team: whether in one, how many, its leader, telling it",
     ),
     (
+        "profession()",
+        "The profession chosen when the character was made (0: none)",
+    ),
+    (
         "open_window(id)",
         "Opens the game UI's dialog id for the player",
     ),

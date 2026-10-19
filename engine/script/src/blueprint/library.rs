@@ -687,6 +687,14 @@ pub const NODES: &[NodeDef] = &[
         &[],
         "set_world_flag({name}, {value});",
     ),
+    pure(
+        "player.profession",
+        "Profession",
+        "Player",
+        &[],
+        Number,
+        "profession()",
+    ),
     // Teams.
     pure("team.in", "In a team", "Teams", &[], Bool, "in_team()"),
     pure(

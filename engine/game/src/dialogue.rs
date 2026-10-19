@@ -279,6 +279,7 @@ impl Sim {
                 .and_then(|l| self.players.get(&l))
                 .map(|l| l.name.clone())
                 .unwrap_or_default(),
+            profession: p.profession.into(),
         }
     }
 

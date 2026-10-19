@@ -284,6 +284,8 @@ fn more(engine: &mut Engine, shared: &Shared) {
     let s = shared.clone();
     engine.register_fn("team_size", move || with(&s, |c| c.player.team_size));
     let s = shared.clone();
+    engine.register_fn("profession", move || with(&s, |c| c.player.profession));
+    let s = shared.clone();
     engine.register_fn("in_team", move || with(&s, |c| c.player.team_size > 0));
     let s = shared.clone();
     engine.register_fn("team_leader", move || {

@@ -101,6 +101,19 @@ pub fn start_map(
         .or_else(|| game.default_map(project))
 }
 
+/// A settings text: itself, or for `@file:key` the text of line `key=…` of the game file
+/// (TQ's string tables, `StrRes.ini`), its `\n`s made line breaks.
+pub fn resolve_text(game: &dyn GameModule, text: &str) -> String {
+    let Some((path, key)) = text.strip_prefix('@').and_then(|t| t.rsplit_once(':')) else {
+        return text.to_owned();
+    };
+    let bytes = game.read_file(path).unwrap_or_default();
+    let lines = String::from_utf8_lossy(&bytes);
+    (lines.lines())
+        .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
+        .map_or_else(|| text.to_owned(), |t| t.trim_end().replace("\\n", "\n"))
+}
+
 /// The tilt of 3D roles and effects: the settings', else the game's.
 pub fn tilt_deg(settings: &ProjectSettings, game: &dyn GameModule) -> f32 {
     settings

@@ -49,8 +49,13 @@ pub enum Enter {
     First,
     /// The account's character of this name.
     Existing(String),
-    /// A new character of the account.
-    New { name: String, look: PlayerLook },
+    /// A new character of the account: its name, look and profession (0: none).
+    New {
+        name: String,
+        look: PlayerLook,
+        #[serde(default)]
+        profession: u32,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -180,10 +185,10 @@ impl Accounts {
         new_character: impl FnOnce(&str) -> PlayerSave,
     ) -> Result<PlayerSave, AccountError> {
         let mut data = self.open(account, password)?;
-        let (name, look) = match enter {
+        let (name, look, profession) = match enter {
             Enter::First => match data.characters.first() {
                 Some(first) => return Ok(first.clone()),
-                None => (account, PlayerLook::default()),
+                None => (account, PlayerLook::default(), 0),
             },
             Enter::Existing(name) => {
                 return (data.characters.iter())
@@ -191,7 +196,11 @@ impl Accounts {
                     .cloned()
                     .ok_or(AccountError::NoCharacter);
             }
-            Enter::New { name, look } => {
+            Enter::New {
+                name,
+                look,
+                profession,
+            } => {
                 if !valid_name(name) {
                     return Err(AccountError::BadCharacterName);
                 }
@@ -201,12 +210,13 @@ impl Accounts {
                 if self.name_taken(name) {
                     return Err(AccountError::NameTaken);
                 }
-                (name.as_str(), *look)
+                (name.as_str(), *look, *profession)
             }
         };
         let mut character = new_character(name);
         character.name = name.to_owned();
         character.look = look;
+        character.profession = profession;
         data.characters.push(character.clone());
         self.write(account, &data)?;
         Ok(character)
@@ -239,6 +249,7 @@ mod tests {
         Enter::New {
             name: name.into(),
             look: PlayerLook { body: 2, hair: 7 },
+            profession: 10,
         }
     }
 

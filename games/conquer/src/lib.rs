@@ -153,7 +153,11 @@ impl Content {
                 .map(|b| b.into_owned())
                 .unwrap_or_default()
         };
-        let npc_tables = npc::NpcTables::parse(&ini("Npc.ini"), &ini("3DSimpleObj.ini"));
+        let npc_tables = npc::NpcTables::parse(
+            &ini("Npc.ini"),
+            &ini("3DSimpleObj.ini"),
+            &ini("3DsimpleRole.ini"),
+        );
         Ok(Self {
             root,
             fs,

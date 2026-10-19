@@ -123,6 +123,9 @@ pub struct Player {
     /// game's default).
     #[serde(default)]
     pub look: PlayerLook,
+    /// The profession chosen when it was made (as the game numbers them; 0: none).
+    #[serde(default)]
+    pub profession: u32,
     pub running: bool,
     pub task: Task,
     /// The dialogue the player is in, if any.

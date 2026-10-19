@@ -2,14 +2,16 @@
 //! picks, lists or makes their characters, and waits until the server lets the hero in.
 
 use c3_core::ProjectSettings;
-use c3_core::settings::{CreationLook, ServerEntry};
+use c3_core::settings::{CreationClass, CreationLook, ServerEntry};
 use c3_game::{PlayerLook, WorldUpdate};
 use c3_online::{CharacterSummary, Connection, Enter, RemoteEvent, Welcome};
 use c3_play::GameModule;
 use c3_play::preview::LookPreview;
 use c3_play::ui_textures::GameTextures;
 use c3_render::Renderer;
-use c3_ui::front::{CharacterRow, FrontAction, FrontEnd, FrontScreen, GroupRow, ServerRow};
+use c3_ui::front::{
+    CharacterRow, ClassRow, FrontAction, FrontEnd, FrontScreen, GroupRow, ServerRow,
+};
 use std::rc::Rc;
 
 /// Pixels each creation look is drawn at.
@@ -27,12 +29,15 @@ pub struct FrontPhase {
     ui: FrontEnd,
     servers: Vec<ServerEntry>,
     looks: Vec<CreationLook>,
+    classes: Vec<CreationClass>,
     conn: Option<Connection>,
     welcome: Option<Welcome>,
     updates: Vec<WorldUpdate>,
     textures: GameTextures,
     /// The creation looks drawn, each with its texture; made when creation first shows.
     previews: Vec<(LookPreview, Option<egui::TextureId>)>,
+    /// The picked class's figure: which class, the figure and its texture.
+    class_preview: Option<(usize, LookPreview, Option<egui::TextureId>)>,
     /// Draws the previews (its own: offscreen targets need the engine's color format).
     preview_renderer: Option<Renderer>,
     game: Rc<dyn GameModule>,
@@ -90,15 +95,25 @@ impl FrontPhase {
             ui.password = password;
         }
         ui.enter_alone = settings.characters.per_account == 1;
+        let classes = settings.characters.classes.clone();
+        ui.classes = (classes.iter())
+            .map(|c| ClassRow {
+                name: c.name.clone(),
+                description: c3_play::settings::resolve_text(&*game, &c.description),
+                looks: c.looks.clone(),
+            })
+            .collect();
         Self {
             ui,
             servers,
             looks,
+            classes,
             conn: None,
             welcome: None,
             updates: Vec::new(),
             textures: GameTextures::new(Rc::clone(&game)),
             previews: Vec::new(),
+            class_preview: None,
             preview_renderer: None,
             tilt_deg: c3_play::settings::tilt_deg(settings, &*game),
             game,
@@ -114,6 +129,10 @@ impl FrontPhase {
         ui: &mut crate::ui_layer::UiLayer,
         seconds: f32,
     ) {
+        if self.ui.screen == FrontScreen::Classes {
+            self.draw_class(device, queue, ui, seconds);
+            return;
+        }
         if self.ui.screen != FrontScreen::Create || self.looks.is_empty() {
             return;
         }
@@ -140,6 +159,51 @@ impl FrontPhase {
             *texture = Some(id);
             self.ui.previews.insert(i, id);
         }
+    }
+
+    /// Draws the picked class's figure: its showcase figure, else its first look.
+    fn draw_class(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        ui: &mut crate::ui_layer::UiLayer,
+        seconds: f32,
+    ) {
+        let picked = self.ui.class;
+        let Some(class) = self.classes.get(picked) else {
+            return;
+        };
+        if self
+            .class_preview
+            .as_ref()
+            .is_none_or(|(c, ..)| *c != picked)
+        {
+            let look = match class.showcase {
+                Some(figure) => c3_play::Look {
+                    kind: c3_play::LookKind::Showcase,
+                    body: figure,
+                    ..c3_play::Look::default()
+                },
+                None => {
+                    let first = class.looks.first().and_then(|&l| self.looks.get(l));
+                    first.map_or_else(c3_play::Look::default, |l| c3_play::Look {
+                        body: l.body,
+                        hair: l.hair,
+                        ..c3_play::Look::default()
+                    })
+                }
+            };
+            let texture = self.class_preview.take().and_then(|(.., t)| t);
+            let preview = LookPreview::new(Rc::clone(&self.game), &look, self.tilt_deg);
+            self.class_preview = Some((picked, preview, texture));
+        }
+        let renderer = (self.preview_renderer)
+            .get_or_insert_with(|| Renderer::new(device.clone(), queue.clone()));
+        let (_, preview, texture) = self.class_preview.as_mut().expect("made above");
+        let target = preview.render(renderer, PREVIEW_SIZE, seconds);
+        let id = ui.native_texture(device, &target.display_view, *texture);
+        *texture = Some(id);
+        self.ui.class_preview = Some(id);
     }
 
     /// Shows the front end over `rect` and follows the server; what came of it.
@@ -171,12 +235,18 @@ impl FrontPhase {
                 }
             }
             FrontAction::Enter(name) => self.log_in(Enter::Existing(name)),
-            FrontAction::Create { name, look } => {
+            FrontAction::Create { name, look, class } => {
+                let profession =
+                    (class.and_then(|c| self.classes.get(c))).map_or(0, |c| c.profession);
                 let look = (self.looks.get(look)).map_or(PlayerLook::default(), |l| PlayerLook {
                     body: l.body,
                     hair: l.hair,
                 });
-                self.log_in(Enter::New { name, look });
+                self.log_in(Enter::New {
+                    name,
+                    look,
+                    profession,
+                });
             }
         }
         None

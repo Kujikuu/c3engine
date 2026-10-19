@@ -81,7 +81,7 @@ impl Role {
     pub fn fits(self, kind: LookKind) -> bool {
         matches!(
             (self, kind),
-            (Self::Player, LookKind::Player)
+            (Self::Player, LookKind::Player | LookKind::Showcase)
                 | (Self::Monster, LookKind::Monster)
                 | (Self::Npc, LookKind::Npc)
         )

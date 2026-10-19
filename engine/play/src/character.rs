@@ -13,6 +13,8 @@ pub enum LookKind {
     Npc,
     /// One of the game's models by id ([`Look::body`]), as it is.
     Model,
+    /// A game's showcase figure by number ([`Look::body`]): character selection's.
+    Showcase,
 }
 
 /// What a role looks like, in the game's ids.

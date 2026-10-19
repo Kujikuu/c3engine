@@ -84,7 +84,9 @@ impl LookPreview {
         renderer.ensure_target(&mut self.target, size);
         let target = self.target.as_ref().expect("target ensured");
         let meshes = self.world.mesh_draws();
-        let frame = self.world.frame(&meshes, self.camera.view_rect(viewport));
+        let mut frame = self.world.frame(&meshes, self.camera.view_rect(viewport));
+        // Clear, so the role stands on whatever the UI draws behind it.
+        frame.clear = [0.0; 4];
         renderer.render(target, &frame);
         target
     }

@@ -222,7 +222,10 @@ impl ConquerClient {
                 life: p.life.min(u16::MAX.into()) as u16,
                 mana: p.mana.min(u16::MAX.into()) as u16,
                 level: p.level.min(255) as u8,
-                profession: PROFESSION,
+                profession: match p.profession {
+                    0 => PROFESSION,
+                    chosen => u8::try_from(chosen).unwrap_or(PROFESSION),
+                },
                 points: points(sim.rules(), p.level).map(|v| v.min(u16::MAX.into()) as u16),
                 name: &p.name,
             }),

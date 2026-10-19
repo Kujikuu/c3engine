@@ -18,7 +18,7 @@ pub const GROUND_TILE: u32 = 256;
 /// The texture of a figure for a role of `kind`.
 pub fn figure_image(kind: LookKind) -> &'static str {
     match kind {
-        LookKind::Player => "builtin:figure-player",
+        LookKind::Player | LookKind::Showcase => "builtin:figure-player",
         LookKind::Monster => "builtin:figure-monster",
         LookKind::Npc | LookKind::Model => "builtin:figure-npc",
     }

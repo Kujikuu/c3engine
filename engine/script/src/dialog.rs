@@ -30,6 +30,8 @@ pub struct PlayerState {
     /// How many are in the player's team (0: none) and its leader's name.
     pub team_size: i64,
     pub team_leader: String,
+    /// The profession chosen when the character was made (0: none).
+    pub profession: i64,
 }
 
 impl PlayerState {

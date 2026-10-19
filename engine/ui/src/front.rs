@@ -1,6 +1,7 @@
 //! The client's front end, before the world: log in, pick a server, pick or make a
 //! character, and wait while the world loads. A game whose UI (see [`crate::gui`]) has
-//! dialogs for a screen (`screen=login`, `servers`, `characters`, `create`, `loading`) shows
+//! dialogs for a screen (`screen=login`, `servers`, `characters`, `classes`, `create`,
+//! `loading`) shows
 //! those; other screens are the engine's own.
 //!
 //! The front end only asks: the host connects, logs in and loads, and tells it what came of
@@ -16,6 +17,8 @@ pub enum FrontScreen {
     Login,
     Servers,
     Characters,
+    /// Picking a class before the look (TQ's RoleChoose), when the game has classes.
+    Classes,
     Create,
     Loading,
 }
@@ -27,6 +30,7 @@ impl FrontScreen {
             Self::Login => "login",
             Self::Servers => "servers",
             Self::Characters => "characters",
+            Self::Classes => "classes",
             Self::Create => "create",
             Self::Loading => "loading",
         }
@@ -52,6 +56,15 @@ pub struct GroupRow {
     pub icon: String,
 }
 
+/// A class creation offers: its name, what it is, and which looks it may wear.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClassRow {
+    pub name: String,
+    pub description: String,
+    /// Indices of the looks (none: all of them).
+    pub looks: Vec<usize>,
+}
+
 /// A character on the character screen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CharacterRow {
@@ -70,10 +83,11 @@ pub enum FrontAction {
     },
     /// Play the character of this name.
     Enter(String),
-    /// Make a character: its name and which of the creation looks.
+    /// Make a character: its name, which of the creation looks and which class.
     Create {
         name: String,
         look: usize,
+        class: Option<usize>,
     },
     Quit,
 }
@@ -104,6 +118,11 @@ pub struct FrontEnd {
     pub title: String,
     /// Each creation look drawn by the host, by look.
     pub previews: std::collections::HashMap<usize, egui::TextureId>,
+    /// The classes creation starts with (none: it starts at the looks) and the one picked.
+    pub classes: Vec<ClassRow>,
+    pub class: usize,
+    /// The picked class's figure, drawn by the host.
+    pub class_preview: Option<egui::TextureId>,
     /// An account's one character is entered at once, with no list (one per account).
     pub enter_alone: bool,
     gui: Option<Gui>,
@@ -135,6 +154,9 @@ impl FrontEnd {
             progress: 0.0,
             title,
             previews: Default::default(),
+            classes: Vec::new(),
+            class: 0,
+            class_preview: None,
             enter_alone: false,
             gui,
         }
@@ -150,12 +172,49 @@ impl FrontEnd {
             self.screen = FrontScreen::Loading;
             return Some(FrontAction::Enter(self.characters[0].name.clone()));
         }
-        self.screen = if self.characters.is_empty() {
-            FrontScreen::Create
+        if self.characters.is_empty() {
+            self.start_creation();
         } else {
-            FrontScreen::Characters
-        };
+            self.screen = FrontScreen::Characters;
+        }
         None
+    }
+
+    /// Opens creation: at the classes when the game has them, else at the looks.
+    fn start_creation(&mut self) {
+        self.message = None;
+        if self.classes.is_empty() {
+            self.screen = FrontScreen::Create;
+        } else {
+            self.screen = FrontScreen::Classes;
+        }
+    }
+
+    /// Picks class `class` and the first look it offers.
+    fn pick_class(&mut self, class: usize) {
+        if class < self.classes.len() {
+            self.class = class;
+            self.look = self.offered_looks().first().copied().unwrap_or(0);
+        }
+    }
+
+    /// The looks creation offers now: the picked class's, else all of them.
+    fn offered_looks(&self) -> Vec<usize> {
+        match self.classes.get(self.class) {
+            Some(class) if !class.looks.is_empty() => class.looks.clone(),
+            _ => (0..self.looks.len()).collect(),
+        }
+    }
+
+    /// Steps the picked look `by` places through the offered ones.
+    fn step_look(&mut self, by: isize) {
+        let offered = self.offered_looks();
+        if offered.is_empty() {
+            return;
+        }
+        let at = offered.iter().position(|&l| l == self.look).unwrap_or(0) as isize;
+        let next = (at + by).rem_euclid(offered.len() as isize) as usize;
+        self.look = offered[next];
     }
 
     /// The host was refused (or lost the server): back to the login with `why`.
@@ -201,6 +260,7 @@ impl FrontEnd {
                         FrontScreen::Login => self.login(ui, &mut actions),
                         FrontScreen::Servers => self.server_list(ui, &mut actions),
                         FrontScreen::Characters => self.character_list(ui, &mut actions),
+                        FrontScreen::Classes => self.class_list(ui, &mut actions),
                         FrontScreen::Create => self.create(ui, &mut actions),
                         FrontScreen::Loading => self.loading(ui),
                     }
@@ -220,7 +280,8 @@ impl FrontEnd {
             GuiEvent::Item { list, index } => match list.as_str() {
                 "front.servers" => self.pick_server(index),
                 "front.characters" => self.character = index,
-                "front.looks" => self.look = index,
+                "front.looks" => self.act(&format!("look:{index}"), actions),
+                "front.classes" => self.pick_class(index),
                 _ => {}
             },
             GuiEvent::Action(action) => self.act(&action, actions),
@@ -229,7 +290,6 @@ impl FrontEnd {
 
     /// Carries out a named action (a button's `action=`).
     fn act(&mut self, action: &str, actions: &mut Vec<FrontAction>) {
-        let looks = self.looks.len().max(1);
         match action {
             "login" => self.log_in(actions),
             "servers" => self.screen = FrontScreen::Servers,
@@ -239,14 +299,21 @@ impl FrontEnd {
                     actions.push(FrontAction::Enter(c.name.clone()));
                 }
             }
-            "new" => self.screen = FrontScreen::Create,
+            "new" => self.start_creation(),
+            "choose" => {
+                self.pick_class(self.class);
+                self.screen = FrontScreen::Create;
+            }
             "create" => self.make(actions),
-            "next_look" => self.look = (self.look + 1) % looks,
-            "prev_look" => self.look = (self.look + looks - 1) % looks,
+            "next_look" => self.step_look(1),
+            "prev_look" => self.step_look(-1),
             "back" => {
                 self.message = None;
                 self.screen = match self.screen {
-                    FrontScreen::Create if !self.characters.is_empty() => FrontScreen::Characters,
+                    FrontScreen::Create if !self.classes.is_empty() => FrontScreen::Classes,
+                    FrontScreen::Create | FrontScreen::Classes if !self.characters.is_empty() => {
+                        FrontScreen::Characters
+                    }
                     _ => FrontScreen::Login,
                 }
             }
@@ -258,8 +325,12 @@ impl FrontEnd {
             }
             other => {
                 let slot = |prefix: &str| other.strip_prefix(prefix)?.parse::<usize>().ok();
-                if let Some(look) = slot("look:") {
-                    self.look = look;
+                if let Some(n) = slot("look:") {
+                    if let Some(&look) = self.offered_looks().get(n) {
+                        self.look = look;
+                    }
+                } else if let Some(n) = slot("class:") {
+                    self.pick_class(n);
                 } else if let Some(n) = slot("group:") {
                     self.pick_group(self.group_top + n);
                 } else if let Some(n) = slot("server:") {
@@ -336,6 +407,7 @@ impl FrontEnd {
         actions.push(FrontAction::Create {
             name,
             look: self.look,
+            class: (!self.classes.is_empty()).then_some(self.class),
         });
     }
 
@@ -494,6 +566,48 @@ impl FrontEnd {
         }
     }
 
+    fn class_list(&mut self, ui: &mut egui::Ui, actions: &mut Vec<FrontAction>) {
+        Self::heading(ui, icons::SHIELD, "Choose a class");
+        let mut picked = None;
+        egui::Grid::new("front classes")
+            .num_columns(2)
+            .spacing([6.0, 4.0])
+            .show(ui, |ui| {
+                for (i, class) in self.classes.iter().enumerate() {
+                    let row = egui::Button::selectable(self.class == i, &class.name)
+                        .min_size(egui::vec2(154.0, 26.0));
+                    if ui.add(row).clicked() {
+                        picked = Some(i);
+                    }
+                    if i % 2 == 1 {
+                        ui.end_row();
+                    }
+                }
+            });
+        if let Some(i) = picked {
+            self.pick_class(i);
+        }
+        if let Some(texture) = self.class_preview {
+            ui.vertical_centered(|ui| {
+                ui.add(egui::Image::new((texture, egui::vec2(160.0, 200.0))));
+            });
+        }
+        if let Some(class) = self.classes.get(self.class) {
+            ui.label(
+                RichText::new(&class.description)
+                    .color(style::DIM)
+                    .size(12.0),
+            );
+        }
+        ui.add_space(10.0);
+        if Self::wide(ui, icons::ARROW_RIGHT, "Next").clicked() {
+            self.act("choose", actions);
+        }
+        if Self::wide(ui, icons::ARROW_LEFT, "Back").clicked() {
+            self.act("back", actions);
+        }
+    }
+
     fn loading(&mut self, ui: &mut egui::Ui) {
         Self::heading(ui, icons::HOURGLASS, "Entering the world");
         ui.add(egui::ProgressBar::new(self.progress.clamp(0.0, 1.0)).show_percentage());
@@ -531,6 +645,12 @@ impl GuiData for FrontEnd {
                 (self.groups.get(self.group)).map_or(String::new(), |g| g.name.clone())
             }
             "front.look" => self.looks.get(self.look).cloned().unwrap_or_default(),
+            "front.class" => {
+                (self.classes.get(self.class)).map_or(String::new(), |c| c.name.clone())
+            }
+            "front.class_text" => {
+                (self.classes.get(self.class)).map_or(String::new(), |c| c.description.clone())
+            }
             "front.title" => self.title.clone(),
             _ => {
                 return (self.slot_text(key)).or_else(|| self.number(key).map(|n| format!("{n}")));
@@ -539,10 +659,14 @@ impl GuiData for FrontEnd {
     }
 
     fn image(&self, key: &str) -> Option<egui::TextureId> {
-        let look = match key.strip_prefix("front.look") {
-            Some("") => self.look,
-            Some(n) => n.strip_prefix(':')?.parse().ok()?,
-            None => return None,
+        if key == "front.class" {
+            return self.class_preview;
+        }
+        let look = match key.strip_prefix("front.look")? {
+            "" => self.look,
+            n => *self
+                .offered_looks()
+                .get(n.strip_prefix(':')?.parse::<usize>().ok()?)?,
         };
         self.previews.get(&look).copied()
     }
@@ -557,7 +681,18 @@ impl GuiData for FrontEnd {
                     shown.iter().position(|&i| i == self.server),
                 )
             }
-            "front.looks" => (self.looks.clone(), Some(self.look)),
+            "front.looks" => {
+                let offered = self.offered_looks();
+                let names = (offered.iter()).filter_map(|&l| self.looks.get(l).cloned());
+                (
+                    names.collect(),
+                    offered.iter().position(|&l| l == self.look),
+                )
+            }
+            "front.classes" => (
+                self.classes.iter().map(|c| c.name.clone()).collect(),
+                Some(self.class),
+            ),
             "front.characters" => (
                 (self.characters.iter())
                     .map(|c| format!("{}  Lv {}", c.name, c.level))
@@ -604,5 +739,49 @@ mod tests {
         assert_eq!(front.group_top, 1, "scrolls no further than the last four");
         assert_eq!(front.text("front.group:0").as_deref(), Some("GroupPic2"));
         assert_eq!(front.number("front.group_picked:0"), Some(1.0));
+    }
+
+    #[test]
+    fn creation_starts_at_the_classes_and_offers_their_looks() {
+        let looks = ["Small male", "Large male", "Small female", "Large female"];
+        let mut front = FrontEnd::new(
+            String::new(),
+            Vec::new(),
+            Vec::new(),
+            looks.map(String::from).to_vec(),
+            None,
+        );
+        front.classes = [("Trojan", vec![0, 1]), ("Trojan", vec![2, 3])]
+            .map(|(name, looks)| ClassRow {
+                name: name.into(),
+                description: String::new(),
+                looks,
+            })
+            .to_vec();
+        front.got_characters(Vec::new());
+        assert_eq!(front.screen, FrontScreen::Classes);
+        let mut actions = Vec::new();
+        front.act("class:1", &mut actions);
+        front.act("choose", &mut actions);
+        assert_eq!(front.screen, FrontScreen::Create);
+        assert_eq!(front.look, 2, "the class's first look");
+        front.act("next_look", &mut actions);
+        front.act("next_look", &mut actions);
+        assert_eq!(front.look, 2, "looks cycle within the class");
+        front.act("look:1", &mut actions);
+        assert_eq!(front.text("front.look").as_deref(), Some("Large female"));
+        front.new_name = "Lina".into();
+        front.act("create", &mut actions);
+        assert_eq!(
+            actions.last(),
+            Some(&FrontAction::Create {
+                name: "Lina".into(),
+                look: 3,
+                class: Some(1),
+            })
+        );
+        front.screen = FrontScreen::Create;
+        front.act("back", &mut actions);
+        assert_eq!(front.screen, FrontScreen::Classes);
     }
 }

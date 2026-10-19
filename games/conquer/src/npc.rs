@@ -1,6 +1,7 @@
 //! What NPCs look like (`C3DTaskNpc::SetLook`): an NPC's look ÷ 10 is its type in `Npc.ini`,
 //! which names a simple object (`3DSimpleObj.ini`: mesh and texture ids) and its stand-by
-//! motion (`3dmotion.ini`); look mod 10 is the facing.
+//! motion (`3dmotion.ini`); look mod 10 is the facing. Character selection's showcase
+//! figures (`3DSimpleRole.ini`, `C3DSimpleRole`) are simple objects too.
 
 use crate::Content;
 use c3_formats_tq::ini::Ini;
@@ -28,15 +29,23 @@ struct SimplePart {
     texture: u64,
 }
 
-/// `Npc.ini` and `3DSimpleObj.ini`, by number.
+/// One `[RoleN]` of `3DSimpleRole.ini`: a showcase figure and its stand-by motion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Showcase {
+    simple_obj: u32,
+    standby_motion: u64,
+}
+
+/// `Npc.ini`, `3DSimpleObj.ini` and `3DSimpleRole.ini`, by number.
 #[derive(Debug, Default)]
 pub(crate) struct NpcTables {
     types: HashMap<u32, NpcType>,
     simple_objects: HashMap<u32, SimplePart>,
+    showcases: HashMap<u32, Showcase>,
 }
 
 impl NpcTables {
-    pub(crate) fn parse(npc_ini: &[u8], simple_obj_ini: &[u8]) -> Self {
+    pub(crate) fn parse(npc_ini: &[u8], simple_obj_ini: &[u8], simple_role_ini: &[u8]) -> Self {
         let number = |title: &str, prefix: &str| title.strip_prefix(prefix)?.parse::<u32>().ok();
         let npcs = Ini::parse(npc_ini);
         let types = npcs
@@ -71,9 +80,20 @@ impl NpcTables {
                 Some((id, part))
             })
             .collect();
+        let showcases = (Ini::parse(simple_role_ini).sections.iter())
+            .filter_map(|s| {
+                let number = |k: &str| s.get(k).and_then(|v| v.trim().parse::<u64>().ok());
+                let showcase = Showcase {
+                    simple_obj: u32::try_from(number("3DSimpleObjID")?).ok()?,
+                    standby_motion: number("3DStandByMotion").unwrap_or(0),
+                };
+                Some((s.name.strip_prefix("Role")?.parse().ok()?, showcase))
+            })
+            .collect();
         Self {
             types,
             simple_objects,
+            showcases,
         }
     }
 }
@@ -98,16 +118,21 @@ impl Content {
         let kind = self
             .npc_type(look)
             .ok_or_else(|| format!("NPC type {look} is not in Npc.ini"))?;
-        let part = self
-            .npc_tables
-            .simple_objects
-            .get(&kind.simple_obj)
-            .ok_or_else(|| {
-                format!(
-                    "simple object {} is not in 3DSimpleObj.ini",
-                    kind.simple_obj
-                )
-            })?;
+        self.simple_character(kind.simple_obj, kind.standby_motion)
+    }
+
+    /// Showcase figure `index` of character selection (`[RoleN]` of `3DSimpleRole.ini`)
+    /// playing its stand-by motion.
+    pub fn showcase_character(&self, index: u32) -> Result<Character, String> {
+        let showcase = (self.npc_tables.showcases.get(&index))
+            .ok_or_else(|| format!("Role{index} is not in 3DSimpleRole.ini"))?;
+        self.simple_character(showcase.simple_obj, showcase.standby_motion)
+    }
+
+    /// Simple object `simple_obj` as a character playing motion `standby_motion`.
+    fn simple_character(&self, simple_obj: u32, standby_motion: u64) -> Result<Character, String> {
+        let part = (self.npc_tables.simple_objects.get(&simple_obj))
+            .ok_or_else(|| format!("simple object {simple_obj} is not in 3DSimpleObj.ini"))?;
         let path = self
             .tables
             .objects
@@ -122,11 +147,11 @@ impl Content {
             motion_id: None,
         };
         let motion =
-            (self.tables.motions.get(kind.standby_motion)).and_then(|path| self.load_motion(path));
+            (self.tables.motions.get(standby_motion)).and_then(|path| self.load_motion(path));
         if motion.is_some() {
-            character.motion_id = Some(kind.standby_motion);
+            character.motion_id = Some(standby_motion);
             character.apply_motions(&CharacterMotions {
-                body_id: Some(kind.standby_motion),
+                body_id: Some(standby_motion),
                 models: vec![motion],
             });
         }
@@ -143,6 +168,7 @@ mod tests {
         let tables = NpcTables::parse(
             b"[NpcType1]\nName=Storekeeper\nSimpleObjID=0211\nStandByMotion=999001100\nBlazeMotion=1\nRestMotion=2\nEffect=none\nASB=5\nADB=6\nFixDir=0\n",
             b"[ObjIDType211]\nPartAmount=1\nPart0=9990010\nTexture0=9990211\n",
+            b"[Role3]\n3DSimpleObjID=20004\n3DStandByMotion=9998830\n3DBlazeMotion=9998831\n",
         );
         let kind = &tables.types[&1];
         assert_eq!(
@@ -159,6 +185,13 @@ mod tests {
             SimplePart {
                 mesh: 9_990_010,
                 texture: 9_990_211
+            }
+        );
+        assert_eq!(
+            tables.showcases[&3],
+            Showcase {
+                simple_obj: 20004,
+                standby_motion: 9_998_830
             }
         );
     }
