@@ -70,6 +70,7 @@ fn default_of(ty: PinType) -> &'static str {
         PinType::Bool => "false",
         PinType::List => "[]",
         PinType::Record => "#{}",
+        PinType::Cell => "[0, 0]",
         _ => "0",
     }
 }
@@ -422,8 +423,16 @@ impl<'a> Compiler<'a> {
                 body.rest.push((function, id));
             }
             DefKind::MoveTo => {
-                let x = self.input(body, node, "x", PinType::Number);
-                let y = self.input(body, node, "y", PinType::Number);
+                // To a cell, or to x and y.
+                let (x, y) = if def.input("cell").is_some() {
+                    let cell = self.input(body, node, "cell", PinType::Cell);
+                    (format!("{cell}[0]"), format!("{cell}[1]"))
+                } else {
+                    (
+                        self.input(body, node, "x", PinType::Number),
+                        self.input(body, node, "y", PinType::Number),
+                    )
+                };
                 let tag = walk_tag(self.name, id);
                 let function = format!("arrived_{id}");
                 body.line(&format!("walk_to({x}, {y}, {});", quote(&tag)));

@@ -22,6 +22,8 @@ pub enum PinType {
     List,
     /// Named numbers: a fighter's stats (`level`, `attack_min`, ...) or a skill's.
     Record,
+    /// A cell of the map: `[x, y]`.
+    Cell,
 }
 
 impl PinType {
@@ -50,6 +52,7 @@ impl PinType {
             Self::Map,
             Self::List,
             Self::Record,
+            Self::Cell,
         ]
         .into_iter()
         .find(|t| t.name() == name)
@@ -66,6 +69,7 @@ impl PinType {
             Self::Map => "map",
             Self::List => "list",
             Self::Record => "record",
+            Self::Cell => "cell",
         }
     }
 }

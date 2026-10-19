@@ -2,7 +2,7 @@
 //! for what flows into input `pin`. Events become the script functions the game calls;
 //! actions run in exec order; pure nodes are expressions, worked out where they are used.
 
-use super::model::PinType::{self, Bool, Entity, Item, List, Map, Number, Record, Text};
+use super::model::PinType::{self, Bool, Cell, Entity, Item, List, Map, Number, Record, Text};
 
 /// How a node takes part in a graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,6 +163,7 @@ const fn pure(
             Map => &[("value", Map)],
             List => &[("value", List)],
             Record => &[("value", Record)],
+            Cell => &[("value", Cell)],
             PinType::Exec => &[],
         },
         code,
@@ -321,6 +322,78 @@ pub const NODES: &[NodeDef] = &[
         ],
         Record,
         "#{life: {life}, mana: {mana}, attack_min: {attack_min}, attack_max: {attack_max}, defence: {defence}, dodge: {dodge}, dexterity: {dexterity}}",
+    ),
+    // Cells.
+    pure(
+        "cell.make",
+        "Cell",
+        "Cells",
+        &[("x", Number), ("y", Number)],
+        Cell,
+        "[{x}, {y}]",
+    ),
+    pure(
+        "cell.x",
+        "Cell x",
+        "Cells",
+        &[("cell", Cell)],
+        Number,
+        "{cell}[0]",
+    ),
+    pure(
+        "cell.y",
+        "Cell y",
+        "Cells",
+        &[("cell", Cell)],
+        Number,
+        "{cell}[1]",
+    ),
+    pure(
+        "cell.player",
+        "Player cell",
+        "Cells",
+        &[],
+        Cell,
+        "[player_x(), player_y()]",
+    ),
+    pure(
+        "cell.distance",
+        "Distance",
+        "Cells",
+        &[("a", Cell), ("b", Cell)],
+        Number,
+        "max(abs({a}[0] - {b}[0]), abs({a}[1] - {b}[1]))",
+    ),
+    pure(
+        "cell.equal",
+        "Same cell",
+        "Cells",
+        &[("a", Cell), ("b", Cell)],
+        Bool,
+        "({a} == {b})",
+    ),
+    action(
+        "cell.teleport",
+        "Teleport to cell",
+        "Cells",
+        &[("map", Map), ("cell", Cell)],
+        &[],
+        "teleport({map}, {cell}[0], {cell}[1]);",
+    ),
+    action(
+        "cell.spawn",
+        "Spawn monster at cell",
+        "Cells",
+        &[("monster", Number), ("cell", Cell)],
+        &[],
+        "spawn_monster({monster}, {cell}[0], {cell}[1]);",
+    ),
+    flow(
+        "cell.move_to",
+        "Walk to cell",
+        DefKind::MoveTo,
+        &[("cell", Cell)],
+        &[],
     ),
     // Flow.
     flow(

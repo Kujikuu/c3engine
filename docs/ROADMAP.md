@@ -490,7 +490,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     its x and y). Variables local, player (saved) and world; functions with inputs and an
     answer; waits and walks resume from on_timer / on_arrive; type and wiring problems name
     their node
-  - [ ] A cell pin type (cells are two number pins today)
+  - [x] A cell pin type: cells as values ([x, y]), made, read, measured, walked to,
+        teleported and spawned at
   - [ ] Macros (inline sub-graphs; functions stand in for them today)
 - [x] Node library over the whole gameplay core: players, monsters, NPCs, items, skills,
       statuses, quests, money, teams, maps, portals, spawns, chat, dialogue pages, UI windows,

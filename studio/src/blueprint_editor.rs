@@ -184,6 +184,7 @@ fn pin_color(ty: PinType) -> Color32 {
         PinType::Map => Color32::from_rgb(160, 120, 230),
         PinType::List => Color32::from_rgb(120, 200, 220),
         PinType::Record => Color32::from_rgb(90, 110, 220),
+        PinType::Cell => Color32::from_rgb(230, 230, 120),
     }
 }
 
@@ -293,7 +294,7 @@ impl Viewer<'_> {
                     set = Some(Literal::Bool(b));
                 }
             }
-            PinType::Exec | PinType::List | PinType::Record => {}
+            PinType::Exec | PinType::List | PinType::Record | PinType::Cell => {}
         }
         if let Some(value) = set {
             self.edits.push(Edit::Value {
@@ -1185,7 +1186,7 @@ fn type_pick(
     id: impl std::hash::Hash + std::fmt::Debug,
     ty: &mut PinType,
 ) -> bool {
-    const TYPES: [PinType; 8] = [
+    const TYPES: [PinType; 9] = [
         PinType::Number,
         PinType::Text,
         PinType::Bool,
@@ -1194,6 +1195,7 @@ fn type_pick(
         PinType::Map,
         PinType::List,
         PinType::Record,
+        PinType::Cell,
     ];
     let mut changed = false;
     egui::ComboBox::from_id_salt(id)
