@@ -151,6 +151,17 @@ pub struct MapEntry {
     /// The light over this map (night, a cave); none: the project's (Graphics > Light).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<[u8; 3]>,
+    /// Where players who die here come back: a map's id and cell; none: where they fell
+    /// (or their own return point).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revive: Option<RevivePoint>,
+}
+
+/// A map's id and a cell of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevivePoint {
+    pub map: u32,
+    pub cell: [i32; 2],
 }
 
 fn is_false(b: &bool) -> bool {
@@ -329,6 +340,10 @@ pub struct GameplaySettings {
     pub corpse_seconds: f64,
     /// How long a dead player waits to come back.
     pub revive_seconds: f64,
+    /// A dead player comes back only when it asks (after the wait), not by itself.
+    pub revive_by_request: bool,
+    /// Dead players get up as ghosts and may walk until they come back.
+    pub ghosts_walk: bool,
     /// How long a drop stays on the ground.
     pub item_life_seconds: f64,
     /// Items a bag holds.
@@ -382,6 +397,8 @@ impl Default for GameplaySettings {
             monster_wander: 4,
             corpse_seconds: 3.0,
             revive_seconds: 10.0,
+            revive_by_request: false,
+            ghosts_walk: false,
             item_life_seconds: 60.0,
             bag_size: 40,
             currency: "Gold".into(),

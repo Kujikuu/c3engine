@@ -24,6 +24,22 @@ struct MapRow {
     name: String,
     mapdoc: u32,
     kind: u32,
+    /// Where its first portal is (players arrive there).
+    portal0: [i32; 2],
+    /// The map players who die here come back on (at its first portal).
+    reborn_map: u32,
+}
+
+/// Where players who die on `row`'s map come back: its reborn map, at that map's first
+/// portal (battle spec S8–S9).
+fn revive_point(rows: &[MapRow], row: &MapRow) -> Option<c3_core::settings::RevivePoint> {
+    let reborn = rows
+        .iter()
+        .find(|r| r.id == row.reborn_map && row.reborn_map != 0)?;
+    Some(c3_core::settings::RevivePoint {
+        map: reborn.id,
+        cell: reborn.portal0,
+    })
 }
 
 fn map_rows(sql: &str) -> (Vec<MapRow>, usize) {
@@ -41,6 +57,11 @@ fn map_rows(sql: &str) -> (Vec<MapRow>, usize) {
                 name: get(1),
                 mapdoc,
                 kind,
+                portal0: [
+                    number(11).unwrap_or(0) as i32,
+                    number(12).unwrap_or(0) as i32,
+                ],
+                reborn_map: number(13).unwrap_or(0),
             }),
             _ => skipped += 1,
         }
@@ -88,6 +109,7 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
             name: row.name.clone(),
             pk: row.kind & NO_PVP == 0,
             pk_free: row.kind & PK_FREE != 0,
+            revive: revive_point(&rows, row),
             ..MapEntry::default()
         });
         ids.push(row.id);

@@ -191,6 +191,13 @@ impl Sim {
             Effect::Log(text) => self.events.push(Event::ScriptLog(text)),
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
             Effect::Life(change) => self.script_life(id, change),
+            Effect::DropMoney(amount) => self.drop_money_of(id, amount),
+            Effect::DropBagItems(percent) => self.drop_bag_items(id, percent),
+            Effect::LoseExp(amount) => {
+                if let Some(p) = self.players.get_mut(&id) {
+                    p.exp = p.exp.saturating_sub(amount.max(0) as u64);
+                }
+            }
             Effect::Mana(change) => {
                 if let Some(p) = self.players.get_mut(&id) {
                     let mana = (i64::from(p.mana) + change).clamp(0, i64::from(p.stats.max_mana));
@@ -319,6 +326,9 @@ impl Sim {
             bag_space: self.bag_size().saturating_sub(p.bag.len()) as i64,
             mana: p.mana.into(),
             max_mana: p.stats.max_mana.into(),
+            killed_by_monster: p.killed_by_monster.into(),
+            exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
+            map_pk_free: self.pk_free,
             body: p.look.body.into(),
             hair: p.look.hair.into(),
         }

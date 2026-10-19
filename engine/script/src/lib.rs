@@ -78,6 +78,20 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    ("exp()", "The player's experience toward its next level"),
+    (
+        "map_pk_free()",
+        "Whether fights between players here bring no crime or PK points",
+    ),
+    (
+        "drop_money(n) / drop_bag_items(percent) / lose_exp(n)",
+        "Death's costs: money dropped where the player stands, each bag item with a chance, \
+         experience lost",
+    ),
+    (
+        "killed_by_monster()",
+        "The type of the monster that last killed the player (0: none, or a player)",
+    ),
     (
         "body() / hair() / set_hair(n)",
         "The player's look: body and hair as the game numbers them; changes the hair",

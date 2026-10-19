@@ -167,6 +167,7 @@ impl Session {
             settings: setup.settings.gameplay.clone(),
             pk: settings::pk_map(&setup.settings, &setup.map_ids),
             pk_free: settings::pk_free_map(&setup.settings, &setup.map_ids),
+            revive: settings::revive_point(&setup.settings, &setup.map_ids),
             breakpoints: setup.breakpoints.clone(),
         };
         let (mut sim, problems) = game::new_sim(&scene, &game_setup, &*game.rules());
@@ -403,6 +404,7 @@ impl Session {
         setup.map_ids = info.ids.clone();
         setup.pk = info.pk;
         setup.pk_free = info.pk_free;
+        setup.revive = info.revive;
         let mut save = self.sim.save_player(self.hero).ok_or("the hero is gone")?;
         save.map = info.key.clone();
         save.cell = path::nearest_walkable(&scene.grid, cell, START_SEARCH).ok_or_else(|| {

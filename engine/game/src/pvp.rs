@@ -17,6 +17,11 @@ impl Sim {
         self.pk
     }
 
+    /// Sets where players who die here come back.
+    pub fn set_revive_point(&mut self, at: Option<c3_scene::PortalTarget>) {
+        self.revive_point = at;
+    }
+
     /// Makes fights between players here bring no crime and no PK points (or not).
     pub fn set_pk_free(&mut self, free: bool) {
         self.pk_free = free;

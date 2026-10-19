@@ -19,6 +19,8 @@ pub struct MapInfo {
     pub pk: bool,
     /// Fights between players bring no crime and no PK points.
     pub pk_free: bool,
+    /// Where players who die here come back.
+    pub revive: Option<c3_scene::PortalTarget>,
 }
 
 impl MapInfo {
@@ -92,6 +94,10 @@ impl MapList {
                 music: m.music.clone(),
                 pk: m.pk,
                 pk_free: m.pk_free,
+                revive: m.revive.map(|r| c3_scene::PortalTarget {
+                    map: r.map,
+                    cell: (r.cell[0], r.cell[1]),
+                }),
             })
             .collect();
         let mut next = maps.iter().map(MapInfo::id).max().unwrap_or(0) + 1;
@@ -118,6 +124,7 @@ impl MapList {
                 music: String::new(),
                 pk: false,
                 pk_free: false,
+                revive: None,
             });
         }
         Self { maps }

@@ -42,6 +42,8 @@ pub struct Sim {
     pub(crate) pk: bool,
     /// Fights between players here bring no crime and no PK points.
     pub(crate) pk_free: bool,
+    /// Where players who die here come back (none: where they fell, or their return point).
+    pub(crate) revive_point: Option<c3_scene::PortalTarget>,
     /// Portals that lead somewhere: their cells and destinations.
     pub(crate) portals: Vec<(CellPos, c3_scene::PortalTarget)>,
     pub(crate) quests: Vec<c3_script::Quest>,
@@ -93,6 +95,7 @@ impl Sim {
             map_ids: Vec::new(),
             pk: false,
             pk_free: false,
+            revive_point: None,
             portals: Vec::new(),
             quests: Vec::new(),
             regions: Vec::new(),

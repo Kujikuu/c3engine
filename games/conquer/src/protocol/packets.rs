@@ -39,10 +39,14 @@ pub mod action {
     pub const CHANGE_MAP: u16 = 85;
     pub const FLY_MAP: u16 = 86;
     pub const LEVEL_UP: u16 = 92;
+    /// The dead hero asks to come back (battle spec S9).
+    pub const REVIVE: u16 = 94;
     pub const GET_GUILD: u16 = 97;
     pub const QUERY_PLAYER: u16 = 102;
     pub const LEAVE_MAP: u16 = 132;
     pub const JUMP: u16 = 133;
+    /// The dead hero gets up as a ghost, after its fall.
+    pub const GHOST: u16 = 137;
 }
 
 /// MsgUserAttrib attributes.
@@ -59,6 +63,7 @@ pub mod attr {
     pub const STRENGTH: u32 = 16;
     pub const AGILITY: u32 = 17;
     pub const PK: u32 = 6;
+    pub const LOOK_FACE: u32 = 12;
     pub const STATUS: u32 = 26;
 }
 
@@ -87,6 +92,8 @@ pub const STATUS_DEAD: u32 = 0x20;
 pub const STATUS_CRIME: u32 = 0x1;
 pub const STATUS_RED: u32 = 0x4000;
 pub const STATUS_BLACK: u32 = 0x8000;
+/// A ghost.
+pub const STATUS_GHOST: u32 = 0x400;
 /// MsgTaskDialog actions and the closing link.
 pub const DIALOG_TEXT: u8 = 1;
 pub const DIALOG_LINK: u8 = 2;

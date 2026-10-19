@@ -184,8 +184,14 @@ pub struct Player {
     /// Game time (ms) the next step or hit may happen.
     pub(crate) next_step_ms: u64,
     pub(crate) next_attack_ms: u64,
-    /// When a dead player comes back to life.
+    /// When a dead player comes back to life (or may ask to).
     pub(crate) revive_at_ms: Option<u64>,
+    /// Dead and up as a ghost.
+    #[serde(default)]
+    pub ghost: bool,
+    /// The type of the monster that last killed it (0: none, or a player).
+    #[serde(skip)]
+    pub(crate) killed_by_monster: u32,
 }
 
 impl Player {

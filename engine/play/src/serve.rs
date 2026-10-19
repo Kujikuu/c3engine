@@ -99,6 +99,8 @@ struct Worlds {
     /// The ids of the maps where players may attack each other, and where that is free.
     pk_maps: Vec<u32>,
     pk_free_maps: Vec<u32>,
+    /// Each map's revive point, by map id.
+    revive_points: Vec<(u32, c3_scene::PortalTarget)>,
     seed: u64,
 }
 
@@ -113,6 +115,11 @@ impl Worlds {
             settings: self.settings.clone(),
             pk: m.map_ids.iter().any(|id| self.pk_maps.contains(id)),
             pk_free: m.map_ids.iter().any(|id| self.pk_free_maps.contains(id)),
+            revive: self
+                .revive_points
+                .iter()
+                .find(|(id, _)| m.map_ids.contains(id))
+                .map(|(_, at)| *at),
             breakpoints: Default::default(),
         };
         let (sim, problems) = game::new_sim(&m.scene, &setup, &*self.rules);
@@ -175,6 +182,13 @@ impl ServerHandle {
                     pk_free_maps: (settings.maps.iter())
                         .filter(|m| m.pk_free)
                         .map(|m| m.id)
+                        .collect(),
+                    revive_points: (settings.maps.iter())
+                        .filter_map(|m| {
+                            let at = m.revive?;
+                            let cell = (at.cell[0], at.cell[1]);
+                            Some((m.id, c3_scene::PortalTarget { map: at.map, cell }))
+                        })
                         .collect(),
                     seed: game::time_seed(),
                 };

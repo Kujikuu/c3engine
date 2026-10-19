@@ -42,6 +42,17 @@ pub fn pk_free_map(settings: &ProjectSettings, map_ids: &[u32]) -> bool {
     (settings.maps.iter()).any(|m| m.pk_free && map_ids.contains(&m.id))
 }
 
+/// Where players who die on the map answering to `map_ids` come back (the map list's
+/// `revive`).
+pub fn revive_point(settings: &ProjectSettings, map_ids: &[u32]) -> Option<c3_scene::PortalTarget> {
+    let entry = settings.maps.iter().find(|m| map_ids.contains(&m.id))?;
+    let at = entry.revive?;
+    Some(c3_scene::PortalTarget {
+        map: at.map,
+        cell: (at.cell[0], at.cell[1]),
+    })
+}
+
 /// The scene light of the map answering to `map_ids`: its own (the map list's `light`), or
 /// the project's.
 pub fn map_light(settings: &ProjectSettings, map_ids: &[u32]) -> c3_render::Light {

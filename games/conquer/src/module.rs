@@ -101,6 +101,10 @@ pub fn conquer_settings() -> ProjectSettings {
     }
     s.gameplay.currency = "Silver".into();
     s.gameplay.currencies = vec![CONQUER_POINTS.into()];
+    // The dead get up as ghosts and ask to come back, after 20 seconds (battle spec S9).
+    s.gameplay.revive_seconds = 20.0;
+    s.gameplay.revive_by_request = true;
+    s.gameplay.ghosts_walk = true;
     let attribute = |name: &str, doc: &str, default: i64, max: Option<i64>| AttributeDef {
         name: name.into(),
         doc: doc.into(),

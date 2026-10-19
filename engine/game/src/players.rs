@@ -82,6 +82,8 @@ impl Sim {
                 next_step_ms: 0,
                 next_attack_ms: 0,
                 revive_at_ms: None,
+                ghost: false,
+                killed_by_monster: 0,
             },
         );
         self.index.insert(id, cell);
@@ -134,6 +136,13 @@ impl Sim {
 
     /// Walks the player to `goal` (or as near as it can get).
     pub fn walk(&mut self, id: EntityId, goal: CellPos) {
+        // A ghost walks (and goes through no portals).
+        if self.players.get(&id).is_some_and(|p| p.ghost) {
+            if let Some(p) = self.players.get_mut(&id) {
+                p.task = Task::Walk;
+            }
+            return self.plan_path(id, goal);
+        }
         // Walking to a portal goes through it.
         if self.portal_at(goal).is_some() {
             return self.enter_portal(id, goal);
@@ -565,11 +574,11 @@ impl Sim {
             return;
         };
         if let Some(at) = p.revive_at_ms {
-            if now >= at {
-                p.revive_at_ms = None;
-                p.life = p.stats.max_life;
-                p.mana = p.stats.max_mana;
-                self.events.push(Event::Revived(id));
+            if now >= at && !self.settings.revive_by_request {
+                self.revive(id);
+            } else if p.ghost && p.task == Task::Walk && !self.step_player(id) {
+                // A ghost walks.
+                self.players.get_mut(&id).expect("ticking").task = Task::Idle;
             }
             return;
         }
@@ -705,6 +714,10 @@ impl Sim {
     /// The player dies; it comes back after a while where it fell.
     pub(crate) fn kill_player(&mut self, id: EntityId, killer: Option<EntityId>) {
         let revive_at = self.now_ms + ms(self.settings.revive_seconds);
+        let by_monster = killer
+            .and_then(|k| self.monsters.get(&k))
+            .map_or(0, |m| m.kind);
+        let revive_point = self.revive_point;
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
@@ -712,9 +725,53 @@ impl Sim {
         p.task = Task::Idle;
         p.path.clear();
         p.revive_at_ms = Some(revive_at);
+        p.killed_by_monster = by_monster;
+        // The map's revive point is where it comes back.
+        if revive_point.is_some() {
+            p.record = revive_point;
+        }
         self.events.push(Event::Died { id, killer });
         let killer = killer.map_or(0, |k| i64::from(k.0));
         self.script_event(id, "on_death", vec![killer.into()]);
+    }
+
+    /// Brings dead player `id` back once its wait is over: full life and mana, at its return
+    /// point (the map's revive point when it died) or where it lies.
+    pub fn revive(&mut self, id: EntityId) {
+        let now = self.now_ms;
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        if p.revive_at_ms.is_none_or(|at| now < at) {
+            return;
+        }
+        p.revive_at_ms = None;
+        p.ghost = false;
+        p.task = Task::Idle;
+        p.path.clear();
+        p.life = p.stats.max_life;
+        p.mana = p.stats.max_mana;
+        let to = p.record;
+        self.events.push(Event::Revived(id));
+        if let Some(to) =
+            to.filter(|t| !self.is_this_map(t.map) || t.cell != self.players[&id].cell)
+        {
+            self.travel(id, to);
+        }
+        self.script_event(id, "on_revive", Vec::new());
+    }
+
+    /// Dead player `id` gets up as a ghost (when ghosts walk).
+    pub fn become_ghost(&mut self, id: EntityId) {
+        let walk = self.settings.ghosts_walk;
+        if let Some(p) = self
+            .players
+            .get_mut(&id)
+            .filter(|p| !p.is_alive() && walk && !p.ghost)
+        {
+            p.ghost = true;
+            self.events.push(Event::Dressed { player: id });
+        }
     }
 
     /// Adds experience, rising levels as it fills them.

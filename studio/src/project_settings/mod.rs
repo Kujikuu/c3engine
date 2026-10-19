@@ -984,6 +984,21 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                     0.0..=600.0,
                     " s",
                 );
+                f.check(
+                    ui,
+                    (
+                        "Revive when asked",
+                        "A dead player comes back only when it asks, after the wait",
+                    ),
+                    "gameplay.revive_by_request",
+                    g.revive_by_request,
+                );
+                f.check(
+                    ui,
+                    ("Ghosts walk", "Dead players get up as ghosts and may walk"),
+                    "gameplay.ghosts_walk",
+                    g.ghosts_walk,
+                );
                 f.number(
                     ui,
                     ("Drop lifetime", "How long a drop stays on the ground"),
@@ -1592,12 +1607,15 @@ impl Fields<'_> {
             );
         }
         egui::Grid::new("maps")
-            .num_columns(8)
+            .num_columns(9)
             .spacing([10.0, 6.0])
             .striped(true)
             .show(ui, |ui| {
                 if !list.is_empty() {
-                    for title in ["Map", "Id", "Name", "Music", "PvP", "Free PK", "Light", ""] {
+                    let titles = [
+                        "Map", "Id", "Name", "Music", "PvP", "Free PK", "Revive", "Light", "",
+                    ];
+                    for title in titles {
                         ui.label(RichText::new(title).color(theme::TEXT_DIM).small());
                     }
                     ui.end_row();
@@ -1650,6 +1668,7 @@ impl Fields<'_> {
                              (arenas, guild wars)",
                         )
                         .changed();
+                    changed |= map_revive_field(ui, &mut entry.revive);
                     changed |= map_light_field(ui, &mut entry.light);
                     if ui
                         .button(icons::TRASH)
@@ -1925,6 +1944,39 @@ impl Fields<'_> {
             self.set("localization.fonts", json!(list));
         }
     }
+}
+
+/// A map's revive point: none (where players fall), or a map id and cell.
+fn map_revive_field(
+    ui: &mut egui::Ui,
+    revive: &mut Option<c3_core::settings::RevivePoint>,
+) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        let mut on = revive.is_some();
+        changed |= ui
+            .checkbox(&mut on, "")
+            .on_hover_text("Players who die here come back at a set place")
+            .changed();
+        if on != revive.is_some() {
+            *revive = on.then_some(c3_core::settings::RevivePoint {
+                map: 0,
+                cell: [0, 0],
+            });
+        }
+        if let Some(at) = revive {
+            changed |= ui
+                .add(DragValue::new(&mut at.map).prefix("map ").speed(0.2))
+                .on_hover_text("The map's id")
+                .changed();
+            for (i, axis) in ["x ", "y "].into_iter().enumerate() {
+                changed |= ui
+                    .add(DragValue::new(&mut at.cell[i]).prefix(axis).speed(0.2))
+                    .changed();
+            }
+        }
+    });
+    changed
 }
 
 /// A map's own light: off uses the project's (Graphics > Light). Returns whether it changed.

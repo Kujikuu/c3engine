@@ -23,6 +23,8 @@ pub struct GameSetup {
     pub pk: bool,
     /// Their fights bring no crime and no PK points.
     pub pk_free: bool,
+    /// Where players who die here come back.
+    pub revive: Option<c3_scene::PortalTarget>,
     /// Blueprint nodes a debugger stops after (from the first event on).
     pub breakpoints: std::collections::BTreeSet<c3_script::debug::NodeKey>,
 }
@@ -95,6 +97,7 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     sim.set_map_ids(setup.map_ids.clone());
     sim.set_pk(setup.pk);
     sim.set_pk_free(setup.pk_free);
+    sim.set_revive_point(setup.revive);
     sim.set_portals(&scene.portals);
     sim.set_regions(scene.regions.clone());
     if let Some(dir) = &setup.scripts {

@@ -75,7 +75,13 @@ fn cell16(c: CellPos) -> (u16, u16) {
 }
 
 fn look_face(p: &Player) -> u32 {
-    FACE * 10_000 + 1000 + player_look(p).look
+    let face = FACE * 10_000 + 1000 + player_look(p).look;
+    // A ghost's look: the body's plus 980000000 (male) or 990000000 (female).
+    match (p.ghost, p.look.body > 2) {
+        (false, _) => face,
+        (true, true) => face + 980_000_000,
+        (true, false) => face + 990_000_000,
+    }
 }
 
 /// Strength, agility, vitality and spirit.
@@ -92,12 +98,14 @@ fn points(p: &Player) -> Points {
 /// A player's status bits: dead, and its name's colour.
 fn status(p: &Player) -> u32 {
     let dead = if p.is_alive() { 0 } else { pk::STATUS_DEAD };
-    dead | match p.mark {
-        c3_game::NameMark::Good => 0,
-        c3_game::NameMark::Criminal => pk::STATUS_CRIME,
-        c3_game::NameMark::Red => pk::STATUS_RED,
-        c3_game::NameMark::Black => pk::STATUS_BLACK,
-    }
+    let ghost = if p.ghost { pk::STATUS_GHOST } else { 0 };
+    dead | ghost
+        | match p.mark {
+            c3_game::NameMark::Good => 0,
+            c3_game::NameMark::Criminal => pk::STATUS_CRIME,
+            c3_game::NameMark::Red => pk::STATUS_RED,
+            c3_game::NameMark::Black => pk::STATUS_BLACK,
+        }
 }
 
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
@@ -367,7 +375,11 @@ impl ConquerClient {
         }
         if status(old) != status(new) || old.pk != new.pk {
             let pk_points = u64::try_from(new.pk.max(0)).unwrap_or(0);
-            let values = [(attr::STATUS, status(new).into()), (attr::PK, pk_points)];
+            let values = [
+                (attr::STATUS, status(new).into()),
+                (attr::PK, pk_points),
+                (attr::LOOK_FACE, look_face(new).into()),
+            ];
             out.push(pk::attributes(id, &values));
         }
         let has = |list: &[c3_game::Item], item: u32| list.iter().any(|i| i.id == item);
@@ -647,6 +659,11 @@ impl ConquerClient {
                     self.steps_to = Some(to);
                     inputs.push(Input::Jump(to));
                 }
+                action::REVIVE => {
+                    self.steps_to = None;
+                    inputs.push(Input::Revive);
+                }
+                action::GHOST => inputs.push(Input::Ghost),
                 _ => {}
             },
             Request::Walk { dir, run } => {

@@ -247,6 +247,17 @@ fn more(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("give_exp", effect(shared, Effect::Exp));
     engine.register_fn("add_pk", effect(shared, Effect::Pk));
     engine.register_fn("add_mana", effect(shared, Effect::Mana));
+    engine.register_fn("drop_money", effect(shared, Effect::DropMoney));
+    engine.register_fn("drop_bag_items", effect(shared, Effect::DropBagItems));
+    engine.register_fn("lose_exp", effect(shared, Effect::LoseExp));
+    let s = shared.clone();
+    engine.register_fn("exp", move || with(&s, |c| c.player.exp));
+    let s = shared.clone();
+    engine.register_fn("map_pk_free", move || with(&s, |c| c.player.map_pk_free));
+    let s = shared.clone();
+    engine.register_fn("killed_by_monster", move || {
+        with(&s, |c| c.player.killed_by_monster)
+    });
     let s = shared.clone();
     engine.register_fn("body", move || with(&s, |c| c.player.body));
     let s = shared.clone();

@@ -48,6 +48,12 @@ pub struct PlayerState {
     pub bag_space: i64,
     pub mana: i64,
     pub max_mana: i64,
+    /// The type of the monster that last killed the player (0: none, or a player).
+    pub killed_by_monster: i64,
+    /// Experience toward the next level.
+    pub exp: i64,
+    /// Fights between players on its map bring no crime or PK points.
+    pub map_pk_free: bool,
     /// The look chosen when the character was made: body and hair (game-defined numbers).
     pub body: i64,
     pub hair: i64,
@@ -167,6 +173,12 @@ pub enum Effect {
     Pk(i64),
     /// Mana back (negative: spent, never below 0).
     Mana(i64),
+    /// The player drops this much of its money where it stands.
+    DropMoney(i64),
+    /// Each item in the player's bag falls where it stands with this chance (percent).
+    DropBagItems(i64),
+    /// Experience lost (never below 0).
+    LoseExp(i64),
     /// Put the player under status `id`.
     AddStatus(i64),
     /// Play effect `name` on the player.

@@ -308,8 +308,41 @@ impl Sim {
         }
     }
 
+    /// Player `id` drops `amount` of its money where it stands.
+    pub(crate) fn drop_money_of(&mut self, id: EntityId, amount: i64) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let amount = (amount.max(0) as u64).min(p.money);
+        if amount == 0 {
+            return;
+        }
+        p.money -= amount;
+        let cell = p.cell;
+        self.drop_at(cell, Drop::Money(amount));
+    }
+
+    /// Each item in player `id`'s bag falls where it stands with a `percent` chance.
+    pub(crate) fn drop_bag_items(&mut self, id: EntityId, percent: i64) {
+        let Some(p) = self.players.get(&id) else {
+            return;
+        };
+        let (cell, bag) = (p.cell, p.bag.clone());
+        let chance = u32::try_from(percent.clamp(0, 100)).unwrap_or(0);
+        for item in bag {
+            if self.rng.chance(chance, 100) {
+                self.players
+                    .get_mut(&id)
+                    .expect("checked")
+                    .bag
+                    .retain(|i| i.id != item.id);
+                self.drop_at(cell, Drop::Item(item.kind));
+            }
+        }
+    }
+
     /// Lays `drop` on the free cell nearest `cell`.
-    fn drop_at(&mut self, cell: CellPos, drop: Drop) {
+    pub(crate) fn drop_at(&mut self, cell: CellPos, drop: Drop) {
         let free = |s: &Sim, c: CellPos| {
             s.walkable(c) && !s.index.near(c, 0).any(|(e, _)| s.items.contains_key(&e))
         };

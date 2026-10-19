@@ -38,6 +38,10 @@ pub enum Input {
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
     Say(String),
+    /// Come back to life (once the wait is over), when the game waits to be asked.
+    Revive,
+    /// Get up as a ghost (dead, when ghosts walk).
+    Ghost,
     /// Cast skill `skill` at `at`.
     Cast {
         skill: u32,
@@ -65,6 +69,8 @@ impl Sim {
             Input::Buy { npc, kind } => self.buy(id, npc, kind),
             Input::Sell { npc, item } => self.sell(id, npc, item),
             Input::CloseShop => self.close_shop(id),
+            Input::Revive => self.revive(id),
+            Input::Ghost => self.become_ghost(id),
             Input::Use(item) => self.use_item(id, item),
             Input::Unequip(item) => self.unequip(id, item),
             Input::Say(line) if line.starts_with('/') => {

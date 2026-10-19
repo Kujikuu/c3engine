@@ -913,6 +913,37 @@ fn players_fight_players_only_on_pk_maps() {
 }
 
 #[test]
+fn the_dead_walk_as_ghosts_and_come_back_when_they_ask() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let mut settings = sim.settings().clone();
+    settings.revive_by_request = true;
+    settings.ghosts_walk = true;
+    settings.revive_seconds = 20.0;
+    sim.set_settings(settings);
+    sim.set_pk(true);
+    sim.set_revive_point(Some(c3_scene::PortalTarget {
+        map: 0,
+        cell: (2, 2),
+    }));
+    sim.set_map_ids(vec![0]);
+    let a = sim.add_player("A", (5, 5), 1);
+    let b = sim.add_player("B", (6, 5), 1);
+    sim.attack(a, b);
+    sim.advance(30_000);
+    assert!(!sim.player(b).unwrap().is_alive());
+    sim.input(b, Input::Ghost);
+    sim.input(b, Input::Walk((6, 9)));
+    sim.advance(10_000);
+    let ghost = sim.player(b).unwrap();
+    assert!(ghost.ghost && !ghost.is_alive() && ghost.cell == (6, 9), "{:?}", ghost.cell);
+    sim.input(b, Input::Revive);
+    sim.advance(1_000);
+    let back = sim.player(b).unwrap();
+    assert!(back.is_alive() && !back.ghost);
+    assert_eq!(back.cell, (2, 2), "at the map's revive point");
+}
+
+#[test]
 fn killing_players_of_good_name_brings_crime_and_pk_points() {
     let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
     sim.set_pk(true);
@@ -931,7 +962,11 @@ fn killing_players_of_good_name_brings_crime_and_pk_points() {
     // Killing a red name is fair; points wear off.
     sim.attack(b, a);
     sim.advance(120_000);
-    assert_eq!(sim.player(b).unwrap().pk, 0, "no points for killing a red name");
+    assert_eq!(
+        sim.player(b).unwrap().pk,
+        0,
+        "no points for killing a red name"
+    );
     sim.advance(360_000 * 2);
     assert!(sim.player(a).unwrap().pk < 30);
 }
