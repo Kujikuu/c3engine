@@ -3,11 +3,13 @@
 //! `scripts/graphs/<name>.rhai`, which the game runs as it runs hand-written scripts (its event
 //! functions alongside `events.rhai`, its `talk()` for NPCs naming it).
 
+mod collapse;
 mod compile;
 mod library;
 mod model;
 mod pins;
 
+pub use collapse::collapse;
 pub use compile::{GraphRef, Problem, compile};
 pub use library::{DefKind, NODES, NodeDef, node_def, returns};
 pub use model::{
@@ -89,6 +91,50 @@ pub fn build_blueprint(scripts: &Path, name: &str) -> Result<Vec<Problem>> {
             Ok(problems)
         }
     }
+}
+
+/// Where a node is: its blueprint, graph and id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeAt {
+    pub blueprint: String,
+    pub graph: GraphRef,
+    pub node: u32,
+}
+
+/// Every node of the blueprints of `scripts` that is library node `def` (and, when `name`
+/// is given, names it: a variable, function or custom event).
+pub fn references(scripts: &Path, def: &str, name: Option<&str>) -> Vec<NodeAt> {
+    let mut found = Vec::new();
+    for blueprint in blueprint_names(scripts) {
+        let file = scripts
+            .join(BLUEPRINT_DIR)
+            .join(format!("{blueprint}{BLUEPRINT_SUFFIX}"));
+        let Ok(bp) = load_blueprint(&file) else {
+            continue;
+        };
+        let graphs = std::iter::once((GraphRef::Events, &bp.events)).chain(
+            bp.functions
+                .iter()
+                .map(|f| (GraphRef::Function(f.name.clone()), &f.graph)),
+        );
+        for (graph, g) in graphs {
+            for n in &g.nodes {
+                let named = match (name, n.values.get("name")) {
+                    (None, _) => true,
+                    (Some(want), Some(Literal::Text(t))) => t == want,
+                    (Some(_), _) => false,
+                };
+                if n.def == def && named {
+                    found.push(NodeAt {
+                        blueprint: blueprint.clone(),
+                        graph: graph.clone(),
+                        node: n.id,
+                    });
+                }
+            }
+        }
+    }
+    found
 }
 
 /// Compiles every blueprint of `scripts`; what is wrong, one line per problem.
@@ -276,6 +322,23 @@ mod tests {
         me.insert("attack_max".into(), 21_i64.into());
         let damage = formulas.int("hit", (me, rhai::Map::new())).unwrap();
         assert_eq!(damage, 42, "{code}");
+    }
+
+    #[test]
+    fn selected_nodes_collapse_into_a_called_function() {
+        let mut bp = bounty();
+        // Paying and counting the kill (give money, set kills = kills + 1).
+        collapse(&mut bp, &GraphRef::Events, &[4, 6, 7, 8], "reward").unwrap();
+        assert_eq!(bp.functions[0].name, "reward");
+        assert!(bp.events.nodes.iter().any(|n| n.def == "flow.call"));
+        let code = compile("bounty", &bp).unwrap();
+        assert!(code.contains("fn f_reward() {"), "{code}");
+        assert!(code.contains("give_money(10);"), "{code}");
+        assert!(code.contains("f_reward();"), "{code}");
+        assert!(code.contains("start_timer(\"bp:bounty:9\", 2);"), "{code}");
+        // A value used outside can't leave.
+        let mut bp = bounty();
+        assert!(collapse(&mut bp, &GraphRef::Events, &[3], "test").is_err());
     }
 
     #[test]

@@ -505,9 +505,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
     events; formula events (player stats, level exp, hit, kill exp, skill hit and heal) end
     at a Return
   - [ ] A drops formula event (drops are table data; the rules ask no formula for them)
-- [ ] Graph editor in the Studio: Blueprint-like canvas (search palette, typed wiring,
+- [x] Graph editor in the Studio: Blueprint-like canvas (search palette, typed wiring,
       reroutes, comments, collapse to function), live debugging in Play (breakpoints, watched
       values, the path that ran lit), find references
+  - Done 2026-10-19 on egui-snarl (the user's choice, vendored for egui 0.37): the Blueprints
+    panel, right-click palette with search, typed coloured pins and wires, values typed into
+    unwired inputs, variables and functions, reroutes (typed by their wire), comments,
+    collapse to function, Find uses across blueprints (click to go there), the path that ran
+    glowing, watched output values and breakpoints pausing Play; undo, save and compile on
+    every change
+  - [ ] Breakpoints on the very first events of a Play (login runs before the panel hands
+        its breakpoints to the new game)
 - [ ] Prove it: the Conquer project's NPCs, quests, formulas and events made only with graphs
 
 ## M11: MCP and AI integration (moved before Conquer; the Studio assistant panel is dropped)

@@ -36,6 +36,10 @@ pub(crate) struct BlueprintEditor {
     search: String,
     /// Nodes Play stops after (not part of the blueprint: no undo).
     breakpoints: std::collections::BTreeSet<u32>,
+    /// The last "Find uses" search: what was looked for and where it is.
+    references: Option<(String, Vec<blueprint::NodeAt>)>,
+    /// A node to point out (a reference followed), outlined.
+    focus: Option<u32>,
 }
 
 /// What the canvas asked for, carried out after it is drawn.
@@ -54,6 +58,10 @@ enum Edit {
     },
     /// Stop (or no longer stop) Play after this node runs.
     Breakpoint(u32),
+    /// Move the selected nodes (none selected: this one) into a new function.
+    Collapse(u32),
+    /// Look for the nodes like this one (the same library node and name).
+    FindUses(u32),
 }
 
 /// What Play reported about this blueprint: how recently each node ran (0 just now, 1 long
@@ -80,6 +88,8 @@ impl BlueprintEditor {
             moving: false,
             search: String::new(),
             breakpoints: Default::default(),
+            references: None,
+            focus: None,
         }
     }
 
@@ -191,6 +201,7 @@ struct Viewer<'a> {
     search: &'a mut String,
     live: Live,
     breakpoints: &'a std::collections::BTreeSet<u32>,
+    focus: Option<u32>,
 }
 
 impl Viewer<'_> {
@@ -412,6 +423,9 @@ impl Viewer<'_> {
             return default;
         };
         let frame = default.fill(category_color(def.category));
+        if self.focus == Some(n.id) {
+            return frame.stroke(Stroke::new(3.0, theme::ACCENT));
+        }
         if self.problems.contains_key(&n.id) {
             frame.stroke(Stroke::new(2.0, theme::DANGER))
         } else if let Some(age) = self.live.ran.get(&n.id) {
@@ -528,7 +542,7 @@ impl SnarlViewer<u32> for Viewer<'_> {
         };
         matches!(
             def.kind,
-            DefKind::GetVariable | DefKind::SetVariable | DefKind::Call
+            DefKind::GetVariable | DefKind::SetVariable | DefKind::Call | DefKind::Comment
         ) || def.id == "event.custom"
     }
 
@@ -540,8 +554,31 @@ impl SnarlViewer<u32> for Viewer<'_> {
         ui: &mut egui::Ui,
         snarl: &mut Snarl<u32>,
     ) {
-        if let Some((n, def)) = self.node(snarl, node) {
-            let n = n.clone();
+        let Some((n, def)) = self.node(snarl, node) else {
+            return;
+        };
+        let n = n.clone();
+        if def.kind == DefKind::Comment {
+            let mut text = match n.values.get("text") {
+                Some(Literal::Text(t)) => t.clone(),
+                _ => String::new(),
+            };
+            let r = self.touch.track(
+                ui.add(
+                    egui::TextEdit::multiline(&mut text)
+                        .hint_text("A note")
+                        .desired_width(180.0)
+                        .desired_rows(3),
+                ),
+            );
+            if r.changed() {
+                self.edits.push(Edit::Value {
+                    node: n.id,
+                    key: "text".into(),
+                    value: Some(Literal::Text(text)),
+                });
+            }
+        } else {
             self.name_field(ui, &n, def);
         }
     }
@@ -596,6 +633,30 @@ impl SnarlViewer<u32> for Viewer<'_> {
                 ui.close();
             }
         }
+        if let Some(id) = id {
+            if ui
+                .button(theme::icon_text(icons::MAGNIFYING_GLASS, "Find uses"))
+                .on_hover_text("Every node like this one, in every blueprint")
+                .clicked()
+            {
+                self.edits.push(Edit::FindUses(id));
+                ui.close();
+            }
+            if ui
+                .button(theme::icon_text(
+                    icons::GIT_FORK,
+                    "Collapse selected to function",
+                ))
+                .on_hover_text(
+                    "The selected nodes (Shift+click or Shift+drag to select several; none: this one) become a function called here",
+                )
+                .clicked()
+            {
+                self.touch.click();
+                self.edits.push(Edit::Collapse(id));
+                ui.close();
+            }
+        }
         if ui
             .button(theme::icon_text(icons::TRASH, "Delete"))
             .clicked()
@@ -630,6 +691,16 @@ impl SnarlViewer<u32> for Viewer<'_> {
             if into_input || from_exec {
                 self.edits.push(Edit::Disconnect(wire.clone()));
             }
+        }
+        let reroute = (self.graph.node(input.node))
+            .and_then(|n| node_def(&n.def))
+            .is_some_and(|d| d.kind == DefKind::Reroute);
+        if reroute {
+            self.edits.push(Edit::Value {
+                node: input.node,
+                key: "type".into(),
+                value: Some(Literal::Text(out_ty.name().to_owned())),
+            });
         }
         self.edits.push(Edit::Connect(Wire {
             from: out,
@@ -772,10 +843,14 @@ impl Studio {
                         side_panel(ui, &mut editor, &mut blueprint, &mut touch, &mut label);
                     });
             });
+        let mut follow = None;
         egui::Panel::bottom("bp problems")
             .resizable(true)
             .default_size(80.0)
             .show(ui, |ui| {
+                if let Some(at) = references_list(ui, &editor) {
+                    follow = Some(at);
+                }
                 problems_list(ui, &editor);
             });
         egui::CentralPanel::default().show(ui, |ui| {
@@ -786,10 +861,32 @@ impl Studio {
                 &mut touch,
                 &mut label,
                 live,
+                &scripts,
             );
         });
         self.blueprint_editor = Some(editor);
         self.apply_blueprint_edit(blueprint, &touch, label);
+        if let Some(at) = follow {
+            self.go_to_node(at);
+        }
+    }
+
+    /// Opens the blueprint and graph of `at` with the node pointed out.
+    fn go_to_node(&mut self, at: blueprint::NodeAt) {
+        let open = self.blueprint_editor.as_ref().map(|e| e.name.clone());
+        let references = self
+            .blueprint_editor
+            .as_mut()
+            .and_then(|e| e.references.take());
+        if open.as_deref() != Some(at.blueprint.as_str()) {
+            self.open_blueprint(&at.blueprint);
+        }
+        if let Some(editor) = &mut self.blueprint_editor {
+            editor.references = references;
+            editor.graph = at.graph;
+            editor.focus = Some(at.node);
+            editor.built = None;
+        }
     }
 
     /// What Play reports about the open blueprint (the path that ran, watched values), with
@@ -1109,6 +1206,28 @@ fn type_pick(
     changed
 }
 
+/// The last "Find uses" results; returns the one clicked.
+fn references_list(ui: &mut egui::Ui, editor: &BlueprintEditor) -> Option<blueprint::NodeAt> {
+    let (what, found) = editor.references.as_ref()?;
+    let mut picked = None;
+    ui.label(RichText::new(format!("Uses of {what}: {}", found.len())).strong());
+    ui.horizontal_wrapped(|ui| {
+        for at in found {
+            let graph = match &at.graph {
+                GraphRef::Events => "events".to_owned(),
+                GraphRef::Function(f) => f.clone(),
+            };
+            if ui
+                .link(format!("{} › {graph} › {}", at.blueprint, at.node))
+                .clicked()
+            {
+                picked = Some(at.clone());
+            }
+        }
+    });
+    picked
+}
+
 fn problems_list(ui: &mut egui::Ui, editor: &BlueprintEditor) {
     if editor.problems.is_empty() {
         ui.label(
@@ -1149,6 +1268,7 @@ fn canvas(
     touch: &mut Touch,
     label: &mut &'static str,
     live: Live,
+    scripts: &std::path::Path,
 ) {
     if editor.built != Some(editor.revision) {
         editor.rebuild();
@@ -1172,6 +1292,7 @@ fn canvas(
         search: &mut editor.search,
         live,
         breakpoints: &editor.breakpoints,
+        focus: editor.focus,
     };
     // Near 1:1 even when a graph has few nodes (fitting them would zoom far in).
     let style = SnarlStyle {
@@ -1179,11 +1300,14 @@ fn canvas(
         max_scale: Some(1.25),
         ..SnarlStyle::new()
     };
-    SnarlWidget::new()
+    let widget = SnarlWidget::new()
         .id_salt(("bp canvas", &editor.name, format!("{which:?}")))
-        .style(style)
-        .show(&mut editor.snarl, &mut viewer, ui);
+        .style(style);
+    widget.show(&mut editor.snarl, &mut viewer, ui);
     let edits = std::mem::take(&mut viewer.edits);
+    let selected: Vec<u32> = (widget.get_selected_nodes(ui).into_iter())
+        .filter_map(|id| editor.snarl.get_node(id).copied())
+        .collect();
     let Some(graph) = BlueprintEditor::graph_mut(blueprint, &which) else {
         return;
     };
@@ -1245,6 +1369,45 @@ fn canvas(
                     };
                 }
                 *label = "Set a value";
+            }
+            Edit::Collapse(menu_node) => {
+                let chosen = if selected.is_empty() {
+                    vec![menu_node]
+                } else {
+                    selected.clone()
+                };
+                let name = (1..)
+                    .map(|i| format!("function{i}"))
+                    .find(|n| source.functions.iter().all(|f| &f.name != n))
+                    .unwrap_or_default();
+                match blueprint::collapse(blueprint, &which, &chosen, &name) {
+                    Ok(()) => {
+                        *label = "Collapse to a function";
+                        touch.changed = true;
+                    }
+                    Err(why) => editor.problems.push(Problem {
+                        graph: which.clone(),
+                        node: None,
+                        message: format!("Can't collapse: {why}"),
+                    }),
+                }
+                return;
+            }
+            Edit::FindUses(node) => {
+                let Some(n) = graph.nodes.iter().find(|n| n.id == node) else {
+                    continue;
+                };
+                let name = match n.values.get("name") {
+                    Some(Literal::Text(t)) => Some(t.clone()),
+                    _ => None,
+                };
+                let title = node_def(&n.def).map_or(n.def.clone(), |d| d.title.to_owned());
+                let title = name
+                    .as_ref()
+                    .map_or(title.clone(), |nm| format!("{title}: {nm}"));
+                let found = blueprint::references(scripts, &n.def, name.as_deref());
+                editor.references = Some((title, found));
+                continue;
             }
             Edit::Breakpoint(node) => {
                 if !editor.breakpoints.remove(&node) {
