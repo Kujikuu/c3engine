@@ -28,6 +28,7 @@ pub mod module;
 pub mod native;
 pub mod native_character;
 pub mod native_effect;
+pub mod preview;
 pub mod project_game;
 pub mod screen;
 pub mod serve;

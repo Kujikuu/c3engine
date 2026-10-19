@@ -200,6 +200,8 @@ impl GameApp {
             Phase::Game(screen) => screen,
             Phase::Front(front) => {
                 let mut outcome = FrontOutcome::Stay;
+                let (device, queue) = (gfx.renderer.device().clone(), gfx.renderer.queue().clone());
+                front.draw_previews(&device, &queue, ui, seconds);
                 let input = ui.take_input(&gfx.window);
                 ui.run(&gfx.window, input, |ui| {
                     outcome = front.update(ui, ui.max_rect());

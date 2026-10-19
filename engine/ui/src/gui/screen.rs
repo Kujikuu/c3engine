@@ -27,6 +27,10 @@ pub trait GuiData {
     fn items(&self, _key: &str) -> Vec<u32> {
         Vec::new()
     }
+    /// A picture the host drew for `key` (a 3D look), as a texture.
+    fn image(&self, _key: &str) -> Option<TextureId> {
+        None
+    }
     /// The rows of a list control and which one is picked.
     fn rows(&self, _key: &str) -> (Vec<String>, Option<usize>) {
         (Vec::new(), None)
@@ -325,6 +329,12 @@ impl Painter<'_, '_> {
                     crate::fonts::font(control.size * self.place.scale),
                     Color32::from_rgb(r, g, b),
                 );
+            }
+            ControlKind::Model => {
+                if let Some(texture) = data.image(&control.value) {
+                    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                    self.ui.painter().image(texture, rect, uv, Color32::WHITE);
+                }
             }
             ControlKind::Edit => {
                 let mut text = data.text(&control.value).unwrap_or_default();

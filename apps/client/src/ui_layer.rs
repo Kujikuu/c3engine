@@ -39,6 +39,24 @@ impl UiLayer {
         }
     }
 
+    /// `view` (a picture the engine drew) as a texture egui can show: `id` again when given.
+    pub fn native_texture(
+        &mut self,
+        device: &wgpu::Device,
+        view: &wgpu::TextureView,
+        id: Option<egui::TextureId>,
+    ) -> egui::TextureId {
+        let filter = wgpu::FilterMode::Linear;
+        match id {
+            Some(id) => {
+                self.renderer
+                    .update_egui_texture_from_wgpu_texture(device, view, filter, id);
+                id
+            }
+            None => self.renderer.register_native_texture(device, view, filter),
+        }
+    }
+
     /// Passes a window event to egui.
     pub fn on_event(&mut self, window: &Window, event: &winit::event::WindowEvent) {
         let _ = self.state.on_window_event(window, event);

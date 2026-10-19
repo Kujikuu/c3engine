@@ -6,9 +6,14 @@ use c3_core::settings::{CreationLook, ServerEntry};
 use c3_game::{PlayerLook, WorldUpdate};
 use c3_online::{CharacterSummary, Connection, Enter, RemoteEvent, Welcome};
 use c3_play::GameModule;
+use c3_play::preview::LookPreview;
 use c3_play::ui_textures::GameTextures;
+use c3_render::Renderer;
 use c3_ui::front::{CharacterRow, FrontAction, FrontEnd, FrontScreen};
 use std::rc::Rc;
+
+/// Pixels each creation look is drawn at.
+const PREVIEW_SIZE: [u32; 2] = [256, 320];
 
 /// What the front end came to this frame.
 pub enum FrontOutcome {
@@ -26,6 +31,12 @@ pub struct FrontPhase {
     welcome: Option<Welcome>,
     updates: Vec<WorldUpdate>,
     textures: GameTextures,
+    /// The creation looks drawn, each with its texture; made when creation first shows.
+    previews: Vec<(LookPreview, Option<egui::TextureId>)>,
+    /// Draws the previews (its own: offscreen targets need the engine's color format).
+    preview_renderer: Option<Renderer>,
+    game: Rc<dyn GameModule>,
+    tilt_deg: f32,
 }
 
 impl FrontPhase {
@@ -68,7 +79,48 @@ impl FrontPhase {
             conn: None,
             welcome: None,
             updates: Vec::new(),
-            textures: GameTextures::new(game),
+            textures: GameTextures::new(Rc::clone(&game)),
+            previews: Vec::new(),
+            preview_renderer: None,
+            tilt_deg: c3_play::settings::tilt_deg(settings, &*game),
+            game,
+        }
+    }
+
+    /// Draws the creation looks while character creation shows (each a picture the
+    /// screen's model controls and the engine's own screen show).
+    pub fn draw_previews(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        ui: &mut crate::ui_layer::UiLayer,
+        seconds: f32,
+    ) {
+        if self.ui.screen != FrontScreen::Create || self.looks.is_empty() {
+            return;
+        }
+        let renderer = (self.preview_renderer)
+            .get_or_insert_with(|| Renderer::new(device.clone(), queue.clone()));
+        if self.previews.is_empty() {
+            self.previews = (self.looks.iter())
+                .map(|l| {
+                    let look = c3_play::Look {
+                        body: l.body,
+                        hair: l.hair,
+                        ..c3_play::Look::default()
+                    };
+                    (
+                        LookPreview::new(Rc::clone(&self.game), &look, self.tilt_deg),
+                        None,
+                    )
+                })
+                .collect();
+        }
+        for (i, (preview, texture)) in self.previews.iter_mut().enumerate() {
+            let target = preview.render(renderer, PREVIEW_SIZE, seconds);
+            let id = ui.native_texture(device, &target.display_view, *texture);
+            *texture = Some(id);
+            self.ui.previews.insert(i, id);
         }
     }
 

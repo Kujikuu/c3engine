@@ -79,6 +79,8 @@ pub struct FrontEnd {
     pub progress: f32,
     /// The game's name, over the login.
     pub title: String,
+    /// Each creation look drawn by the host, by look.
+    pub previews: std::collections::HashMap<usize, egui::TextureId>,
     /// An account's one character is entered at once, with no list (one per account).
     pub enter_alone: bool,
     gui: Option<Gui>,
@@ -100,6 +102,7 @@ impl FrontEnd {
             message: None,
             progress: 0.0,
             title,
+            previews: Default::default(),
             enter_alone: false,
             gui,
         }
@@ -364,6 +367,11 @@ impl FrontEnd {
                 .hint_text("Name")
                 .desired_width(f32::INFINITY),
         );
+        if let Some(&texture) = self.previews.get(&self.look) {
+            ui.vertical_centered(|ui| {
+                ui.add(egui::Image::new((texture, egui::vec2(160.0, 200.0))));
+            });
+        }
         if !self.looks.is_empty() {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
@@ -414,6 +422,15 @@ impl GuiData for FrontEnd {
             "front.title" => self.title.clone(),
             _ => return self.number(key).map(|n| format!("{n}")),
         })
+    }
+
+    fn image(&self, key: &str) -> Option<egui::TextureId> {
+        let look = match key.strip_prefix("front.look") {
+            Some("") => self.look,
+            Some(n) => n.strip_prefix(':')?.parse().ok()?,
+            None => return None,
+        };
+        self.previews.get(&look).copied()
     }
 
     fn rows(&self, key: &str) -> (Vec<String>, Option<usize>) {

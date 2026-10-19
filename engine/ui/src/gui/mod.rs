@@ -120,6 +120,8 @@ pub enum ControlKind {
     Edit,
     /// Rows to pick one of (`value` names the list).
     List,
+    /// A 3D look drawn by the host (`value` names it: `front.look`, `front.look:1`).
+    Model,
 }
 
 impl ControlKind {
@@ -134,6 +136,7 @@ impl ControlKind {
             "grid" => Self::Grid,
             "edit" => Self::Edit,
             "list" => Self::List,
+            "model" => Self::Model,
             _ => return None,
         })
     }
