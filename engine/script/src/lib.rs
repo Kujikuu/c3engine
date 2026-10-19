@@ -154,6 +154,39 @@ pub const API: &[(&str, &str)] = &[
         "complete_quest(id)",
         "Completes a ready quest: takes the items, gives the rewards; true if done",
     ),
+    ("give_exp(amount)", "Gives the player experience"),
+    (
+        "heal(amount) / hurt(amount)",
+        "Gives back or takes life (never below 1)",
+    ),
+    ("life() / max_life()", "The player's life and most life"),
+    (
+        "add_status(id) / has_status(id)",
+        "Puts the player under a status, or asks",
+    ),
+    ("map_id() / player_x() / player_y()", "Where the player is"),
+    (
+        "world_flag(name) / set_world_flag(name, value)",
+        "A variable every player's scripts share (unset: 0)",
+    ),
+    ("random(low, high)", "A whole number from low to high"),
+    (
+        "play_effect(name) / play_sound(path)",
+        "An effect on the player, a sound where it is",
+    ),
+    ("announce(text)", "Tells every player on the map"),
+    (
+        "open_window(id)",
+        "Opens the game UI's dialog id for the player",
+    ),
+    (
+        "spawn_monster(kind, x, y)",
+        "A monster of type kind appears at x, y",
+    ),
+    (
+        "walk_to(x, y, tag)",
+        "Walks the player there; the events' on_arrive(tag) runs when it gets there",
+    ),
     ("print(value)", "Writes to the console"),
     (
         "global::NAME",
