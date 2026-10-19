@@ -304,6 +304,7 @@ impl Session {
         let minimap = Minimap::of(&*game, &map_path, &map_ids);
         let mut audio = GameAudio::new(Rc::clone(&game), map_ids);
         audio.apply(&settings.audio);
+        audio.set_ui_sounds(&settings.ui);
         let slots = settings::equipment_slots(&settings, &*game);
         let tilt = settings::tilt_deg(&settings, &*game);
         let mut world = World::new(Rc::clone(&game), map_path, scene, tilt);

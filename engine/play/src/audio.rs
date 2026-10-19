@@ -20,6 +20,8 @@ pub struct GameAudio {
     /// The project's volumes and the player's, which scale them.
     project: Volumes,
     player: PlayerPrefs,
+    /// The sound of the hero selling (the game UI's settings).
+    sell_sound: String,
 }
 
 impl GameAudio {
@@ -32,6 +34,7 @@ impl GameAudio {
             map_ids,
             game,
             region_music: None,
+            sell_sound: String::new(),
             map_music: None,
             project: Volumes::default(),
             player: PlayerPrefs::default(),
@@ -82,6 +85,11 @@ impl GameAudio {
         self.audio.forget(path);
     }
 
+    /// The game UI's sounds of what the hero does (selling).
+    pub fn set_ui_sounds(&mut self, ui: &c3_core::settings::UiSettings) {
+        self.sell_sound = ui.sound_sell.clone();
+    }
+
     /// Plays a sound of the game's UI (a click), as loud as any sound beside the hero.
     pub fn play_ui(&mut self, path: &str) {
         self.audio.play(path, 1.0);
@@ -115,6 +123,10 @@ impl GameAudio {
                     if let Some(cell) = sim.cell_of(entity) {
                         self.audio.play_at(sound, distance(here, cell) as f32);
                     }
+                    continue;
+                }
+                Event::Sold { player, .. } if player == hero && !self.sell_sound.is_empty() => {
+                    self.audio.play(&self.sell_sound, 1.0);
                     continue;
                 }
                 Event::Used { player, kind } if player == hero => {
