@@ -224,6 +224,12 @@ pub enum Effect {
     AddStatus(i64),
     /// Play effect `name` on the player.
     PlayEffect(String),
+    /// A cue for the player's client alone, by a name its front knows (a game's own client
+    /// messages), with two numbers.
+    ClientCue {
+        name: String,
+        args: [i64; 2],
+    },
     /// Effect `effect` played once on `cell` of game map `map`, for everyone there.
     EffectAt {
         map: i64,

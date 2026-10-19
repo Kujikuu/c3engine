@@ -1054,6 +1054,28 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             516 => self.pick_worn(g, a, &tokens, column),
+            // Client-only messages, sent as they are (their meaning is the client's): a
+            // MsgAction of a type (1075; TQ broadcasts it unless `send`), a map item action
+            // 13 at the player (1072).
+            1075 => match (int(1), int(2)) {
+                (Some(kind), Some(data)) => {
+                    let values = [
+                        ("name", txt("msg_action")),
+                        ("a", num(kind)),
+                        ("b", num(data)),
+                    ];
+                    Self::plain(g, "player.client_cue", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            1072 => {
+                let values = [
+                    ("name", txt("map_item")),
+                    ("a", num(13)),
+                    ("b", num(a.data)),
+                ];
+                Self::plain(g, "player.client_cue", &values, column)
+            }
             // A lottery draw: Conquer's rules blueprint answers the signal.
             1508 => match int(0) {
                 Some(draw) => {

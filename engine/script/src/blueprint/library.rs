@@ -914,6 +914,14 @@ pub const NODES: &[NodeDef] = &[
     // NPC dialogue.
     pure("npc.id", "NPC id", "Dialogue", &[], Number, "npc_id()"),
     action(
+        "player.client_cue",
+        "Cue the client",
+        "Player",
+        &[("name", Text), ("a", Number), ("b", Number)],
+        &[],
+        "client_cue({name}, {a}, {b});",
+    ),
+    action(
         "world.effect_at",
         "Play effect on a cell",
         "World",

@@ -591,8 +591,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         (312: effects on a cell), lottery (1508: TQ's `cq_lottery` prizes drawn by weight)
   - [x] Typed answers (103): text boxes in dialogues (`input_option`, `accept()`,
         `Input::AnswerText`, MsgDialog's edit line), `%accept`, NPC data set from it (201)
-  - [ ] Map-item effect 1072 and message actions (1075: MsgAction 1000/1001), whose meaning in
-        5065 isn't known yet
+  - [x] Client-only messages (1075 MsgAction 1000/1001, 1072 map item action 13) sent to
+        the Conquer client as TQ sends them (`client_cue`)
   - [ ] NPC looks and life (201 `lookface`, `life`), guild checks (`%syn_id`, 1001
         `rank`/`rankshow`), warehouse money (1001 `storage_money`), business status
   - [ ] Guild, event and trap actions (7xx, 20xx, 21xx)

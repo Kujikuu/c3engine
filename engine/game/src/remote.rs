@@ -88,7 +88,8 @@ impl Event {
             | Event::Dialogue { player }
             | Event::ShopOpened { player, .. }
             | Event::OpenWindow { player, .. }
-            | Event::CommandReply { player, .. } => Some(player),
+            | Event::CommandReply { player, .. }
+            | Event::ClientCue { player, .. } => Some(player),
             _ => None,
         }
     }

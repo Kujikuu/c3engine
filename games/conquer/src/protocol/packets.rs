@@ -101,6 +101,13 @@ pub mod item {
     pub const ENCHANT: u16 = 28;
 }
 
+/// The client cues Conquer's front sends (`client_cue`): a MsgAction of an action type (with
+/// its data), a MsgMapItem action at the hero's cell (with its id).
+pub mod cue {
+    pub const ACTION: &str = "msg_action";
+    pub const MAP_ITEM: &str = "map_item";
+}
+
 /// The kinds of `Input::Combine` Conquer's rules blueprint answers.
 pub mod combine {
     /// A gem set in an item's socket (`value`: 1 or 2).

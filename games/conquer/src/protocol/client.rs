@@ -668,6 +668,17 @@ impl ConquerClient {
             | Event::CommandReply { text, .. } => {
                 vec![self.system(text)]
             }
+            Event::ClientCue { player, name, args } if Some(*player) == hero => {
+                let cell = cell16(self.state_cell(*player).unwrap_or_default());
+                let [a, b] = args.map(|v| u32::try_from(v).unwrap_or(0));
+                match name.as_str() {
+                    pk::cue::ACTION => {
+                        vec![pk::action(self.hero_id(), a as u16, b, cell, 0)]
+                    }
+                    pk::cue::MAP_ITEM => vec![pk::map_item(b, 0, cell, a as u8)],
+                    _ => Vec::new(),
+                }
+            }
             Event::CellEffect { cell, effect } => {
                 let (x, y) = cell16(*cell);
                 vec![pk::name(

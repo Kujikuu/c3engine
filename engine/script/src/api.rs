@@ -415,6 +415,15 @@ fn more(engine: &mut Engine, shared: &Shared) {
     };
     engine.register_fn("play_effect", text(shared, Effect::PlayEffect));
     let s = shared.clone();
+    engine.register_fn("client_cue", move |name: &str, a: i64, b: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::ClientCue {
+                name: name.to_owned(),
+                args: [a, b],
+            })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn(
         "effect_at",
         move |map: i64, x: i64, y: i64, effect: &str| {

@@ -234,6 +234,11 @@ impl Sim {
                 }
             }
             Effect::PlayEffect(effect) => self.events.push(Event::Effect { entity: id, effect }),
+            Effect::ClientCue { name, args } => self.events.push(Event::ClientCue {
+                player: id,
+                name,
+                args,
+            }),
             Effect::EffectAt { map, cell, effect } => {
                 // Another map's effect isn't seen here.
                 if u32::try_from(map).is_ok_and(|m| self.is_this_map(m)) {

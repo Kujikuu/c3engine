@@ -79,6 +79,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "client_cue(name, a, b)",
+        "Sends the player's client cue `name` with two numbers: a message the game's front \
+         knows by that name (other fronts let it pass)",
+    ),
+    (
         "input_option(label, length, next)",
         "An answer with a text box of `length` characters; `next` runs with what was typed",
     ),

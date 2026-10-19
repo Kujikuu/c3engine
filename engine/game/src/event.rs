@@ -147,6 +147,12 @@ pub enum Event {
     },
     /// A problem with the game's data (a spawn of an unknown monster type).
     Warning(String),
+    /// A cue for player `player`'s client alone (see `client_cue`).
+    ClientCue {
+        player: EntityId,
+        name: String,
+        args: [i64; 2],
+    },
     /// Effect `effect` plays once on `cell` (everyone on the map sees it).
     CellEffect {
         cell: CellPos,
