@@ -318,7 +318,7 @@ pub const NODES: &[NodeDef] = &[
         "Formulas",
         &[("record", Record), ("field", Text)],
         Number,
-        "{record}[{field}]",
+        "({record}[{field}] ?? 0)",
     ),
     pure(
         "record.stats",
@@ -1061,6 +1061,14 @@ pub const NODES: &[NodeDef] = &[
         &[("a", Number), ("b", Number)],
         Number,
         "({a} % {b})",
+    ),
+    pure(
+        "logic.select",
+        "If",
+        "Math",
+        &[("condition", Bool), ("a", Number), ("b", Number)],
+        Number,
+        "(if {condition} { {a} } else { {b} })",
     ),
     pure(
         "math.chance",

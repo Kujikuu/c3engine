@@ -5,12 +5,14 @@
 
 mod collapse;
 mod compile;
+mod expr;
 mod library;
 mod model;
 mod pins;
 
 pub use collapse::collapse;
 pub use compile::{GraphRef, Problem, compile};
+pub use expr::{ExprWriter, Operand};
 pub use library::{DefKind, NODES, NodeDef, node_def, returns};
 pub use model::{
     Blueprint, Function, Graph, GraphNode, Literal, PinRef, PinType, Variable, VariableScope, Wire,
