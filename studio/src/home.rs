@@ -288,6 +288,19 @@ impl Studio {
                     }
                 },
             );
+            if ui
+                .add_enabled(
+                    self.imports_server_data(),
+                    egui::Button::new(theme::icon_text(icons::DATABASE, "Import Server Data…")),
+                )
+                .on_hover_text(
+                    "A TQ server's SQL dump in one step: the map list, every map's NPCs, spawns and                      portals, and the game's tables, with a report",
+                )
+                .on_disabled_hover_text("This project's game has no server data to import")
+                .clicked()
+            {
+                self.pick_server_data();
+            }
             ui.separator();
             let save = egui::Button::new(theme::icon_text(icons::FLOPPY_DISK, "Save"))
                 .shortcut_text("Ctrl+S");

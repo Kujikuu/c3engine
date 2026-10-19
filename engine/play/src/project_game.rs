@@ -116,6 +116,14 @@ impl GameModule for ProjectGame {
         self.game.load_map(project, key)
     }
 
+    fn server_data_kind(&self) -> Option<&str> {
+        self.game.server_data_kind()
+    }
+
+    fn import_server_data(&self, dump: &str) -> Option<crate::server_data::ServerData> {
+        self.game.import_server_data(dump)
+    }
+
     fn save_map(
         &self,
         project: &Project,

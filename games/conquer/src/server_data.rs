@@ -1,5 +1,6 @@
-//! The server's map population in TQ's database schema (`cq_npc`, `cq_generator`, and the
-//! portals' destinations in `cq_passway` + `cq_portal`), which Redux also runs on: read from an
+//! The server's map population in TQ's database schema (`cq_npc`, the dynamic NPCs of
+//! `cq_dynanpc` (training stakes, gates, guild flags), `cq_generator`, and the portals'
+//! destinations in `cq_passway` + `cq_portal`), which Redux also runs on: read from an
 //! SQL dump into engine [`Npc`]s, [`Spawn`]s and [`PortalLink`]s, and NPCs and spawns written
 //! back as SQL to load into the server's database.
 //!
@@ -59,6 +60,48 @@ const NPC_COLUMNS: [&str; 29] = [
     "itemid",
 ];
 
+/// `cq_dynanpc`: `cq_npc`'s columns with an owner type for the player id, and defences.
+const DYNANPC_COLUMNS: [&str; 31] = [
+    "id",
+    "ownerid",
+    "ownertype",
+    "name",
+    "type",
+    "lookface",
+    "idxserver",
+    "mapid",
+    "cellx",
+    "celly",
+    "task0",
+    "task1",
+    "task2",
+    "task3",
+    "task4",
+    "task5",
+    "task6",
+    "task7",
+    "data0",
+    "data1",
+    "data2",
+    "data3",
+    "datastr",
+    "linkid",
+    "life",
+    "maxlife",
+    "base",
+    "sort",
+    "itemid",
+    "defence",
+    "magic_def",
+];
+
+/// `extra` key marking an NPC of `cq_dynanpc` (its value is `1`).
+pub const DYNAMIC: &str = "dynamic";
+/// `extra` key holding a dynamic NPC's own id when it had to take another.
+const TQ_ID: &str = "tq_id";
+/// Added to a dynamic NPC's id that a static NPC already has.
+const DYNAMIC_ID_OFFSET: u32 = 10_000_000;
+
 const PASSWAY_COLUMNS: [&str; 5] = [
     "id",
     "mapid",
@@ -115,6 +158,7 @@ impl ServerPopulation {
     /// replace earlier ones, as reloading the dump into a database would.
     pub fn from_sql(sql: &str) -> Self {
         let mut npcs: BTreeMap<u32, Npc> = BTreeMap::new();
+        let mut dynamic: BTreeMap<u32, Npc> = BTreeMap::new();
         let mut spawns: BTreeMap<u32, Spawn> = BTreeMap::new();
         // (map, passway) -> (target map, target portal); (map, portal) -> cell.
         let mut passways: BTreeMap<(u32, i32), (u32, i32)> = BTreeMap::new();
@@ -122,9 +166,17 @@ impl ServerPopulation {
         let mut skipped = 0;
         for line in sql.lines() {
             if let Some(values) = insert_values(line, "cq_npc") {
-                match npc_from_row(&values) {
+                match npc_from_row(&NPC_COLUMNS, &values) {
                     Some(npc) => {
                         npcs.insert(npc.id, npc);
+                    }
+                    None => skipped += 1,
+                }
+            } else if let Some(values) = insert_values(line, "cq_dynanpc") {
+                match npc_from_row(&DYNANPC_COLUMNS, &values) {
+                    Some(mut npc) => {
+                        npc.extra.insert(DYNAMIC.into(), "1".into());
+                        dynamic.insert(npc.id, npc);
                     }
                     None => skipped += 1,
                 }
@@ -156,6 +208,15 @@ impl ServerPopulation {
                     None => skipped += 1,
                 }
             }
+        }
+        // NPC ids are one space in the engine: a dynamic NPC sharing a static one's id takes
+        // a free id, its own kept for export.
+        for (id, mut npc) in dynamic {
+            if npcs.contains_key(&id) {
+                npc.extra.insert(TQ_ID.into(), id.to_string());
+                npc.id = id + DYNAMIC_ID_OFFSET;
+            }
+            npcs.insert(npc.id, npc);
         }
         let mut maps: HashMap<u32, Population> = HashMap::new();
         for npc in npcs.into_values() {
@@ -203,8 +264,12 @@ pub fn map_id(extra: &BTreeMap<String, String>) -> u32 {
 pub fn population_sql(population: &Population, default_map: u32) -> String {
     let mut out = String::new();
     for npc in &population.npcs {
-        let values = npc_row(npc, default_map);
-        out.push_str(&replace_statement("cq_npc", &NPC_COLUMNS, &values));
+        let (table, columns) = match npc.extra.contains_key(DYNAMIC) {
+            true => ("cq_dynanpc", &DYNANPC_COLUMNS[..]),
+            false => ("cq_npc", &NPC_COLUMNS[..]),
+        };
+        let values = npc_row(npc, columns, default_map);
+        out.push_str(&replace_statement(table, columns, &values));
     }
     for spawn in &population.spawns {
         let values = spawn_row(spawn, default_map);
@@ -217,8 +282,8 @@ pub fn population_sql(population: &Population, default_map: u32) -> String {
     out
 }
 
-fn npc_from_row(values: &[Value]) -> Option<Npc> {
-    let row = Row::new(&NPC_COLUMNS, values)?;
+fn npc_from_row(columns: &[&str], values: &[Value]) -> Option<Npc> {
+    let row = Row::new(columns, values)?;
     let lookface: u32 = row.number("lookface");
     Some(Npc {
         id: row.number("id"),
@@ -248,11 +313,16 @@ fn spawn_from_row(values: &[Value]) -> Option<Spawn> {
     })
 }
 
-fn npc_row(npc: &Npc, default_map: u32) -> Vec<Value> {
-    NPC_COLUMNS
+fn npc_row(npc: &Npc, columns: &[&str], default_map: u32) -> Vec<Value> {
+    columns
         .iter()
         .map(|&column| match column {
-            "id" => Some(npc.id.to_string()),
+            "id" => Some(
+                npc.extra
+                    .get(TQ_ID)
+                    .cloned()
+                    .unwrap_or_else(|| npc.id.to_string()),
+            ),
             "name" => Some(npc.name.clone()),
             "type" => Some(npc.kind.to_string()),
             "lookface" => Some((npc.look * 10 + u32::from(npc.direction % 10)).to_string()),
@@ -345,7 +415,7 @@ impl<'a> Row<'a> {
 }
 
 /// The values of `INSERT INTO `table` VALUES (...);` if `line` is one.
-fn insert_values(line: &str, table: &str) -> Option<Vec<Value>> {
+pub(crate) fn insert_values(line: &str, table: &str) -> Option<Vec<Value>> {
     let rest = line
         .trim_start()
         .strip_prefix("INSERT INTO `")?

@@ -30,10 +30,31 @@ pub struct MapList {
     maps: Vec<MapInfo>,
 }
 
-/// The file name of `key` without folders or extensions.
-pub fn short_name(key: &str) -> &str {
-    let name = key.rsplit(['/', '\\']).next().unwrap_or(key);
-    name.split('.').next().unwrap_or(name)
+/// Separates a copy's id from the map file it copies in a map key: `map/mine.DMap@2002` is
+/// map 2002, a map of its own (its own population) made from `map/mine.DMap`.
+pub const INSTANCE: char = '@';
+
+/// The map file of `key` and, for a copy of a map file, the copy's id.
+pub fn split_instance(key: &str) -> (&str, Option<u32>) {
+    match key.rsplit_once(INSTANCE) {
+        Some((file, id)) => match id.parse() {
+            Ok(id) => (file, Some(id)),
+            Err(_) => (key, None),
+        },
+        None => (key, None),
+    }
+}
+
+/// The file name of `key` without folders or extensions, with a copy's `@id`: the name
+/// lists show and the map's population file goes by.
+pub fn short_name(key: &str) -> std::borrow::Cow<'_, str> {
+    let (file, instance) = split_instance(key);
+    let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
+    let name = name.split('.').next().unwrap_or(name);
+    match instance {
+        Some(id) => format!("{name}{INSTANCE}{id}").into(),
+        None => name.into(),
+    }
 }
 
 impl MapList {
@@ -62,7 +83,7 @@ impl MapList {
                 key: m.key.clone(),
                 ids: vec![m.id],
                 name: if m.name.is_empty() {
-                    short_name(&m.key).to_owned()
+                    short_name(&m.key).into_owned()
                 } else {
                     m.name.clone()
                 },
@@ -88,7 +109,7 @@ impl MapList {
                 ids
             };
             maps.push(MapInfo {
-                name: short_name(&key).to_owned(),
+                name: short_name(&key).into_owned(),
                 key,
                 ids,
                 music: String::new(),

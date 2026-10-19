@@ -755,7 +755,7 @@ impl Studio {
         let maps_changed = self.applied_settings.as_ref().map(|s| &s.maps) != Some(&settings.maps);
         self.applied_settings = Some(settings);
         if maps_changed {
-            self.refresh_map_list();
+            self.refresh_maps();
         }
         if tilt_changed {
             self.stage = None;

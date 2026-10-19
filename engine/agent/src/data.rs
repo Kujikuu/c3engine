@@ -54,6 +54,13 @@ pub(crate) fn tools() -> Vec<Tool> {
             create_table,
         ),
         tool(
+            "import_server_data",
+            "Imports the game's own server data in one step (Conquer: a TQ SQL dump such as              cq_finalized_mariadb.sql, given by its path on disk): the map list into the              settings, every map's NPCs, spawn areas and portal destinations into its              population (merged with the project's own NPCs and scripts), and the game-data              tables. Writes the files at once (the map list waits for save) and answers the              report, also written to import_report.txt.",
+            json!({ "file": { "type": "string" } }),
+            &["file"],
+            import_server_data,
+        ),
+        tool(
             "read_settings",
             "Reads Project Settings: the setting at `path` (sections and fields joined by dots, \
              as `network.port` or `characters`), or all of them with what is wrong.",
@@ -151,6 +158,30 @@ fn create_table(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
         .map_err(|e| e.to_string())?;
     ws.refresh();
     Ok(json!({ "made": format!("table {name}"), "columns": table.columns }))
+}
+
+fn import_server_data(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
+    let file: String = arg(args, "file")?;
+    let bytes = std::fs::read(&file).map_err(|e| format!("can't read {file}: {e}"))?;
+    let data = (ws
+        .game()
+        .import_server_data(&String::from_utf8_lossy(&bytes)))
+    .ok_or_else(|| format!("{} has no server data to import", ws.game().name()))?;
+    let project = ws.project().clone();
+    let listed = ws.settings()?.settings().maps.clone();
+    let written = c3_play::server_data::write(&project, &data, &listed, &file);
+    let command = SettingsCommand::Set {
+        path: "maps".into(),
+        value: serde_json::to_value(&written.maps).map_err(|e| e.to_string())?,
+    };
+    let doc = ws.settings()?;
+    doc.begin_group("Import server data");
+    let listed = doc.execute(&command).map_err(|e| e.to_string());
+    doc.end_group();
+    listed?;
+    ws.changed(&DocRef::Settings);
+    ws.refresh();
+    Ok(json!({ "report": written.report, "problems": written.problems }))
 }
 
 fn read_settings(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {

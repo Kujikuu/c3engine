@@ -233,7 +233,7 @@ impl Studio {
                     .map(|s| s.population())
                     .unwrap_or_default(),
                 MapRef::Client(path) => {
-                    let name = crate::maps::client_map_name(&path).to_owned();
+                    let name = crate::maps::client_map_name(&path).into_owned();
                     c3_scene::native::load_population(&project.population_file(&name))
                         .unwrap_or_default()
                 }

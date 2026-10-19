@@ -158,6 +158,17 @@ pub trait GameModule {
     fn npc_looks(&self) -> Vec<(u32, String)> {
         Vec::new()
     }
+    /// What the game's server data is, for menus and file dialogs (Conquer: "TQ SQL dump");
+    /// `None` when it has none to import.
+    fn server_data_kind(&self) -> Option<&str> {
+        None
+    }
+    /// The project data in `dump`, the game's own server data (Conquer: TQ's SQL dump); `None`
+    /// when the game has no server data to import.
+    fn import_server_data(&self, dump: &str) -> Option<crate::server_data::ServerData> {
+        let _ = dump;
+        None
+    }
     /// Which of the project's tables hold the game's monsters, items, skills and levels, for
     /// the Studio's forms (a monster row dragged onto a map makes a spawn area of it).
     fn data_tables(&self) -> DataTables {

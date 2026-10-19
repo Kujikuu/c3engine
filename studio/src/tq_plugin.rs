@@ -212,7 +212,7 @@ impl Client {
     }
 
     pub fn import_map(&self, path: &str) -> Result<Imported, String> {
-        scene_io::import_map(self.fs(), path).map_err(|e| format!("{path}: {e}"))
+        self.content.load_map(path)
     }
 
     /// Bytes of `path` (loose or packed).

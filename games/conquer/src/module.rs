@@ -186,6 +186,14 @@ impl GameModule for ConquerModule {
         game::load_map(project, &self.content, key)
     }
 
+    fn server_data_kind(&self) -> Option<&str> {
+        Some("TQ SQL dump")
+    }
+
+    fn import_server_data(&self, dump: &str) -> Option<c3_play::server_data::ServerData> {
+        Some(crate::import::import_server_data(&self.content, dump))
+    }
+
     fn save_map(
         &self,
         project: &Project,

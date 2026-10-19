@@ -9,6 +9,8 @@ use eframe::egui::{Pos2, Rect, Vec2};
 pub struct MapDoc {
     /// Where the map lives; a client map becomes a project map when first saved.
     pub map: MapRef,
+    /// `map`'s name, as lists show it.
+    name: String,
     /// Non-fatal load problems, shown in the inspector.
     pub warnings: Vec<String>,
     edit: SceneDoc,
@@ -20,6 +22,7 @@ pub struct MapDoc {
 impl MapDoc {
     pub fn new(map: MapRef, scene: Scene, warnings: Vec<String>) -> Self {
         Self {
+            name: map.name().into_owned(),
             map,
             warnings,
             saved_ground: scene.ground.clone(),
@@ -28,7 +31,7 @@ impl MapDoc {
     }
 
     pub fn name(&self) -> &str {
-        self.map.name()
+        &self.name
     }
 
     pub fn scene(&self) -> &Scene {

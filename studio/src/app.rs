@@ -334,6 +334,9 @@ impl Studio {
         if let Some(file) = flag("--exec") {
             s.run_command_file(&file);
         }
+        if let Some(file) = flag("--import-server") {
+            s.import_server_data(std::path::Path::new(&file));
+        }
         if args.iter().any(|a| a == "--live") {
             s.set_live_link(true);
         }
@@ -585,7 +588,10 @@ impl Studio {
     /// Re-lists the maps.
     pub(crate) fn refresh_maps(&mut self) {
         self.maps = match &self.project {
-            Some(project) => maps::list_maps(project, self.client.as_ref()),
+            Some(project) => {
+                let listed = (self.applied_settings.as_ref()).map_or(&[][..], |s| &s.maps[..]);
+                maps::list_maps(project, self.client.as_ref(), listed)
+            }
             None => Vec::new(),
         };
         self.refresh_map_list();
@@ -782,7 +788,7 @@ impl Studio {
                     .ok_or("the project's content isn't loaded")?;
                 client.import_map(path).and_then(|imported| {
                     let mut scene = imported.scene;
-                    let file = project.population_file(map.name());
+                    let file = project.population_file(&map.name());
                     let population =
                         c3_scene::native::load_population(&file).map_err(|e| e.to_string())?;
                     scene.set_population(population);
@@ -917,8 +923,12 @@ impl Studio {
     pub(crate) fn save_target(&self) -> Option<String> {
         let (project, doc) = (self.project.as_ref()?, self.doc.as_ref()?);
         Some(match &doc.map {
-            MapRef::Client(path) if project.content_in_project() => format!("assets/{path}"),
-            MapRef::Client(path) => {
+            // A copy of a map file writes that file.
+            MapRef::Client(key) if project.content_in_project() => {
+                format!("assets/{}", c3_play::map_list::split_instance(key).0)
+            }
+            MapRef::Client(key) => {
+                let path = c3_play::map_list::split_instance(key).0;
                 let (_, dir) = project.tq_client()?;
                 format!(
                     "{} (the original is kept as .bak)",

@@ -32,6 +32,7 @@ pub mod preview;
 pub mod project_game;
 pub mod screen;
 pub mod serve;
+pub mod server_data;
 pub mod session;
 pub mod settings;
 pub mod sim_view;

@@ -25,9 +25,9 @@ impl MapRef {
     }
 
     /// Name shown in lists and used for the project file.
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> std::borrow::Cow<'_, str> {
         match self {
-            Self::Project(name) => name,
+            Self::Project(name) => name.into(),
             Self::Client(path) => client_map_name(path),
         }
     }
@@ -40,19 +40,30 @@ impl MapRef {
     }
 }
 
-/// `map/map/newplain.DMap` → `newplain`.
-pub(crate) fn client_map_name(path: &str) -> &str {
-    let file = path.rsplit('/').next().unwrap_or(path);
-    match file.rfind('.') {
-        Some(dot) if file[dot..].eq_ignore_ascii_case(".dmap") => &file[..dot],
-        _ => file,
-    }
+/// `map/map/newplain.DMap` → `newplain`; a copy `map/map/mine.DMap@2002` → `mine@2002`.
+pub(crate) fn client_map_name(path: &str) -> std::borrow::Cow<'_, str> {
+    c3_play::map_list::short_name(path)
 }
 
-/// The content's map files, then the engine-format scenes.
-pub(crate) fn list_maps(project: &Project, client: Option<&Client>) -> Vec<MapRef> {
+/// The content's map files, each followed by the copies of it the map list names
+/// (`file@id`), then the engine-format scenes.
+pub(crate) fn list_maps(
+    project: &Project,
+    client: Option<&Client>,
+    listed: &[c3_core::settings::MapEntry],
+) -> Vec<MapRef> {
     let files = client.map(Client::list_maps).unwrap_or_default();
-    let files = files.into_iter().map(MapRef::Client);
+    let copies_of = |file: &String| -> Vec<MapRef> {
+        (listed.iter())
+            .filter(|m| {
+                let (of, copy) = c3_play::map_list::split_instance(&m.key);
+                copy.is_some() && of.eq_ignore_ascii_case(file)
+            })
+            .map(|m| MapRef::Client(m.key.clone()))
+            .collect()
+    };
+    let files =
+        (files.iter()).flat_map(|f| std::iter::once(MapRef::Client(f.clone())).chain(copies_of(f)));
     files
         .chain(project.map_names().into_iter().map(MapRef::Project))
         .collect()

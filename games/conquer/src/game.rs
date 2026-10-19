@@ -18,16 +18,16 @@ pub fn load_map(project: &Project, content: &Content, key: &str) -> Result<Scene
         return scene;
     }
     let mut scene = content.load_map(key)?.scene;
-    let population = c3_scene::native::load_population(&project.population_file(map_stem(key)))
+    let population = c3_scene::native::load_population(&project.population_file(&map_stem(key)))
         .map_err(|e| e.to_string())?;
     scene.set_population(population);
     Ok(scene)
 }
 
-/// The name a client map's population file goes by: its file name without extension.
-fn map_stem(key: &str) -> &str {
-    let stem = key.rsplit(['/', '\\']).next().unwrap_or(key);
-    stem.rsplit_once('.').map_or(stem, |(s, _)| s)
+/// The name a client map's population file goes by: its file name without extension (and a
+/// copy's `@id`).
+fn map_stem(key: &str) -> std::borrow::Cow<'_, str> {
+    c3_play::map_list::short_name(key)
 }
 
 /// Writes map `key` of `project`: a project scene, or a client map (its DMap, its ground
@@ -46,13 +46,14 @@ pub fn save_map(
         .tq_client()
         .ok_or("the project has no client content")?;
     let backup = !project.content_in_project();
-    let file = root.join(Path::new(key));
+    let (file, _) = c3_play::map_list::split_instance(key);
+    let file = root.join(Path::new(file));
     write_map_file(&file, &scene_io::export_dmap(scene).to_bytes(), backup)?;
     if let Some(ground) = ground {
         let file = root.join(Path::new(&ground.source.replace('\\', "/")));
         write_map_file(&file, &scene_io::export_puzzle(ground).to_bytes(), backup)?;
     }
-    let file = project.population_file(map_stem(key));
+    let file = project.population_file(&map_stem(key));
     c3_scene::native::save_population(&scene.population(), &file).map_err(|e| e.to_string())
 }
 

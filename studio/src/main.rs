@@ -47,6 +47,7 @@ mod project_settings;
 mod scene_inspector;
 mod script_panel;
 mod selection;
+mod server_import;
 mod shell;
 mod stage;
 mod table_schema;

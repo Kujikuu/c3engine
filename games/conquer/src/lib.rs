@@ -5,6 +5,7 @@
 
 pub mod character;
 pub mod game;
+pub mod import;
 mod magic;
 pub mod module;
 pub mod npc;
@@ -179,6 +180,10 @@ impl Content {
 
     /// Ids of the maps whose DMap is `path` (case-insensitive, either slash).
     pub fn map_ids_for_path(&self, path: &str) -> Vec<u32> {
+        // A copy of a map file is the one map its key names.
+        if let (_, Some(id)) = c3_play::map_list::split_instance(path) {
+            return vec![id];
+        }
         let norm = |p: &str| p.replace('\\', "/").to_ascii_lowercase();
         let wanted = norm(path);
         self.catalog
@@ -211,6 +216,8 @@ impl Content {
 
     /// Loads a map (by DMap path) as an engine scene.
     pub fn load_map(&self, path: &str) -> Result<Imported, String> {
+        // A copy of a map file loads that file.
+        let (path, _) = c3_play::map_list::split_instance(path);
         scene_io::import_map(&self.fs, path).map_err(|e| format!("{path}: {e}"))
     }
 

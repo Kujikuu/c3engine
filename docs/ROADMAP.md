@@ -558,11 +558,19 @@ run on the server and the local session alike, and are edited through c3-edit wi
     script_reference, read_docs (docs/AGENTS.md, the agent's guide, and the engine's docs)
 
 ## M12: Conquer as a complete project (on the engine)
-- [ ] Full import in one step: the client's files plus TQ's server data (an SQL dump such as
+- [x] Full import in one step: the client's files plus TQ's server data (an SQL dump such as
       `tq_re/db/cq_finalized_mariadb.sql`): every map's NPCs (`cq_npc`, `cq_dynanpc`), spawn
       areas (`cq_generator`), portals and destinations (`cq_passway`, `cq_portal`), the map list
       and properties (`cq_map`), and the tables (monsters, items, magic, shops, drops, levels,
       stat points), mapped onto the engine's data-driven systems; an import report
+  - Done 2026-10-19: File > Import Server Data… (and the agents' `import_server_data`) reads
+    a game's server data through `GameModule::import_server_data` (Conquer: the TQ dump) and
+    writes it in one step: 194 maps of 96 map files into Project Settings > Maps (id, name,
+    PvP from `cq_map.type`), copies of a map file (mines, arenas, prisons) as maps of their
+    own (`file@id`, their own population); 1512 NPCs (858 dynamic), 1695 spawn areas and 276
+    portal links into 130 maps' populations, merged with the project's own NPCs and scripts;
+    the 8 data tables; `import_report.txt` says what was left out (8 maps the 5065 client has
+    no file for; rows of player homes, maps made while playing)
 - [ ] NPC behaviour: TQ's NPC logic (`cq_action` / `cq_task` chains) converted into dialogue
       graphs, editable in the Dialogue editor; the converter reports what it can't convert
       (user choice: graphs, the easiest to edit later)
