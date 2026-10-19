@@ -49,6 +49,19 @@ pub(crate) fn with_statuses(
     }
 }
 
+/// Adds `status_<name>` to `facts`: each number of the statuses in `statuses`, summed.
+pub(crate) fn add_status_facts(
+    facts: &mut std::collections::BTreeMap<String, i64>,
+    statuses: &[ActiveStatus],
+    rules: &dyn crate::Rules,
+) {
+    for t in statuses.iter().filter_map(|s| rules.status(s.id)) {
+        for (name, value) in &t.facts {
+            *facts.entry(format!("status_{name}")).or_default() += value;
+        }
+    }
+}
+
 impl Sim {
     /// Puts status `status` on `target` (a player or monster) for its time, from `from`;
     /// one already there starts over. False if there is no such status or no such target.

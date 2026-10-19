@@ -89,10 +89,10 @@ impl Rules for TestRules {
         );
         (a as u32).saturating_sub(target.stats.defence).max(1)
     }
-    fn hit_exp(&self, _level: u32, _target: &Fighter, damage: u32) -> u64 {
+    fn hit_exp(&self, _attacker: &Fighter, _target: &Fighter, damage: u32) -> u64 {
         damage.into()
     }
-    fn kill_exp(&self, _level: u32, _target: &Fighter) -> u64 {
+    fn kill_exp(&self, _attacker: &Fighter, _target: &Fighter) -> u64 {
         10
     }
     fn drops(&self, _kind: u32, _rng: &mut Rng) -> Vec<Drop> {

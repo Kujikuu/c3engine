@@ -220,7 +220,6 @@ impl Sim {
 
     fn skill_hits(&mut self, id: EntityId, t: &SkillType, target: EntityId) {
         let attacker = self.player_fighter(id);
-        let level = attacker.level;
         if self.players.contains_key(&target) {
             let defender = self.player_fighter(target);
             let damage = self.rules.skill_hit(&attacker, &defender, t, &mut self.rng);
@@ -229,7 +228,7 @@ impl Sim {
         let Some(m) = self.monsters.get_mut(&target) else {
             return;
         };
-        let defender = m.fighter();
+        let defender = m.fighter(&*self.rules);
         let damage = self
             .rules
             .skill_hit(&attacker, &defender, t, &mut self.rng)
@@ -242,9 +241,9 @@ impl Sim {
             damage,
         });
         self.rouse(target, id);
-        let mut exp = self.rules.hit_exp(level, &defender, damage);
+        let mut exp = self.rules.hit_exp(&attacker, &defender, damage);
         if dead {
-            exp += self.rules.kill_exp(level, &defender);
+            exp += self.rules.kill_exp(&attacker, &defender);
             self.kill_monster(target, Some(id));
         }
         self.gain_exp(id, exp);

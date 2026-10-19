@@ -302,7 +302,7 @@ pub const NODES: &[NodeDef] = &[
         "formula.hit_exp",
         "Experience for a hit",
         "hit_exp",
-        &[("level", Number), ("target", Record), ("damage", Number)],
+        &[("attacker", Record), ("target", Record), ("damage", Number)],
     ),
     formula(
         "formula.drops",
@@ -314,7 +314,7 @@ pub const NODES: &[NodeDef] = &[
         "formula.kill_exp",
         "Experience for a kill",
         "kill_exp",
-        &[("level", Number), ("target", Record)],
+        &[("attacker", Record), ("target", Record)],
     ),
     formula(
         "formula.skill_hit",

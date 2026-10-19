@@ -88,7 +88,7 @@ impl Sim {
             cell: goal,
             targets: targets.clone(),
         });
-        let caster = self.monsters[&id].fighter();
+        let caster = self.monsters[&id].fighter(&*self.rules);
         for victim in targets {
             match t.kind {
                 SkillKind::Heal => {

@@ -50,13 +50,13 @@ fn hit(attacker, target) {
     if damage < 1 { 1 } else { damage }
 }
 
-// Experience a player at `level` earns for dealing `damage` to a monster.
-fn hit_exp(level, target, damage) {
+// Experience the player `attacker` earns for dealing `damage` to a monster.
+fn hit_exp(attacker, target, damage) {
     damage
 }
 
 // Extra experience for the killing blow.
-fn kill_exp(level, target) {
+fn kill_exp(attacker, target) {
     target.level * 10
 }
 
@@ -553,6 +553,7 @@ impl DataRules {
     }
 
     fn read_monsters(&mut self, t: &Table, problems: &mut Vec<String>) {
+        let known = template_columns(MONSTERS);
         for row in rows(t) {
             let id = row.uint("id");
             let mut stats = row.stats();
@@ -573,6 +574,7 @@ impl DataRules {
                 boss: row.flag("boss"),
                 skill: row.uint("skill"),
                 skill_percent: row.uint("skill_percent").min(100),
+                facts: other_columns(t, &row, &known),
             };
             let items = parse_drops(row.text("drops")).unwrap_or_else(|e| {
                 problems.push(format!("monster {id}'s drops: {e}"));
@@ -631,6 +633,7 @@ impl DataRules {
 
     fn read_statuses(&mut self, t: &Table) {
         let percent = |row: &Row, column: &str| row.int(column).clamp(-100, 10_000) as i32;
+        let known = template_columns(STATUSES);
         for row in rows(t) {
             let id = row.uint("id");
             let status = StatusType {
@@ -645,6 +648,7 @@ impl DataRules {
                 speed_percent: percent(&row, "speed_percent"),
                 stun: row.int("stun") != 0,
                 effect: row.text("effect").to_owned(),
+                facts: other_columns(t, &row, &known),
             };
             self.statuses.insert(id, status);
         }
@@ -718,6 +722,22 @@ pub(crate) fn stats_formula(f: &Formulas, who: &StatsFor) -> Result<Map, String>
 }
 
 /// `stats` (and `level`) as a script map.
+/// The columns the engine's template of table `name` has (the ones it reads).
+fn template_columns(name: &str) -> Vec<String> {
+    (table_templates().into_iter())
+        .find(|t| t.name == name)
+        .map(|t| t.columns.into_iter().map(|c| c.name).collect())
+        .unwrap_or_default()
+}
+
+/// The whole numbers of `row` in columns of `t` not in `known`: the game's own, for formulas.
+fn other_columns(t: &Table, row: &Row, known: &[String]) -> BTreeMap<String, i64> {
+    (t.columns.iter().enumerate())
+        .filter(|(_, c)| !known.contains(&c.name))
+        .filter_map(|(i, c)| Some((c.name.clone(), row.values.get(i)?.as_int()?)))
+        .collect()
+}
+
 pub(crate) fn fighter_map(f: &Fighter) -> Map {
     let s = &f.stats;
     let mut map = Map::new();
@@ -887,19 +907,23 @@ impl Rules for DataRules {
         }
     }
 
-    fn hit_exp(&self, level: u32, target: &Fighter, damage: u32) -> u64 {
+    fn hit_exp(&self, attacker: &Fighter, target: &Fighter, damage: u32) -> u64 {
         self.formula("hit_exp", |f| {
             f.int(
                 "hit_exp",
-                (i64::from(level), fighter_map(target), i64::from(damage)),
+                (
+                    fighter_map(attacker),
+                    fighter_map(target),
+                    i64::from(damage),
+                ),
             )
         })
         .map_or(damage.into(), |e| e.max(0) as u64)
     }
 
-    fn kill_exp(&self, level: u32, target: &Fighter) -> u64 {
+    fn kill_exp(&self, attacker: &Fighter, target: &Fighter) -> u64 {
         self.formula("kill_exp", |f| {
-            f.int("kill_exp", (i64::from(level), fighter_map(target)))
+            f.int("kill_exp", (fighter_map(attacker), fighter_map(target)))
         })
         .map_or(u64::from(target.level) * 10, |e| e.max(0) as u64)
     }
@@ -1066,10 +1090,10 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(rules.hit(&f, &f, &mut Rng::new(1)), 7);
-        assert_eq!(rules.kill_exp(1, &f), 10, "a failing formula falls back");
+        assert_eq!(rules.kill_exp(&f, &f), 10, "a failing formula falls back");
         let reported = rules.take_problems();
         assert_eq!(reported.len(), 1, "{reported:?}");
-        rules.kill_exp(1, &f);
+        rules.kill_exp(&f, &f);
         assert!(rules.take_problems().is_empty(), "told once");
         assert_eq!(
             rules.player_stats(&StatsFor::level(3)).max_life,
@@ -1101,8 +1125,8 @@ mod tests {
             let damage = rules.hit(&strong, &weak, &mut rng);
             assert!((17..=26).contains(&damage), "{damage}");
         }
-        assert_eq!(rules.kill_exp(5, &weak), 10);
-        assert_eq!(rules.hit_exp(5, &weak, 12), 12);
+        assert_eq!(rules.kill_exp(&weak, &weak), 10);
+        assert_eq!(rules.hit_exp(&weak, &weak, 12), 12);
         assert!(rules.take_problems().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }

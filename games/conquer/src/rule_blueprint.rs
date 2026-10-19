@@ -219,7 +219,7 @@ fn exp(g: &mut Graph, top: f32) {
         g,
         top,
         "formula.hit_exp",
-        &["level", "target", "damage"],
+        &["attacker", "target", "damage"],
         None,
         |w, names| names.write(w, "damage"),
     );
@@ -227,7 +227,7 @@ fn exp(g: &mut Graph, top: f32) {
         g,
         top + 150.0,
         "formula.kill_exp",
-        &["level", "target"],
+        &["attacker", "target"],
         None,
         |w, names| names.write(w, "target.life * 5 / 100"),
     );

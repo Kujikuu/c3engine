@@ -97,24 +97,31 @@ impl Rules for FormulaRules {
         scripted.map_or_else(|| self.inner.hit(attacker, target, rng), uint)
     }
 
-    fn hit_exp(&self, level: u32, target: &Fighter, damage: u32) -> u64 {
+    fn hit_exp(&self, attacker: &Fighter, target: &Fighter, damage: u32) -> u64 {
         self.formula("hit_exp", |f| {
             f.int(
                 "hit_exp",
-                (i64::from(level), fighter_map(target), i64::from(damage)),
+                (
+                    fighter_map(attacker),
+                    fighter_map(target),
+                    i64::from(damage),
+                ),
             )
         })
         .map_or_else(
-            || self.inner.hit_exp(level, target, damage),
+            || self.inner.hit_exp(attacker, target, damage),
             |e| e.max(0) as u64,
         )
     }
 
-    fn kill_exp(&self, level: u32, target: &Fighter) -> u64 {
+    fn kill_exp(&self, attacker: &Fighter, target: &Fighter) -> u64 {
         self.formula("kill_exp", |f| {
-            f.int("kill_exp", (i64::from(level), fighter_map(target)))
+            f.int("kill_exp", (fighter_map(attacker), fighter_map(target)))
         })
-        .map_or_else(|| self.inner.kill_exp(level, target), |e| e.max(0) as u64)
+        .map_or_else(
+            || self.inner.kill_exp(attacker, target),
+            |e| e.max(0) as u64,
+        )
     }
 
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop> {
@@ -198,7 +205,7 @@ mod tests {
     fn project_formulas_answer_over_a_games_rules() {
         let (inner, _) = DataRules::load(None);
         let formulas = Formulas::compile(
-            "fn kill_exp(level, target) { 999 }\nfn drops(monster) { [7, #{money: 5}] }\n",
+            "fn kill_exp(attacker, target) { 999 }\nfn drops(monster) { [7, #{money: 5}] }\n",
         )
         .unwrap();
         let rules = FormulaRules::new(Box::new(inner), formulas);
@@ -207,7 +214,7 @@ mod tests {
             stats: Stats::default(),
             ..Default::default()
         };
-        assert_eq!(rules.kill_exp(1, &target), 999);
+        assert_eq!(rules.kill_exp(&target, &target), 999);
         // What the formulas leave out is the game's.
         assert!(rules.level_exp(1).is_some());
         let drops = rules.drops(1, &mut Rng::new(1));

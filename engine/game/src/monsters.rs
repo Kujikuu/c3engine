@@ -238,9 +238,8 @@ impl Sim {
 
     pub(crate) fn player_hits(&mut self, id: EntityId, target: EntityId) {
         let attacker = self.player_fighter(id);
-        let level = attacker.level;
         let m = self.monsters.get_mut(&target).expect("hitting a monster");
-        let defender = m.fighter();
+        let defender = m.fighter(&*self.rules);
         let damage = self
             .rules
             .hit(&attacker, &defender, &mut self.rng)
@@ -253,9 +252,9 @@ impl Sim {
             damage,
         });
         self.rouse(target, id);
-        let mut exp = self.rules.hit_exp(level, &defender, damage);
+        let mut exp = self.rules.hit_exp(&attacker, &defender, damage);
         if dead {
-            let kill = self.rules.kill_exp(level, &defender);
+            let kill = self.rules.kill_exp(&attacker, &defender);
             exp += kill;
             self.kill_monster(target, Some(id));
             self.share_kill_exp(id, kill);
@@ -265,7 +264,7 @@ impl Sim {
     }
 
     fn monster_hits(&mut self, id: EntityId, target: EntityId) {
-        let attacker = self.monsters[&id].fighter();
+        let attacker = self.monsters[&id].fighter(&*self.rules);
         let defender = self.player_fighter(target);
         let damage = self.rules.hit(&attacker, &defender, &mut self.rng);
         self.monster_hurts(id, target, damage);

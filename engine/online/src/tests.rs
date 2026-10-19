@@ -38,10 +38,10 @@ impl Rules for TestRules {
     fn hit(&self, _a: &Fighter, _t: &Fighter, _rng: &mut Rng) -> u32 {
         1
     }
-    fn hit_exp(&self, _level: u32, _t: &Fighter, _damage: u32) -> u64 {
+    fn hit_exp(&self, _a: &Fighter, _t: &Fighter, _damage: u32) -> u64 {
         0
     }
-    fn kill_exp(&self, _level: u32, _t: &Fighter) -> u64 {
+    fn kill_exp(&self, _a: &Fighter, _t: &Fighter) -> u64 {
         0
     }
     fn drops(&self, _kind: u32, _rng: &mut Rng) -> Vec<Drop> {

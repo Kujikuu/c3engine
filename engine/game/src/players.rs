@@ -350,18 +350,27 @@ impl Sim {
         let mut facts = self.attributes_of(p);
         facts.insert("monster".into(), 0);
         facts.insert("profession".into(), i64::from(p.profession));
-        for (i, name) in self.settings.item_attributes.iter().enumerate() {
-            let sum: i64 = (p.equipment.iter())
-                .filter_map(|item| item.attrs.get(i))
-                .map(|&v| i64::from(v))
-                .sum();
-            facts.insert(format!("worn_{name}"), sum);
+        let names = &self.settings.item_attributes;
+        for name in names {
+            facts.insert(format!("worn_{name}"), 0);
         }
-        for item in &p.equipment {
-            if let Some(slot) = self.rules.item(item.kind).and_then(|t| t.slot) {
+        // What it wears, broken items left out.
+        let worn = (p.equipment.iter())
+            .filter_map(|item| Some((item, self.rules.item(item.kind)?)))
+            .filter(|(item, t)| !item.is_broken(t));
+        for (item, t) in worn {
+            if let Some(slot) = t.slot {
                 facts.insert(format!("worn{slot}"), i64::from(item.kind));
             }
+            let slot = t.slot;
+            for (name, &value) in names.iter().zip(&item.attrs) {
+                *facts.entry(format!("worn_{name}")).or_default() += i64::from(value);
+                if let Some(slot) = slot {
+                    facts.insert(format!("worn{slot}_{name}"), i64::from(value));
+                }
+            }
         }
+        crate::statuses::add_status_facts(&mut facts, &p.statuses, &*self.rules);
         crate::Fighter {
             level: p.level,
             stats: p.stats,

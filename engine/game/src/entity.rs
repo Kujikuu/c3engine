@@ -234,11 +234,17 @@ impl Monster {
         self.died_at_ms.is_none()
     }
 
-    pub fn fighter(&self) -> Fighter {
+    /// It as one side of a fight (see [`Fighter::facts`]).
+    pub fn fighter(&self, rules: &dyn crate::Rules) -> Fighter {
+        let mut facts = (rules.monster(self.kind))
+            .map(|t| t.facts.clone())
+            .unwrap_or_default();
+        facts.insert("monster".to_owned(), i64::from(self.kind));
+        crate::statuses::add_status_facts(&mut facts, &self.statuses, rules);
         Fighter {
             level: self.level,
             stats: self.stats,
-            facts: [("monster".to_owned(), i64::from(self.kind))].into(),
+            facts,
         }
     }
 }

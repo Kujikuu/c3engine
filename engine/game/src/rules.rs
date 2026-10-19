@@ -58,9 +58,11 @@ impl Stats {
 pub struct Fighter {
     pub level: u32,
     pub stats: Stats,
-    /// Named numbers formulas read beside the stats: `monster` (its type; 0 for a player),
+    /// Named numbers formulas read beside the stats: `monster` (its type; 0 for a player) and
+    /// a monster type's numbers, `status_<name>` (a number of the statuses it bears, summed),
     /// and for players `profession`, every attribute, `worn_<name>` (an item attribute summed
-    /// over what it wears) and `worn<slot>` (the item type worn there).
+    /// over what it wears), `worn<slot>` (the item type worn there) and `worn<slot>_<name>`
+    /// (that item's attribute). Broken items count for nothing.
     pub facts: std::collections::BTreeMap<String, i64>,
 }
 
@@ -98,6 +100,8 @@ pub struct MonsterType {
     /// A skill it casts instead of hitting, `skill_percent` of the time; 0: none.
     pub skill: u32,
     pub skill_percent: u32,
+    /// The game's other numbers for it, for formulas (its fighter's facts).
+    pub facts: std::collections::BTreeMap<String, i64>,
 }
 
 /// What a monster type may drop: money up to `money`, and items with their chance.
@@ -201,6 +205,9 @@ pub struct StatusType {
     pub stun: bool,
     /// The effect shown on its bearer while it lasts.
     pub effect: String,
+    /// The game's other numbers for it; a bearer's facts get `status_<name>`, summed over
+    /// what it bears.
+    pub facts: std::collections::BTreeMap<String, i64>,
 }
 
 /// A skill or spell players learn.
@@ -268,11 +275,11 @@ pub trait Rules: std::any::Any {
     /// Damage of one hit, 0 for a miss.
     fn hit(&self, attacker: &Fighter, target: &Fighter, rng: &mut Rng) -> u32;
 
-    /// Experience a player at `level` earns for dealing `damage` to a monster.
-    fn hit_exp(&self, level: u32, target: &Fighter, damage: u32) -> u64;
+    /// Experience player `attacker` earns for dealing `damage` to a monster.
+    fn hit_exp(&self, attacker: &Fighter, target: &Fighter, damage: u32) -> u64;
 
     /// Extra experience for the killing blow.
-    fn kill_exp(&self, level: u32, target: &Fighter) -> u64;
+    fn kill_exp(&self, attacker: &Fighter, target: &Fighter) -> u64;
 
     /// What a monster of `kind` drops.
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop>;
