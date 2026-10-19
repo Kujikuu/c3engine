@@ -1426,13 +1426,21 @@ impl<'a> Builder<'a> {
         let typed = tokens
             .get(2)
             .is_some_and(|t| t.eq_ignore_ascii_case("accept"));
+        // A number worked out (a guild's id...) rather than written.
+        let worked = match tokens.get(2) {
+            Some(t) if t.starts_with('%') => match self.number(g, t, column) {
+                Some(Number::Node(n)) => Some(n),
+                _ => return self.not_converted(g, a, column),
+            },
+            _ => None,
+        };
         let (Some(field), Some(op), Some(value)) = (
             tokens.first().map(|t| t.to_ascii_lowercase()),
             tokens.get(1).copied(),
             tokens
                 .get(2)
                 .and_then(|t| t.parse::<i64>().ok())
-                .or(typed.then_some(0)),
+                .or((typed || worked.is_some()).then_some(0)),
         ) else {
             return self.not_converted(g, a, column);
         };
@@ -1473,6 +1481,9 @@ impl<'a> Builder<'a> {
                     let accept = g.node("dialogue.accept_number", &[], column);
                     g.data(accept, set, "value");
                 }
+                if let Some(worked) = worked {
+                    g.data(worked, set, "value");
+                }
                 Emitted {
                     entry: Some(set),
                     ok: Some((set, "then")),
@@ -1496,7 +1507,10 @@ impl<'a> Builder<'a> {
             "==" | "<" | "<=" | ">" | ">=" => {
                 let flag = g.node("world.flag", &[], column);
                 g.data(name, flag, "name");
-                let cmp = self.compare_node(g, flag, op, value, column);
+                let cmp = match worked {
+                    Some(worked) => self.compare_nodes(g, flag, op, worked, column),
+                    None => self.compare_node(g, flag, op, value, column),
+                };
                 Self::branch(g, cmp, column)
             }
             _ => self.not_converted(g, a, column),
@@ -1638,6 +1652,17 @@ impl<'a> Builder<'a> {
             "%user_map_y" => return node(g, "player.y", &[]),
             "%iter_value" => return node(g, "player.flag", &[("name", txt("iterator"))]),
             "%syn_id" => return node(g, "guild.id", &[]),
+            // This NPC's owner (its `ownerid`, kept as world variable `npc<id>.ownerid`).
+            "%npc_ownerid" => {
+                let npc = g.node("npc.id", &[], column);
+                let prefix = g.node("text.number", &[("text", txt("npc"))], column);
+                g.data(npc, prefix, "number");
+                let name = g.node("text.join", &[("b", txt(".ownerid"))], column);
+                g.data(prefix, name, "a");
+                let owner = g.node("world.flag", &[], column);
+                g.data(name, owner, "name");
+                return Some(Number::Node(owner));
+            }
             "%map_owner_id" => {
                 let map = g.node("player.map", &[], column);
                 let owner = g.node("guild.map_owner", &[], column);
@@ -2305,6 +2330,7 @@ impl<'a> Builder<'a> {
     /// Pure node `a` compared with pure node `b` by `op` (`>=`, `>`, else `==`).
     fn compare_nodes(&mut self, g: &mut Canvas, a: u32, op: &str, b: u32, column: i32) -> u32 {
         let (def, negate) = match op {
+            "<" => ("logic.less", false),
             ">=" => ("logic.less", true),
             ">" => ("logic.greater", false),
             "<=" => ("logic.greater", true),
