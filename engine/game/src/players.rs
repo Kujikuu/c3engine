@@ -63,6 +63,7 @@ impl Sim {
                 bag: Vec::new(),
                 equipment: Vec::new(),
                 look: Default::default(),
+                arrive_tag: None,
                 running: false,
                 task: Task::Idle,
                 dialogue: None,
@@ -131,6 +132,7 @@ impl Sim {
         self.stop_talking(id);
         let Some(p) = self.living(id) else { return };
         p.task = Task::Walk;
+        p.arrive_tag = None;
         self.plan_path(id, goal);
     }
 
@@ -514,7 +516,12 @@ impl Sim {
             Task::Idle => {}
             Task::Walk => {
                 if !self.step_player(id) {
-                    self.players.get_mut(&id).expect("ticking").task = Task::Idle;
+                    let p = self.players.get_mut(&id).expect("ticking");
+                    p.task = Task::Idle;
+                    // A script's walk tells it the player got there.
+                    if let Some(tag) = p.arrive_tag.take() {
+                        self.script_event(id, "on_arrive", vec![tag.into()]);
+                    }
                 }
             }
             Task::Attack(target) => self.chase_and_hit(id, target),
@@ -641,6 +648,8 @@ impl Sim {
         p.path.clear();
         p.revive_at_ms = Some(revive_at);
         self.events.push(Event::Died { id, killer });
+        let killer = killer.map_or(0, |k| i64::from(k.0));
+        self.script_event(id, "on_death", vec![killer.into()]);
     }
 
     /// Adds experience, rising levels as it fills them.
@@ -671,6 +680,7 @@ impl Sim {
             let p = self.players.get_mut(&id).expect("levelling");
             p.life = p.stats.max_life;
             p.mana = p.stats.max_mana;
+            self.script_event(id, "on_level_up", vec![i64::from(level).into()]);
         }
     }
 }

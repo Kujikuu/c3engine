@@ -44,6 +44,7 @@ pub(crate) fn register(engine: &mut Engine, shared: &Shared, tables: &Rc<RefCell
     world(engine, shared);
     data(engine, tables);
     quests(engine, shared, tables);
+    more(engine, shared);
     let s = shared.clone();
     engine.on_print(move |text| {
         let _ = with(&s, |c| c.effects.push(Effect::Log(text.to_owned())));
@@ -234,6 +235,84 @@ fn world(engine: &mut Engine, shared: &Shared) {
             })
         })
     });
+}
+
+/// Life, statuses, world variables, chance, where the player is, effects and sounds, the
+/// game UI, monsters and walking.
+fn more(engine: &mut Engine, shared: &Shared) {
+    let effect = |shared: &Shared, make: fn(i64) -> Effect| {
+        let s = shared.clone();
+        move |n: i64| with(&s, |c| c.effects.push(make(n)))
+    };
+    engine.register_fn("give_exp", effect(shared, Effect::Exp));
+    engine.register_fn("heal", effect(shared, |n| Effect::Life(n.max(0))));
+    engine.register_fn("hurt", effect(shared, |n| Effect::Life(-n.max(0))));
+    engine.register_fn("add_status", effect(shared, Effect::AddStatus));
+    engine.register_fn("open_window", effect(shared, Effect::OpenWindow));
+    let s = shared.clone();
+    engine.register_fn("has_status", move |id: i64| {
+        with(&s, |c| c.player.statuses.contains(&id))
+    });
+    let s = shared.clone();
+    engine.register_fn("life", move || with(&s, |c| c.player.life));
+    let s = shared.clone();
+    engine.register_fn("max_life", move || with(&s, |c| c.player.max_life));
+    let s = shared.clone();
+    engine.register_fn("map_id", move || with(&s, |c| c.player.map));
+    let s = shared.clone();
+    engine.register_fn("player_x", move || with(&s, |c| c.player.cell.0));
+    let s = shared.clone();
+    engine.register_fn("player_y", move || with(&s, |c| c.player.cell.1));
+    let s = shared.clone();
+    engine.register_fn("world_flag", move |name: &str| {
+        with(&s, |c| c.player.world.get(name).copied().unwrap_or(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_world_flag", move |name: &str, value: i64| {
+        with(&s, |c| {
+            c.player.world.insert(name.to_owned(), value);
+        })
+    });
+    let text = |shared: &Shared, make: fn(String) -> Effect| {
+        let s = shared.clone();
+        move |t: &str| with(&s, |c| c.effects.push(make(t.to_owned())))
+    };
+    engine.register_fn("play_effect", text(shared, Effect::PlayEffect));
+    engine.register_fn("play_sound", text(shared, Effect::PlaySound));
+    engine.register_fn("announce", text(shared, Effect::Announce));
+    let s = shared.clone();
+    engine.register_fn("spawn_monster", move |kind: i64, x: i64, y: i64| {
+        with(&s, |c| c.effects.push(Effect::Spawn { kind, cell: (x, y) }))
+    });
+    let s = shared.clone();
+    engine.register_fn("walk_to", move |x: i64, y: i64, tag: &str| {
+        with(&s, |c| {
+            c.effects.push(Effect::WalkTo {
+                cell: (x, y),
+                tag: tag.to_owned(),
+            })
+        })
+    });
+    // Chance: a whole number from `low` to `high`, both included.
+    let seed = Rc::new(std::cell::Cell::new(seed()));
+    engine.register_fn("random", move |low: i64, high: i64| {
+        let (low, high) = (low.min(high), low.max(high));
+        let mut x = seed.get();
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        seed.set(x);
+        let span = (high - low) as u64 + 1;
+        low + (x % span) as i64
+    });
+}
+
+/// A starting point for `random` (it differs from run to run).
+fn seed() -> u64 {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as u64);
+    nanos | 1
 }
 
 fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {

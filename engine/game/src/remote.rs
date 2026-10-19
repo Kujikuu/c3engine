@@ -86,6 +86,7 @@ impl Event {
             | Event::Notice { player, .. }
             | Event::Dialogue { player }
             | Event::ShopOpened { player, .. }
+            | Event::OpenWindow { player, .. }
             | Event::CommandReply { player, .. } => Some(player),
             _ => None,
         }
@@ -117,6 +118,7 @@ impl Event {
             | Event::Used { player, .. }
             | Event::Dressed { player }
             | Event::Chat { player, .. } => vec![player],
+            Event::Effect { entity, .. } | Event::Sound { entity, .. } => vec![entity],
             _ => Vec::new(),
         }
     }

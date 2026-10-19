@@ -106,6 +106,12 @@ impl GameAudio {
                     }
                     continue;
                 }
+                Event::Sound { entity, ref sound } => {
+                    if let Some(cell) = sim.cell_of(entity) {
+                        self.audio.play_at(sound, distance(here, cell) as f32);
+                    }
+                    continue;
+                }
                 Event::Used { player, kind } if player == hero => {
                     if let (_, Some(sound)) = self.game.item_use(kind) {
                         self.audio.play(&sound, 1.0);

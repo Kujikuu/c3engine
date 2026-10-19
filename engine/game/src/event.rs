@@ -130,6 +130,21 @@ pub enum Event {
     },
     /// A script printed (for the console).
     ScriptLog(String),
+    /// A script played effect `effect` on `entity`.
+    Effect {
+        entity: EntityId,
+        effect: String,
+    },
+    /// A script played sound `sound` where `entity` is.
+    Sound {
+        entity: EntityId,
+        sound: String,
+    },
+    /// A script opened the game UI's dialog `dialog` for `player`.
+    OpenWindow {
+        player: EntityId,
+        dialog: u32,
+    },
     /// A problem with the game's data (a spawn of an unknown monster type).
     Warning(String),
 }

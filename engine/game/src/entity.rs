@@ -110,6 +110,9 @@ pub struct Player {
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.
     pub equipment: Vec<Item>,
+    /// What a script's walk is called, to tell it (`on_arrive`) when the player gets there.
+    #[serde(skip)]
+    pub arrive_tag: Option<String>,
     /// The look chosen when it was made: body and hair, as the game numbers them (0: the
     /// game's default).
     #[serde(default)]

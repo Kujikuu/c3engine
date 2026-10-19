@@ -18,6 +18,15 @@ pub struct PlayerState {
     pub skills: Vec<i64>,
     /// Script variables kept with the player (quest steps, counters); unset reads as 0.
     pub flags: BTreeMap<String, i64>,
+    /// Variables of the whole world (every player's scripts share them); unset reads as 0.
+    pub world: BTreeMap<String, i64>,
+    /// Statuses the player is under.
+    pub statuses: Vec<i64>,
+    /// The game id of the player's map and the cell it stands on.
+    pub map: i64,
+    pub cell: (i64, i64),
+    pub life: i64,
+    pub max_life: i64,
 }
 
 impl PlayerState {
@@ -124,6 +133,28 @@ pub enum Effect {
     StartTimer {
         name: String,
         seconds: f64,
+    },
+    /// Life back (`heal`), or taken (`hurt`, never below 1).
+    Life(i64),
+    /// Put the player under status `id`.
+    AddStatus(i64),
+    /// Play effect `name` on the player.
+    PlayEffect(String),
+    /// Play sound `path` where the player is.
+    PlaySound(String),
+    /// Tell every player on the map.
+    Announce(String),
+    /// Open the game UI's dialog `id` for the player.
+    OpenWindow(i64),
+    /// A monster of type `kind` appears at `cell`.
+    Spawn {
+        kind: i64,
+        cell: (i64, i64),
+    },
+    /// The player walks to `cell`; `on_arrive(tag)` runs when it gets there.
+    WalkTo {
+        cell: (i64, i64),
+        tag: String,
     },
 }
 

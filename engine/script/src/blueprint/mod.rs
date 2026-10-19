@@ -189,6 +189,46 @@ mod tests {
         assert!(problems.is_empty(), "{problems:?}\n{code}");
     }
 
+    /// Every library action and pure node compiles to Rhai the engine reads.
+    #[test]
+    fn every_library_node_compiles() {
+        let mut graph = Graph::default();
+        graph.nodes.push(node(
+            1,
+            "event.custom",
+            &[("name", Literal::Text("all".into()))],
+        ));
+        let mut last = (1, "then");
+        let mut id = 2;
+        for def in NODES {
+            match def.kind {
+                DefKind::Action => {
+                    graph.nodes.push(node(id, def.id, &[]));
+                    graph.wires.push(wire(last.0, last.1, id, "exec"));
+                    last = (id, "then");
+                    id += 1;
+                }
+                DefKind::Pure if def.outputs.iter().all(|(_, t)| t.fits(PinType::Text)) => {
+                    graph.nodes.push(node(id, def.id, &[]));
+                    graph.nodes.push(node(id + 1, "player.message", &[]));
+                    graph.wires.push(wire(id, "value", id + 1, "text"));
+                    graph.wires.push(wire(last.0, last.1, id + 1, "exec"));
+                    last = (id + 1, "then");
+                    id += 2;
+                }
+                _ => {}
+            }
+        }
+        let bp = Blueprint {
+            events: graph,
+            ..Blueprint::default()
+        };
+        let code = compile("all", &bp).unwrap();
+        let host = crate::ScriptHost::new(std::env::temp_dir(), None);
+        let problems = host.check(&code, None);
+        assert!(problems.is_empty(), "{problems:?}\n{code}");
+    }
+
     #[test]
     fn problems_name_their_nodes() {
         let mut bp = bounty();

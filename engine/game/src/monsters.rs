@@ -3,7 +3,7 @@
 
 use crate::entity::{GroundItem, Monster};
 use crate::event::Event;
-use crate::rules::Drop;
+use crate::rules::{Drop, MonsterType};
 use crate::sim::Sim;
 use crate::{EntityId, distance, ms};
 use c3_scene::CellPos;
@@ -55,31 +55,44 @@ impl Sim {
             }) else {
                 continue;
             };
-            let id = self.new_entity();
-            let direction = self.rng.range(0, 7) as u8;
-            self.monsters.insert(
-                id,
-                Monster {
-                    id,
-                    kind: kind.id,
-                    level: kind.level,
-                    cell,
-                    direction,
-                    life: kind.stats.max_life,
-                    stats: kind.stats,
-                    statuses: Vec::new(),
-                    home: cell,
-                    spawn: Some(spawn.id),
-                    target: None,
-                    next_step_ms: 0,
-                    next_attack_ms: 0,
-                    died_at_ms: None,
-                },
-            );
-            self.index.insert(id, cell);
+            self.add_monster(&kind, cell, Some(spawn.id));
             self.spawns[area].alive += 1;
-            self.events.push(Event::Appeared(id));
         }
+    }
+
+    /// A monster of type `kind` appears at `cell` (a script's, of no spawn area); `None`
+    /// when there is no such type or the cell can't be stood on.
+    pub(crate) fn spawn_monster(&mut self, kind: u32, cell: CellPos) -> Option<EntityId> {
+        let kind = self.rules.monster(kind).cloned()?;
+        let cell = path::nearest_walkable(&self.grid, cell, 5)?;
+        Some(self.add_monster(&kind, cell, None))
+    }
+
+    fn add_monster(&mut self, kind: &MonsterType, cell: CellPos, spawn: Option<u32>) -> EntityId {
+        let id = self.new_entity();
+        let direction = self.rng.range(0, 7) as u8;
+        self.monsters.insert(
+            id,
+            Monster {
+                id,
+                kind: kind.id,
+                level: kind.level,
+                cell,
+                direction,
+                life: kind.stats.max_life,
+                stats: kind.stats,
+                statuses: Vec::new(),
+                home: cell,
+                spawn,
+                target: None,
+                next_step_ms: 0,
+                next_attack_ms: 0,
+                died_at_ms: None,
+            },
+        );
+        self.index.insert(id, cell);
+        self.events.push(Event::Appeared(id));
+        id
     }
 
     /// A living monster stands on `cell`.

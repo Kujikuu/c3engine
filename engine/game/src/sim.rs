@@ -45,6 +45,8 @@ pub struct Sim {
     pub(crate) quests: Vec<c3_script::Quest>,
     /// The map's regions (safe zones, markets…).
     pub(crate) regions: Vec<c3_scene::Region>,
+    /// Script variables of the whole world (`world_flag`); unset reads as 0.
+    pub(crate) world_flags: BTreeMap<String, i64>,
 }
 
 impl Sim {
@@ -85,6 +87,7 @@ impl Sim {
             portals: Vec::new(),
             quests: Vec::new(),
             regions: Vec::new(),
+            world_flags: BTreeMap::new(),
         };
         sim.fill_spawns();
         sim

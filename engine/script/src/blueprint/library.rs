@@ -24,6 +24,8 @@ pub enum DefKind {
     ForEach,
     /// Waits `seconds`, then goes on (`then`) – the rest runs later, from a timer.
     Wait,
+    /// Walks the player to `x`, `y`, then goes on (`then`) once it gets there.
+    MoveTo,
     /// Reads or sets the variable named by the node's `name` value.
     GetVariable,
     SetVariable,
@@ -54,9 +56,11 @@ impl NodeDef {
     /// The exec outputs it continues through.
     pub fn exec_outs(&self) -> &'static [&'static str] {
         match self.kind {
-            DefKind::Event { .. } | DefKind::Action | DefKind::Wait | DefKind::SetVariable => {
-                &["then"]
-            }
+            DefKind::Event { .. }
+            | DefKind::Action
+            | DefKind::Wait
+            | DefKind::MoveTo
+            | DefKind::SetVariable => &["then"],
             DefKind::Call | DefKind::FunctionEntry => &["then"],
             DefKind::Branch => &["true", "false"],
             DefKind::Sequence => &["then 0", "then 1", "then 2", "then 3"],
@@ -202,6 +206,13 @@ pub const NODES: &[NodeDef] = &[
         &[("region", Number)],
     ),
     event("event.timer", "On a timer", "on_timer", &[("name", Text)]),
+    event("event.death", "On dying", "on_death", &[("killer", Entity)]),
+    event(
+        "event.level_up",
+        "On levelling up",
+        "on_level_up",
+        &[("level", Number)],
+    ),
     event("event.talk", "On talking (an NPC)", "talk", &[]),
     // A function of its own name (an answer's `next`, or one the game calls).
     event("event.custom", "Custom event", "", &[]),
@@ -226,6 +237,13 @@ pub const NODES: &[NodeDef] = &[
         "Wait",
         DefKind::Wait,
         &[("seconds", Number)],
+        &[],
+    ),
+    flow(
+        "flow.move_to",
+        "Walk to",
+        DefKind::MoveTo,
+        &[("x", Number), ("y", Number)],
         &[],
     ),
     flow(
@@ -353,6 +371,117 @@ pub const NODES: &[NodeDef] = &[
         &[("name", Text)],
         Number,
         "flag({name})",
+    ),
+    pure("player.life", "Life", "Player", &[], Number, "life()"),
+    pure(
+        "player.max_life",
+        "Max life",
+        "Player",
+        &[],
+        Number,
+        "max_life()",
+    ),
+    action(
+        "player.heal",
+        "Heal",
+        "Player",
+        &[("amount", Number)],
+        &[],
+        "heal({amount});",
+    ),
+    action(
+        "player.hurt",
+        "Hurt",
+        "Player",
+        &[("amount", Number)],
+        &[],
+        "hurt({amount});",
+    ),
+    action(
+        "player.give_exp",
+        "Give experience",
+        "Player",
+        &[("amount", Number)],
+        &[],
+        "give_exp({amount});",
+    ),
+    pure("player.map", "Map", "Player", &[], Map, "map_id()"),
+    pure("player.x", "Cell x", "Player", &[], Number, "player_x()"),
+    pure("player.y", "Cell y", "Player", &[], Number, "player_y()"),
+    // Statuses.
+    pure(
+        "status.has",
+        "Has status",
+        "Statuses",
+        &[("status", Number)],
+        Bool,
+        "has_status({status})",
+    ),
+    action(
+        "status.add",
+        "Add status",
+        "Statuses",
+        &[("status", Number)],
+        &[],
+        "add_status({status});",
+    ),
+    // The world.
+    action(
+        "world.announce",
+        "Announce",
+        "World",
+        &[("text", Text)],
+        &[],
+        "announce({text});",
+    ),
+    action(
+        "world.spawn",
+        "Spawn monster",
+        "World",
+        &[("monster", Number), ("x", Number), ("y", Number)],
+        &[],
+        "spawn_monster({monster}, {x}, {y});",
+    ),
+    pure(
+        "world.flag",
+        "World variable",
+        "World",
+        &[("name", Text)],
+        Number,
+        "world_flag({name})",
+    ),
+    action(
+        "world.set_flag",
+        "Set world variable",
+        "World",
+        &[("name", Text), ("value", Number)],
+        &[],
+        "set_world_flag({name}, {value});",
+    ),
+    // Effects, sounds and the game UI.
+    action(
+        "fx.effect",
+        "Play effect",
+        "Effects",
+        &[("effect", Text)],
+        &[],
+        "play_effect({effect});",
+    ),
+    action(
+        "fx.sound",
+        "Play sound",
+        "Effects",
+        &[("sound", Text)],
+        &[],
+        "play_sound({sound});",
+    ),
+    action(
+        "ui.open",
+        "Open window",
+        "UI",
+        &[("dialog", Number)],
+        &[],
+        "open_window({dialog});",
     ),
     action(
         "player.set_flag",
@@ -545,6 +674,14 @@ pub const NODES: &[NodeDef] = &[
         &[("a", Number), ("b", Number)],
         Number,
         "max({a}, {b})",
+    ),
+    pure(
+        "math.random",
+        "Random",
+        "Math",
+        &[("low", Number), ("high", Number)],
+        Number,
+        "random({low}, {high})",
     ),
     pure(
         "logic.equal",

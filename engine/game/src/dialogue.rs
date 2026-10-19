@@ -190,6 +190,57 @@ impl Sim {
             Effect::QuestDone { name, .. } => notice(self, format!("Quest complete: {name}")),
             Effect::Log(text) => self.events.push(Event::ScriptLog(text)),
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
+            Effect::Life(change) => self.script_life(id, change),
+            Effect::AddStatus(status) => {
+                if let Ok(status) = u32::try_from(status) {
+                    self.add_status(id, status, None);
+                }
+            }
+            Effect::PlayEffect(effect) => self.events.push(Event::Effect { entity: id, effect }),
+            Effect::PlaySound(sound) => self.events.push(Event::Sound { entity: id, sound }),
+            Effect::Announce(text) => {
+                let players: Vec<EntityId> = self.players.keys().copied().collect();
+                for player in players {
+                    let text = text.clone();
+                    self.events.push(Event::Notice { player, text });
+                }
+            }
+            Effect::OpenWindow(dialog) => {
+                if let Ok(dialog) = u32::try_from(dialog) {
+                    self.events.push(Event::OpenWindow { player: id, dialog });
+                }
+            }
+            Effect::Spawn { kind, cell } => {
+                let cell = (cell.0 as i32, cell.1 as i32);
+                if let Ok(kind) = u32::try_from(kind)
+                    && self.spawn_monster(kind, cell).is_none()
+                {
+                    self.events.push(Event::Warning(format!(
+                        "A script's monster {kind} can't appear at ({}, {})",
+                        cell.0, cell.1
+                    )));
+                }
+            }
+            Effect::WalkTo { cell, tag } => {
+                self.walk(id, (cell.0 as i32, cell.1 as i32));
+                if let Some(p) = self.players.get_mut(&id) {
+                    p.arrive_tag = Some(tag);
+                }
+            }
+        }
+    }
+
+    /// A script healed (`change` > 0) or hurt the player; scripts never kill.
+    fn script_life(&mut self, id: EntityId, change: i64) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let before = i64::from(p.life);
+        let after = (before + change).clamp(1, i64::from(p.stats.max_life));
+        p.life = after as u32;
+        if after > before {
+            let amount = (after - before) as u32;
+            self.events.push(Event::Healed { target: id, amount });
         }
     }
 
@@ -212,6 +263,12 @@ impl Sim {
                 .map(|(k, &v)| (k.clone(), i64::try_from(v).unwrap_or(i64::MAX)))
                 .collect(),
             flags: p.flags.clone(),
+            world: self.world_flags.clone(),
+            statuses: p.statuses.iter().map(|s| i64::from(s.id)).collect(),
+            map: self.map_ids.first().copied().map_or(0, i64::from),
+            cell: (i64::from(p.cell.0), i64::from(p.cell.1)),
+            life: p.life.into(),
+            max_life: p.stats.max_life.into(),
         }
     }
 
@@ -223,6 +280,10 @@ impl Sim {
         };
         p.money = after.money.max(0) as u64;
         p.flags = after.flags.clone();
+        self.world_flags = after.world.clone();
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
         p.wallet = (after.wallet.iter())
             .filter(|(_, v)| **v > 0)
             .map(|(k, &v)| (k.clone(), v as u64))

@@ -119,6 +119,8 @@ pub enum VariableScope {
     Local,
     /// Kept with the player (saved with the character).
     Player,
+    /// Shared by the whole world (every player's graphs see it).
+    World,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

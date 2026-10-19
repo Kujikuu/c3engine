@@ -24,6 +24,11 @@ pub struct Problem {
     pub message: String,
 }
 
+/// The arrival a walk of blueprint `name` resumes by.
+fn walk_tag(name: &str, node: u32) -> String {
+    format!("bp:{name}:walk:{node}")
+}
+
 /// The timer name a wait of blueprint `name` resumes by.
 fn wait_timer(name: &str, node: u32) -> String {
     format!("bp:{name}:{node}")
@@ -75,6 +80,7 @@ pub fn compile(name: &str, blueprint: &Blueprint) -> Result<String, Vec<Problem>
         blueprint,
         problems: Vec::new(),
         waits: Vec::new(),
+        walks: Vec::new(),
     };
     let mut out =
         format!("// Made from blueprint \"{name}\"; edit the blueprint, not this file.\n");
@@ -93,6 +99,8 @@ struct Compiler<'a> {
     problems: Vec<Problem>,
     /// Waits met so far: their timer names and the functions going on after them.
     waits: Vec<(String, String)>,
+    /// Walks met so far: their tags and the functions going on after them.
+    walks: Vec<(String, String)>,
 }
 
 /// One function body being written.
@@ -227,6 +235,13 @@ impl<'a> Compiler<'a> {
             out.push_str("}\n");
             out.push_str(&timer_rest);
         }
+        if !self.walks.is_empty() {
+            out.push_str("\nfn on_arrive(p_tag) {\n");
+            for (tag, function) in &self.walks {
+                let _ = writeln!(out, "    if p_tag == {} {{ {function}(); }}", quote(tag));
+            }
+            out.push_str("}\n");
+        }
     }
 
     /// The functions going on after waits (and after waits in those, in turn).
@@ -279,7 +294,11 @@ impl<'a> Compiler<'a> {
             out.push_str(&body.code);
             out.push_str("}\n");
             if !body.rest.is_empty() {
-                self.problem(&which, None, "Functions can't wait (only events can)");
+                self.problem(
+                    &which,
+                    None,
+                    "Functions can't wait or walk (only events can)",
+                );
             }
         }
     }
@@ -387,6 +406,15 @@ impl<'a> Compiler<'a> {
                 self.waits.push((timer, function.clone()));
                 body.rest.push((function, id));
             }
+            DefKind::MoveTo => {
+                let x = self.input(body, node, "x", PinType::Number);
+                let y = self.input(body, node, "y", PinType::Number);
+                let tag = walk_tag(self.name, id);
+                let function = format!("arrived_{id}");
+                body.line(&format!("walk_to({x}, {y}, {});", quote(&tag)));
+                self.walks.push((tag, function.clone()));
+                body.rest.push((function, id));
+            }
             DefKind::SetVariable => {
                 if let Some(v) = self.variable(body, node) {
                     let value = self.input(body, node, "value", v.ty);
@@ -396,6 +424,9 @@ impl<'a> Compiler<'a> {
                         }
                         VariableScope::Player => {
                             body.line(&format!("set_flag({}, {value});", quote(&v.name)));
+                        }
+                        VariableScope::World => {
+                            body.line(&format!("set_world_flag({}, {value});", quote(&v.name)));
                         }
                     }
                 }
@@ -496,6 +527,7 @@ impl<'a> Compiler<'a> {
                 Some(v) => match v.scope {
                     VariableScope::Local => format!("v_{}", ident(&v.name)),
                     VariableScope::Player => format!("flag({})", quote(&v.name)),
+                    VariableScope::World => format!("world_flag({})", quote(&v.name)),
                 },
                 None => default_of(ty).to_owned(),
             },

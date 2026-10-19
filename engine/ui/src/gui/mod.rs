@@ -290,6 +290,11 @@ impl Gui {
             && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))
     }
 
+    /// Opens dialog `id`.
+    pub fn open(&mut self, id: u32) {
+        self.open.insert(id);
+    }
+
     /// Opens dialog `id`, or closes it when it is open.
     pub fn toggle(&mut self, id: u32) {
         if !self.open.remove(&id) {

@@ -125,6 +125,12 @@ impl SimView {
                         }
                     }
                 }
+                Event::Effect { entity, ref effect } => {
+                    if let Some(i) = self.actor(entity) {
+                        // Decoration: a client without the effect still plays.
+                        let _ = world.actor_effect(i, effect, false);
+                    }
+                }
                 Event::Died { id, .. } => {
                     if let Some(i) = self.actor(id) {
                         let die = world.game.looks().action(Act::Die);

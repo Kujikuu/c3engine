@@ -1168,3 +1168,55 @@ fn blueprints_hear_events_beside_the_events_script() {
     );
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn scripts_heal_share_world_variables_spawn_open_windows_and_walk() {
+    let dir = std::env::temp_dir().join(format!("c3-game-more-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_login() {\n\
+             hurt(1000); heal(5);\n\
+             set_world_flag(\"logins\", world_flag(\"logins\") + 1);\n\
+             spawn_monster(1, 10, 10);\n\
+             open_window(153); play_effect(\"glow\"); play_sound(\"bell.wav\");\n\
+             walk_to(8, 5, \"there\");\n\
+         }\n\
+         fn on_arrive(tag) { set_flag(\"arrived\", if tag == \"there\" { player_x() } else { -1 }); }\n\
+         fn on_level_up(level) { set_flag(\"level\", level); }\n",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let monsters = sim.monsters().count();
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    sim.logged_in(hero);
+    let p = sim.player(hero).unwrap();
+    assert_eq!(p.life, 6, "hurt never kills: 1 left, then 5 back");
+    assert_eq!(sim.world_flags["logins"], 1);
+    assert_eq!(sim.monsters().count(), monsters + 1);
+    let events = sim.take_events();
+    assert!(events.contains(&Event::OpenWindow {
+        player: hero,
+        dialog: 153
+    }));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Effect { effect, .. } if effect == "glow"))
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Sound { sound, .. } if sound == "bell.wav"))
+    );
+    sim.advance(5_000);
+    assert_eq!(
+        sim.player(hero).unwrap().flags["arrived"],
+        8,
+        "on_arrive heard the walk end"
+    );
+    sim.gain_exp(hero, 1_000_000);
+    assert!(sim.player(hero).unwrap().flags["level"] > 1, "on_level_up");
+    std::fs::remove_dir_all(dir).ok();
+}

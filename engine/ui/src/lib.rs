@@ -267,6 +267,15 @@ impl GameUi {
 
     /// Feedback for what the simulation did (`now`: UI time in seconds).
     pub fn events(&mut self, events: &[Event], sim: &Sim, hero: EntityId, now: f64) {
+        // A script opening one of the game UI's dialogs for the hero.
+        for event in events {
+            if let Event::OpenWindow { player, dialog } = *event
+                && player == hero
+                && let Some(gui) = &mut self.gui
+            {
+                gui.open(dialog);
+            }
+        }
         for event in events {
             self.overlay.event(event, hero, now);
             match event {
