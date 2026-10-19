@@ -40,6 +40,18 @@ pub struct WorldState {
     /// The wanted list, by entry id.
     #[serde(default)]
     pub wanted: BTreeMap<u32, Wanted>,
+    /// Bounties on killers, by id.
+    #[serde(default)]
+    pub bounties: BTreeMap<u32, Bounty>,
+}
+
+/// A bounty on a killer: the one killed, the killer, the reward's kind and amount.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Bounty {
+    pub target: String,
+    pub hunter: String,
+    pub kind: i64,
+    pub bonus: i64,
 }
 
 /// A wanted list entry: who is wanted, who pays, the bounty.
@@ -153,6 +165,25 @@ impl WorldState {
                     self.wanted.insert(id, entry);
                 }
             }
+            WorldChange::Bounty { id, view } => {
+                let Ok(id) = u32::try_from(*id) else {
+                    return;
+                };
+                match view {
+                    Some(v) => {
+                        let bounty = Bounty {
+                            target: v.target.clone(),
+                            hunter: v.hunter.clone(),
+                            kind: v.kind,
+                            bonus: v.bonus,
+                        };
+                        self.bounties.insert(id, bounty);
+                    }
+                    None => {
+                        self.bounties.remove(&id);
+                    }
+                }
+            }
             WorldChange::MapOwner { map, guild } => {
                 let Ok(map) = u32::try_from(*map) else {
                     return;
@@ -175,6 +206,21 @@ impl WorldState {
     }
 
     /// The guilds as scripts see them.
+    /// The bounties on killers as scripts see them.
+    pub fn bounty_views(&self) -> BTreeMap<i64, c3_script::BountyView> {
+        (self.bounties.iter())
+            .map(|(id, b)| {
+                let view = c3_script::BountyView {
+                    target: b.target.clone(),
+                    hunter: b.hunter.clone(),
+                    kind: b.kind,
+                    bonus: b.bonus,
+                };
+                (i64::from(*id), view)
+            })
+            .collect()
+    }
+
     /// The wanted list as scripts see it.
     pub fn wanted_views(&self) -> BTreeMap<i64, c3_script::WantedView> {
         (self.wanted.iter())

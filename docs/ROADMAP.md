@@ -616,7 +616,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
         bounty on a name typed
   - [x] A wanted target's killer who took the entry on is paid 70% (`on_kill_player`, the
         rules blueprint's lane; not run in a two-player test yet)
-  - [ ] PK bounties (2201-2205), the police wanted list (3010-3012), the wanted order's
+  - [x] PK bounties: a red-named player killed by a player outside map 6002 comes back in
+        the black jail and a bounty is recorded on the killer (the rules blueprint, on the
+        shared bounties); 2201-2204 ask, set, clear and claim (play-tested: Captain Zhang
+        refuses with no bounty); 2205 fails as TQ's does
+  - [ ] PK: the police wanted list (3010-3012), the wanted order's
         name sent to the client (3005's MsgName 8), TQ's refusal lines
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
         node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)

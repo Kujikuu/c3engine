@@ -71,6 +71,8 @@ pub struct PlayerState {
     pub guilds: BTreeMap<i64, GuildView>,
     /// The wanted list, by entry id.
     pub wanted: BTreeMap<i64, WantedView>,
+    /// Bounties on killers, by id (the oldest first).
+    pub bounties: BTreeMap<i64, BountyView>,
     pub map_owners: BTreeMap<i64, i64>,
     /// The living monsters on the player's map, by their type's name.
     pub monsters: BTreeMap<String, i64>,
@@ -139,6 +141,16 @@ pub struct WantedView {
     pub bounty: i64,
 }
 
+/// A bounty on a killer as scripts see it: the one killed (`target`), the killer
+/// (`hunter`), what the reward is paid in (`kind`) and how much (0: not set yet).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BountyView {
+    pub target: String,
+    pub hunter: String,
+    pub kind: i64,
+    pub bonus: i64,
+}
+
 /// A guild as scripts see it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct GuildView {
@@ -193,6 +205,11 @@ pub enum WorldChange {
         target: String,
         payer: String,
         bounty: i64,
+    },
+    /// Bounty `id` set as `view` (`None`: removed).
+    Bounty {
+        id: i64,
+        view: Option<BountyView>,
     },
     /// Game map `map` owned by guild `guild` (0: nobody).
     MapOwner {

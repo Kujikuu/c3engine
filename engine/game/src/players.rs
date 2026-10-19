@@ -878,6 +878,9 @@ impl Sim {
         if let Some(by) = killer.filter(|k| self.players.contains_key(k)) {
             let args = vec![victim.0.into(), victim.1.into()];
             self.script_event(by, "on_kill_player", args);
+            // And the one killed's: who killed it.
+            let name = self.players[&by].name.clone();
+            self.script_event(id, "on_killed_by_player", vec![name.into()]);
         }
         let killer = killer.map_or(0, |k| i64::from(k.0));
         self.script_event(id, "on_death", vec![killer.into()]);

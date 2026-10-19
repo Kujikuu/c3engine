@@ -216,6 +216,60 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    action(
+        "bounty.record",
+        "Record a bounty on the killer",
+        "Bounties",
+        &[("killer", Text)],
+        &[],
+        "record_bounty({killer});",
+    ),
+    pure(
+        "bounty.count",
+        "Bounties counted",
+        "Bounties",
+        &[("role", Text), ("unset", Bool)],
+        Number,
+        "bounty_count({role}, {unset})",
+    ),
+    action(
+        "bounty.set",
+        "Set a reward on my killer",
+        "Bounties",
+        &[("kind", Number), ("bonus", Number)],
+        &[("set", Bool)],
+        "set_bounty({kind}, {bonus})",
+    ),
+    action(
+        "bounty.clear",
+        "Clear my unset bounties",
+        "Bounties",
+        &[],
+        &[],
+        "clear_bounties();",
+    ),
+    pure(
+        "bounty.claimable",
+        "Reward to claim",
+        "Bounties",
+        &[("kind", Bool)],
+        Number,
+        "claimable_bounty({kind})",
+    ),
+    action(
+        "bounty.take",
+        "Take the reward claimed",
+        "Bounties",
+        &[],
+        &[],
+        "take_bounty();",
+    ),
+    event(
+        "event.killed_by_player",
+        "On being killed by a player",
+        "on_killed_by_player",
+        &[("killer", Text)],
+    ),
     event(
         "event.kill_player",
         "On killing a player",

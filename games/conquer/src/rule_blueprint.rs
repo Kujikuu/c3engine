@@ -131,6 +131,7 @@ pub fn rules_blueprint() -> Blueprint {
     xp_bar(&mut bp.events, next_lane(500.0));
     weapon_skills(&mut bp.events, next_lane(1800.0));
     wanted_hunt(&mut bp.events, next_lane(500.0));
+    red_name_jailed(&mut bp.events, next_lane(500.0));
     magic_skills(&mut bp.events, next_lane(900.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
@@ -615,6 +616,34 @@ fn weapon_skill(g: &mut Graph, top: f32, event: u32, from: (u32, &'static str), 
     wire(g, (grows, "true"), (up, "exec"));
     chain(g, (up, "true"), &[level_up, reset, said]);
     wire(g, (up, "false"), (keep, "exec"));
+}
+
+/// TQ's jail (pk bonus spec §2.1 B): a red-named player (PK 30 or more) killed by a player,
+/// outside map 6002, comes back in the black jail (map 6000 at its portal, 29,72) and a
+/// bounty is recorded on the killer.
+fn red_name_jailed(g: &mut Graph, top: f32) {
+    let event = node(g, "event.killed_by_player", [0.0, top], &[]);
+    let names = Names {
+        pins: vec![("killer", event)],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let red = branch_on(&mut w, &names, "pk >= 30 && map != 6002");
+    wire(g, (event, "then"), (red, "exec"));
+    let record = node(g, "bounty.record", [780.0, top], &[]);
+    wire(g, (event, "killer"), (record, "killer"));
+    let jail = node(
+        g,
+        "player.set_record",
+        [1040.0, top],
+        &[
+            ("map", Literal::Number(6000.0)),
+            ("x", Literal::Number(29.0)),
+            ("y", Literal::Number(72.0)),
+        ],
+    );
+    chain(g, (red, "true"), &[record, jail]);
 }
 
 /// A wanted target killed (pk bonus spec §4.3): the hunter who took the entry on is paid 70%
@@ -1899,6 +1928,7 @@ fn player_value(w: &mut ExprWriter, names: &Names, name: &str) -> Option<Operand
         "exp" => w.node("player.exp", &[]),
         "xp" => w.node("player.attr", &[("name", text("xp"))]),
         "pk" => w.node("player.pk", &[]),
+        "map" => w.node("player.map", &[]),
         "pk_free" => w.node("world.map_pk_free", &[]),
         "killed_by_monster" => w.node("player.killed_by_monster", &[]),
         // The `attack_user` bits of the monster that killed the player.

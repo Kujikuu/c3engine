@@ -646,6 +646,7 @@ impl Sim {
             },
             guilds: self.world.guild_views(),
             wanted: self.world.wanted_views(),
+            bounties: self.world.bounty_views(),
             map_owners: (self.world.map_owners.iter())
                 .map(|(&m, &g)| (i64::from(m), i64::from(g)))
                 .collect(),

@@ -36,8 +36,8 @@ mod tables;
 
 pub use conversation::{Conversation, Step};
 pub use dialog::{
-    DialogOption, DialogPage, Effect, GuildView, HeldItem, NpcInfo, PlayerState, Reply, WantedView,
-    WorldChange,
+    BountyView, DialogOption, DialogPage, Effect, GuildView, HeldItem, NpcInfo, PlayerState, Reply,
+    WantedView, WorldChange,
 };
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
@@ -81,6 +81,14 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "record_bounty(killer) / bounty_count(role, unset) / set_bounty(kind, bonus) / clear_bounties()",
+        "Bounties on killers every map shares: one recorded on the player's killer; the player's rows as `target` or `hunter` without or with a reward; the oldest unset reward on its killer set; its unset rows removed",
+    ),
+    (
+        "claimable_bounty(kind) / take_bounty()",
+        "The oldest reward the player may claim as the killer: its amount (or kind, `true`); taken",
+    ),
     (
         "wanted_at(index) / wanted_bounty(id) / wanted_target(id)",
         "The wanted list every map shares: the entry id at `index` (0: none), its bounty and target",

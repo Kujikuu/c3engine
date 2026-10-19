@@ -1050,6 +1050,13 @@ impl<'a> Builder<'a> {
                 };
                 Self::branch(g, has, column)
             }
+            // Bounties on killers (2201-2204): asked about, a reward set, cleared, claimed.
+            2201..=2204 => self.bounty(g, a, column),
+            // TQ left 2205 unimplemented: it always fails (pk bonus spec §3).
+            2205 => {
+                let never = g.node("logic.equal", &[("a", num(0)), ("b", num(1))], column);
+                Self::branch(g, never, column)
+            }
             // The wanted list (3001-3008): walking it, a target named and priced, posted,
             // taken on, cancelled, raised.
             3001..=3008 => self.wanted(g, a, column),
@@ -2363,6 +2370,70 @@ impl<'a> Builder<'a> {
             Number::Node(id) => id,
             // A literal as a sum with nothing.
             Number::Literal(v) => g.node("math.add", &[("a", num(v)), ("b", num(0))], column),
+        }
+    }
+
+    /// 2201-2204: TQ's bounties on killers (`ProcessActionPkBonus`, cq_pk_bonus), on the
+    /// shared bounties: whether the player has rows as the one killed or the killer, with or
+    /// without a reward; the reward on its oldest killer set; its unset rows cleared; the
+    /// oldest reward claimed (kind 2 silver, 1 CPs).
+    fn bounty(&mut self, g: &mut Canvas, a: &Action, column: i32) -> Emitted {
+        let tokens: Vec<&str> = a.param.split_whitespace().collect();
+        let int = |i: usize| tokens.get(i).and_then(|t| t.parse::<i64>().ok());
+        match a.kind {
+            2201 => {
+                let (Some(field), Some(&op), Some(0)) = (tokens.first(), tokens.get(1), int(2))
+                else {
+                    return self.not_converted(g, a, column);
+                };
+                let role = match field.to_ascii_lowercase().as_str() {
+                    "target_bonus" => "target",
+                    "hunter_bonus" => "hunter",
+                    _ => return self.not_converted(g, a, column),
+                };
+                let unset = match op {
+                    "==" => true,
+                    ">" => false,
+                    _ => return self.not_converted(g, a, column),
+                };
+                let values = [("role", txt(role)), ("unset", Literal::Bool(unset))];
+                let count = g.node("bounty.count", &values, column);
+                let any = self.compare_node(g, count, ">", 0, column);
+                Self::branch(g, any, column)
+            }
+            2202 => match (int(0), int(1)) {
+                (Some(kind), Some(bonus)) => {
+                    let values = [("kind", num(kind)), ("bonus", num(bonus))];
+                    Self::checked(g, "bounty.set", &values, "set", column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            2203 => Self::plain(g, "bounty.clear", &[], column),
+            _ => {
+                let amount = g.node(
+                    "bounty.claimable",
+                    &[("kind", Literal::Bool(false))],
+                    column,
+                );
+                let there = self.compare_node(g, amount, ">", 0, column);
+                let kind = g.node("bounty.claimable", &[("kind", Literal::Bool(true))], column);
+                let silver = self.compare_node(g, kind, "==", 2, column);
+                let pick = g.node("flow.branch", &[], column);
+                g.data(silver, pick, "condition");
+                let money = g.node("player.give_money", &[], column);
+                g.data(amount, money, "amount");
+                let cps = [("currency", txt(crate::module::CONQUER_POINTS))];
+                let points = g.node("player.give_currency", &cps, column);
+                g.data(amount, points, "amount");
+                g.exec((pick, "true"), money);
+                g.exec((pick, "false"), points);
+                let take = g.node("bounty.take", &[], column);
+                g.exec((money, "then"), take);
+                g.exec((points, "then"), take);
+                let mut done = self.guarded(g, &[there], None, &[pick], column);
+                done.ok = Some((take, "then"));
+                done
+            }
         }
     }
 

@@ -2,7 +2,8 @@
 //! They act on the [`Call`] being run; outside a call they fail with a clear error.
 
 use crate::dialog::{
-    DialogOption, DialogPage, Effect, GuildView, NpcInfo, PlayerState, WantedView, WorldChange,
+    BountyView, DialogOption, DialogPage, Effect, GuildView, NpcInfo, PlayerState, WantedView,
+    WorldChange,
 };
 use crate::quest::{self, DONE, NOT_TAKEN, Quest, TAKEN};
 use crate::tables::Tables;
@@ -405,6 +406,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
     held_items(engine, shared);
     guilds(engine, shared);
     wanted(engine, shared);
+    bounties(engine, shared);
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -1098,6 +1100,97 @@ fn attributes(engine: &mut Engine, shared: &Shared) {
 }
 
 /// The player's guild and the others: reading them, and changes for every map.
+/// Bounties on killers every map shares (TQ's cq_pk_bonus): recorded on a kill, counted,
+/// a reward set by the one killed, claimed by the killer.
+fn bounties(engine: &mut Engine, shared: &Shared) {
+    let change = |c: &mut Call, id: i64, view: Option<BountyView>| {
+        c.effects.push(Effect::World(WorldChange::Bounty {
+            id,
+            view: view.clone(),
+        }));
+        match view {
+            Some(view) => c.player.bounties.insert(id, view),
+            None => c.player.bounties.remove(&id),
+        };
+    };
+    // The player's rows as the one killed (`target`) or the killer (`hunter`).
+    let mine = |c: &Call, role: &str| -> Vec<(i64, BountyView)> {
+        let name = &c.player.name;
+        (c.player.bounties.iter())
+            .filter(|(_, b)| {
+                if role == "hunter" {
+                    &b.hunter == name
+                } else {
+                    &b.target == name
+                }
+            })
+            .map(|(id, b)| (*id, b.clone()))
+            .collect()
+    };
+    let s = shared.clone();
+    engine.register_fn("record_bounty", move |hunter: &str| {
+        with(&s, |c| {
+            let id = c
+                .player
+                .bounties
+                .keys()
+                .next_back()
+                .map_or(1, |last| last + 1);
+            let view = BountyView {
+                target: c.player.name.clone(),
+                hunter: hunter.to_owned(),
+                kind: 0,
+                bonus: 0,
+            };
+            change(c, id, Some(view));
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("bounty_count", move |role: &str, unset: bool| {
+        with(&s, |c| {
+            let rows = mine(c, role);
+            rows.iter().filter(|(_, b)| (b.bonus == 0) == unset).count() as i64
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_bounty", move |kind: i64, bonus: i64| {
+        with(&s, |c| {
+            let oldest = mine(c, "target").into_iter().find(|(_, b)| b.bonus == 0);
+            let Some((id, mut view)) = oldest else {
+                return false;
+            };
+            view.kind = kind;
+            view.bonus = bonus;
+            change(c, id, Some(view));
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("clear_bounties", move || {
+        with(&s, |c| {
+            for (id, _) in mine(c, "target").into_iter().filter(|(_, b)| b.bonus == 0) {
+                change(c, id, None);
+            }
+        })
+    });
+    // The oldest reward the player may claim: its kind and amount (0: none); taken.
+    let s = shared.clone();
+    engine.register_fn("claimable_bounty", move |kind: bool| {
+        with(&s, |c| {
+            let oldest = mine(c, "hunter").into_iter().find(|(_, b)| b.bonus > 0);
+            oldest.map_or(0, |(_, b)| if kind { b.kind } else { b.bonus })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("take_bounty", move || {
+        with(&s, |c| {
+            if let Some((id, _)) = mine(c, "hunter").into_iter().find(|(_, b)| b.bonus > 0) {
+                change(c, id, None);
+            }
+        })
+    });
+}
+
 /// The wanted list every map shares: reading it, entries added, raised and removed.
 fn wanted(engine: &mut Engine, shared: &Shared) {
     // A change seen at once by the script, and sent on for every map.
@@ -1388,7 +1481,10 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         WorldChange::MapOwner { map, guild } => {
             p.map_owners.insert(*map, *guild);
         }
-        WorldChange::Relation { .. } | WorldChange::Flag { .. } | WorldChange::Wanted { .. } => {}
+        WorldChange::Relation { .. }
+        | WorldChange::Flag { .. }
+        | WorldChange::Wanted { .. }
+        | WorldChange::Bounty { .. } => {}
     }
 }
 

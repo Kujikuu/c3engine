@@ -1813,3 +1813,22 @@ fn the_wanted_list_is_shared_and_raised_and_removed() {
         "each change goes to the host"
     );
 }
+
+#[test]
+fn bounties_on_killers_are_shared() {
+    use c3_script::{BountyView, WorldChange};
+    let mut sim = Sim::new(Grid::new(10, 10), vec![], vec![], rules(), 9);
+    let view = BountyView {
+        target: "Red".into(),
+        hunter: "Hero".into(),
+        kind: 2,
+        bonus: 500,
+    };
+    sim.change_world(WorldChange::Bounty {
+        id: 1,
+        view: Some(view.clone()),
+    });
+    assert_eq!(sim.world_state().bounty_views()[&1], view);
+    sim.change_world(WorldChange::Bounty { id: 1, view: None });
+    assert!(sim.world_state().bounties.is_empty());
+}
