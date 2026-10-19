@@ -16,7 +16,7 @@ fn main() {
     for level in [1, 2, 10, 50] {
         println!(
             "level {level}: {:?}, exp to next {:?}",
-            rules.player_stats(level),
+            rules.player_stats(&c3_game::StatsFor::level(level)),
             rules.level_exp(level)
         );
     }

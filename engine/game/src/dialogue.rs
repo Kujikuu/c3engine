@@ -309,10 +309,7 @@ impl Sim {
                     Some((i64::from(slot), attrs))
                 })
                 .collect(),
-            attributes: (self.settings.attributes.iter())
-                .map(|a| (a.name.clone(), a.default))
-                .chain(p.attributes.iter().map(|(k, &v)| (k.clone(), v)))
-                .collect(),
+            attributes: self.attributes_of(p),
             attribute_limits: (self.settings.attributes.iter())
                 .map(|a| (a.name.clone(), (a.min, a.max)))
                 .collect(),
@@ -392,6 +389,8 @@ impl Sim {
                 self.take_items(id, k, count);
             }
         }
+        // Attributes and the look may change what the player's stats are.
+        self.refresh_stats(id);
     }
 
     /// The walkable cell next to `npc` nearest `from` (or the NPC's own cell).

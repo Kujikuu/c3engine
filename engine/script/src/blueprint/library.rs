@@ -266,9 +266,9 @@ pub const NODES: &[NodeDef] = &[
     // The rules' formulas (each ends at a Return giving the answer).
     formula(
         "formula.player_stats",
-        "Player stats at a level",
+        "Player stats",
         "player_stats",
-        &[("level", Number)],
+        &[("level", Number), ("player", Record)],
     ),
     formula(
         "formula.level_exp",

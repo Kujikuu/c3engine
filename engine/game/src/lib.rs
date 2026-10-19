@@ -38,7 +38,7 @@ pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{
     Drop, Fighter, ItemType, Loot, MonsterType, Rules, SkillKind, SkillTarget, SkillType, Stats,
-    StatusType, find_rules,
+    StatsFor, StatusType, find_rules,
 };
 pub use save::{PlayerSave, SavedItem};
 pub use sim::Sim;

@@ -4,7 +4,7 @@
 
 use crate::data_rules::{drops_from, fighter_map, skill_map, uint};
 use c3_game::{
-    Drop, Fighter, ItemType, Loot, MonsterType, Rng, Rules, SkillType, Stats, StatusType,
+    Drop, Fighter, ItemType, Loot, MonsterType, Rng, Rules, SkillType, Stats, StatsFor, StatusType,
 };
 use c3_script::Formulas;
 use c3_script::formulas::map_int;
@@ -57,11 +57,9 @@ impl Rules for FormulaRules {
         self.inner.item(kind)
     }
 
-    fn player_stats(&self, level: u32) -> Stats {
-        let base = self.inner.player_stats(level);
-        match self.formula("player_stats", |f| {
-            f.map("player_stats", (i64::from(level),))
-        }) {
+    fn player_stats(&self, who: &StatsFor) -> Stats {
+        let base = self.inner.player_stats(who);
+        match self.formula("player_stats", |f| crate::data_rules::stats_formula(f, who)) {
             Some(map) => Stats {
                 max_life: uint(map_int(&map, "life")),
                 max_mana: uint(map_int(&map, "mana")),

@@ -20,7 +20,8 @@ impl Rules for TestRules {
     fn item(&self, _kind: u32) -> Option<&ItemType> {
         None
     }
-    fn player_stats(&self, level: u32) -> Stats {
+    fn player_stats(&self, who: &c3_game::StatsFor) -> Stats {
+        let level = who.level;
         Stats {
             max_life: 100 + level,
             attack_min: 10,

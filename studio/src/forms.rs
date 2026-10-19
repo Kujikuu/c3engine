@@ -312,7 +312,7 @@ impl Studio {
 
     fn level_form(&mut self, ui: &mut egui::Ui, level: u32) -> Option<Jump> {
         let rules = self.forms.rules.as_deref()?;
-        let s = rules.player_stats(level);
+        let s = rules.player_stats(&c3_game::StatsFor::level(level));
         let exp = rules.level_exp(level);
         theme::section(ui, &format!("{} Level {level}", icons::USER), |ui| {
             stats_grid(

@@ -17,7 +17,7 @@ use crate::module::GameRules;
 use c3_data::{Column, ColumnKind, Table, Value};
 use c3_game::{
     Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
-    StatusType,
+    StatsFor, StatusType,
 };
 use c3_script::Formulas;
 use c3_script::formulas::map_int;
@@ -635,6 +635,21 @@ impl DataRules {
     }
 }
 
+/// `player_stats` of the formulas for `who`: `player_stats(level, player)` (the player its
+/// profession and attributes), or a formula of the level alone.
+pub(crate) fn stats_formula(f: &Formulas, who: &StatsFor) -> Result<Map, String> {
+    let level = i64::from(who.level);
+    if f.params("player_stats") == Some(1) {
+        return f.map("player_stats", (level,));
+    }
+    let mut player: Map = (who.attributes.iter())
+        .map(|(k, &v)| (k.as_str().into(), v.into()))
+        .collect();
+    player.insert("level".into(), level.into());
+    player.insert("profession".into(), i64::from(who.profession).into());
+    f.map("player_stats", (level, player))
+}
+
 /// `stats` (and `level`) as a script map.
 pub(crate) fn fighter_map(f: &Fighter) -> Map {
     let s = &f.stats;
@@ -724,12 +739,11 @@ impl Rules for DataRules {
         self.items.get(&kind)
     }
 
-    fn player_stats(&self, level: u32) -> Stats {
+    fn player_stats(&self, who: &StatsFor) -> Stats {
+        let level = who.level;
         let mut stats = if let Some(row) = self.levels.get(&level) {
             row.stats
-        } else if let Some(map) = self.formula("player_stats", |f| {
-            f.map("player_stats", (i64::from(level),))
-        }) {
+        } else if let Some(map) = self.formula("player_stats", |f| stats_formula(f, who)) {
             Stats {
                 max_life: uint(map_int(&map, "life")),
                 max_mana: uint(map_int(&map, "mana")),
@@ -925,7 +939,7 @@ mod tests {
         let quake = rules.skill(3).expect("the quake");
         assert_eq!((quake.target, quake.area), (SkillTarget::Ground, 2));
         assert_eq!(rules.skill(2).unwrap().kind, SkillKind::Heal);
-        assert_eq!(rules.player_stats(1).max_life, 120);
+        assert_eq!(rules.player_stats(&StatsFor::level(1)).max_life, 120);
         assert_eq!(rules.level_exp(1), Some(100));
         assert_eq!(rules.level_exp(2), None, "past the table: the top");
         let mut rng = Rng::new(3);
@@ -959,7 +973,11 @@ mod tests {
         assert_eq!(reported.len(), 1, "{reported:?}");
         rules.kill_exp(1, &f);
         assert!(rules.take_problems().is_empty(), "told once");
-        assert_eq!(rules.player_stats(3).max_life, 160, "the default stays");
+        assert_eq!(
+            rules.player_stats(&StatsFor::level(3)).max_life,
+            160,
+            "the default stays"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

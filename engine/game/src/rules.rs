@@ -94,6 +94,28 @@ pub struct Loot {
     pub items: Vec<(u32, u32)>,
 }
 
+/// Whose stats [`Rules::player_stats`] is asked for.
+#[derive(Debug, Clone, Copy)]
+pub struct StatsFor<'a> {
+    pub level: u32,
+    pub profession: u32,
+    /// The game's attributes (every one the settings name, defaults included).
+    pub attributes: &'a std::collections::BTreeMap<String, i64>,
+}
+
+impl StatsFor<'_> {
+    /// A player of `level` with nothing else said.
+    pub fn level(level: u32) -> StatsFor<'static> {
+        static NONE: std::sync::OnceLock<std::collections::BTreeMap<String, i64>> =
+            std::sync::OnceLock::new();
+        StatsFor {
+            level,
+            profession: 0,
+            attributes: NONE.get_or_init(Default::default),
+        }
+    }
+}
+
 /// A kind of item.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ItemType {
@@ -213,7 +235,8 @@ pub trait Rules: std::any::Any {
     fn item(&self, kind: u32) -> Option<&ItemType>;
 
     /// A player's stats at `level`, before equipment (whose bonuses the simulation adds).
-    fn player_stats(&self, level: u32) -> Stats;
+    /// A player's own stats (before what it wears): by its level, profession and attributes.
+    fn player_stats(&self, who: &StatsFor) -> Stats;
 
     /// Experience needed to rise from `level` to the next; `None` at the top level.
     fn level_exp(&self, level: u32) -> Option<u64>;

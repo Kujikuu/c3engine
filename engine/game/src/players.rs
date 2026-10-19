@@ -39,7 +39,7 @@ impl Sim {
             "player {id:?} is already here"
         );
         let cell = path::nearest_walkable(&self.grid, cell, 30).unwrap_or(cell);
-        let stats = self.rules.player_stats(level);
+        let stats = self.rules.player_stats(&crate::StatsFor::level(level));
         self.players.insert(
             id,
             Player {
@@ -291,13 +291,33 @@ impl Sim {
         self.events.push(Event::Dressed { player: id });
     }
 
+    /// The player's attributes: every one the settings name (their default unless the player
+    /// has its own value), and any others it has.
+    pub(crate) fn attributes_of(
+        &self,
+        p: &crate::Player,
+    ) -> std::collections::BTreeMap<String, i64> {
+        (self.settings.attributes.iter())
+            .map(|a| (a.name.clone(), a.default))
+            .chain(p.attributes.iter().map(|(k, &v)| (k.clone(), v)))
+            .collect()
+    }
+
     /// Recomputes the player's stats from its level and what it wears (broken items give
     /// nothing; each quality step adds its share).
     pub(crate) fn refresh_stats(&mut self, id: EntityId) {
+        let Some(p) = self.players.get(&id) else {
+            return;
+        };
+        let attributes = self.attributes_of(p);
+        let base = self.rules.player_stats(&crate::StatsFor {
+            level: p.level,
+            profession: p.profession,
+            attributes: &attributes,
+        });
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
-        let base = self.rules.player_stats(p.level);
         let per_step = self.settings.quality_bonus_percent;
         p.stats = p
             .equipment

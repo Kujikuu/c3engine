@@ -10,7 +10,7 @@
 use c3_data::{Table, Value};
 use c3_game::{
     Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
-    StatusType,
+    StatsFor, StatusType,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -467,8 +467,8 @@ impl Rules for ConquerRules {
     }
 
     /// TQ's life formula (`CUser::GetMaxLife`): vitality × 24 + the other points × 3.
-    fn player_stats(&self, level: u32) -> Stats {
-        let [strength, agility, vitality, spirit] = self.points_at(level);
+    fn player_stats(&self, who: &StatsFor) -> Stats {
+        let [strength, agility, vitality, spirit] = self.points_at(who.level);
         Stats {
             max_life: vitality * 24 + (strength + agility + spirit) * 3,
             max_mana: spirit * 5,

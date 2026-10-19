@@ -60,6 +60,13 @@ impl Formulas {
         self.ast.iter_functions().any(|f| f.name == name)
     }
 
+    /// How many parameters `name` takes, if the script defines it.
+    pub fn params(&self, name: &str) -> Option<usize> {
+        (self.ast.iter_functions())
+            .find(|f| f.name == name)
+            .map(|f| f.params.len())
+    }
+
     /// `name(args)` as a whole number.
     pub fn int(&self, name: &str, args: impl FuncArgs) -> Result<i64, String> {
         let value = self.call(name, args)?;

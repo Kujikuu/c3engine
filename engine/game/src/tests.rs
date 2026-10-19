@@ -65,7 +65,8 @@ impl Rules for TestRules {
     fn status(&self, id: u32) -> Option<&StatusType> {
         self.statuses.iter().find(|s| s.id == id)
     }
-    fn player_stats(&self, level: u32) -> Stats {
+    fn player_stats(&self, who: &crate::StatsFor) -> Stats {
+        let level = who.level;
         Stats {
             max_life: 100 + 10 * level,
             max_mana: 100,
