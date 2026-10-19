@@ -240,6 +240,7 @@ impl Sim {
         let attacker = self.player_fighter(id);
         let m = self.monsters.get_mut(&target).expect("hitting a monster");
         let defender = m.fighter(&*self.rules);
+        let kind = m.kind;
         let damage = self
             .rules
             .hit(&attacker, &defender, &mut self.rng)
@@ -252,6 +253,14 @@ impl Sim {
             damage,
         });
         self.rouse(target, id);
+        if damage > 0 {
+            let args = vec![
+                i64::from(kind).into(),
+                i64::from(damage).into(),
+                attacker.record().into(),
+            ];
+            self.script_event(id, "on_hit", args);
+        }
         let mut exp = self.rules.hit_exp(&attacker, &defender, damage);
         if dead {
             let kill = self.rules.kill_exp(&attacker, &defender);

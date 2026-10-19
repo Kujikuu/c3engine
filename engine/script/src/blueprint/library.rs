@@ -257,6 +257,14 @@ pub const NODES: &[NodeDef] = &[
         "on_use_on",
         &[("used", Item), ("target", Number)],
     ),
+    // A player's hit on a monster that took life: its type, the life taken, the player as a
+    // fighter (its attributes and what it wears).
+    event(
+        "event.hit",
+        "On hitting a monster",
+        "on_hit",
+        &[("monster", Number), ("damage", Number), ("player", Record)],
+    ),
     event(
         "event.combine",
         "On working items together",
@@ -355,6 +363,15 @@ pub const NODES: &[NodeDef] = &[
         &[("record", Record), ("field", Text)],
         Number,
         "({record}[{field}] ?? 0)",
+    ),
+    // A number whose name is made of words and a number (`weapon_` and 410: `weapon_410`).
+    pure(
+        "record.get_named",
+        "Read a number by name and key",
+        "Formulas",
+        &[("record", Record), ("prefix", Text), ("key", Number)],
+        Number,
+        "({record}[{prefix} + {key}] ?? 0)",
     ),
     pure(
         "record.stats",
@@ -1419,6 +1436,14 @@ pub const NODES: &[NodeDef] = &[
         &[("a", Text), ("b", Text)],
         Text,
         "(\"\" + {a} + {b})",
+    ),
+    pure(
+        "text.number",
+        "Text and a number",
+        "Text",
+        &[("text", Text), ("number", Number)],
+        Text,
+        "(\"\" + {text} + {number})",
     ),
     pure(
         "text.equal",

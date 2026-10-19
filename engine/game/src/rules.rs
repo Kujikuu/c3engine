@@ -68,6 +68,17 @@ pub struct Fighter {
     pub facts: std::collections::BTreeMap<String, i64>,
 }
 
+impl Fighter {
+    /// Its level and facts as a script record (what `on_hit` hands over).
+    pub fn record(&self) -> c3_script::rhai::Map {
+        let mut map: c3_script::rhai::Map = (self.facts.iter())
+            .map(|(k, &v)| (k.as_str().into(), v.into()))
+            .collect();
+        map.insert("level".into(), i64::from(self.level).into());
+        map
+    }
+}
+
 /// [`MonsterType::hunts`]: criminals (blue names).
 pub const HUNTS_CRIMINALS: u8 = 1;
 /// Players with a red name.

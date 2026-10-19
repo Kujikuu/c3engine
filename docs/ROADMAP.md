@@ -606,8 +606,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] TQ's damage and experience formulas: melee, archery and magic damage with the level
         difference table (`cq_disdain`), Dragon/Phoenix/Tortoise/Rainbow gems, magic defence,
         Superman, the armour floor, rebirth defence, blessing; battle experience
-  - [ ] Weapon proficiency (its damage bonus and experience, Violet gems), critical lucky
-        hits and lucky time, team experience sharing, Moon gems' magic experience
+  - [x] Weapon proficiency: 1% damage a level above 12, experience from hits with Violet
+        gems, learnt on the first hit, levels to 20 (`on_hit` / On hitting a monster)
+  - [ ] The left hand's half share of weapon experience, training goals' cut
+  - [ ] Critical lucky hits and lucky time, team experience sharing, Moon gems' magic
+        experience
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
   - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones

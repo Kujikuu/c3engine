@@ -29,16 +29,22 @@ const MANA: &str =
 /// per 5 levels.
 const HIT_CHANCE: &str = "min(max(if(attacker.monster == 0, attacker.agility, attacker.dexterity) / 2 - target.dodge + 100, 10), 90) + if(attacker.monster == 0 && target.monster != 0 && attacker.level > target.level, (attacker.level - target.level) / 5 * 10, 0)";
 /// Melee damage (battle §2.4–2.6), worked out in steps; nothing when it misses.
-const HIT_STEPS: [(&str, &str); 10] = [
+const HIT_STEPS: [(&str, &str); 12] = [
     // The attack: the roll, Dragon gems, and against a monster the level difference.
     (
         "pve",
         "attacker.monster == 0 && target.monster != 0 || attacker.monster != 0 && target.monster == 0",
     ),
     (
-        "atk1",
+        "atk0",
         "attacker.roll + attacker.socket_gem_attack * attacker.roll / 100",
     ),
+    // A weapon skill above level 12: 1% more a level.
+    (
+        "prof",
+        "if(attacker.monster == 0, weapon_skill(attacker), 0)",
+    ),
+    ("atk1", "atk0 + max(prof - 12, 0) * atk0 / 100"),
     (
         "atk",
         "if(pve, max(100 + if(attacker.monster == 0, disdain_usr_atk_mst(attacker.level - target.level), disdain_mst_atk(attacker.level - target.level)), 0) * atk1 / 100, atk1)",
@@ -107,6 +113,7 @@ pub fn rules_blueprint() -> Blueprint {
     death(&mut bp.events, next_lane(700.0));
     revive(&mut bp.events, next_lane(200.0));
     xp_bar(&mut bp.events, next_lane(500.0));
+    weapon_skill(&mut bp.events, next_lane(900.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
@@ -215,6 +222,25 @@ impl Names<'_> {
                     w.feed(&clamped, lookup, "key");
                     Some(Operand::Pin {
                         node: lookup,
+                        pin: "value".into(),
+                    })
+                }
+                // The level of the weapon skill of what `who` holds in the right hand.
+                (None, [who]) if n == "weapon_skill" => {
+                    let worn = w.node("record.get", &[("field", self::text("worn4"))]);
+                    w.feed(who, worn, "record");
+                    let kind = Operand::Pin {
+                        node: worn,
+                        pin: "value".into(),
+                    };
+                    let subtype = w
+                        .write("k / 1000", &mut |_, n, _| (n == "k").then(|| kind.clone()))
+                        .ok()?;
+                    let skill = w.node("record.get_named", &[("prefix", self::text("weapon_"))]);
+                    w.feed(who, skill, "record");
+                    w.feed(&subtype, skill, "key");
+                    Some(Operand::Pin {
+                        node: skill,
                         pin: "value".into(),
                     })
                 }
@@ -439,6 +465,90 @@ fn level_up(g: &mut Graph, top: f32) {
 const XP_TIMER: &str = "xp";
 
 /// The XP bar (progression §5.5, battle M.11): every 30 seconds from level 3 it fills by 10;
+/// Experience a weapon skill level needs (battle exp §9, TQ's NEED table, levels 1–19).
+const WEAPON_NEED: &str = "if(lvl == 1, 1200, if(lvl == 2, 68000, if(lvl == 3, 250000, if(lvl == 4, 640000, if(lvl == 5, 1600000, if(lvl == 6, 4000000, if(lvl == 7, 10000000, if(lvl == 8, 22000000, if(lvl == 9, 40000000, if(lvl == 10, 90000000, if(lvl == 11, 95000000, if(lvl == 12, 142500000, if(lvl == 13, 213750000, if(lvl == 14, 320625000, if(lvl == 15, 480937500, if(lvl == 16, 721406250, if(lvl == 17, 1082109375, if(lvl == 18, 1623164062, if(lvl == 19, 2100000000, 0)))))))))))))))))))";
+
+/// Weapon skills learn from hits (battle exp §9): the life a hit took, Violet gems' percent
+/// more, less above level 12, into the skill of the right-hand weapon (bare hands: skill 0),
+/// which a first hit learns at level 1; past a level's need the skill goes up (to 20).
+fn weapon_skill(g: &mut Graph, top: f32) {
+    let event = node(g, "event.hit", [0.0, top], &[]);
+    let names = Names {
+        pins: vec![("damage", event), ("player", event)],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let player = Operand::Pin {
+        node: event,
+        pin: "player".into(),
+    };
+    let mut names = names;
+    names.define(&mut w, "t", "player.worn4 / 1000");
+    let t = names.resolve(&mut w, "t").expect("defined");
+    // The skill's level and experience: attributes weapon_<t> and weapon_exp_<t>.
+    let named = |w: &mut ExprWriter, prefix: &str| {
+        let n = w.node("record.get_named", &[("prefix", text(prefix))]);
+        w.feed(&player, n, "record");
+        w.feed(&t, n, "key");
+        Operand::Pin {
+            node: n,
+            pin: "value".into(),
+        }
+    };
+    let lvl = named(&mut w, "weapon_");
+    let xp = named(&mut w, "weapon_exp_");
+    names.lets.push(("lvl".into(), lvl));
+    names.lets.push(("xp".into(), xp));
+    names.define(
+        &mut w,
+        "gained",
+        "damage * (100 + player.socket_gem_skill_exp) / 100",
+    );
+    names.define(
+        &mut w,
+        "e",
+        "if(lvl > 12, gained * max(10, (17 - lvl) * 20) / 100 / 2, gained)",
+    );
+    names.define(&mut w, "new", "min(xp + e, 2147483647)");
+    names.define(&mut w, "need", WEAPON_NEED);
+    let attr_name = |w: &mut ExprWriter, prefix: &str| {
+        let n = w.node("text.number", &[("text", text(prefix))]);
+        w.feed(&t, n, "number");
+        Operand::Pin {
+            node: n,
+            pin: "value".into(),
+        }
+    };
+    let level_name = attr_name(&mut w, "weapon_");
+    let exp_name = attr_name(&mut w, "weapon_exp_");
+    let set = |w: &mut ExprWriter, names: &Names, name: &Operand, value: &str| {
+        let v = names.write(w, value);
+        let n = w.node("player.set_attr", &[]);
+        w.feed(name, n, "name");
+        w.feed(&v, n, "value");
+        n
+    };
+    let new_skill = branch_on(&mut w, &names, "lvl == 0");
+    let learn_level = set(&mut w, &names, &level_name, "1");
+    let learn_exp = set(&mut w, &names, &exp_name, "gained");
+    let grows = branch_on(&mut w, &names, "lvl <= 19");
+    let up = branch_on(&mut w, &names, "new > need");
+    let level_up = set(&mut w, &names, &level_name, "lvl + 1");
+    let reset = set(&mut w, &names, &exp_name, "0");
+    let said = w.node(
+        "player.message",
+        &[("text", text("Your weapon skill went up a level."))],
+    );
+    let keep = set(&mut w, &names, &exp_name, "new");
+    wire(g, (event, "then"), (new_skill, "exec"));
+    chain(g, (new_skill, "true"), &[learn_level, learn_exp]);
+    wire(g, (new_skill, "false"), (grows, "exec"));
+    wire(g, (grows, "true"), (up, "exec"));
+    chain(g, (up, "true"), &[level_up, reset, said]);
+    wire(g, (up, "false"), (keep, "exec"));
+}
+
 /// full, it empties at the next tick (a window to use an XP skill); each kill adds 1 below
 /// 99. XP skills spend the full bar.
 fn xp_bar(g: &mut Graph, top: f32) {
@@ -1647,6 +1757,11 @@ mod tests {
         assert_eq!(formulas.int("skill_hit", spell).unwrap(), 180);
         let strike = (attacker.clone(), target.clone(), skill(30_150));
         assert_eq!(formulas.int("skill_hit", strike).unwrap(), 75);
+        // Blade skill 22: 10% more, (33 × 1.8) − 4.
+        let mut blade = attacker.clone();
+        blade.insert("worn4".into(), 410_003_i64.into());
+        blade.insert("weapon_410".into(), 22_i64.into());
+        assert_eq!(formulas.int("hit", (blade, target.clone())).unwrap(), 55);
         // A bow: 54 attack against 50 dodge less 25, 25% off.
         attacker.insert("worn4".into(), 500_003_i64.into());
         assert_eq!(formulas.int("hit", (attacker, target)).unwrap(), 41);
