@@ -14,6 +14,9 @@ pub const MONSTER_TABLE: &str = "cq_monstertype";
 pub const POINTS_TABLE: &str = "points";
 /// The engine table of rebirths (key: profession × 100000 + new profession × 10 + rule).
 pub const REBIRTHS_TABLE: &str = "rebirths";
+/// The engine table of the lottery's prizes (key: TQ's row id).
+pub const LOTTERY_TABLE: &str = "lottery";
+
 /// The engine table of TQ's level-difference factors (key: level difference, −400..400).
 pub const DISDAIN_TABLE: &str = "disdain";
 /// `cq_disdain`'s columns (battle §2.6, exp §2) kept in the disdain table.
@@ -191,7 +194,7 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
         }
     };
     out.extend([skills, statuses]);
-    let makers: [(&str, &TableMaker); 7] = [
+    let makers: [(&str, &TableMaker); 8] = [
         (MONSTER_TABLE, &|t| monsters(t, &magic_types)),
         (crate::server_data::ITEM_TABLE, &items),
         ("cq_levexp", &levels),
@@ -199,6 +202,7 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
         ("cq_point_allot", &points),
         ("cq_rebirth", &rebirths),
         ("cq_disdain", &disdain),
+        ("cq_lottery", &lottery),
     ];
     for (name, make) in makers {
         match find(name) {
@@ -566,6 +570,44 @@ fn shops(t: &Table) -> Table {
         ]);
     }
     out.table
+}
+
+/// The lottery's prizes (`cq_lottery`): which draw, how likely, the item and how it comes.
+fn lottery(t: &Table) -> Table {
+    let column = |name: &str, kind, doc: &str| Column {
+        doc: doc.into(),
+        ..Column::new(name, kind)
+    };
+    let int_column = |name: &str, doc: &str| column(name, ColumnKind::Int, doc);
+    let mut out = Table::new(
+        LOTTERY_TABLE,
+        vec![
+            int_column("key", "TQ's row id"),
+            int_column("draw", "Which lottery (the action's number)"),
+            int_column("rank", "The prize's rank"),
+            int_column("chance", "Its weight in the draw"),
+            column("name", ColumnKind::Text, "What the winner is told"),
+            int_column("item", "The item type won"),
+            int_column("color", "Its colour"),
+            int_column("sockets", "Open sockets (0-2)"),
+            int_column("plus", "Its plus"),
+        ],
+    );
+    out.doc = "The lottery's prizes (TQ's cq_lottery)".into();
+    for r in rows(t) {
+        out.rows.push(vec![
+            int(r.int("id")),
+            int(r.int("type")),
+            int(r.int("rank")),
+            int(r.int("chance")),
+            text(r.text("prize_name")),
+            int(r.int("prize_item")),
+            int(r.int("color")),
+            int(r.int("hole_num")),
+            int(r.int("addition_lev")),
+        ]);
+    }
+    out
 }
 
 /// TQ's level-difference factors (`cq_disdain`, type 0: the only one the data has), keyed

@@ -24,6 +24,7 @@ pub const DATA_TABLES: &[&str] = &[
     "cq_rebirth",
     "cq_point_allot",
     "cq_disdain",
+    "cq_lottery",
 ];
 
 /// `extra` key holding the game map id a row belongs to.

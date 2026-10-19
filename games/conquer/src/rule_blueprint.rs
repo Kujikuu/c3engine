@@ -125,6 +125,7 @@ pub fn rules_blueprint() -> Blueprint {
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
     combine(&mut bp.events, next_lane(2400.0));
+    lottery(&mut bp.events, next_lane(700.0));
     bp.functions.push(allot());
     bp
 }
@@ -940,6 +941,97 @@ fn upgrade_name(
         node,
         pin: "value".into(),
     })
+}
+
+/// A lottery draw (action 1508), the `lottery` signal with the draw's number: a prize drawn
+/// by the prizes' weights, given with its colour, open sockets and plus, and named.
+fn lottery(g: &mut Graph, top: f32) {
+    let signal = node(g, "event.signal", [0.0, top], &[("name", text("lottery"))]);
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let table = text(crate::rules::LOTTERY_TABLE);
+    let pick = w.node(
+        "table.pick",
+        &[
+            ("table", table.clone()),
+            ("column", text("draw")),
+            ("weight", text("chance")),
+        ],
+    );
+    w.feed(
+        &Operand::Pin {
+            node: signal,
+            pin: "a".into(),
+        },
+        pick,
+        "value",
+    );
+    let key = Operand::Pin {
+        node: pick,
+        pin: "key".into(),
+    };
+    let column = |w: &mut ExprWriter, name: &str| {
+        let n = w.node(
+            "table.lookup",
+            &[("table", table.clone()), ("column", text(name))],
+        );
+        w.feed(&key, n, "key");
+        Operand::Pin {
+            node: n,
+            pin: "value".into(),
+        }
+    };
+    let item = column(&mut w, "item");
+    let won = w
+        .write("k != 0", &mut |_, n, _| (n == "k").then(|| key.clone()))
+        .expect("a plain formula");
+    let branch = w.node("flow.branch", &[]);
+    w.feed(&won, branch, "condition");
+    let give = w.node("item.give", &[("count", Literal::Number(1.0))]);
+    w.feed(&item, give, "item");
+    let mut steps = vec![give];
+    let sockets = column(&mut w, "sockets");
+    for (name, value) in [
+        ("color", column(&mut w, "color")),
+        ("plus", column(&mut w, "plus")),
+        (
+            "gem1",
+            w.write("if(s >= 1, 255, 0)", &mut |_, n, _| {
+                (n == "s").then(|| sockets.clone())
+            })
+            .expect("a plain formula"),
+        ),
+        (
+            "gem2",
+            w.write("if(s >= 2, 255, 0)", &mut |_, n, _| {
+                (n == "s").then(|| sockets.clone())
+            })
+            .expect("a plain formula"),
+        ),
+    ] {
+        let set = w.node("item.set_given_attr", &[("name", text(name))]);
+        w.feed(&item, set, "item");
+        w.feed(&value, set, "value");
+        steps.push(set);
+    }
+    let name = column(&mut w, "name");
+    let said = {
+        let line = w.node("text.join", &[("a", text("You won "))]);
+        w.feed(&name, line, "b");
+        let say = w.node("player.message", &[]);
+        w.feed(
+            &Operand::Pin {
+                node: line,
+                pin: "value".into(),
+            },
+            say,
+            "text",
+        );
+        say
+    };
+    steps.push(said);
+    wire(g, (signal, "then"), (pick, "exec"));
+    wire(g, (pick, "then"), (branch, "exec"));
+    chain(g, (branch, "true"), &steps);
 }
 
 /// One way of working items together (items §6–7): its kind, the checks that must hold (and

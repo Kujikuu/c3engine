@@ -1037,6 +1037,14 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             516 => self.pick_worn(g, a, &tokens, column),
+            // A lottery draw: Conquer's rules blueprint answers the signal.
+            1508 => match int(0) {
+                Some(draw) => {
+                    let values = [("name", txt("lottery")), ("a", num(draw))];
+                    Self::plain(g, "flow.raise", &values, column)
+                }
+                None => self.not_converted(g, a, column),
+            },
             // An effect on a cell of a map, for those who see it (map spec 312).
             312 => match (int(0), int(1), int(2), tokens.get(3)) {
                 (Some(map), Some(x), Some(y), Some(effect)) => {

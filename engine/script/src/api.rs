@@ -492,6 +492,41 @@ pub(crate) fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {
     engine.register_fn("has_row", move |table: &str, key: i64| -> Fallible<bool> {
         Ok(t.borrow_mut().table(table)?.find(key).is_some())
     });
+    let t = tables.clone();
+    let draw = std::cell::Cell::new(seed());
+    engine.register_fn(
+        "pick_row",
+        move |table: &str, column: &str, value: i64, weight: &str| -> Fallible<i64> {
+            let mut tables = t.borrow_mut();
+            let table = tables.table(table)?;
+            let col = |name: &str| {
+                (table.column(name))
+                    .ok_or_else(|| format!("table \"{}\" has no column \"{name}\"", table.name))
+            };
+            let (c, w) = (col(column)?, col(weight)?);
+            let rows: Vec<(i64, i64)> = (table.rows.iter())
+                .filter(|r| r.get(c).and_then(|v| v.as_int()) == Some(value))
+                .filter_map(|r| Some((r.first()?.as_int()?, r.get(w)?.as_int()?.max(0))))
+                .collect();
+            let total: i64 = rows.iter().map(|(_, w)| w).sum();
+            if total <= 0 {
+                return Ok(0);
+            }
+            let mut x = draw.get();
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            draw.set(x);
+            let mut roll = (x % total as u64) as i64;
+            for (key, w) in rows {
+                if roll < w {
+                    return Ok(key);
+                }
+                roll -= w;
+            }
+            Ok(0)
+        },
+    );
 }
 
 /// The levels table's name (its rows: a level's experience to the next, and its time).

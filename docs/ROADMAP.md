@@ -587,9 +587,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Statistics tokens (528, 529), item overrides (501: gems, ident, bless, enchant,
         colour), level/experience sums (1084, 1086, `exp += %iter_var_data`), NPC upgrades
         (509: the `upequipment` signal; Meteors, DragonBalls, down-levels, durability)
-  - [ ] Map populations (302: players on another map need the server's count)
-  - [ ] Map effects (312, 1072), message actions (1075: MsgAction 1000/1001, meaning unknown
-        in 5065), lottery (1508), typed answers (103)
+  - [x] Map populations (302: the server tells each map every map's count), map effects
+        (312: effects on a cell), lottery (1508: TQ's `cq_lottery` prizes drawn by weight)
+  - [ ] Map-item effect 1072 and message actions (1075: MsgAction 1000/1001), whose meaning in
+        5065 isn't known yet; typed answers (103)
   - [ ] NPC looks and life (201 `lookface`, `life`), guild checks (`%syn_id`, 1001
         `rank`/`rankshow`), warehouse money (1001 `storage_money`), business status
   - [ ] Guild, event and trap actions (7xx, 20xx, 21xx)

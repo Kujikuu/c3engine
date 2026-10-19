@@ -365,6 +365,19 @@ pub const NODES: &[NodeDef] = &[
         "({record}[{field}] ?? 0)",
     ),
     // A number whose name is made of words and a number (`weapon_` and 410: `weapon_410`).
+    action(
+        "table.pick",
+        "Draw a row",
+        "Data",
+        &[
+            ("table", Text),
+            ("column", Text),
+            ("value", Number),
+            ("weight", Text),
+        ],
+        &[("key", Number)],
+        "pick_row({table}, {column}, {value}, {weight})",
+    ),
     pure(
         "record.get_named",
         "Read a number by name and key",

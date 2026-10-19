@@ -79,6 +79,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "pick_row(table, column, value, weight)",
+        "The key of a row of `table` whose `column` is `value`, drawn at random weighted by its \
+         `weight` column; 0 when none",
+    ),
+    (
         "effect_at(map, x, y, effect)",
         "Plays effect `effect` once on a cell of game map `map`, for everyone on the map",
     ),
