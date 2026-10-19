@@ -229,6 +229,13 @@ impl Sim {
                 }
             }
             Effect::PlayEffect(effect) => self.events.push(Event::Effect { entity: id, effect }),
+            Effect::EffectAt { map, cell, effect } => {
+                // Another map's effect isn't seen here.
+                if u32::try_from(map).is_ok_and(|m| self.is_this_map(m)) {
+                    let cell = (cell.0 as i32, cell.1 as i32);
+                    self.events.push(Event::CellEffect { cell, effect });
+                }
+            }
             Effect::PlaySound(sound) => self.events.push(Event::Sound { entity: id, sound }),
             Effect::Announce(text) => {
                 let players: Vec<EntityId> = self.players.keys().copied().collect();

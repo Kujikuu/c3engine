@@ -668,6 +668,18 @@ impl ConquerClient {
             | Event::CommandReply { text, .. } => {
                 vec![self.system(text)]
             }
+            Event::CellEffect { cell, effect } => {
+                let (x, y) = cell16(*cell);
+                vec![pk::name(
+                    pk::NAME_MAP_EFFECT,
+                    u32::from(x) | u32::from(y) << 16,
+                    effect,
+                )]
+            }
+            Event::Effect { entity, effect } => match self.client_id(*entity, ids) {
+                Some(id) => vec![pk::name(pk::NAME_ROLE_EFFECT, id, effect)],
+                None => Vec::new(),
+            },
             // The client opens a shop NPC's goods (its Shop.dat) by itself.
             Event::ShopOpened { .. } => Vec::new(),
             Event::Dialogue { .. } => self.dialog(),

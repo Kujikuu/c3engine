@@ -392,6 +392,19 @@ fn more(engine: &mut Engine, shared: &Shared) {
         move |t: &str| with(&s, |c| c.effects.push(make(t.to_owned())))
     };
     engine.register_fn("play_effect", text(shared, Effect::PlayEffect));
+    let s = shared.clone();
+    engine.register_fn(
+        "effect_at",
+        move |map: i64, x: i64, y: i64, effect: &str| {
+            with(&s, |c| {
+                c.effects.push(Effect::EffectAt {
+                    map,
+                    cell: (x, y),
+                    effect: effect.to_owned(),
+                })
+            })
+        },
+    );
     engine.register_fn("play_sound", text(shared, Effect::PlaySound));
     engine.register_fn("announce", text(shared, Effect::Announce));
     engine.register_fn("team_message", text(shared, Effect::TeamMessage));

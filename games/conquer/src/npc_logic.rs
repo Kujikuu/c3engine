@@ -1037,6 +1037,19 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             516 => self.pick_worn(g, a, &tokens, column),
+            // An effect on a cell of a map, for those who see it (map spec 312).
+            312 => match (int(0), int(1), int(2), tokens.get(3)) {
+                (Some(map), Some(x), Some(y), Some(effect)) => {
+                    let values = [
+                        ("map", num(map)),
+                        ("x", num(x)),
+                        ("y", num(y)),
+                        ("effect", txt(effect)),
+                    ];
+                    Self::plain(g, "world.effect_at", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // Players (or the living) on map `data`, compared (map spec 302).
             302 => match (
                 tokens.first().map(|t| t.to_ascii_lowercase()),

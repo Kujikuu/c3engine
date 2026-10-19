@@ -218,6 +218,12 @@ pub enum Effect {
     AddStatus(i64),
     /// Play effect `name` on the player.
     PlayEffect(String),
+    /// Effect `effect` played once on `cell` of game map `map`, for everyone there.
+    EffectAt {
+        map: i64,
+        cell: (i64, i64),
+        effect: String,
+    },
     /// Play sound `path` where the player is.
     PlaySound(String),
     /// Tell every player on the map.

@@ -171,7 +171,13 @@ impl Sim {
             .filter(|e| match e.private_to() {
                 Some(player) => player == id,
                 // NPCs coming and going concern the whole map.
-                None if matches!(e, Event::NpcMoved { .. } | Event::NpcArrived(_)) => true,
+                None if matches!(
+                    e,
+                    Event::NpcMoved { .. } | Event::NpcArrived(_) | Event::CellEffect { .. }
+                ) =>
+                {
+                    true
+                }
                 None => {
                     !matches!(e, Event::Appeared(_) | Event::Vanished(_))
                         && e.entities()

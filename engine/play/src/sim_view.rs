@@ -131,6 +131,10 @@ impl SimView {
                         }
                     }
                 }
+                Event::CellEffect { cell, ref effect } => {
+                    // Decoration: a client without the effect still plays.
+                    let _ = world.place_effect(effect, cell, false);
+                }
                 Event::Effect { entity, ref effect } => {
                     if let Some(i) = self.actor(entity) {
                         // Decoration: a client without the effect still plays.

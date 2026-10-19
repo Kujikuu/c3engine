@@ -79,6 +79,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "effect_at(map, x, y, effect)",
+        "Plays effect `effect` once on a cell of game map `map`, for everyone on the map",
+    ),
+    (
         "map_players(map, alive)",
         "How many players are on game map `map` (only the living with `alive`)",
     ),

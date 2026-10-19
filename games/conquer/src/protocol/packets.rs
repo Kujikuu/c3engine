@@ -16,6 +16,11 @@ pub const ACCOUNT: u16 = 1051;
 pub const CONNECT: u16 = 1052;
 pub const LOGIN_REPLY: u16 = 1055;
 pub const MAP_ITEM: u16 = 1101;
+/// Names shown in the world: effects on a cell or a role, sounds (MsgName).
+pub const NAME: u16 = 1015;
+/// MsgName types: an effect on a map cell, on a role.
+pub const NAME_MAP_EFFECT: u8 = 9;
+pub const NAME_ROLE_EFFECT: u8 = 10;
 /// Setting a gem in a socket or taking it out (items spec §6.1).
 pub const GEM_EMBED: u16 = 1027;
 /// Composing +N: the main item, two minors and the gems (items spec §7.1).
@@ -152,6 +157,14 @@ pub fn login_reply(token: u32, data: u32, ip: &str, port: u32) -> Vec<u8> {
 }
 
 /// A chat line from `speaker` to `hearer`.
+/// MsgName of `kind` with `data` (a cell as x | y << 16, or a role id) and one name.
+pub fn name(kind: u8, data: u32, text: &str) -> Vec<u8> {
+    packet(NAME, |w| {
+        w.u32(data).u8(kind);
+        strings(w, &[text]);
+    })
+}
+
 pub fn talk(channel: u16, speaker: &str, hearer: &str, words: &str, colour: u32) -> Vec<u8> {
     packet(TALK, |w| {
         w.u32(colour).u16(channel).u16(0).u32(0).u32(0).u32(0);
