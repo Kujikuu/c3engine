@@ -64,6 +64,8 @@ pub struct PlayerState {
     pub npc_looks: BTreeMap<i64, i64>,
     /// The player's living teammates on its map, and how many of them hold each item type.
     pub team_here: i64,
+    /// Their names (the player's own left out).
+    pub team_names: Vec<String>,
     pub team_items: BTreeMap<i64, i64>,
     /// The money the player keeps in storage.
     pub saved_money: i64,
@@ -73,6 +75,8 @@ pub struct PlayerState {
     pub wanted: BTreeMap<i64, WantedView>,
     /// Bounties on killers, by id (the oldest first).
     pub bounties: BTreeMap<i64, BountyView>,
+    /// The police wanted list: players' names, the highest level first.
+    pub police: Vec<String>,
     pub map_owners: BTreeMap<i64, i64>,
     /// The living monsters on the player's map, by their type's name.
     pub monsters: BTreeMap<String, i64>,
@@ -205,6 +209,12 @@ pub enum WorldChange {
         target: String,
         payer: String,
         bounty: i64,
+    },
+    /// Player `name` (of `level`) put on the police wanted list, or taken off (`listed`).
+    Police {
+        name: String,
+        level: i64,
+        listed: bool,
     },
     /// Bounty `id` set as `view` (`None`: removed).
     Bounty {

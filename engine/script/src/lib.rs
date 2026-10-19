@@ -82,6 +82,18 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "team_all_named(name)",
+        "Whether the player's teammates here (itself left out) are all called `name`",
+    ),
+    (
+        "police_list(name, level, listed) / police_at(index) / police_has(name)",
+        "The police wanted list every map shares: a player put on (highest level first) or taken off; the name at `index` (empty past the last); whether a name is on it",
+    ),
+    (
+        "guild_member(index)",
+        "The name of member `index` (from 0) of the player's guild; empty past the last ({member} in text: at the iterator)",
+    ),
+    (
         "record_bounty(killer) / bounty_count(role, unset) / set_bounty(kind, bonus) / clear_bounties()",
         "Bounties on killers every map shares: one recorded on the player's killer; the player's rows as `target` or `hunter` without or with a reward; the oldest unset reward on its killer set; its unset rows removed",
     ),

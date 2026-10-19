@@ -398,6 +398,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
                 ("{level}", c.player.level.to_string()),
                 ("{money}", c.player.money.to_string()),
                 ("{accept}", c.player.accept.clone()),
+                ("{member}", guild_member_at(c, c.player.flag("iterator"))),
             ];
             (values.iter()).fold(text.to_owned(), |t, (key, value)| t.replace(key, value))
         })
@@ -407,6 +408,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
     guilds(engine, shared);
     wanted(engine, shared);
     bounties(engine, shared);
+    police(engine, shared);
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -621,6 +623,13 @@ fn more(engine: &mut Engine, shared: &Shared) {
     });
     let s = shared.clone();
     engine.register_fn("team_here", move || with(&s, |c| c.player.team_here));
+    let s = shared.clone();
+    engine.register_fn("team_all_named", move |name: &str| {
+        with(&s, |c| {
+            let names = &c.player.team_names;
+            !names.is_empty() && names.iter().all(|n| n == name)
+        })
+    });
     let s = shared.clone();
     engine.register_fn("team_holding", move |item: i64| {
         with(&s, |c| c.player.team_items.get(&item).copied().unwrap_or(0))
@@ -1100,6 +1109,40 @@ fn attributes(engine: &mut Engine, shared: &Shared) {
 }
 
 /// The player's guild and the others: reading them, and changes for every map.
+/// The police wanted list every map shares (TQ's PoliceWanted): players put on and taken off,
+/// walked by index, looked for.
+fn police(engine: &mut Engine, shared: &Shared) {
+    let s = shared.clone();
+    engine.register_fn(
+        "police_list",
+        move |name: &str, level: i64, listed: bool| {
+            with(&s, |c| {
+                c.player.police.retain(|n| n != name);
+                if listed {
+                    c.player.police.push(name.to_owned());
+                }
+                let change = WorldChange::Police {
+                    name: name.to_owned(),
+                    level,
+                    listed,
+                };
+                c.effects.push(Effect::World(change));
+            })
+        },
+    );
+    let s = shared.clone();
+    engine.register_fn("police_at", move |index: i64| {
+        with(&s, |c| {
+            let n = usize::try_from(index).unwrap_or(usize::MAX);
+            c.player.police.get(n).cloned().unwrap_or_default()
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("police_has", move |name: &str| {
+        with(&s, |c| c.player.police.iter().any(|n| n == name))
+    });
+}
+
 /// Bounties on killers every map shares (TQ's cq_pk_bonus): recorded on a kill, counted,
 /// a reward set by the one killed, claimed by the killer.
 fn bounties(engine: &mut Engine, shared: &Shared) {
@@ -1191,6 +1234,21 @@ fn bounties(engine: &mut Engine, shared: &Shared) {
     });
 }
 
+/// The name of member `index` (from 0) of the player's guild, empty past the last.
+fn guild_member_at(c: &Call, index: i64) -> String {
+    let name = &c.player.name;
+    let guild = c
+        .player
+        .guilds
+        .values()
+        .find(|g| g.members.contains_key(name));
+    let n = usize::try_from(index).unwrap_or(usize::MAX);
+    guild
+        .and_then(|g| g.members.keys().nth(n))
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// The wanted list every map shares: reading it, entries added, raised and removed.
 fn wanted(engine: &mut Engine, shared: &Shared) {
     // A change seen at once by the script, and sent on for every map.
@@ -1266,6 +1324,10 @@ fn guilds(engine: &mut Engine, shared: &Shared) {
     };
     let s = shared.clone();
     engine.register_fn("guild_id", move || with(&s, |c| membership(c).0));
+    let s = shared.clone();
+    engine.register_fn("guild_member", move |index: i64| {
+        with(&s, |c| guild_member_at(c, index))
+    });
     let s = shared.clone();
     engine.register_fn("guild_rank", move || with(&s, |c| membership(c).1));
     let read = |s: Shared, f: fn(&GuildView) -> i64| {
@@ -1484,7 +1546,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         WorldChange::Relation { .. }
         | WorldChange::Flag { .. }
         | WorldChange::Wanted { .. }
-        | WorldChange::Bounty { .. } => {}
+        | WorldChange::Bounty { .. }
+        | WorldChange::Police { .. } => {}
     }
 }
 

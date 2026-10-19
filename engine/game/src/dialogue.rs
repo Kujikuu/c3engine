@@ -629,6 +629,10 @@ impl Sim {
                 _ => 0,
             },
             team_here: self.teammates_here(id).len() as i64,
+            team_names: (self.teammates_here(id).into_iter())
+                .filter(|m| *m != id)
+                .map(|m| self.players[&m].name.clone())
+                .collect(),
             npc_looks: (self.npcs.iter())
                 .map(|n| (i64::from(n.id), i64::from(n.look)))
                 .collect(),
@@ -647,6 +651,7 @@ impl Sim {
             guilds: self.world.guild_views(),
             wanted: self.world.wanted_views(),
             bounties: self.world.bounty_views(),
+            police: self.world.police.iter().map(|(n, _)| n.clone()).collect(),
             map_owners: (self.world.map_owners.iter())
                 .map(|(&m, &g)| (i64::from(m), i64::from(g)))
                 .collect(),

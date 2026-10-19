@@ -43,6 +43,9 @@ pub struct WorldState {
     /// Bounties on killers, by id.
     #[serde(default)]
     pub bounties: BTreeMap<u32, Bounty>,
+    /// The police wanted list: names and levels, the highest level first.
+    #[serde(default)]
+    pub police: Vec<(String, i64)>,
 }
 
 /// A bounty on a killer: the one killed, the killer, the reward's kind and amount.
@@ -163,6 +166,20 @@ impl WorldState {
                         bounty: *bounty,
                     };
                     self.wanted.insert(id, entry);
+                }
+            }
+            WorldChange::Police {
+                name,
+                level,
+                listed,
+            } => {
+                self.police.retain(|(n, _)| n != name);
+                if *listed {
+                    // Before the first of a lower level (TQ's sorted insert).
+                    let at = (self.police.iter())
+                        .position(|(_, l)| l < level)
+                        .unwrap_or(self.police.len());
+                    self.police.insert(at, (name.clone(), *level));
                 }
             }
             WorldChange::Bounty { id, view } => {

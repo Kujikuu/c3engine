@@ -608,9 +608,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         revive and level-up hooks, the system timer every minute (52 chains, world events
         with no player), delayed chains (126), traps (424 placed, 144 types, `trap_<type>`,
         2101/2102), map effects, fireworks, chains for a map's players (2013)
-  - [ ] Left in the trigger chains: drops on a map cell (304), statuses by TQ's bit ids
-        (1082), deleting monsters (2009), moving a map's players (2012), destructible NPCs
-        (training goals' link chains), NPCs placed by players (401/402)
+  - [ ] Left in the trigger chains: NPCs placed by players (401/402), destructible NPCs
+        (training goals' link chains)
   - [x] The wanted list (3001-3008) on the shared world state (`wanted.*` nodes) and text
         variables kept with the player (`text_var`); play-tested: Sunfer takes a 200,000
         bounty on a name typed
@@ -620,16 +619,24 @@ run on the server and the local session alike, and are edited through c3-edit wi
         the black jail and a bounty is recorded on the killer (the rules blueprint, on the
         shared bounties); 2201-2204 ask, set, clear and claim (play-tested: Captain Zhang
         refuses with no bounty); 2205 fails as TQ's does
-  - [ ] PK: the police wanted list (3010-3012), the wanted order's
-        name sent to the client (3005's MsgName 8), TQ's refusal lines
+  - [x] The police wanted list (3010-3012) on the shared world state: black names put on at
+        login (PK 1000) or for killing an innocent, jailed and taken off when killed by a
+        player, the hunter of its target loses PK by the target's level (the rules
+        blueprint; one node per event, extra lanes after a sequence)
+  - [ ] PK: the wanted order's name sent to the client (3005's MsgName 8), TQ's refusal lines,
+        the police list's guild and PK columns, taking players off at logout
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
         node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)
   - [ ] Player homes (306 on `%user_home_id`, 1033-1035, 2007 item boxes)
-  - [ ] Marriage (1024, 1025, 1102 `mate`), magic levels (1020 `check type lev`),
-        unlearning weapon skills (1043), resetting points (1047), the dying record (1070)
-  - [ ] Sub-guilds (708, 709), walking a guild's members (722)
-  - [ ] The warehouse (1054, 1001 `storage_money`), business status (1001 `business`),
-        cards and account transfers (1078/1079, 1088-1091, 1023), `%emoney_card` (1061)
+  - [x] Married (1025), divorce (1024) and the couple's team (1102 `mate`) on the spouse's
+        name kept with the player (`mate`; teammates' names in scripts)
+  - [ ] Marrying (the client's proposal), the spouse told of a divorce
+  - [x] Walking a guild's members (722, `{member}` in text)
+  - [ ] Sub-guilds (708, 709)
+  - [x] Business status (1001 `business`, an attribute); the account's billing (CP cards
+        1078/1079, bonus rows 1023, DragonBall transfers 1088-1091, `%emoney_card`,
+        `%dragon_type`) as TQ's with no rows; 1061 with worked-out values (`%user_map_x`,
+        `%iter_rand`); delays from tokens (1071)
 - [ ] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
       skills, PK and name colours, ghost and revive, item upgrades
   - Done so far (2026-10-19): the import writes the engine's rule tables from TQ's (items with

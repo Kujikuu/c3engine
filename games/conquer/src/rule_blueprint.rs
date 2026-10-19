@@ -132,6 +132,7 @@ pub fn rules_blueprint() -> Blueprint {
     weapon_skills(&mut bp.events, next_lane(1800.0));
     wanted_hunt(&mut bp.events, next_lane(500.0));
     red_name_jailed(&mut bp.events, next_lane(500.0));
+    police_wanted(&mut bp.events, next_lane(900.0));
     magic_skills(&mut bp.events, next_lane(900.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
@@ -141,6 +142,26 @@ pub fn rules_blueprint() -> Blueprint {
     reset_points(&mut bp.events, next_lane(500.0));
     bp.functions.push(allot());
     bp
+}
+
+/// Event `def`'s node and the way on for a new lane: the event's own when no lane starts
+/// from it yet, else a sequence put after it (a graph has one node per event).
+fn event_lane(g: &mut Graph, def: &str, pos: [f32; 2]) -> (u32, (u32, &'static str)) {
+    let Some(event) = g.nodes.iter().find(|n| n.def == def).map(|n| n.id) else {
+        let event = node(g, def, pos, &[]);
+        return (event, (event, "then"));
+    };
+    let seq = node(g, "flow.sequence", [pos[0] + 130.0, pos[1]], &[]);
+    for w in &mut g.wires {
+        if w.from.node == event && w.from.pin == "then" {
+            w.from = PinRef {
+                node: seq,
+                pin: "then 0".into(),
+            };
+        }
+    }
+    wire(g, (event, "then"), (seq, "exec"));
+    (event, (seq, "then 1"))
 }
 
 /// Adds node `def` at `pos`; its id.
@@ -618,11 +639,121 @@ fn weapon_skill(g: &mut Graph, top: f32, event: u32, from: (u32, &'static str), 
     wire(g, (up, "false"), (keep, "exec"));
 }
 
+/// TQ's police wanted list (pk bonus spec §5): a black name (PK 1000) logging in outside the
+/// jail is put on it, as is one (PK 100) who kills an innocent (PK under 30) outside PK-free
+/// maps; one killed by a player while on it is jailed and taken off; the hunter of the name it
+/// took on (3011) loses PK by the target's level ((level - 40) / 10, 1 at least).
+fn police_wanted(g: &mut Graph, top: f32) {
+    let target = crate::npc_logic::POLICE_TARGET;
+    let put_on = |g: &mut Graph, at: [f32; 2], name: (u32, &str), level: (u32, &str), on: bool| {
+        let list = node(g, "police.list", at, &[("listed", Literal::Bool(on))]);
+        wire(g, name, (list, "name"));
+        wire(g, level, (list, "level"));
+        list
+    };
+    // Logging in black-named outside the jail.
+    let (_, login) = event_lane(g, "event.login", [0.0, top]);
+    let names = Names {
+        pins: vec![],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let black = branch_on(&mut w, &names, "pk >= 1000 && map != 6000");
+    wire(g, login, (black, "exec"));
+    let me = node(g, "player.name", [520.0, top + 80.0], &[]);
+    let level = node(g, "player.level", [520.0, top + 160.0], &[]);
+    let listed = put_on(g, [780.0, top], (me, "value"), (level, "value"), true);
+    wire(g, (black, "true"), (listed, "exec"));
+    // Killing: a black name killing an innocent is put on; a hunter's target arrested.
+    let top = top + 300.0;
+    let (kill, kill_on) = event_lane(g, "event.kill_player", [0.0, top]);
+    let names = Names {
+        pins: vec![("victim", kill), ("level", kill), ("pk", kill)],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let guilty = branch_on(&mut w, &names, "pk < 30 && !pk_free");
+    wire(g, kill_on, (guilty, "exec"));
+    let mine = node(g, "player.pk", [520.0, top + 80.0], &[]);
+    let black = node(
+        g,
+        "logic.greater",
+        [780.0, top + 80.0],
+        &[("b", Literal::Number(99.0))],
+    );
+    wire(g, (mine, "value"), (black, "a"));
+    let is_black = node(g, "flow.branch", [1040.0, top], &[]);
+    wire(g, (black, "value"), (is_black, "condition"));
+    wire(g, (guilty, "true"), (is_black, "exec"));
+    let me = node(g, "player.name", [1040.0, top + 160.0], &[]);
+    let level = node(g, "player.level", [1040.0, top + 240.0], &[]);
+    let listed = put_on(g, [1300.0, top], (me, "value"), (level, "value"), true);
+    wire(g, (is_black, "true"), (listed, "exec"));
+    // The hunter's reward: its target killed.
+    let wanted = node(
+        g,
+        "player.text_var",
+        [260.0, top + 480.0],
+        &[("name", text(target))],
+    );
+    let same = node(g, "text.equal", [520.0, top + 480.0], &[]);
+    wire(g, (wanted, "value"), (same, "a"));
+    wire(g, (kill, "victim"), (same, "b"));
+    let hunted = node(g, "flow.branch", [780.0, top + 400.0], &[]);
+    wire(g, (same, "value"), (hunted, "condition"));
+    wire(g, (guilty, "false"), (hunted, "exec"));
+    wire(g, (is_black, "false"), (hunted, "exec"));
+    wire(g, (listed, "then"), (hunted, "exec"));
+    let reward = {
+        let mut w = ExprWriter::new(g, [1040.0, top + 400.0]);
+        let less = names.write(&mut w, "-max((level - 40) / 10, 1)");
+        let reward = w.node("player.add_pk", &[]);
+        w.feed(&less, reward, "points");
+        reward
+    };
+    let forget = node(
+        g,
+        "player.set_text_var",
+        [1300.0, top + 400.0],
+        &[("name", text(target)), ("text", text(""))],
+    );
+    chain(g, (hunted, "true"), &[reward, forget]);
+    // Arrested: killed by a player while on the list.
+    let top = top + 700.0;
+    let (_, killed) = event_lane(g, "event.killed_by_player", [0.0, top]);
+    let me = node(g, "player.name", [260.0, top + 80.0], &[]);
+    let on = node(g, "police.has", [520.0, top + 80.0], &[]);
+    wire(g, (me, "value"), (on, "name"));
+    let arrested = node(g, "flow.branch", [780.0, top], &[]);
+    wire(g, (on, "value"), (arrested, "condition"));
+    wire(g, killed, (arrested, "exec"));
+    let jail = node(
+        g,
+        "player.set_record",
+        [1040.0, top],
+        &[
+            ("map", Literal::Number(6000.0)),
+            ("x", Literal::Number(29.0)),
+            ("y", Literal::Number(72.0)),
+        ],
+    );
+    let zero = node(
+        g,
+        "math.add",
+        [1040.0, top + 160.0],
+        &[("a", Literal::Number(0.0)), ("b", Literal::Number(0.0))],
+    );
+    let off = put_on(g, [1300.0, top], (me, "value"), (zero, "value"), false);
+    chain(g, (arrested, "true"), &[jail, off]);
+}
+
 /// TQ's jail (pk bonus spec §2.1 B): a red-named player (PK 30 or more) killed by a player,
 /// outside map 6002, comes back in the black jail (map 6000 at its portal, 29,72) and a
 /// bounty is recorded on the killer.
 fn red_name_jailed(g: &mut Graph, top: f32) {
-    let event = node(g, "event.killed_by_player", [0.0, top], &[]);
+    let (event, on) = event_lane(g, "event.killed_by_player", [0.0, top]);
     let names = Names {
         pins: vec![("killer", event)],
         default_record: None,
@@ -630,7 +761,7 @@ fn red_name_jailed(g: &mut Graph, top: f32) {
     };
     let mut w = ExprWriter::new(g, [260.0, top]);
     let red = branch_on(&mut w, &names, "pk >= 30 && map != 6002");
-    wire(g, (event, "then"), (red, "exec"));
+    wire(g, on, (red, "exec"));
     let record = node(g, "bounty.record", [780.0, top], &[]);
     wire(g, (event, "killer"), (record, "killer"));
     let jail = node(
@@ -650,7 +781,7 @@ fn red_name_jailed(g: &mut Graph, top: f32) {
 /// of its bounty, and the entry and the hunter's order end.
 fn wanted_hunt(g: &mut Graph, top: f32) {
     let order_flag = crate::npc_logic::WANTED_ORDER;
-    let event = node(g, "event.kill_player", [0.0, top], &[]);
+    let (event, on) = event_lane(g, "event.kill_player", [0.0, top]);
     let order = node(
         g,
         "player.flag",
@@ -664,7 +795,7 @@ fn wanted_hunt(g: &mut Graph, top: f32) {
     wire(g, (event, "victim"), (same, "b"));
     let branch = node(g, "flow.branch", [1040.0, top], &[]);
     wire(g, (same, "value"), (branch, "condition"));
-    wire(g, (event, "then"), (branch, "exec"));
+    wire(g, on, (branch, "exec"));
     let bounty = node(g, "wanted.bounty", [520.0, top + 160.0], &[]);
     wire(g, (order, "value"), (bounty, "id"));
     let share = node(

@@ -216,6 +216,46 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    pure(
+        "team.all_named",
+        "Teammates all named",
+        "Team",
+        &[("name", Text)],
+        Bool,
+        "team_all_named({name})",
+    ),
+    action(
+        "police.list",
+        "Put on or take off the police list",
+        "Police",
+        &[("name", Text), ("level", Number), ("listed", Bool)],
+        &[],
+        "police_list({name}, {level}, {listed});",
+    ),
+    pure(
+        "police.at",
+        "Police list name at",
+        "Police",
+        &[("index", Number)],
+        Text,
+        "police_at({index})",
+    ),
+    pure(
+        "police.has",
+        "On the police list",
+        "Police",
+        &[("name", Text)],
+        Bool,
+        "police_has({name})",
+    ),
+    pure(
+        "guild.member",
+        "Guild member",
+        "Guild",
+        &[("index", Number)],
+        Text,
+        "guild_member({index})",
+    ),
     action(
         "bounty.record",
         "Record a bounty on the killer",
@@ -274,7 +314,7 @@ pub const NODES: &[NodeDef] = &[
         "event.kill_player",
         "On killing a player",
         "on_kill_player",
-        &[("victim", Text), ("level", Number)],
+        &[("victim", Text), ("level", Number), ("pk", Number)],
     ),
     pure(
         "wanted.at",

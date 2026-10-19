@@ -61,6 +61,10 @@ fn number(values: &[SqlValue], i: usize) -> i64 {
 const WANTED_NAME: &str = "wanted_name";
 const WANTED_BOUNTY: &str = "wanted_bounty";
 pub(crate) const WANTED_ORDER: &str = "wanted_order";
+/// The player variable holding the spouse's name (empty: single).
+pub(crate) const MATE: &str = "mate";
+/// The player variable holding the police-wanted name the player took on (3011).
+pub(crate) const POLICE_TARGET: &str = "police_target";
 const WANTED_MODIFY: &str = "wanted_modify";
 
 impl NpcLogic {
@@ -472,6 +476,7 @@ fn line(param: &str) -> String {
         ("%user_money", "{money}"),
         ("%accept", "{accept}"),
         ("%npc_name", "{npc}"),
+        ("%iter_member_name", "{member}"),
     ] {
         text = text.replace(tq, engine);
     }
@@ -1053,10 +1058,7 @@ impl<'a> Builder<'a> {
             // Bounties on killers (2201-2204): asked about, a reward set, cleared, claimed.
             2201..=2204 => self.bounty(g, a, column),
             // TQ left 2205 unimplemented: it always fails (pk bonus spec §3).
-            2205 => {
-                let never = g.node("logic.equal", &[("a", num(0)), ("b", num(1))], column);
-                Self::branch(g, never, column)
-            }
+            2205 => Self::never(g, column),
             // The wanted list (3001-3008): walking it, a target named and priced, posted,
             // taken on, cancelled, raised.
             3001..=3008 => self.wanted(g, a, column),
@@ -1083,9 +1085,107 @@ impl<'a> Builder<'a> {
                 let set = self.compare_node(g, and, ">", 0, column);
                 Self::branch(g, set, column)
             }
+            // A GM log line given as an attribute: TQ knows no such attribute and fails.
             1001 if tokens.first().is_some_and(|t| t.starts_with("gmlog/")) => {
-                let never = g.node("logic.equal", &[("a", num(0)), ("b", num(1))], column);
-                Self::branch(g, never, column)
+                Self::never(g, column)
+            }
+            // The account's billing: CP cards redeemed (1078/1079), a bonus row run (1023),
+            // DragonBalls received from TQ's web side (1090/1091). No billing tables here: they
+            // fail as TQ's do with no row. Sending DragonBalls to the web side (1088/1089)
+            // only records the transfer: it succeeds.
+            1023 | 1078 | 1079 | 1090 | 1091 => Self::never(g, column),
+            // The police wanted list: the next name (3010), one taken on by index (3011), whether
+            // the player is on it (3012).
+            3010 | 3011 => {
+                let index = if a.kind == 3010 {
+                    let iter = g.node("player.flag", &[("name", txt("iterator"))], column);
+                    let next = g.node("math.add", &[("b", num(1))], column);
+                    g.data(iter, next, "a");
+                    next
+                } else {
+                    g.node("dialogue.accept_number", &[], column)
+                };
+                let name = g.node("police.at", &[], column);
+                g.data(index, name, "index");
+                let none = g.node("text.equal", &[("b", txt(""))], column);
+                g.data(name, none, "a");
+                let there = g.node("logic.not", &[], column);
+                g.data(none, there, "a");
+                let effect = if a.kind == 3010 {
+                    let step = g.node("player.set_flag", &[("name", txt("iterator"))], column);
+                    g.data(index, step, "value");
+                    step
+                } else {
+                    let keep = g.node(
+                        "player.set_text_var",
+                        &[("name", txt(POLICE_TARGET))],
+                        column,
+                    );
+                    g.data(name, keep, "text");
+                    keep
+                };
+                self.guarded(g, &[there], None, &[effect], column)
+            }
+            3012 => {
+                let me = g.node("player.name", &[], column);
+                let listed = g.node("police.has", &[], column);
+                g.data(me, listed, "name");
+                Self::branch(g, listed, column)
+            }
+            // The next member of the player's guild: the iterator on, whether there is one.
+            722 => {
+                let iter = g.node("player.flag", &[("name", txt("iterator"))], column);
+                let next = g.node("math.add", &[("b", num(1))], column);
+                g.data(iter, next, "a");
+                let step = g.node("player.set_flag", &[("name", txt("iterator"))], column);
+                g.data(next, step, "value");
+                let member = g.node("guild.member", &[], column);
+                g.data(next, member, "index");
+                let none = g.node("text.equal", &[("b", txt(""))], column);
+                g.data(member, none, "a");
+                let there = g.node("logic.not", &[], column);
+                g.data(none, there, "a");
+                let branch = g.node("flow.branch", &[], column);
+                g.data(there, branch, "condition");
+                g.exec((step, "then"), branch);
+                Emitted {
+                    entry: Some(step),
+                    ok: Some((branch, "true")),
+                    fail: Some((branch, "false")),
+                }
+            }
+            // Married (1025): the spouse's name kept with the player (`mate`); divorced (1024):
+            // forgotten (TQ's divorce fails when unmarried).
+            1024 | 1025 => {
+                let mate = g.node("player.text_var", &[("name", txt(MATE))], column);
+                let single = g.node("text.equal", &[("b", txt(""))], column);
+                g.data(mate, single, "a");
+                let married = g.node("logic.not", &[], column);
+                g.data(single, married, "a");
+                if a.kind == 1025 {
+                    return Self::branch(g, married, column);
+                }
+                let values = [("name", txt(MATE)), ("text", txt(""))];
+                let forget = g.node("player.set_text_var", &values, column);
+                self.guarded(g, &[married], None, &[forget], column)
+            }
+            1088 | 1089 => Self::plain(g, "flow.reroute_exec", &[], column),
+            // The merchant status (TQ's `business`), kept as the player's attribute.
+            1001 if tokens
+                .first()
+                .is_some_and(|t| t.eq_ignore_ascii_case("business")) =>
+            {
+                match (tokens.get(1).copied(), int(2)) {
+                    (Some("set"), Some(n)) => {
+                        let values = [("name", txt("business")), ("value", num(n))];
+                        Self::plain(g, "player.set_attr", &values, column)
+                    }
+                    (Some(op), Some(n)) => {
+                        let cmp = self.attr_compare(g, "business", op, n, column);
+                        Self::branch(g, cmp, column)
+                    }
+                    _ => self.not_converted(g, a, column),
+                }
             }
             1001 => self.user_attr(g, a, &tokens, column),
             1002 if a.param.eq_ignore_ascii_case("life") => {
@@ -1249,20 +1349,26 @@ impl<'a> Builder<'a> {
             }
             1005 => self.hair(g, a, &tokens, column),
             201 => self.npc_attr(g, a, &tokens, column),
-            1071 => match (int(0), tokens.get(1).and_then(|t| t.parse::<u32>().ok())) {
-                (Some(seconds), Some(chain)) if chain != 0 => {
-                    if self.functions.insert(chain) {
-                        self.to_make.push(chain);
+            1071 => {
+                let delay = tokens.first().and_then(|t| self.number(g, t, column));
+                match (delay, tokens.get(1).and_then(|t| t.parse::<u32>().ok())) {
+                    (Some(seconds), Some(chain)) if chain != 0 => {
+                        if self.functions.insert(chain) {
+                            self.to_make.push(chain);
+                        }
+                        self.timers.insert(chain);
+                        let name = [("name", txt(&format!("a{chain}")))];
+                        let timer = g.node("player.start_timer", &name, column);
+                        self.feed(g, &seconds, timer, "seconds");
+                        Emitted {
+                            entry: Some(timer),
+                            ok: Some((timer, "then")),
+                            fail: None,
+                        }
                     }
-                    self.timers.insert(chain);
-                    let values = [
-                        ("name", txt(&format!("a{chain}"))),
-                        ("seconds", num(seconds)),
-                    ];
-                    Self::plain(g, "player.start_timer", &values, column)
+                    _ => self.not_converted(g, a, column),
                 }
-                _ => self.not_converted(g, a, column),
-            },
+            }
             // Where the player comes back to; going there.
             1004 => self.cell_action(g, a, &tokens, "player.set_record", column),
             1006 => Self::checked(g, "player.go_record", &[], "went", column),
@@ -1511,6 +1617,17 @@ impl<'a> Builder<'a> {
                 tokens.get(1),
                 int(2),
             ) {
+                // The teammates here are the player's spouse (the couple's team).
+                (Some(attr), _, _) if attr == "mate" => {
+                    let mate = g.node("player.text_var", &[("name", txt(MATE))], column);
+                    let all = g.node("team.all_named", &[], column);
+                    g.data(mate, all, "name");
+                    let leads = g.node("team.leads", &[], column);
+                    let both = g.node("logic.and", &[], column);
+                    g.data(leads, both, "a");
+                    g.data(all, both, "b");
+                    Self::branch(g, both, column)
+                }
                 (Some(attr), Some(&op), Some(n))
                     if (attr == "count" || attr == "count_near") && matches!(op, "<" | "==") =>
                 {
@@ -2357,6 +2474,14 @@ impl<'a> Builder<'a> {
             }
             // Nobody has a home in this port.
             "%user_home_id" => return Some(Number::Literal(0)),
+            // Unused CP cards of the account (billing): none here.
+            "%emoney_card1" | "%emoney_card2" => return Some(Number::Literal(0)),
+            // DragonBalls sent to TQ's web side (billing): none here.
+            "%dragon_type1" | "%dragon_type2" => return Some(Number::Literal(0)),
+            // TQ's rand(): 0 to 32767.
+            "%iter_rand" => {
+                return node(g, "math.random", &[("low", num(0)), ("high", num(32767))]);
+            }
             _ => {}
         }
         let i = token.strip_prefix("%iter_var_data")?.parse::<i64>().ok()?;
@@ -2371,6 +2496,12 @@ impl<'a> Builder<'a> {
             // A literal as a sum with nothing.
             Number::Literal(v) => g.node("math.add", &[("a", num(v)), ("b", num(0))], column),
         }
+    }
+
+    /// A step that always fails (TQ's unknown or unimplemented ones, empty billing).
+    fn never(g: &mut Canvas, column: i32) -> Emitted {
+        let never = g.node("logic.equal", &[("a", num(0)), ("b", num(1))], column);
+        Self::branch(g, never, column)
     }
 
     /// 2201-2204: TQ's bounties on killers (`ProcessActionPkBonus`, cq_pk_bonus), on the
@@ -3507,6 +3638,23 @@ impl<'a> Builder<'a> {
                 .parse::<u32>()
                 .ok()
         });
+        // 1061 sets a worked-out value (`var(2) set %user_map_x`).
+        if a.kind == 1061
+            && let (Some(index), Some(value)) =
+                (index, tokens.get(2).and_then(|t| self.number(g, t, column)))
+        {
+            let set = g.node(
+                "player.set_flag",
+                &[("name", txt(&format!("var{index}")))],
+                column,
+            );
+            self.feed(g, &value, set, "value");
+            return Emitted {
+                entry: Some(set),
+                ok: Some((set, "then")),
+                fail: None,
+            };
+        }
         let (Some(index), Some(op), Some(v)) = (
             index,
             tokens.get(1).copied(),
