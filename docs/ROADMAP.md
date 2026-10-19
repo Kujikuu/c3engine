@@ -571,11 +571,36 @@ run on the server and the local session alike, and are edited through c3-edit wi
     portal links into 130 maps' populations, merged with the project's own NPCs and scripts;
     the 8 data tables; `import_report.txt` says what was left out (8 maps the 5065 client has
     no file for; rows of player homes, maps made while playing)
-- [ ] NPC behaviour: TQ's NPC logic (`cq_action` / `cq_task` chains) converted into dialogue
-      graphs, editable in the Dialogue editor; the converter reports what it can't convert
-      (user choice: graphs, the easiest to edit later)
+- [ ] NPC behaviour: TQ's NPC logic (`cq_action` / `cq_task` chains) converted into
+      blueprints (user choice, 2026-10-19: blueprints, not dialogue graphs), editable in the
+      Blueprints panel; the converter reports what it can't convert
+  - Done so far (2026-10-19): the import makes each NPC's tasks one blueprint (`tq/npc_<task>`):
+    tasks' checks (items by name, money, profession, PK range) as branches, answers leading to
+    `task_<id>` events, shared chains as functions, delays as timers. 26,886 actions of 560
+    NPCs convert: dialogue, pictures, chance, time windows, items (by type, name, range,
+    worn), money, CPs, experience, life, mana, attributes, PK, profession, weapon skills,
+    skills, teleport and return points, variables, statistics and timestamps, hair, sex, NPC
+    numbers. The rest become comments, counted in the report:
+  - [ ] Moving NPCs (301, 259 actions): NPCs moving within and between maps, seen by clients
+  - [ ] Rebirth (1040, 200)
+  - [ ] Durability tests and the rest of equipment tests and numbers (510, 517, 516)
+  - [ ] Statistics snapshots (528, 529), level/experience sums (1084, 1086), map populations
+        (302), map effects (312, 1072), message actions (1075), lottery (1508), typed answers
+        (103), NPC upgrades (509), guild, event and trap actions (7xx, 20xx, 21xx)
 - [ ] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
       skills, PK and name colours, ghost and revive, item upgrades
+  - Done so far (2026-10-19): the import writes the engine's rule tables from TQ's (items with
+    requirements and CP prices, monsters, levels, shops, skills, statuses, class points) and
+    the `conquer/rules` blueprint: life and mana by points and profession, attack and dodge,
+    hit chance and damage, experience, the equip check, class points by level; Conquer's
+    Rust rules are gone. Engine systems for it: player and item attributes, crime and PK
+    points with name colours and guards hunting by name, ghosts and revive points, death's
+    costs and jail, skills costing an attribute (XP skills) with the XP bar, upgrades by
+    using one item on another (Meteor, DragonBall)
+  - [ ] TQ's full damage and experience formulas (level difference tables `cq_disdain`, gems,
+        weapon proficiency, magic damage and defence, archery, critical lucky hits)
+  - [ ] `+N` composing, gems and sockets, enchanting and blessing
+  - [ ] Profession promotions and rebirth end to end (NPC chains converted and played)
 - [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
       with its cursors and sounds
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
