@@ -93,11 +93,20 @@ const HIT: &str = "if(attacker.chance < chance && !(target.monster == 0 && targe
 
 /// Experience (battle exp §1–3): the life taken (and on a kill 5% of the monster's), Rainbow
 /// gems' percent more, then the level difference's factor (the XP one under an XP skill).
-const EXP_STEPS: [(&str, &str); 2] = [
+const EXP_STEPS: [(&str, &str); 4] = [
     ("gem", "base + attacker.socket_gem_exp * base / 100"),
     ("delta", "attacker.level - target.level"),
+    ("adjusted", EXP_DISDAIN),
+    (
+        "b120",
+        "if(attacker.blessing_until > attacker.clock, adjusted + adjusted * 20 / 100, adjusted)",
+    ),
 ];
-const EXP: &str = "max((100 + if(attacker.status_superman > 0 || attacker.status_cyclone > 0, disdain_xp_exp_factor(delta), disdain_exp_factor(delta))) * gem / 100, 0)";
+const EXP_DISDAIN: &str = "max((100 + if(attacker.status_superman > 0 || attacker.status_cyclone > 0, disdain_xp_exp_factor(delta), disdain_exp_factor(delta))) * gem / 100, 0)";
+/// What the player is given of it (battle exp §5, AwardBattleExp): nothing while cursed, a
+/// fifth more while blessed, half from level 120, a third after a second rebirth, and the
+/// timed percent (action 1048).
+const EXP: &str = "if(attacker.cursed > 0, 0, if(attacker.exp_until > attacker.clock, attacker.exp_percent, 100) * max(if(attacker.rebirths == 2, 1, 0), if(attacker.level >= 120, b120 / 2, b120) / if(attacker.rebirths == 2, 3, 1)) / 100)";
 
 /// TQ's equip check (items §9.1): sex, class and step, attribute points.
 const CAN_WEAR: &str = "(item.req_sex == 0 || item.req_sex == sex) && (item.req_profession == 0 || (item.req_profession % 1000) / 10 == class && profession % 10 >= item.req_profession % 10) && player.strength >= item.req_force && player.agility >= item.req_speed && player.vitality >= item.req_health && player.spirit >= item.req_soul";

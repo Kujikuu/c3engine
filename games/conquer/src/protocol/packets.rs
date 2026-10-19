@@ -106,6 +106,8 @@ pub mod item {
 pub mod cue {
     pub const ACTION: &str = "msg_action";
     pub const MAP_ITEM: &str = "map_item";
+    /// A MsgItem action about the player (with its data), for everyone around.
+    pub const ITEM_ACTION: &str = "item_action";
 }
 
 /// The kinds of `Input::Combine` Conquer's rules blueprint answers.

@@ -60,6 +60,7 @@ pub struct Fighter {
     pub stats: Stats,
     /// Named numbers formulas read beside the stats: `monster` (its type; 0 for a player) and
     /// a monster type's numbers, `status_<name>` (a number of the statuses it bears, summed),
+    /// for players `clock` (the clock's seconds, as scripts' `clock()`),
     /// and for players `profession`, every attribute, `worn_<name>` (an item attribute summed
     /// over what it wears), `worn<slot>` (the item type worn there), `worn<slot>_<name>`
     /// (that item's attribute), `gear_<name>` (an item type number summed over what it

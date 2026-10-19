@@ -425,6 +425,27 @@ fn more(engine: &mut Engine, shared: &Shared) {
     };
     engine.register_fn("play_effect", text(shared, Effect::PlayEffect));
     let s = shared.clone();
+    engine.register_fn("room_cue", move |name: &str, a: i64, b: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::RoomCue {
+                name: name.to_owned(),
+                args: [a, b],
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("leads_team", move || {
+        with(&s, |c| {
+            c.player.team_size > 0 && c.player.team_leader == c.player.name
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("team_travel", move |map: i64, x: i64, y: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::TeamTravel { map, cell: (x, y) })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("client_cue", move |name: &str, a: i64, b: i64| {
         with(&s, |c| {
             c.effects.push(Effect::ClientCue {

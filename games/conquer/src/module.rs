@@ -141,6 +141,18 @@ pub fn conquer_settings() -> ProjectSettings {
         ),
         attribute("cursed", "Cursed: no battle experience", 0, Some(1)),
         attribute(
+            "exp_percent",
+            "Battle experience percent while it lasts",
+            100,
+            None,
+        ),
+        attribute(
+            "exp_until",
+            "When the experience percent ends (seconds of the clock)",
+            0,
+            None,
+        ),
+        attribute(
             "lucky_time",
             "Lucky time left, in seconds: double hits, dodged blows",
             0,

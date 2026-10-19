@@ -239,6 +239,26 @@ impl Sim {
                 name,
                 args,
             }),
+            Effect::RoomCue { name, args } => self.events.push(Event::RoomCue {
+                player: id,
+                name,
+                args,
+            }),
+            Effect::TeamTravel { map, cell } => {
+                let to = c3_scene::PortalTarget {
+                    map: u32::try_from(map).unwrap_or(0),
+                    cell: (cell.0 as i32, cell.1 as i32),
+                };
+                // Members here first, the leader last (TQ's order).
+                let mut members: Vec<EntityId> = (self.team_members(id).into_iter())
+                    .filter(|m| *m != id && self.players.get(m).is_some_and(|p| p.is_alive()))
+                    .collect();
+                members.reverse();
+                for member in members {
+                    self.travel(member, to);
+                }
+                self.travel(id, to);
+            }
             Effect::EffectAt { map, cell, effect } => {
                 // Another map's effect isn't seen here.
                 if u32::try_from(map).is_ok_and(|m| self.is_this_map(m)) {

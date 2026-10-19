@@ -1157,6 +1157,79 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // The client opens dialog `data` (MsgAction 126).
+            1046 => {
+                let values = [
+                    ("name", txt("msg_action")),
+                    ("a", num(126)),
+                    ("b", num(a.data)),
+                ];
+                Self::plain(g, "player.client_cue", &values, column)
+            }
+            // Fireworks over the player, for everyone around (MsgItem 26).
+            314 => {
+                let values = [
+                    ("name", txt("item_action")),
+                    ("a", num(26)),
+                    ("b", num(255)),
+                ];
+                Self::plain(g, "player.room_cue", &values, column)
+            }
+            // A monster of a type on a cell (this map's).
+            2006 => match (int(3), int(4), int(6)) {
+                (Some(x), Some(y), Some(kind)) => {
+                    let values = [("monster", num(kind)), ("x", num(x)), ("y", num(y))];
+                    Self::plain(g, "world.spawn", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // How many are in the player's team (TQ: the leader, a team of two or more).
+            1102 => match (
+                tokens.first().map(|t| t.to_ascii_lowercase()),
+                tokens.get(1),
+                int(2),
+            ) {
+                (Some(attr), Some(&op), Some(n)) if attr == "count" && matches!(op, "<" | "==") => {
+                    let size = g.node("team.size", &[], column);
+                    let cmp = self.compare_node(g, size, op, n, column);
+                    let leads = g.node("team.leads", &[], column);
+                    let both = g.node("logic.and", &[], column);
+                    g.data(leads, both, "a");
+                    g.data(cmp, both, "b");
+                    Self::branch(g, both, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // The leader takes the team to a cell of a map.
+            1107 => match (int(0), int(1), int(2)) {
+                (Some(map), Some(x), Some(y)) => {
+                    let values = [("map", num(map)), ("x", num(x)), ("y", num(y))];
+                    Self::plain(g, "team.travel", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Battle experience at a percent for a while; TQ answers false.
+            1048 => match (int(0), int(1)) {
+                (Some(percent), Some(secs)) => {
+                    let set = g.node(
+                        "player.set_attr",
+                        &[("name", txt("exp_percent")), ("value", num(percent.max(0)))],
+                        column,
+                    );
+                    let clock = g.node("world.clock", &[], column);
+                    let until = g.node("math.add", &[("b", num(secs))], column);
+                    g.data(clock, until, "a");
+                    let end = g.node("player.set_attr", &[("name", txt("exp_until"))], column);
+                    g.data(until, end, "value");
+                    g.exec((set, "then"), end);
+                    Emitted {
+                        entry: Some(set),
+                        ok: None,
+                        fail: Some((end, "then")),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // A command for the client (MsgAction 116 with the command).
             124 => {
                 let values = [

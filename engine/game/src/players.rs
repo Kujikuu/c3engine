@@ -408,6 +408,11 @@ impl Sim {
         let mut facts = self.attributes_of(p);
         facts.insert("monster".into(), 0);
         facts.insert("profession".into(), i64::from(p.profession));
+        // The clock's seconds, as scripts' clock() (timed bonuses end by it).
+        let clock = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64);
+        facts.insert("clock".into(), clock);
         let names = &self.settings.item_attributes;
         for name in names {
             facts.insert(format!("worn_{name}"), 0);

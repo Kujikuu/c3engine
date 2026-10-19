@@ -232,6 +232,17 @@ pub enum Effect {
         name: String,
         args: [i64; 2],
     },
+    /// The same, for everyone who sees the player.
+    RoomCue {
+        name: String,
+        args: [i64; 2],
+    },
+    /// The player's team (the leader with every member on its map) goes to `cell` of game
+    /// map `map`.
+    TeamTravel {
+        map: i64,
+        cell: (i64, i64),
+    },
     /// Effect `effect` played once on `cell` of game map `map`, for everyone there.
     EffectAt {
         map: i64,

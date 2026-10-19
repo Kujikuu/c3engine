@@ -679,6 +679,16 @@ impl ConquerClient {
                     _ => Vec::new(),
                 }
             }
+            Event::RoomCue { player, name, args } => {
+                let Some(id) = self.client_id(*player, ids) else {
+                    return Vec::new();
+                };
+                let [a, b] = args.map(|v| u32::try_from(v).unwrap_or(0));
+                match name.as_str() {
+                    pk::cue::ITEM_ACTION => vec![pk::item_action(id, b, a as u16)],
+                    _ => Vec::new(),
+                }
+            }
             Event::CellEffect { cell, effect } => {
                 let (x, y) = cell16(*cell);
                 vec![pk::name(

@@ -121,6 +121,7 @@ impl Event {
             | Event::Dressed { player }
             | Event::Chat { player, .. } => vec![player],
             Event::Effect { entity, .. } | Event::Sound { entity, .. } => vec![entity],
+            Event::RoomCue { player, .. } => vec![player],
             _ => Vec::new(),
         }
     }
