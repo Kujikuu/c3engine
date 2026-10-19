@@ -19,6 +19,8 @@ pub(crate) struct Chat {
     lines: VecDeque<(String, Color32)>,
     input: String,
     pub typing: bool,
+    /// Opened this frame (by an Enter that mustn't also send).
+    opening: bool,
 }
 
 impl Chat {
@@ -97,6 +99,7 @@ impl Chat {
     /// Starts typing a line.
     pub fn open(&mut self) {
         self.typing = true;
+        self.opening = true;
     }
 
     /// Draws the log and the line being typed, `lift` above its usual place (clear of the
@@ -142,6 +145,9 @@ impl Chat {
                         i.key_pressed(egui::Key::Escape),
                     )
                 });
+                // The Enter that opened the line isn't the one that sends it.
+                let opening = std::mem::take(&mut self.opening);
+                let send = send && !opening;
                 if send {
                     let text = std::mem::take(&mut self.input);
                     if !text.trim().is_empty() {

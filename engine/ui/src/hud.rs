@@ -662,14 +662,10 @@ fn drop_labels(painter: &egui::Painter, view: &GameView) {
 /// leader first, marked with a star).
 pub(crate) fn team_list(ui: &mut egui::Ui, view: &GameView, p: &Player) {
     let Some(leader) = p.team else { return };
-    let mut members: Vec<&Player> = (view.sim.players())
-        .filter(|m| m.team == Some(leader))
-        .collect();
-    members.sort_by_key(|m| m.id != leader);
     let painter = ui.painter_at(view.rect);
     let top = if view.hint.is_empty() { 40.0 } else { 70.0 };
     let mut at = view.rect.left_top() + egui::vec2(10.0, top);
-    for m in members {
+    for m in &p.mates {
         let star = if m.id == leader {
             icons::STAR
         } else {
@@ -689,7 +685,7 @@ pub(crate) fn team_list(ui: &mut egui::Ui, view: &GameView, p: &Player) {
             },
         );
         let bar = Rect::from_min_size(at + egui::vec2(6.0, 20.0), egui::vec2(138.0, 5.0));
-        meter(&painter, bar, m.life, m.stats.max_life, style::LIFE);
+        meter(&painter, bar, m.life, m.max_life, style::LIFE);
         at.y = rect.bottom() + 4.0;
     }
 }

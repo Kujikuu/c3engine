@@ -136,6 +136,7 @@ impl GameServer {
                 }
             }
         }
+        self.share_rosters();
         let mut travels = Vec::new();
         for (index, map) in self.maps.iter_mut().enumerate() {
             map.sim.advance(ms);
@@ -159,6 +160,7 @@ impl GameServer {
                 self.fronts[client.front].update(client.conn, &update, map, player.hero);
             }
         }
+        self.carry_team_ops();
         for (from, hero, map, cell) in travels {
             self.travel(from, hero, map, cell);
         }
@@ -166,6 +168,34 @@ impl GameServer {
         if self.since_save_ms >= self.config.save_every_ms {
             self.since_save_ms = 0;
             self.save_all();
+        }
+    }
+
+    /// Tells each map who plays on the others, so teams reach across maps.
+    fn share_rosters(&mut self) {
+        let roster: Vec<(usize, c3_game::Mate)> = (self.maps.iter().enumerate())
+            .flat_map(|(i, m)| m.sim.mates().into_iter().map(move |mate| (i, mate)))
+            .collect();
+        for (index, map) in self.maps.iter_mut().enumerate() {
+            let others = roster.iter().filter(|(i, _)| *i != index);
+            map.sim
+                .set_elsewhere(others.map(|(_, m)| m.clone()).collect());
+        }
+    }
+
+    /// Carries what teams asked of players on other maps to those maps.
+    fn carry_team_ops(&mut self) {
+        let ops: Vec<_> = (self.maps.iter_mut())
+            .flat_map(|m| m.sim.take_team_ops())
+            .collect();
+        for (player, op) in ops {
+            if let Some(map) = self
+                .maps
+                .iter_mut()
+                .find(|m| m.sim.player(player).is_some())
+            {
+                map.sim.apply_team_op(player, op);
+            }
         }
     }
 

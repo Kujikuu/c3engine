@@ -49,6 +49,10 @@ pub struct Sim {
     pub(crate) world_flags: BTreeMap<String, i64>,
     /// Team invitations: the invited player → the inviting leader.
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
+    /// Players on the host's other maps, for teams across maps.
+    pub(crate) elsewhere: BTreeMap<EntityId, crate::teams::Mate>,
+    /// What teams asked of players on other maps, for the host to carry.
+    pub(crate) team_ops: Vec<(EntityId, crate::teams::TeamOp)>,
 }
 
 impl Sim {
@@ -91,6 +95,8 @@ impl Sim {
             regions: Vec::new(),
             world_flags: BTreeMap::new(),
             team_invites: BTreeMap::new(),
+            elsewhere: BTreeMap::new(),
+            team_ops: Vec::new(),
         };
         sim.fill_spawns();
         sim

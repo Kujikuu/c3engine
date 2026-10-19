@@ -49,14 +49,8 @@ impl GuiData for HeroData<'_> {
         match key {
             // The hero's team: its members' names, the leader first.
             "hero.team" => {
-                let Some(leader) = self.player.team else {
-                    return (Vec::new(), None);
-                };
-                let mut members: Vec<&c3_game::Player> = (self.view.sim.players())
-                    .filter(|m| m.team == Some(leader))
-                    .collect();
-                members.sort_by_key(|m| m.id != leader);
-                (members.iter().map(|m| m.name.clone()).collect(), None)
+                let names = self.player.mates.iter().map(|m| m.name.clone());
+                (names.collect(), None)
             }
             _ => (Vec::new(), None),
         }

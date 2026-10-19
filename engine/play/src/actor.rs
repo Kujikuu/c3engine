@@ -484,6 +484,21 @@ impl Actor {
         role * bone
     }
 
+    /// The world rectangle (min x, min y, max x, max y) its posed meshes cover on screen
+    /// (a role's world z is the screen's y; see `actor_view`).
+    pub fn world_bounds(&self, scene: &Scene, tilt_deg: f32, now_ms: u64) -> Option<[f32; 4]> {
+        let role = self.pose(scene, tilt_deg, now_ms).transform();
+        let mut b = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
+        for part in self.drawables() {
+            let m = self.transform(part, role, now_ms);
+            for v in self.posed(part, now_ms) {
+                let p = m.transform_point3(glam::Vec3::from(v.position));
+                b = [b[0].min(p.x), b[1].min(p.z), b[2].max(p.x), b[3].max(p.z)];
+            }
+        }
+        (b[0] <= b[2]).then_some(b)
+    }
+
     /// Texture of `r`, uploaded on first use.
     pub fn texture(
         &mut self,

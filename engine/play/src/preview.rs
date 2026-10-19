@@ -13,13 +13,18 @@ use std::rc::Rc;
 
 /// Cells on a side of the preview's floor.
 const CELLS: u32 = 9;
-/// How far above its cell the camera looks (the role's middle, not its feet).
+/// How far above its cell the camera looks before the role is measured.
 const LIFT: f32 = 50.0;
+/// Of the picture, how much the role fills on its longer side.
+const FILL: f32 = 0.85;
 
 pub struct LookPreview {
     world: World,
     camera: Camera2d,
     target: Option<RenderTarget>,
+    /// Whether the camera has been fitted to the role yet.
+    fitted: bool,
+    tilt_deg: f32,
     /// Why the look couldn't be made, if it couldn't.
     pub problem: Option<String>,
 }
@@ -56,6 +61,8 @@ impl LookPreview {
             world,
             camera: Camera2d { center, zoom: 1.6 },
             target: None,
+            fitted: false,
+            tilt_deg,
             problem,
         }
     }
@@ -70,6 +77,9 @@ impl LookPreview {
         self.world.advance(seconds);
         self.world.tick();
         let viewport = Vec2::new(size[0] as f32, size[1] as f32);
+        if !self.fitted {
+            self.fit(viewport);
+        }
         self.world.prepare(renderer, &self.camera, viewport);
         renderer.ensure_target(&mut self.target, size);
         let target = self.target.as_ref().expect("target ensured");
@@ -77,5 +87,20 @@ impl LookPreview {
         let frame = self.world.frame(&meshes, self.camera.view_rect(viewport));
         renderer.render(target, &frame);
         target
+    }
+
+    /// Frames the role: centred, filling `FILL` of the picture whatever its model's size.
+    fn fit(&mut self, viewport: Vec2) {
+        self.fitted = true;
+        let Some(actor) = self.world.actors.first() else {
+            return;
+        };
+        let now = self.world.now_ms();
+        let Some(b) = actor.world_bounds(&self.world.scene, self.tilt_deg, now) else {
+            return;
+        };
+        let extent = Vec2::new(b[2] - b[0], b[3] - b[1]).max(Vec2::splat(1.0));
+        self.camera.center = Vec2::new(b[0] + b[2], b[1] + b[3]) / 2.0;
+        self.camera.zoom = (viewport * FILL / extent).min_element();
     }
 }

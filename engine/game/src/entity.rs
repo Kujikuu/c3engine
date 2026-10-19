@@ -113,6 +113,9 @@ pub struct Player {
     /// The team it is in: its leader's id (its own when it leads).
     #[serde(default)]
     pub team: Option<EntityId>,
+    /// Its team on every map, itself among them (the leader first); sent to it alone.
+    #[serde(default)]
+    pub mates: Vec<crate::Mate>,
     /// What a script's walk is called, to tell it (`on_arrive`) when the player gets there.
     #[serde(skip)]
     pub arrive_tag: Option<String>,

@@ -1269,3 +1269,67 @@ fn teams_form_by_chat_share_kill_experience_and_scripts_see_them() {
     );
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn teams_reach_players_on_other_maps() {
+    let mut maps = [
+        Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 1),
+        Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 2),
+    ];
+    let (ann, bob) = (EntityId(100), EntityId(200));
+    maps[0].add_saved_player_as(&crate::PlayerSave::new("Ann", (5, 5)), ann);
+    maps[1].add_saved_player_as(&crate::PlayerSave::new("Bob", (5, 5)), bob);
+    // What the server does around each tick: share rosters, carry team ops.
+    let relay = |maps: &mut [Sim; 2]| {
+        let rosters = [maps[0].mates(), maps[1].mates()];
+        maps[0].set_elsewhere(rosters[1].clone());
+        maps[1].set_elsewhere(rosters[0].clone());
+    };
+    let carry = |maps: &mut [Sim; 2]| {
+        for from in 0..2 {
+            for (player, op) in maps[from].take_team_ops() {
+                maps[1 - from].apply_team_op(player, op);
+            }
+        }
+    };
+    let say = |maps: &mut [Sim; 2], map: usize, who, line: &str| {
+        relay(maps);
+        maps[map].input(who, Input::Say(line.into()));
+        carry(maps);
+        let events: Vec<Event> = maps.iter_mut().flat_map(|m| m.take_events()).collect();
+        events
+            .into_iter()
+            .find_map(|e| match e {
+                Event::CommandReply { text, .. } => Some(text),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+    say(&mut maps, 0, ann, "/team create");
+    assert_eq!(
+        say(&mut maps, 0, ann, "/team invite Bob"),
+        "You invited Bob."
+    );
+    assert_eq!(
+        say(&mut maps, 1, bob, "/team join Ann"),
+        "You joined the team."
+    );
+    relay(&mut maps);
+    assert_eq!(maps[0].team_members(ann), [ann, bob]);
+    let names: Vec<String> = maps[0]
+        .team_mates(ann)
+        .into_iter()
+        .map(|m| m.name)
+        .collect();
+    assert_eq!(
+        names,
+        ["Ann", "Bob"],
+        "Ann's team list shows Bob on the other map"
+    );
+    say(&mut maps, 0, ann, "/team kick Bob");
+    assert_eq!(
+        maps[1].player(bob).unwrap().team,
+        None,
+        "kicked across maps"
+    );
+}

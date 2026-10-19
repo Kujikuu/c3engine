@@ -6,7 +6,7 @@ use crate::{EntityId, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /goto X Y · /quest ID STATE [KILLS]";
+pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /goto X Y · /map ID X Y · /quest ID STATE [KILLS]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -100,6 +100,12 @@ impl Sim {
                 self.place(id, cell);
                 self.players.get_mut(&id).expect("checked above").task = Task::Idle;
                 Ok(format!("Moved to ({}, {}).", cell.0, cell.1))
+            }
+            "map" => {
+                let map = u32::try_from(arg(0)?).map_err(|_| "Bad map".to_owned())?;
+                let cell = (arg(1)? as i32, arg(2)? as i32);
+                self.travel(id, c3_scene::PortalTarget { map, cell });
+                Ok(format!("Off to map {map} ({}, {}).", cell.0, cell.1))
             }
             "quest" => {
                 let quest = arg(0)?;

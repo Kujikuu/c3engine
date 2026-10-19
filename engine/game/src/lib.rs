@@ -27,7 +27,7 @@ mod sim;
 mod skills;
 mod statuses;
 mod teams;
-pub use teams::TEAM_SIZE;
+pub use teams::{Mate, TEAM_SIZE, TeamOp};
 
 pub use c3_core::settings::GameplaySettings;
 pub use commands::HELP as COMMAND_HELP;

@@ -70,6 +70,7 @@ impl Player {
             wallet: Default::default(),
             skills: Vec::new(),
             cooldowns: Default::default(),
+            mates: Vec::new(),
             ..self.clone()
         }
     }
@@ -137,7 +138,9 @@ impl Sim {
             return update;
         };
         let mut seen: BTreeMap<EntityId, EntityState> = BTreeMap::new();
-        seen.insert(id, EntityState::Player(Box::new(me.clone())));
+        let mut mine = me.clone();
+        mine.mates = self.team_mates(id);
+        seen.insert(id, EntityState::Player(Box::new(mine)));
         for (other, _) in self.index.near(me.cell, self.settings.view_range) {
             let state = if let Some(p) = self.players.get(&other) {
                 EntityState::Player(Box::new(p.public()))

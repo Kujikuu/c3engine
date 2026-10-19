@@ -65,6 +65,7 @@ impl Sim {
                 look: Default::default(),
                 arrive_tag: None,
                 team: None,
+                mates: Vec::new(),
                 running: false,
                 task: Task::Idle,
                 dialogue: None,
