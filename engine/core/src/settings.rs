@@ -763,6 +763,14 @@ pub struct UiSettings {
     pub skins: Vec<String>,
     /// Each control's kind, image, binding and action.
     pub controls: String,
+    /// Sounds (asset paths) of a dialog opening and closing and a button clicked; none when
+    /// empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sound_open: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sound_close: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sound_click: String,
 }
 
 impl UiSettings {

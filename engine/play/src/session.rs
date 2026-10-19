@@ -926,6 +926,7 @@ impl Session {
             UiAction::Sell { npc, item } => Input::Sell { npc, item },
             UiAction::CloseShop => Input::CloseShop,
             UiAction::Game(input) => input,
+            UiAction::PlaySound(path) => return self.audio.play_ui(&path),
             UiAction::Use(item) => Input::Use(item),
             UiAction::Unequip(item) => Input::Unequip(item),
             UiAction::Cast(slot) => {
@@ -970,6 +971,11 @@ pub fn game_gui(
         &game.read_file(&ui.controls)?,
     );
     gui.load_names(|path| game.read_file(path));
+    gui.sounds = c3_ui::gui::GuiSounds {
+        open: ui.sound_open.clone(),
+        close: ui.sound_close.clone(),
+        click: ui.sound_click.clone(),
+    };
     Some(gui)
 }
 

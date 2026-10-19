@@ -267,6 +267,14 @@ impl Control {
     }
 }
 
+/// The sounds a game UI plays (asset paths; empty: none).
+#[derive(Debug, Clone, Default)]
+pub struct GuiSounds {
+    pub open: String,
+    pub close: String,
+    pub click: String,
+}
+
 /// A game UI: its layout, skin and controls, and which dialogs are open.
 #[derive(Debug, Clone, Default)]
 pub struct Gui {
@@ -278,6 +286,8 @@ pub struct Gui {
     open: BTreeSet<u32>,
     /// The screen shown (empty: the game).
     screen: String,
+    /// The sounds of a dialog opening and closing and a button clicked (asset paths).
+    pub sounds: GuiSounds,
     /// The name files text controls name, read (`value` → name).
     pub(crate) names: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
 }
@@ -294,6 +304,7 @@ impl Gui {
             open: BTreeSet::new(),
             screen: String::new(),
             names: Default::default(),
+            sounds: GuiSounds::default(),
         }
     }
 
@@ -388,11 +399,13 @@ impl Gui {
         self.pages(id).find(|p| self.open.contains(&p.id)).or(first)
     }
 
-    /// Opens dialog `id`, or closes it when it is open.
-    pub fn toggle(&mut self, id: u32) {
-        if !self.open.remove(&id) {
-            self.open(id);
+    /// Opens dialog `id`, or closes it when it is open; whether it is open now.
+    pub fn toggle(&mut self, id: u32) -> bool {
+        if self.open.remove(&id) {
+            return false;
         }
+        self.open(id);
+        true
     }
 
     /// Where `control` sits: the layout's place, else its own.

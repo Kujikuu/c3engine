@@ -82,6 +82,11 @@ impl GameAudio {
         self.audio.forget(path);
     }
 
+    /// Plays a sound of the game's UI (a click), as loud as any sound beside the hero.
+    pub fn play_ui(&mut self, path: &str) {
+        self.audio.play(path, 1.0);
+    }
+
     pub fn toggle_muted(&mut self) {
         let muted = self.audio.muted();
         self.audio.set_muted(!muted);

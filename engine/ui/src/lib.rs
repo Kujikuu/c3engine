@@ -103,6 +103,8 @@ pub enum UiAction {
         item: u32,
     },
     CloseShop,
+    /// Play a sound (an asset path): the game UI's clicks.
+    PlaySound(String),
     /// A game input as it is (the game UI's warehouse, ...).
     Game(c3_game::Input),
     /// Use or wear bag item `id`.
@@ -247,7 +249,14 @@ impl GameUi {
     /// (`page:<page id>`).
     fn gui_event(&mut self, event: gui::GuiEvent, actions: &mut Vec<UiAction>) {
         let action = match event {
-            gui::GuiEvent::Action(action) => action,
+            gui::GuiEvent::Action(action) => {
+                if let Some(gui) = &self.gui
+                    && !gui.sounds.click.is_empty()
+                {
+                    actions.push(UiAction::PlaySound(gui.sounds.click.clone()));
+                }
+                action
+            }
             gui::GuiEvent::Edited { field, text } => {
                 self.gui_state.fields.insert(field, text);
                 return;
@@ -306,7 +315,15 @@ impl GameUi {
                 let id = |prefix: &str| other.strip_prefix(prefix).and_then(|i| i.parse().ok());
                 if let Some(gui) = &mut self.gui {
                     if let Some(dialog) = id("toggle:") {
-                        gui.toggle(dialog);
+                        let opened = gui.toggle(dialog);
+                        let sound = if opened {
+                            &gui.sounds.open
+                        } else {
+                            &gui.sounds.close
+                        };
+                        if !sound.is_empty() {
+                            actions.push(UiAction::PlaySound(sound.clone()));
+                        }
                     } else if let Some(page) = id("page:") {
                         gui.show_page(page);
                     }
