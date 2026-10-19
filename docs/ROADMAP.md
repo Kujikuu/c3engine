@@ -664,7 +664,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,
         trade, NPC talk) rather than buttons
-  - [ ] Where dialogs open (several now overlap on the left), the minimap window, sounds of
+  - [x] A dialog opened closes those it would cover (TQ's side panels swap)
+  - [ ] The minimap window, sounds of
         clicks and windows
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:

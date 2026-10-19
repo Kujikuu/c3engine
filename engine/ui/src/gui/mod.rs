@@ -45,6 +45,16 @@ pub struct GuiRect {
     pub h: i32,
 }
 
+impl GuiRect {
+    /// Whether it and `other` share any pixel.
+    pub fn overlaps(&self, other: &GuiRect) -> bool {
+        self.x < other.x + other.w
+            && other.x < self.x + self.w
+            && self.y < other.y + other.h
+            && other.y < self.y + self.h
+    }
+}
+
 /// Where dialogs and controls sit (`GUI.ini`).
 #[derive(Debug, Clone, Default)]
 pub struct Layout {
@@ -297,8 +307,22 @@ impl Gui {
             && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))
     }
 
-    /// Opens dialog `id`.
+    /// Opens dialog `id`, closing the opened dialogs it would cover (as TQ's side panels
+    /// take each other's place); those open from the start stay.
     pub fn open(&mut self, id: u32) {
+        let Some(dialog) = self.dialogs().find(|d| d.id == id) else {
+            self.open.insert(id);
+            return;
+        };
+        let at = self.rect(dialog);
+        let covered: Vec<u32> = (self.dialogs())
+            .filter(|d| d.id != id && self.open.contains(&d.id))
+            .filter(|d| self.rect(d).overlaps(&at))
+            .map(|d| d.id)
+            .collect();
+        for other in covered {
+            self.open.remove(&other);
+        }
         self.open.insert(id);
     }
 
@@ -329,7 +353,7 @@ impl Gui {
     /// Opens dialog `id`, or closes it when it is open.
     pub fn toggle(&mut self, id: u32) {
         if !self.open.remove(&id) {
-            self.open.insert(id);
+            self.open(id);
         }
     }
 
@@ -366,5 +390,47 @@ mod tests {
         assert_eq!(gui.rect(&gui.controls[1]).w, 40);
         let text = &gui.controls[2];
         assert_eq!((gui.rect(text).x, text.color), (1, [255, 255, 0]));
+    }
+}
+
+#[cfg(test)]
+mod overlap_tests {
+    use super::*;
+
+    #[test]
+    fn a_dialog_opened_closes_those_it_covers() {
+        let layout = b"[0-1]
+x=0
+y=0
+w=100
+h=100
+[0-2]
+x=50
+y=50
+w=100
+h=100
+[0-3]
+x=500
+y=0
+w=10
+h=10
+";
+        let controls = b"[0-1]
+type=dialog
+[0-2]
+type=dialog
+[0-3]
+type=dialog
+";
+        let mut gui = Gui::new(layout, b"", controls);
+        gui.open(1);
+        gui.open(3);
+        gui.toggle(2);
+        let open: Vec<u32> = gui
+            .dialogs()
+            .filter(|d| gui.is_open(d))
+            .map(|d| d.id)
+            .collect();
+        assert_eq!(open, [2, 3]);
     }
 }
