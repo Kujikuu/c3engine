@@ -947,6 +947,22 @@ pub const NODES: &[NodeDef] = &[
         "option(fill({label}), {next});",
     ),
     action(
+        "dialogue.input_option",
+        "Typed answer",
+        "Dialogue",
+        &[("label", Text), ("length", Number), ("next", Text)],
+        &[],
+        "input_option(fill({label}), {length}, {next});",
+    ),
+    pure(
+        "dialogue.accept_number",
+        "Typed number",
+        "Dialogue",
+        &[],
+        Number,
+        "accept_number()",
+    ),
+    action(
         "dialogue.close_option",
         "Answer (closes)",
         "Dialogue",

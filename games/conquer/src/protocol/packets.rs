@@ -127,6 +127,8 @@ pub const STATUS_XP_FULL: u32 = 0x10;
 /// MsgTaskDialog actions and the closing link.
 pub const DIALOG_TEXT: u8 = 1;
 pub const DIALOG_LINK: u8 = 2;
+/// A text box answering with what is typed (`data` its length).
+pub const DIALOG_EDIT: u8 = 3;
 pub const DIALOG_CREATE: u8 = 100;
 pub const DIALOG_ANSWER: u8 = 101;
 pub const DIALOG_CLOSE: u8 = 255;
@@ -394,8 +396,13 @@ pub fn npc_info(id: u32, cell: (u16, u16), look: u16, kind: u16, name: &str) -> 
 
 /// One part of an NPC dialog.
 pub fn dialog(action: u8, index: u8, text: &str) -> Vec<u8> {
+    dialog_with(action, index, 0, text)
+}
+
+/// A MsgTaskDialog line with `data` (a text box's length).
+pub fn dialog_with(action: u8, index: u8, data: u16, text: &str) -> Vec<u8> {
     packet(DIALOG, |w| {
-        w.u32(0).u16(0).u8(index).u8(action);
+        w.u32(0).u16(data).u8(index).u8(action);
         if text.is_empty() {
             strings(w, &[]);
         } else {
@@ -448,6 +455,8 @@ pub enum Request {
     Dialog {
         action: u8,
         index: u8,
+        /// What was typed in a text box.
+        text: String,
     },
     Talk {
         channel: u16,
@@ -558,9 +567,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
         DIALOG => {
             r.skip(6)?;
             let index = r.u8()?;
+            let action = r.u8()?;
+            // The first of its strings: what was typed in a text box.
+            let text = (r.u8().ok().filter(|&n| n > 0)).and_then(|_| r.short_str().ok());
             Request::Dialog {
-                action: r.u8()?,
+                action,
                 index,
+                text: text.unwrap_or_default(),
             }
         }
         TALK => {

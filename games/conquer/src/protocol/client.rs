@@ -705,7 +705,12 @@ impl ConquerClient {
             .enumerate()
             .take(usize::from(pk::DIALOG_CLOSE))
         {
-            out.push(pk::dialog(pk::DIALOG_LINK, i as u8, &option.label));
+            out.push(match option.input {
+                Some(length) => {
+                    pk::dialog_with(pk::DIALOG_EDIT, i as u8, length as u16, &option.label)
+                }
+                None => pk::dialog(pk::DIALOG_LINK, i as u8, &option.label),
+            });
         }
         out.push(pk::dialog(pk::DIALOG_CREATE, pk::DIALOG_CLOSE, ""));
         out
@@ -836,10 +841,16 @@ impl ConquerClient {
             Request::Dialog {
                 action: pk::DIALOG_ANSWER,
                 index,
+                text,
             } => inputs.push(if index == pk::DIALOG_CLOSE {
                 Input::CloseDialogue
-            } else {
+            } else if text.is_empty() {
                 Input::Answer(index.into())
+            } else {
+                Input::AnswerText {
+                    index: index.into(),
+                    text,
+                }
             }),
             Request::Ping(packet) => out.push(packet),
             Request::Talk { words, .. } if !words.trim().is_empty() => {

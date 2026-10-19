@@ -492,7 +492,7 @@ fn players_talk_to_npcs_and_scripts_change_them() {
     assert!(distance(p.cell, (2, 2)) <= 1, "walked up to the NPC");
     assert_eq!(p.dialogue.as_ref().unwrap().page.lines, ["Hello Hero"]);
 
-    sim.answer(hero, 1);
+    sim.answer(hero, 1, None);
     let p = sim.player(hero).unwrap();
     assert!(
         p.dialogue.is_none(),
@@ -513,7 +513,7 @@ fn players_talk_to_npcs_and_scripts_change_them() {
 
     sim.talk(hero, SHOP_NPC);
     sim.advance(sim.settings().tick_ms);
-    sim.answer(hero, 0);
+    sim.answer(hero, 0, None);
     assert_eq!(sim.player(hero).unwrap().shop, Some(SHOP_NPC));
     assert!(sim.take_events().contains(&Event::ShopOpened {
         player: hero,

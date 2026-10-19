@@ -315,6 +315,7 @@ fn line(param: &str) -> String {
         ("%user_name", "{player}"),
         ("%user_lev", "{level}"),
         ("%user_money", "{money}"),
+        ("%accept", "{accept}"),
         ("%npc_name", "{npc}"),
     ] {
         text = text.replace(tq, engine);
@@ -738,6 +739,22 @@ impl<'a> Builder<'a> {
                     ),
                 }
             }
+            // A text box answer: what is typed goes on to the task (`%accept`).
+            103 => match (int(0), self.answer_task(a)) {
+                (Some(length), Some(task)) => {
+                    if self.task_events.insert(task) {
+                        self.to_event.push(task);
+                    }
+                    let label = line(tokens.get(2).copied().unwrap_or(""));
+                    let values = [
+                        ("label", txt(&label)),
+                        ("length", num(length & 0xFF)),
+                        ("next", txt(&format!("task_{task}"))),
+                    ];
+                    Self::plain(g, "dialogue.input_option", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             104 => match int(2) {
                 Some(picture) => {
                     Self::plain(g, "dialogue.picture", &[("picture", num(picture))], column)
@@ -1160,10 +1177,17 @@ impl<'a> Builder<'a> {
     /// 201: an NPC's numbers (`data0`..`data3`, owner), kept as world flags
     /// `npc<id>.<field>` (this NPC's when no id is given).
     fn npc_attr(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        // `accept`: the number the player typed (data fields only).
+        let typed = tokens
+            .get(2)
+            .is_some_and(|t| t.eq_ignore_ascii_case("accept"));
         let (Some(field), Some(op), Some(value)) = (
             tokens.first().map(|t| t.to_ascii_lowercase()),
             tokens.get(1).copied(),
-            tokens.get(2).and_then(|t| t.parse::<i64>().ok()),
+            tokens
+                .get(2)
+                .and_then(|t| t.parse::<i64>().ok())
+                .or(typed.then_some(0)),
         ) else {
             return self.not_converted(g, a, column);
         };
@@ -1200,6 +1224,10 @@ impl<'a> Builder<'a> {
             "=" => {
                 let set = g.node("world.set_flag", &[("value", num(value))], column);
                 g.data(name, set, "name");
+                if typed && field.starts_with("data") {
+                    let accept = g.node("dialogue.accept_number", &[], column);
+                    g.data(accept, set, "value");
+                }
                 Emitted {
                     entry: Some(set),
                     ok: Some((set, "then")),

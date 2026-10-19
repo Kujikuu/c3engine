@@ -56,6 +56,8 @@ pub struct PlayerState {
     pub exp: i64,
     /// Fights between players on its map bring no crime or PK points.
     pub map_pk_free: bool,
+    /// What the player typed in the answer's text box (empty: none).
+    pub accept: String,
     /// Players on each game map (all, alive).
     pub map_players: BTreeMap<i64, (i64, i64)>,
     /// The look chosen when the character was made: body and hair (game-defined numbers).
@@ -105,6 +107,10 @@ pub struct DialogOption {
     pub label: String,
     /// Script function run when picked; `None` closes the dialogue.
     pub next: Option<String>,
+    /// A text box of this many characters at most: the answer is what the player types
+    /// (`accept()` in `next`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<u32>,
 }
 
 /// One of the player's items as scripts see it.

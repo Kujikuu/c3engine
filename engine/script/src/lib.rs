@@ -79,6 +79,15 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "input_option(label, length, next)",
+        "An answer with a text box of `length` characters; `next` runs with what was typed",
+    ),
+    (
+        "accept() / accept_number()",
+        "What the player typed in the answer's text box (as a number: 0 if it isn't one); \
+         {accept} in fill()",
+    ),
+    (
         "pick_row(table, column, value, weight)",
         "The key of a row of `table` whose `column` is `value`, drawn at random weighted by its \
          `weight` column; 0 when none",

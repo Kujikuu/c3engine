@@ -22,6 +22,11 @@ pub enum Input {
     Talk(u32),
     /// Pick answer `n` of the dialogue.
     Answer(usize),
+    /// Pick answer `index`, a text box, with what was typed.
+    AnswerText {
+        index: usize,
+        text: String,
+    },
     CloseDialogue,
     Buy {
         npc: u32,
@@ -82,7 +87,8 @@ impl Sim {
             Input::Attack(target) => self.attack(id, target),
             Input::PickUp(item) => self.pick_up(id, item),
             Input::Talk(npc) => self.talk(id, npc),
-            Input::Answer(n) => self.answer(id, n),
+            Input::Answer(n) => self.answer(id, n, None),
+            Input::AnswerText { index, text } => self.answer(id, index, Some(text)),
             Input::CloseDialogue => self.close_dialogue(id),
             Input::Buy { npc, kind } => self.buy(id, npc, kind),
             Input::Sell { npc, item } => self.sell(id, npc, item),

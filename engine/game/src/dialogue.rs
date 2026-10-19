@@ -37,12 +37,17 @@ impl Sim {
     }
 
     /// Picks answer `index` of the player's dialogue.
-    pub fn answer(&mut self, id: EntityId, index: usize) {
+    /// Answer `index` of the player's dialogue, with what was typed in its text box.
+    pub fn answer(&mut self, id: EntityId, index: usize, typed: Option<String>) {
         let Some(conversation) = self.players.get_mut(&id).and_then(|p| p.dialogue.take()) else {
             return;
         };
         let npc = conversation.npc.id;
         let mut state = self.player_state(id);
+        let limit = (conversation.page.options.get(index))
+            .and_then(|o| o.input)
+            .unwrap_or(0) as usize;
+        state.accept = typed.unwrap_or_default().chars().take(limit).collect();
         let Some(host) = self.scripts.as_mut() else {
             return;
         };
@@ -417,6 +422,7 @@ impl Sim {
             killed_by_monster: p.killed_by_monster.into(),
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
+            accept: String::new(),
             map_players: {
                 // Other maps as the host last said; this one as it is.
                 let here = (

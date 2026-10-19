@@ -589,8 +589,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         (509: the `upequipment` signal; Meteors, DragonBalls, down-levels, durability)
   - [x] Map populations (302: the server tells each map every map's count), map effects
         (312: effects on a cell), lottery (1508: TQ's `cq_lottery` prizes drawn by weight)
+  - [x] Typed answers (103): text boxes in dialogues (`input_option`, `accept()`,
+        `Input::AnswerText`, MsgDialog's edit line), `%accept`, NPC data set from it (201)
   - [ ] Map-item effect 1072 and message actions (1075: MsgAction 1000/1001), whose meaning in
-        5065 isn't known yet; typed answers (103)
+        5065 isn't known yet
   - [ ] NPC looks and life (201 `lookface`, `life`), guild checks (`%syn_id`, 1001
         `rank`/`rankshow`), warehouse money (1001 `storage_money`), business status
   - [ ] Guild, event and trap actions (7xx, 20xx, 21xx)

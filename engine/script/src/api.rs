@@ -63,8 +63,28 @@ fn dialogue(engine: &mut Engine, shared: &Shared) {
             c.page.options.push(DialogOption {
                 label: label.to_owned(),
                 next: Some(next.to_owned()),
+                input: None,
             })
         })
+    });
+    let s = shared.clone();
+    engine.register_fn(
+        "input_option",
+        move |label: &str, length: i64, next: &str| {
+            with(&s, |c| {
+                c.page.options.push(DialogOption {
+                    label: label.to_owned(),
+                    next: Some(next.to_owned()),
+                    input: Some(length.clamp(1, 255) as u32),
+                })
+            })
+        },
+    );
+    let s = shared.clone();
+    engine.register_fn("accept", move || with(&s, |c| c.player.accept.clone()));
+    let s = shared.clone();
+    engine.register_fn("accept_number", move || {
+        with(&s, |c| c.player.accept.trim().parse::<i64>().unwrap_or(0))
     });
     let s = shared.clone();
     engine.register_fn("option", move |label: &str| {
@@ -72,6 +92,7 @@ fn dialogue(engine: &mut Engine, shared: &Shared) {
             c.page.options.push(DialogOption {
                 label: label.to_owned(),
                 next: None,
+                input: None,
             })
         })
     });
@@ -346,6 +367,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
                 ("{npc}", c.npc.name.clone()),
                 ("{level}", c.player.level.to_string()),
                 ("{money}", c.player.money.to_string()),
+                ("{accept}", c.player.accept.clone()),
             ];
             (values.iter()).fold(text.to_owned(), |t, (key, value)| t.replace(key, value))
         })
