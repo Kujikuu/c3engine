@@ -1421,6 +1421,11 @@ impl eframe::App for Studio {
         self.shortcuts(&ctx);
         self.update_title(&ctx);
         self.poll_play();
+        if let Some((blueprint, node)) = self.playing.as_mut().and_then(|p| p.check_breakpoint()) {
+            self.notify(format!(
+                "Breakpoint: blueprint {blueprint}, node {node}; Play paused"
+            ));
+        }
         self.hot_reload();
         self.sync_console();
 

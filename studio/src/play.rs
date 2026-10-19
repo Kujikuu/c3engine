@@ -43,6 +43,8 @@ pub struct PlaySetup {
     pub project: Option<c3_project::Project>,
     /// The game's maps.
     pub maps: MapList,
+    /// Blueprint nodes Play stops after.
+    pub breakpoints: std::collections::BTreeSet<c3_script::debug::NodeKey>,
 }
 
 /// The game that plays `project`, for the local server's thread.
@@ -68,6 +70,13 @@ pub struct PlaySession {
 }
 
 impl PlaySession {
+    /// Pauses when the game reached a blueprint breakpoint; which one.
+    pub fn check_breakpoint(&mut self) -> Option<c3_script::debug::NodeKey> {
+        let hit = self.script_debug()?.borrow_mut().hit.take()?;
+        self.paused = true;
+        Some(hit)
+    }
+
     /// The blueprints' debug log of the game played here (a local game: an online one runs
     /// its scripts on the server).
     pub fn script_debug(
@@ -101,6 +110,7 @@ impl PlaySession {
                     start,
                     seed: c3_play::game::time_seed(),
                     settings: setup.settings,
+                    breakpoints: setup.breakpoints,
                 },
             )?;
             (session, None)

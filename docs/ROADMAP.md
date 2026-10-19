@@ -514,8 +514,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     collapse to function, Find uses across blueprints (click to go there), the path that ran
     glowing, watched output values and breakpoints pausing Play; undo, save and compile on
     every change
-  - [ ] Breakpoints on the very first events of a Play (login runs before the panel hands
-        its breakpoints to the new game)
+  - [x] Breakpoints on the very first events of a Play (the game starts with them; a hit
+        pauses Play whichever panel shows)
 - [x] Prove it: the Conquer project's NPCs, quests, formulas and events made only with graphs
   - Done 2026-10-19: the Conquer test project's events (welcome, map arrival, kill count,
     the timed gift) and NPCs (the Shopkeeper's lines, answers, purchase and loyalty reward;

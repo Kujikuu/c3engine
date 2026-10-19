@@ -397,6 +397,9 @@ impl Studio {
             settings,
             project: self.project.clone(),
             maps,
+            breakpoints: (self.blueprint_editor.as_ref())
+                .map(|e| e.breakpoints())
+                .unwrap_or_default(),
         };
         match crate::play::PlaySession::start(std::rc::Rc::clone(game), doc, start, state, setup) {
             Ok(session) => {

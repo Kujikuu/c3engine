@@ -147,6 +147,7 @@ fn local_session(
             start,
             seed: c3_play::game::time_seed(),
             settings: settings.clone(),
+            breakpoints: Default::default(),
         },
     )
 }

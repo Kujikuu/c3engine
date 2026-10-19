@@ -59,6 +59,8 @@ pub struct SessionSetup {
     pub seed: u64,
     /// The project's settings.
     pub settings: ProjectSettings,
+    /// Blueprint nodes a debugger stops after (from the first event on).
+    pub breakpoints: std::collections::BTreeSet<c3_script::debug::NodeKey>,
 }
 
 /// How the game view sits on screen this frame.
@@ -164,6 +166,7 @@ impl Session {
             seed: setup.seed,
             settings: setup.settings.gameplay.clone(),
             pk: settings::pk_map(&setup.settings, &setup.map_ids),
+            breakpoints: setup.breakpoints.clone(),
         };
         let (mut sim, problems) = game::new_sim(&scene, &game_setup, &*game.rules());
         let local_setup = game_setup.clone();

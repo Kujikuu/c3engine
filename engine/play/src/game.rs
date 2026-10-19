@@ -21,6 +21,8 @@ pub struct GameSetup {
     pub settings: GameplaySettings,
     /// Players may attack each other on the map.
     pub pk: bool,
+    /// Blueprint nodes a debugger stops after (from the first event on).
+    pub breakpoints: std::collections::BTreeSet<c3_script::debug::NodeKey>,
 }
 
 /// The game's rules, with the tables' problems marked as such.
@@ -77,10 +79,9 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     sim.set_portals(&scene.portals);
     sim.set_regions(scene.regions.clone());
     if let Some(dir) = &setup.scripts {
-        sim.set_scripts(
-            ScriptHost::new(dir, setup.tables.clone()),
-            setup.map_ids.clone(),
-        );
+        let host = ScriptHost::new(dir, setup.tables.clone());
+        host.debug().borrow_mut().breakpoints = setup.breakpoints.clone();
+        sim.set_scripts(host, setup.map_ids.clone());
     }
     (sim, problems)
 }

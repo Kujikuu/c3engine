@@ -76,6 +76,14 @@ struct Live {
 const LIT_TRACES: f32 = 48.0;
 
 impl BlueprintEditor {
+    /// Its breakpoints, as Play takes them.
+    pub(crate) fn breakpoints(&self) -> std::collections::BTreeSet<c3_script::debug::NodeKey> {
+        self.breakpoints
+            .iter()
+            .map(|&n| (self.name.clone(), n))
+            .collect()
+    }
+
     fn new(name: String, blueprint: Blueprint) -> Self {
         Self {
             name,

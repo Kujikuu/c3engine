@@ -111,6 +111,7 @@ impl Worlds {
             seed: self.seed,
             settings: self.settings.clone(),
             pk: m.map_ids.iter().any(|id| self.pk_maps.contains(id)),
+            breakpoints: Default::default(),
         };
         let (sim, problems) = game::new_sim(&m.scene, &setup, &*self.rules);
         problems.into_iter().for_each(say);
