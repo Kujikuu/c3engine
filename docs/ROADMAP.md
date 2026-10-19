@@ -473,8 +473,15 @@ PUL for the classic client).
     Control.Ani, one character per account entered at once, loading as the client's
     centred line. The menu's Settings page keeps the player's volumes and full screen; the
     radar shows over every game UI (the 5065 minimap window is M12, as decided)
-  - [x] The 3D preview of the bodies on the creation screen (a model control, `front.look:N`)
-  - Moved to M12 (Conquer parity): RoleChoose dialog 150, Server.dat groups and icons
+  - [x] The 3D preview of the bodies on the creation screen (a model control, `front.look:N`),
+        framed to the role's size and clear behind it
+  - [x] Classes before looks (TQ's RoleChoose): `characters.class` (name, description, profession,
+        looks, showcase figure), a `classes` screen, professions on players (saves, scripts'
+        `profession()`, the 5065 hero info); Conquer's dialog 150 with 3DSimpleRole's figures
+        and StrRes.ini's descriptions (`@file:key` texts)
+  - [x] Server groups and pictures (Server.dat's model): `network.group`, each server's group and
+        picture; image controls bound to data, clickable, with ImageFocus; Conquer's login shows
+        CDlgLogin's group and server slots from ani/Server.ani, the engine's list has group tabs
 
 ## M10: Visual scripting (Unreal Blueprints-style; a whole Conquer game without code) [x] (complete 2026-10-19)
 Decided 2026-10-18: every game rule and behaviour can be made in node graphs; Rhai stays as
@@ -503,7 +510,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
         teammates near a kill share its experience; the team shows down the left; scripts and
         nodes see the team (in a team, size, leader) and tell it
   - [x] Teams across maps: a hero keeps its team when travelling (logging out leaves it)
-  - Moved to M12: team actions between maps
+  - [x] Team actions between maps: the server shares each map's roster and carries invites,
+        notices and membership to the player's map; the team list shows teammates anywhere
+        (kills are still shared only with teammates in view, as TQ does); GM `/map ID X Y`
 - [x] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
       talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
   - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom
@@ -550,10 +559,6 @@ run on the server and the local session alike, and are edited through c3-edit wi
       skills, PK and name colours, ghost and revive, item upgrades
 - [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
       with its cursors and sounds
-  - [ ] RoleChoose dialog 150 (profession and sex; needs professions)
-  - [ ] Server.dat groups and server icons on the login (a list of names today)
-  - [ ] Team actions between maps (invites, messages, the team list and shared kills reach
-        teammates on the same map only)
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)
