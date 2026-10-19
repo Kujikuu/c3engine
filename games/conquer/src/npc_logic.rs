@@ -197,6 +197,8 @@ struct Builder<'a> {
     to_make: Vec<u32>,
     task_events: BTreeSet<u32>,
     to_event: Vec<u32>,
+    /// Chains a timer runs later (1071), each by its function's name.
+    timers: BTreeSet<u32>,
     actions_seen: BTreeSet<u32>,
     skipped: BTreeMap<u32, usize>,
     missing: BTreeSet<u32>,
@@ -303,6 +305,7 @@ impl<'a> Builder<'a> {
             to_make: Vec::new(),
             task_events: BTreeSet::new(),
             to_event: Vec::new(),
+            timers: BTreeSet::new(),
             actions_seen: BTreeSet::new(),
             skipped: BTreeMap::new(),
             missing: BTreeSet::new(),
@@ -396,6 +399,23 @@ impl<'a> Builder<'a> {
                 self.function(action);
             } else {
                 break;
+            }
+        }
+        // Timers run their chains: on a timer named `a<id>`, call function `a<id>`.
+        if !self.timers.is_empty() {
+            events.lane();
+            let timer = events.node("event.timer", &[], 0);
+            let mut from: Exit = (timer, "then");
+            for &chain in &self.timers {
+                let name = format!("a{chain}");
+                let eq = events.node("text.equal", &[("b", txt(&name))], 1);
+                events.wire((timer, "name"), (eq, "a"));
+                let branch = events.node("flow.branch", &[], 2);
+                events.data(eq, branch, "condition");
+                events.exec(from, branch);
+                let call = events.node("flow.call", &[("name", txt(&name))], 3);
+                events.exec((branch, "true"), call);
+                from = (branch, "false");
             }
         }
         self.blueprint.events = events.graph;
@@ -813,6 +833,28 @@ impl<'a> Builder<'a> {
             },
             1073 | 1074 => self.statistic(g, a, column),
             1080 | 1081 => self.timestamp(g, a, column),
+            // Male: Conquer's male bodies are 3 and 4 (TQ: lookface 1003, 1004).
+            1026 => {
+                let body = g.node("player.body", &[], column);
+                let male = self.compare_node(g, body, ">", 2, column);
+                Self::branch(g, male, column)
+            }
+            1005 => self.hair(g, a, &tokens, column),
+            201 => self.npc_attr(g, a, &tokens, column),
+            1071 => match (int(0), tokens.get(1).and_then(|t| t.parse::<u32>().ok())) {
+                (Some(seconds), Some(chain)) if chain != 0 => {
+                    if self.functions.insert(chain) {
+                        self.to_make.push(chain);
+                    }
+                    self.timers.insert(chain);
+                    let values = [
+                        ("name", txt(&format!("a{chain}"))),
+                        ("seconds", num(seconds)),
+                    ];
+                    Self::plain(g, "player.start_timer", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // Where the player comes back to; going there.
             1004 => match (int(0), int(1), int(2)) {
                 (Some(map), Some(x), Some(y)) => {
@@ -933,6 +975,145 @@ impl<'a> Builder<'a> {
                 .starts_with("INSERT INTO CQ_LOG") =>
             {
                 Self::nothing()
+            }
+            _ => self.not_converted(g, a, column),
+        }
+    }
+
+    /// 1005: the hair's colour (hundreds digit) or style (last two digits) set.
+    fn hair(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let (Some(what), Some(n)) = (
+            tokens.first(),
+            tokens.get(1).and_then(|t| t.parse::<i64>().ok()),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        let hair = g.node("player.hair", &[], column);
+        // Without the part being set, then that part added back.
+        let (keep_mod, part) = match what.to_ascii_lowercase().as_str() {
+            // h % 100 + (h / 1000) * 1000 + N * 100
+            "color" => (100, (n % 10) * 100),
+            // h - h % 100 + N % 100 (a style below 100 is 300 more)
+            "style" => (100, n % 100),
+            _ => return self.not_converted(g, a, column),
+        };
+        let value = if what.eq_ignore_ascii_case("color") {
+            let low = g.node("math.remainder", &[("b", num(keep_mod))], column);
+            g.data(hair, low, "a");
+            let thousands = g.node("math.divide", &[("b", num(1000))], column);
+            g.data(hair, thousands, "a");
+            let high = g.node("math.multiply", &[("b", num(1000))], column);
+            g.data(thousands, high, "a");
+            let sum = g.node("math.add", &[], column);
+            g.data(low, sum, "a");
+            g.data(high, sum, "b");
+            let with = g.node("math.add", &[("b", num(part))], column);
+            g.data(sum, with, "a");
+            with
+        } else {
+            let low = g.node("math.remainder", &[("b", num(keep_mod))], column);
+            g.data(hair, low, "a");
+            let base = g.node("math.subtract", &[], column);
+            g.data(hair, base, "a");
+            g.data(low, base, "b");
+            let with = g.node("math.add", &[("b", num(part))], column);
+            g.data(base, with, "a");
+            // A hair number below 100 is 300 more (TQ's default hair colour).
+            let seq = g.node("flow.sequence", &[], column);
+            let low = self.compare_node(g, with, "<", 100, column);
+            let branch = g.node("flow.branch", &[], column);
+            g.data(low, branch, "condition");
+            g.exec((seq, "then 0"), branch);
+            let plus = g.node("math.add", &[("b", num(300))], column);
+            g.data(with, plus, "a");
+            for (out, value) in [("true", plus), ("false", with)] {
+                let set = g.node("player.set_hair", &[], column + 1);
+                g.data(value, set, "hair");
+                g.exec((branch, out), set);
+            }
+            return Emitted {
+                entry: Some(seq),
+                ok: Some((seq, "then 1")),
+                fail: None,
+            };
+        };
+        let set = g.node("player.set_hair", &[], column);
+        g.data(value, set, "hair");
+        Emitted {
+            entry: Some(set),
+            ok: Some((set, "then")),
+            fail: None,
+        }
+    }
+
+    /// 201: an NPC's numbers (`data0`..`data3`, owner), kept as world flags
+    /// `npc<id>.<field>` (this NPC's when no id is given).
+    fn npc_attr(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let (Some(field), Some(op), Some(value)) = (
+            tokens.first().map(|t| t.to_ascii_lowercase()),
+            tokens.get(1).copied(),
+            tokens.get(2).and_then(|t| t.parse::<i64>().ok()),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        if !matches!(
+            field.as_str(),
+            "data0" | "data1" | "data2" | "data3" | "ownerid" | "ownertype"
+        ) {
+            return self.not_converted(g, a, column);
+        }
+        // The flag's name: `npc<id>.<field>`, the id this NPC's unless the action names one.
+        let id = tokens
+            .get(3)
+            .and_then(|t| t.parse::<i64>().ok())
+            .filter(|&id| id != 0);
+        let name = match id {
+            Some(id) => g.node(
+                "text.join",
+                &[
+                    ("a", txt(&format!("npc{id}"))),
+                    ("b", txt(&format!(".{field}"))),
+                ],
+                column,
+            ),
+            None => {
+                let npc = g.node("npc.id", &[], column);
+                let prefix = g.node("text.join", &[("a", txt("npc"))], column);
+                g.data(npc, prefix, "b");
+                let full = g.node("text.join", &[("b", txt(&format!(".{field}")))], column);
+                g.data(prefix, full, "a");
+                full
+            }
+        };
+        match op {
+            "=" => {
+                let set = g.node("world.set_flag", &[("value", num(value))], column);
+                g.data(name, set, "name");
+                Emitted {
+                    entry: Some(set),
+                    ok: Some((set, "then")),
+                    fail: None,
+                }
+            }
+            "+=" => {
+                let flag = g.node("world.flag", &[], column);
+                g.data(name, flag, "name");
+                let add = g.node("math.add", &[("b", num(value))], column);
+                g.data(flag, add, "a");
+                let set = g.node("world.set_flag", &[], column);
+                g.data(name, set, "name");
+                g.data(add, set, "value");
+                Emitted {
+                    entry: Some(set),
+                    ok: Some((set, "then")),
+                    fail: None,
+                }
+            }
+            "==" | "<" | "<=" | ">" | ">=" => {
+                let flag = g.node("world.flag", &[], column);
+                g.data(name, flag, "name");
+                let cmp = self.compare_node(g, flag, op, value, column);
+                Self::branch(g, cmp, column)
             }
             _ => self.not_converted(g, a, column),
         }

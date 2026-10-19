@@ -78,6 +78,10 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "body() / hair() / set_hair(n)",
+        "The player's look: body and hair as the game numbers them; changes the hair",
+    ),
     ("text(line)", "Adds a line to what the NPC says"),
     (
         "option(label, next)",

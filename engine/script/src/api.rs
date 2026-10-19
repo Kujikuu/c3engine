@@ -248,6 +248,14 @@ fn more(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("add_pk", effect(shared, Effect::Pk));
     engine.register_fn("add_mana", effect(shared, Effect::Mana));
     let s = shared.clone();
+    engine.register_fn("body", move || with(&s, |c| c.player.body));
+    let s = shared.clone();
+    engine.register_fn("hair", move || with(&s, |c| c.player.hair));
+    let s = shared.clone();
+    engine.register_fn("set_hair", move |hair: i64| {
+        with(&s, |c| c.player.hair = hair.max(0))
+    });
+    let s = shared.clone();
     engine.register_fn("mana", move || with(&s, |c| c.player.mana));
     let s = shared.clone();
     engine.register_fn("max_mana", move || with(&s, |c| c.player.max_mana));

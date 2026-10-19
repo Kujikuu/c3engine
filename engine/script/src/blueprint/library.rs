@@ -890,6 +890,16 @@ pub const NODES: &[NodeDef] = &[
     ),
     pure("player.pk", "PK points", "Player", &[], Number, "pk()"),
     pure("player.mana", "Mana", "Player", &[], Number, "mana()"),
+    pure("player.body", "Body", "Player", &[], Number, "body()"),
+    pure("player.hair", "Hair", "Player", &[], Number, "hair()"),
+    action(
+        "player.set_hair",
+        "Set hair",
+        "Player",
+        &[("hair", Number)],
+        &[],
+        "set_hair({hair});",
+    ),
     pure(
         "player.max_mana",
         "Max mana",

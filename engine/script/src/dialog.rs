@@ -48,6 +48,9 @@ pub struct PlayerState {
     pub bag_space: i64,
     pub mana: i64,
     pub max_mana: i64,
+    /// The look chosen when the character was made: body and hair (game-defined numbers).
+    pub body: i64,
+    pub hair: i64,
 }
 
 impl PlayerState {

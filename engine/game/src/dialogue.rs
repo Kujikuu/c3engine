@@ -322,6 +322,8 @@ impl Sim {
             bag_space: self.bag_size().saturating_sub(p.bag.len()) as i64,
             mana: p.mana.into(),
             max_mana: p.stats.max_mana.into(),
+            body: p.look.body.into(),
+            hair: p.look.hair.into(),
         }
     }
 
@@ -333,6 +335,7 @@ impl Sim {
         };
         p.money = after.money.max(0) as u64;
         p.flags = after.flags.clone();
+        p.look.hair = u32::try_from(after.hair).unwrap_or(p.look.hair);
         // Attributes at their default aren't kept.
         let defaults: BTreeMap<&str, i64> = (self.settings.attributes.iter())
             .map(|a| (a.name.as_str(), a.default))
