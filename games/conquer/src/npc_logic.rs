@@ -834,6 +834,19 @@ impl<'a> Builder<'a> {
             1073 | 1074 => self.statistic(g, a, column),
             1080 | 1081 => self.timestamp(g, a, column),
             // Male: Conquer's male bodies are 3 and 4 (TQ: lookface 1003, 1004).
+            // An NPC goes to a cell of a map (TQ hides one by sending it to 0, 0).
+            301 => match (int(0), int(1), int(2)) {
+                (Some(map), Some(x), Some(y)) => {
+                    let values = [
+                        ("npc", num(a.data)),
+                        ("map", num(map)),
+                        ("x", num(x)),
+                        ("y", num(y)),
+                    ];
+                    Self::plain(g, "npc.move", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             1026 => {
                 let body = g.node("player.body", &[], column);
                 let male = self.compare_node(g, body, ">", 2, column);

@@ -187,6 +187,12 @@ pub enum Effect {
     Mana(i64),
     /// The player drops this much of its money where it stands.
     DropMoney(i64),
+    /// NPC `npc` goes to `cell` of game map `map` (another map: it leaves this one).
+    MoveNpc {
+        npc: i64,
+        map: i64,
+        cell: (i64, i64),
+    },
     /// Each item in the player's bag falls where it stands with this chance (percent).
     DropBagItems(i64),
     /// Experience lost (never below 0).

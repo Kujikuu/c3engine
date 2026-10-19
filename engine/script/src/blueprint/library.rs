@@ -862,6 +862,14 @@ pub const NODES: &[NodeDef] = &[
     ),
     // NPC dialogue.
     pure("npc.id", "NPC id", "Dialogue", &[], Number, "npc_id()"),
+    action(
+        "npc.move",
+        "Move NPC",
+        "World",
+        &[("npc", Number), ("map", Map), ("x", Number), ("y", Number)],
+        &[],
+        "move_npc({npc}, {map}, {x}, {y});",
+    ),
     pure("npc.name", "NPC name", "Dialogue", &[], Text, "npc_name()"),
     action(
         "dialogue.text",

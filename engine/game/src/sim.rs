@@ -57,6 +57,8 @@ pub struct Sim {
     pub(crate) elsewhere: BTreeMap<EntityId, crate::teams::Mate>,
     /// What teams asked of players on other maps, for the host to carry.
     pub(crate) team_ops: Vec<(EntityId, crate::teams::TeamOp)>,
+    /// NPCs that left for other maps, for the host to bring there.
+    pub(crate) npc_moves: Vec<(u32, c3_scene::Npc)>,
 }
 
 impl Sim {
@@ -103,6 +105,7 @@ impl Sim {
             team_invites: BTreeMap::new(),
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),
+            npc_moves: Vec::new(),
         };
         sim.fill_spawns();
         sim

@@ -170,6 +170,8 @@ impl Sim {
             .iter()
             .filter(|e| match e.private_to() {
                 Some(player) => player == id,
+                // NPCs coming and going concern the whole map.
+                None if matches!(e, Event::NpcMoved { .. } | Event::NpcArrived(_)) => true,
                 None => {
                     !matches!(e, Event::Appeared(_) | Event::Vanished(_))
                         && e.entities()
@@ -211,6 +213,9 @@ impl Sim {
                     self.events.push(Event::Appeared(id));
                 }
             }
+        }
+        for event in &update.events {
+            self.mirror_npc(event);
         }
         self.events.extend(update.events);
         for id in update.gone {

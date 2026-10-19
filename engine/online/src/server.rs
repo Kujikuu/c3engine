@@ -161,6 +161,7 @@ impl GameServer {
             }
         }
         self.carry_team_ops();
+        self.carry_npc_moves();
         for (from, hero, map, cell) in travels {
             self.travel(from, hero, map, cell);
         }
@@ -364,6 +365,21 @@ impl GameServer {
         self.log.push(format!("Loaded map {}", world.key));
         self.maps.push(world);
         Ok(self.maps.len() - 1)
+    }
+
+    /// Brings NPCs that left a map to the maps they went to (loaded if need be).
+    fn carry_npc_moves(&mut self) {
+        let moves: Vec<_> = (self.maps.iter_mut())
+            .flat_map(|m| m.sim.take_npc_moves())
+            .collect();
+        for (map, npc) in moves {
+            match self.map_index(MapKey::Id(map)) {
+                Ok(index) => self.maps[index].sim.arrive_npc(npc),
+                Err(e) => self
+                    .log
+                    .push(format!("NPC {} can't go to map {map}: {e}", npc.id)),
+            }
+        }
     }
 
     /// Takes player `hero` from map `from` to `cell` of the map with game id `map`.

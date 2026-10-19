@@ -163,10 +163,8 @@ fn create_table(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
 fn import_server_data(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
     let file: String = arg(args, "file")?;
     let bytes = std::fs::read(&file).map_err(|e| format!("can't read {file}: {e}"))?;
-    let data = (ws
-        .game()
-        .import_server_data(&bytes))
-    .ok_or_else(|| format!("{} has no server data to import", ws.game().name()))?;
+    let data = (ws.game().import_server_data(&bytes))
+        .ok_or_else(|| format!("{} has no server data to import", ws.game().name()))?;
     let project = ws.project().clone();
     let listed = ws.settings()?.settings().maps.clone();
     let written = c3_play::server_data::write(&project, &data, &listed, &file);

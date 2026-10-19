@@ -248,6 +248,16 @@ fn more(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("add_pk", effect(shared, Effect::Pk));
     engine.register_fn("add_mana", effect(shared, Effect::Mana));
     engine.register_fn("drop_money", effect(shared, Effect::DropMoney));
+    let s = shared.clone();
+    engine.register_fn("move_npc", move |npc: i64, map: i64, x: i64, y: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::MoveNpc {
+                npc,
+                map,
+                cell: (x, y),
+            })
+        })
+    });
     engine.register_fn("drop_bag_items", effect(shared, Effect::DropBagItems));
     engine.register_fn("lose_exp", effect(shared, Effect::LoseExp));
     let s = shared.clone();

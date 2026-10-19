@@ -946,6 +946,38 @@ fn players_fight_players_only_on_pk_maps() {
 }
 
 #[test]
+fn npcs_move_within_the_map_and_leave_for_others() {
+    let guide = Npc {
+        id: 7,
+        name: "Guide".into(),
+        cell: (3, 3),
+        direction: 0,
+        look: 1,
+        kind: 0,
+        script: String::new(),
+        extra: Default::default(),
+    };
+    let mut sim = Sim::new(Grid::new(20, 20), vec![guide], vec![], rules(), 3);
+    sim.set_map_ids(vec![1002]);
+    let viewer = sim.add_player("A", (5, 5), 1);
+    let mut mirror = Sim::new(Grid::new(20, 20), sim.npcs().to_vec(), vec![], rules(), 3);
+    let mut seen = Viewer::default();
+    sim.move_npc(7, 1002, (8, 8));
+    let events = sim.take_events();
+    mirror.apply_update(sim.update_for(viewer, &mut seen, &events));
+    assert_eq!(mirror.npcs()[0].cell, (8, 8), "the mirror follows");
+    sim.move_npc(7, 1011, (4, 4));
+    let events = sim.take_events();
+    mirror.apply_update(sim.update_for(viewer, &mut seen, &events));
+    assert!(sim.npcs().is_empty() && mirror.npcs().is_empty());
+    let moves = sim.take_npc_moves();
+    assert_eq!((moves[0].0, moves[0].1.cell), (1011, (4, 4)));
+    let mut other = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    other.arrive_npc(moves[0].1.clone());
+    assert_eq!(other.npcs()[0].name, "Guide");
+}
+
+#[test]
 fn the_dead_walk_as_ghosts_and_come_back_when_they_ask() {
     let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
     let mut settings = sim.settings().clone();

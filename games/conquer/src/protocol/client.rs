@@ -152,6 +152,12 @@ fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> 
     })
 }
 
+/// NPC `n` as MsgNpcInfo: its look with its facing.
+fn npc_info(n: &c3_scene::Npc) -> Vec<u8> {
+    let look = (n.look * 10 + u32::from(n.direction % 8)) as u16;
+    pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name)
+}
+
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
     rules.item(kind).and_then(|t| t.slot).unwrap_or(0)
 }
@@ -377,10 +383,7 @@ impl ConquerClient {
 
     /// The map's NPCs and every role in view.
     fn surroundings(&self) -> Vec<Vec<u8>> {
-        let npcs = self.npcs.iter().map(|n| {
-            let look = (n.look * 10 + u32::from(n.direction % 8)) as u16;
-            pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name)
-        });
+        let npcs = self.npcs.iter().map(npc_info);
         npcs.chain(self.seen.values().map(|(_, packet)| packet.clone()))
             .collect()
     }
@@ -548,6 +551,29 @@ impl ConquerClient {
     fn event(&mut self, event: &Event, ids: &mut Ids) -> Vec<Vec<u8>> {
         let hero = self.hero;
         match event {
+            // An NPC moved (gone from where it stood, shown where it stands), left or came.
+            Event::NpcMoved { npc, cell } => {
+                let Some(at) = self.npcs.iter().position(|n| n.id == *npc) else {
+                    return Vec::new();
+                };
+                let old = cell16(self.npcs[at].cell);
+                let mut out = vec![pk::action(*npc, action::LEAVE_MAP, 0, old, 0)];
+                match cell {
+                    Some(cell) => {
+                        self.npcs[at].cell = *cell;
+                        out.push(npc_info(&self.npcs[at]));
+                    }
+                    None => {
+                        self.npcs.remove(at);
+                    }
+                }
+                out
+            }
+            Event::NpcArrived(npc) => {
+                self.npcs.retain(|n| n.id != npc.id);
+                self.npcs.push(npc.clone());
+                vec![npc_info(npc)]
+            }
             Event::Moved { id, to, running } => {
                 let (Some(cid), Some(from)) =
                     (self.client_id(*id, ids), self.cells.get(id).copied())

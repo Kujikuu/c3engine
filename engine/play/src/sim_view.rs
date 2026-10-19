@@ -17,6 +17,8 @@ const PICK_HEIGHT: f32 = 100.0;
 pub struct SimView {
     /// Actor index of each player and monster.
     actors: HashMap<EntityId, usize>,
+    /// Actor index of each NPC.
+    npcs: HashMap<u32, usize>,
 }
 
 impl SimView {
@@ -33,7 +35,11 @@ impl SimView {
         world.actors.clear();
         world.actors.push(hero_actor);
         view.actors.insert(hero, 0);
-        world.add_npcs();
+        for npc in sim.npcs() {
+            if let Some(index) = world.add_npc(npc) {
+                view.npcs.insert(npc.id, index);
+            }
+        }
         let others: Vec<EntityId> = (sim.players().map(|p| p.id))
             .chain(sim.monsters().map(|m| m.id))
             .filter(|&id| id != hero)
@@ -144,6 +150,7 @@ impl SimView {
                     }
                 }
                 Event::Dressed { player } => self.dress(sim, player, world),
+                Event::NpcMoved { .. } | Event::NpcArrived(_) => self.npc_event(event, world),
                 _ => {}
             }
         }
@@ -194,13 +201,49 @@ impl SimView {
         let Some(index) = self.actors.remove(&id) else {
             return;
         };
+        self.remove_actor(index, world);
+    }
+
+    /// Removes actor `index`; the actor that took its place (the last) is followed.
+    fn remove_actor(&mut self, index: usize, world: &mut World) {
         let last = world.actors.len() - 1;
         world.remove_actor(index);
-        // The last actor moved into the freed place.
-        if index != last
-            && let Some(moved) = self.actors.values_mut().find(|i| **i == last)
-        {
+        if index == last {
+            return;
+        }
+        let moved = (self.actors.values_mut())
+            .chain(self.npcs.values_mut())
+            .find(|i| **i == last);
+        if let Some(moved) = moved {
             *moved = index;
+        }
+    }
+
+    /// An NPC moved, left or came.
+    fn npc_event(&mut self, event: &Event, world: &mut World) {
+        match event {
+            Event::NpcMoved {
+                npc,
+                cell: Some(cell),
+            } => {
+                if let Some(&i) = self.npcs.get(npc) {
+                    world.actors[i].place(*cell);
+                }
+            }
+            Event::NpcMoved { npc, cell: None } => {
+                if let Some(i) = self.npcs.remove(npc) {
+                    self.remove_actor(i, world);
+                }
+            }
+            Event::NpcArrived(npc) => {
+                if let Some(i) = self.npcs.remove(&npc.id) {
+                    self.remove_actor(i, world);
+                }
+                if let Some(i) = world.add_npc(npc) {
+                    self.npcs.insert(npc.id, i);
+                }
+            }
+            _ => {}
         }
     }
 

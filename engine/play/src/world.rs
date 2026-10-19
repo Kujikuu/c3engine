@@ -14,7 +14,6 @@ use c3_render::scene_view::SceneView;
 use c3_render::{Frame, Light, MeshDraw, Renderer, View};
 use c3_scene::Scene;
 use glam::Vec2;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Clickable box of an NPC around its feet, in world pixels.
@@ -202,23 +201,27 @@ impl World {
 
     /// An actor for each of the scene's NPCs (after the hero), each look loaded once.
     pub fn add_npcs(&mut self) {
+        let npcs = self.scene.npcs.clone();
+        for npc in &npcs {
+            self.add_npc(npc);
+        }
+    }
+
+    /// An actor for `npc` playing its stand-by; its index, or `None` when its look can't be
+    /// made (said on the console).
+    pub fn add_npc(&mut self, npc: &c3_scene::Npc) -> Option<usize> {
         let looks = self.game.looks();
         let stand = looks.action(crate::Act::Stand);
-        let mut characters = HashMap::new();
-        for npc in &self.scene.npcs {
-            let look = looks.npc(npc);
-            let character = characters
-                .entry(npc.look)
-                .or_insert_with(|| looks.character(&look, stand));
-            match character {
-                Ok(c) => self.actors.push(Actor::new(
-                    &*self.game,
-                    c.clone(),
-                    look,
-                    npc.cell,
-                    npc.direction,
-                )),
-                Err(e) => eprintln!("warning: NPC {} ({}): {e}", npc.name, npc.id),
+        let look = looks.npc(npc);
+        match looks.character(&look, stand) {
+            Ok(c) => {
+                let actor = Actor::new(&*self.game, c, look, npc.cell, npc.direction);
+                self.actors.push(actor);
+                Some(self.actors.len() - 1)
+            }
+            Err(e) => {
+                eprintln!("warning: NPC {} ({}): {e}", npc.name, npc.id);
+                None
             }
         }
     }

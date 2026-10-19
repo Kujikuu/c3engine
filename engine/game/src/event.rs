@@ -147,4 +147,11 @@ pub enum Event {
     },
     /// A problem with the game's data (a spawn of an unknown monster type).
     Warning(String),
+    /// NPC `npc` moved to `cell` of this map, or (`None`) left it.
+    NpcMoved {
+        npc: u32,
+        cell: Option<CellPos>,
+    },
+    /// An NPC came to this map from another.
+    NpcArrived(c3_scene::Npc),
 }

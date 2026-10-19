@@ -79,6 +79,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "move_npc(npc, map, x, y)",
+        "Moves NPC `npc` to a cell of game map `map` (another map: it leaves this one for it)",
+    ),
+    (
         "item_type_of(id) / set_item_type(id, type)",
         "The type of the player's item `id` (bag or worn; 0: none); changes it (an upgrade)",
     ),

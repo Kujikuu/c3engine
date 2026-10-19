@@ -192,6 +192,11 @@ impl Sim {
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
             Effect::Life(change) => self.script_life(id, change),
             Effect::DropMoney(amount) => self.drop_money_of(id, amount),
+            Effect::MoveNpc { npc, map, cell } => {
+                if let (Ok(npc), Ok(map)) = (u32::try_from(npc), u32::try_from(map)) {
+                    self.move_npc(npc, map, (cell.0 as i32, cell.1 as i32));
+                }
+            }
             Effect::DropBagItems(percent) => self.drop_bag_items(id, percent),
             Effect::LoseExp(amount) => {
                 if let Some(p) = self.players.get_mut(&id) {
@@ -251,6 +256,58 @@ impl Sim {
                     p.arrive_tag = Some(tag);
                 }
             }
+        }
+    }
+
+    /// Moves NPC `npc` to `cell` of map `map`: here it walks there; to another map it
+    /// leaves, for the host to bring it there ([`Sim::take_npc_moves`]).
+    pub fn move_npc(&mut self, npc: u32, map: u32, cell: CellPos) {
+        let Some(at) = self.npcs.iter().position(|n| n.id == npc) else {
+            return;
+        };
+        if self.is_this_map(map) {
+            self.npcs[at].cell = cell;
+            self.events.push(Event::NpcMoved {
+                npc,
+                cell: Some(cell),
+            });
+            return;
+        }
+        let mut gone = self.npcs.remove(at);
+        gone.cell = cell;
+        self.events.push(Event::NpcMoved { npc, cell: None });
+        self.npc_moves.push((map, gone));
+    }
+
+    /// NPCs that left for other maps: the map each goes to, and the NPC at its new cell.
+    pub fn take_npc_moves(&mut self) -> Vec<(u32, c3_scene::Npc)> {
+        std::mem::take(&mut self.npc_moves)
+    }
+
+    /// NPC `npc` comes to this map (from another): it stands where it says.
+    pub fn arrive_npc(&mut self, npc: c3_scene::Npc) {
+        self.npcs.retain(|n| n.id != npc.id);
+        self.npcs.push(npc.clone());
+        self.events.push(Event::NpcArrived(npc));
+    }
+
+    /// A mirror follows the server's NPCs moving and arriving.
+    pub(crate) fn mirror_npc(&mut self, event: &Event) {
+        match event {
+            Event::NpcMoved {
+                npc,
+                cell: Some(cell),
+            } => {
+                if let Some(n) = self.npcs.iter_mut().find(|n| n.id == *npc) {
+                    n.cell = *cell;
+                }
+            }
+            Event::NpcMoved { npc, cell: None } => self.npcs.retain(|n| n.id != *npc),
+            Event::NpcArrived(npc) => {
+                self.npcs.retain(|n| n.id != npc.id);
+                self.npcs.push(npc.clone());
+            }
+            _ => {}
         }
     }
 
