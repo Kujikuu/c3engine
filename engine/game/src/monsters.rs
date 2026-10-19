@@ -223,7 +223,7 @@ impl Sim {
         });
     }
 
-    fn remove_monster(&mut self, id: EntityId) {
+    pub(crate) fn remove_monster(&mut self, id: EntityId) {
         let Some(m) = self.monsters.remove(&id) else {
             return;
         };

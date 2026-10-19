@@ -331,6 +331,39 @@ impl Sim {
                     self.remove_trap(trap);
                 }
             }
+            Effect::DropAt { item, map, cell } => {
+                let here = u32::try_from(map).is_ok_and(|m| self.is_this_map(m));
+                if let (true, Ok(item)) = (here, u32::try_from(item)) {
+                    let cell = (cell.0 as i32, cell.1 as i32);
+                    self.drop_at(cell, crate::Drop::Item(item));
+                }
+            }
+            Effect::RemoveMonsters { map, kind } => {
+                if !u32::try_from(map).is_ok_and(|m| self.is_this_map(m)) {
+                    return;
+                }
+                let gone: Vec<EntityId> = (self.monsters.values())
+                    .filter(|m| m.is_alive() && i64::from(m.kind) == kind)
+                    .map(|m| m.id)
+                    .collect();
+                // Gone without dying (no loot).
+                for monster in gone {
+                    self.remove_monster(monster);
+                }
+            }
+            Effect::MapTravel { from, to, cell } => {
+                if !u32::try_from(from).is_ok_and(|m| self.is_this_map(m)) {
+                    return;
+                }
+                let to = c3_scene::PortalTarget {
+                    map: u32::try_from(to).unwrap_or(0),
+                    cell: (cell.0 as i32, cell.1 as i32),
+                };
+                let here: Vec<EntityId> = self.players.keys().copied().collect();
+                for player in here {
+                    self.travel(player, to);
+                }
+            }
             Effect::WorldTimer { name, secs } => {
                 let at = self.now_ms + u64::try_from(secs.max(0)).unwrap_or(0) * 1000;
                 self.world_timers.push((at, name));

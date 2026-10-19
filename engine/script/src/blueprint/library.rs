@@ -217,6 +217,30 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     action(
+        "world.drop_at",
+        "Leave an item on a cell",
+        "World",
+        &[("item", Item), ("map", Map), ("x", Number), ("y", Number)],
+        &[],
+        "drop_at({item}, {map}, {x}, {y});",
+    ),
+    action(
+        "world.remove_monsters",
+        "Remove monsters of a type",
+        "World",
+        &[("map", Map), ("kind", Number)],
+        &[],
+        "remove_monsters({map}, {kind});",
+    ),
+    action(
+        "world.map_travel",
+        "Send a map's players",
+        "World",
+        &[("from", Map), ("to", Map), ("x", Number), ("y", Number)],
+        &[],
+        "map_travel({from}, {to}, {x}, {y});",
+    ),
+    action(
         "world.create_trap",
         "Place a trap",
         "World",

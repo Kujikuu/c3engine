@@ -344,6 +344,23 @@ pub enum Effect {
     },
     /// The trap the player set off, gone.
     EraseTrap,
+    /// An item of type `item` lies on `cell` of game map `map` (this one).
+    DropAt {
+        item: i64,
+        map: i64,
+        cell: (i64, i64),
+    },
+    /// The living monsters of type `kind` on game map `map` (this one) gone.
+    RemoveMonsters {
+        map: i64,
+        kind: i64,
+    },
+    /// Every player on game map `from` (this one) goes to `cell` of map `to`.
+    MapTravel {
+        from: i64,
+        to: i64,
+        cell: (i64, i64),
+    },
     /// World event `name` (no player) runs after `secs`.
     WorldTimer {
         name: String,

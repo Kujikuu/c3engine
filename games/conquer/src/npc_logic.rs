@@ -1628,6 +1628,40 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // An item left on a cell of a map.
+            304 => match (int(0), int(1), int(2), int(3)) {
+                (Some(item), Some(map), Some(x), Some(y)) => {
+                    let values = [
+                        ("item", num(item)),
+                        ("map", num(map)),
+                        ("x", num(x)),
+                        ("y", num(y)),
+                    ];
+                    Self::plain(g, "world.drop_at", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // A map's living monsters of a type gone.
+            2009 => match (int(0), int(1)) {
+                (Some(map), Some(kind)) => {
+                    let values = [("map", num(map)), ("kind", num(kind))];
+                    Self::plain(g, "world.remove_monsters", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Every player on a map sent to a cell of another.
+            2012 => match (int(0), int(1), int(2), int(3)) {
+                (Some(from), Some(to), Some(x), Some(y)) => {
+                    let values = [
+                        ("from", num(from)),
+                        ("to", num(to)),
+                        ("x", num(x)),
+                        ("y", num(y)),
+                    ];
+                    Self::plain(g, "world.map_travel", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // The trap set off, gone.
             2102 => Self::plain(g, "world.erase_trap", &[], column),
             // A chain run later, with no player (the map group's timer).

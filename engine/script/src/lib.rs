@@ -81,6 +81,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "drop_at(item, map, x, y) / remove_monsters(map, kind) / map_travel(from, to, x, y)",
+        "An item left on a cell of a map; a map's living monsters of a type gone; every \
+         player on map `from` sent to a cell of map `to` (each: this map only)",
+    ),
+    (
         "create_trap(kind, look, map, x, y) / erase_trap()",
         "A trap on a cell of a map (this one): stepping on it raises custom event \
          `trap_<kind>`; the trap the player set off, gone",

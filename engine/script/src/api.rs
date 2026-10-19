@@ -510,6 +510,30 @@ fn more(engine: &mut Engine, shared: &Shared) {
         with(&s, |c| c.effects.push(Effect::EraseTrap))
     });
     let s = shared.clone();
+    engine.register_fn("drop_at", move |item: i64, map: i64, x: i64, y: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::DropAt {
+                item,
+                map,
+                cell: (x, y),
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("remove_monsters", move |map: i64, kind: i64| {
+        with(&s, |c| c.effects.push(Effect::RemoveMonsters { map, kind }))
+    });
+    let s = shared.clone();
+    engine.register_fn("map_travel", move |from: i64, to: i64, x: i64, y: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::MapTravel {
+                from,
+                to,
+                cell: (x, y),
+            })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("world_timer", move |name: &str, secs: i64| {
         with(&s, |c| {
             c.effects.push(Effect::WorldTimer {
