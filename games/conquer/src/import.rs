@@ -42,6 +42,33 @@ fn revive_point(rows: &[MapRow], row: &MapRow) -> Option<c3_core::settings::Revi
     })
 }
 
+/// The map types table: each game map's `cq_map.type` bits, which TQ's actions test (306).
+pub const MAP_TYPES_TABLE: &str = "map_types";
+
+fn map_types(rows: &[MapRow]) -> c3_data::Table {
+    let column = |name: &str, doc: &str| c3_data::Column {
+        doc: doc.into(),
+        ..c3_data::Column::new(name, c3_data::ColumnKind::Int)
+    };
+    let mut out = c3_data::Table::new(
+        MAP_TYPES_TABLE,
+        vec![
+            column("key", "The game map's id"),
+            column("type", "Its cq_map.type bits"),
+        ],
+    );
+    out.doc = "Game maps' type bits (TQ's cq_map)".into();
+    out.rows = (rows.iter())
+        .map(|r| {
+            vec![
+                c3_data::Value::Int(r.id.into()),
+                c3_data::Value::Int(r.kind.into()),
+            ]
+        })
+        .collect();
+    out
+}
+
 fn map_rows(sql: &str) -> (Vec<MapRow>, usize) {
     let mut rows = Vec::new();
     let mut skipped = 0;
@@ -223,6 +250,7 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
     ));
     out.tables = tables;
     out.tables.extend(rule_tables);
+    out.tables.push(map_types(&rows));
     for table in &out.tables {
         out.report
             .push(format!("Table {}: {} rows", table.name, table.rows.len()));
@@ -323,7 +351,7 @@ INSERT INTO `cq_map` VALUES ('1005', 'Arena', 'x', '1005', '0009', '0', '0000', 
         assert!(population.npcs.len() > 50, "{}", population.npcs.len());
         assert!(!population.spawns.is_empty() && !population.links.is_empty());
         // TQ's tables and the engine's rule tables made of them.
-        assert_eq!(import.tables.len(), DATA_TABLES.len() + 12);
+        assert_eq!(import.tables.len(), DATA_TABLES.len() + 13);
         let traps: usize = import.populations.values().map(|p| p.traps.len()).sum();
         assert!(traps > 100, "{traps} traps placed");
         assert!(

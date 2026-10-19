@@ -1044,6 +1044,28 @@ impl<'a> Builder<'a> {
                 Self::branch(g, has, column)
             }
             // A GM log line given as an attribute: TQ knows no such attribute and fails.
+            // The player's map's cq_map.type bits tested (the map types table).
+            306 if tokens
+                .first()
+                .is_some_and(|t| t.eq_ignore_ascii_case("type"))
+                && tokens.get(1) == Some(&"test")
+                && tokens.len() == 3 =>
+            {
+                let Some(bits) = int(2) else {
+                    return self.not_converted(g, a, column);
+                };
+                let map = g.node("player.map", &[], column);
+                let values = [
+                    ("table", txt(crate::import::MAP_TYPES_TABLE)),
+                    ("column", txt("type")),
+                ];
+                let kind = g.node("table.lookup", &values, column);
+                g.data(map, kind, "key");
+                let and = g.node("math.bit_and", &[("b", num(bits))], column);
+                g.data(kind, and, "a");
+                let set = self.compare_node(g, and, ">", 0, column);
+                Self::branch(g, set, column)
+            }
             1001 if tokens.first().is_some_and(|t| t.starts_with("gmlog/")) => {
                 let never = g.node("logic.equal", &[("a", num(0)), ("b", num(1))], column);
                 Self::branch(g, never, column)

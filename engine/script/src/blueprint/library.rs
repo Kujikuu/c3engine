@@ -216,6 +216,14 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    pure(
+        "math.bit_and",
+        "Bits in common",
+        "Math",
+        &[("a", Number), ("b", Number)],
+        Number,
+        "({a} & {b})",
+    ),
     // A player's cast that did something: the skill, the life it took or gave back (a
     // status: 1), the player as a fighter.
     event(

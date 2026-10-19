@@ -612,6 +612,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         (1082), deleting monsters (2009), moving a map's players (2012), destructible NPCs
         (training goals' link chains), NPCs placed by players (401/402)
   - [ ] PK bounties (2201-2205) and the wanted list (3001-3012)
+  - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
+        node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)
   - [ ] Player homes (306 on `%user_home_id`, 1033-1035, 2007 item boxes)
   - [ ] Marriage (1024, 1025, 1102 `mate`), magic levels (1020 `check type lev`),
         unlearning weapon skills (1043), resetting points (1047), the dying record (1070)
