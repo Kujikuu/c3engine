@@ -667,6 +667,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
         answers to click, shown while talking (screenshot: the Barber); GM `/talk NPC`
   - [ ] NPC talk: the NPC's face, typed answers (text boxes), the dialog's height
         following its text
+  - [x] The warehouse (CDlgDepot 161) while a storage NPC's is open: savings, an amount to
+        deposit or withdraw, stored items (a click takes one out; a bag click stores one),
+        the bag beside it (screenshot); GM `/storage NPC`
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,

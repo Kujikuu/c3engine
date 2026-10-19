@@ -30,14 +30,35 @@ use egui::{Pos2, Rect, TextureId};
 /// What a click on slot `index` of grid or list `list` asks: a shop's ware bought; an
 /// NPC's answer picked; a bag item sold to the open shop, else used or worn.
 fn grid_click(
-    data: &dyn gui::GuiData,
+    data: &gui_data::HeroData,
     player: &Player,
     list: &str,
     index: usize,
 ) -> Option<UiAction> {
+    let stored = |npc: u32| {
+        player
+            .storage
+            .get(&npc)
+            .and_then(|s| s.get(index))
+            .map(|i| i.id)
+    };
+    if let Some(npc) = data.state.storage {
+        let input = match list {
+            "storage.items" => c3_game::Input::Retrieve {
+                npc,
+                item: stored(npc)?,
+            },
+            "hero.bag" => c3_game::Input::Store {
+                npc,
+                item: player.bag.get(index)?.id,
+            },
+            _ => return None,
+        };
+        return Some(UiAction::Game(input));
+    }
     match (list, player.shop) {
         ("shop.items", Some(npc)) => {
-            let kind = *data.items(list).get(index)?;
+            let kind = *gui::GuiData::items(data, list).get(index)?;
             Some(UiAction::Buy { npc, kind })
         }
         ("dialogue.answers", _) => Some(UiAction::Answer(index)),
@@ -67,6 +88,8 @@ pub enum UiAction {
         item: u32,
     },
     CloseShop,
+    /// A game input as it is (the game UI's warehouse, ...).
+    Game(c3_game::Input),
     /// Use or wear bag item `id`.
     Use(u32),
     /// Take off worn item `id`.
@@ -184,6 +207,9 @@ pub struct GameUi {
     log: Vec<LogLine>,
     /// The game's UI from data, drawn in place of the engine's bar when the game has one.
     gui: Option<gui::Gui>,
+    /// The game UI's state: the storage NPC whose warehouse is open, what is typed in its
+    /// fields.
+    gui_state: gui_data::GuiState,
 }
 
 impl GameUi {
@@ -203,10 +229,30 @@ impl GameUi {
     /// dialog of the UI (`toggle:<dialog id>`) or show one of a dialog's pages
     /// (`page:<page id>`).
     fn gui_event(&mut self, event: gui::GuiEvent, actions: &mut Vec<UiAction>) {
-        let gui::GuiEvent::Action(action) = event else {
-            return;
+        let action = match event {
+            gui::GuiEvent::Action(action) => action,
+            gui::GuiEvent::Edited { field, text } => {
+                self.gui_state.fields.insert(field, text);
+                return;
+            }
+            gui::GuiEvent::Item { .. } => return,
+        };
+        let storage = self.gui_state.storage;
+        let typed = |s: &Self| -> u64 {
+            let text = s.gui_state.fields.get("storage.amount");
+            text.and_then(|t| t.trim().parse().ok()).unwrap_or(0)
         };
         match action.as_str() {
+            "storage_deposit" | "storage_withdraw" if storage.is_some() => {
+                let (npc, amount) = (storage.expect("checked"), typed(self));
+                actions.push(UiAction::Game(if action == "storage_deposit" {
+                    c3_game::Input::SaveMoney { npc, amount }
+                } else {
+                    c3_game::Input::DrawMoney { npc, amount }
+                }));
+                self.gui_state.fields.remove("storage.amount");
+            }
+            "close_storage" => self.gui_state.storage = None,
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
             "menu" => self.toggle_menu(),
@@ -320,6 +366,9 @@ impl GameUi {
                 Event::Warning(text) => self.log.push(LogLine::Error(text.clone())),
                 Event::ScriptLog(text) => self.log.push(LogLine::Info(format!("Script: {text}"))),
                 // A game UI shows its own bag beside a shop (its dialogs' `when`).
+                Event::StorageOpened { player, npc } if *player == hero => {
+                    self.gui_state.storage = Some(*npc);
+                }
                 Event::ShopOpened { player, .. } if *player == hero && self.gui.is_none() => {
                     self.bag_open = true
                 }
@@ -350,15 +399,22 @@ impl GameUi {
         quests::npc_marks(&ui.painter_at(view.rect), view);
         match &self.gui {
             Some(gui) => {
-                let data = gui_data::HeroData { view, player };
-                let events = gui.show(ui.ctx(), view.rect, &data, icons);
-                for event in events {
+                let data = gui_data::HeroData {
+                    view,
+                    player,
+                    state: &self.gui_state,
+                };
+                let mut others = Vec::new();
+                for event in gui.show(ui.ctx(), view.rect, &data, icons) {
                     match event {
                         gui::GuiEvent::Item { list, index } => {
                             actions.extend(grid_click(&data, player, &list, index));
                         }
-                        other => self.gui_event(other, &mut actions),
+                        other => others.push(other),
                     }
+                }
+                for event in others {
+                    self.gui_event(event, &mut actions);
                 }
             }
             None => {

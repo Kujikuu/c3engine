@@ -4,10 +4,19 @@ use crate::GameView;
 use crate::gui::GuiData;
 use c3_game::Player;
 
+/// What the game UI keeps between frames: the storage NPC whose warehouse is open, and
+/// what is typed in its fields.
+#[derive(Debug, Default)]
+pub(crate) struct GuiState {
+    pub storage: Option<u32>,
+    pub fields: std::collections::HashMap<String, String>,
+}
+
 /// The hero, as bindings see it (`hero.life`, `hero.bag`, ...).
 pub(crate) struct HeroData<'a> {
     pub view: &'a GameView<'a>,
     pub player: &'a Player,
+    pub state: &'a GuiState,
 }
 
 impl GuiData for HeroData<'_> {
@@ -32,6 +41,9 @@ impl GuiData for HeroData<'_> {
             "hero.dodge" => p.stats.dodge.into(),
             "hero.dexterity" => p.stats.dexterity.into(),
             "hero.pk" => p.pk.into(),
+            // The storage NPC whose warehouse is open (0: none), and the money kept.
+            "hero.storage" => self.state.storage.unwrap_or(0).into(),
+            "storage.money" => p.saved_money as f64,
             // 1 while the hero talks with an NPC.
             "hero.talking" => u8::from(p.dialogue.is_some()).into(),
             // The NPC whose shop is open (0: none).
@@ -48,6 +60,7 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            "storage.amount" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
             // What the NPC says now, a line each.
             "dialogue.text" => (self.player.dialogue.as_ref()).map(|c| c.page.lines.join("\n")),
             _ => self.number(key).map(|n| format!("{n}")),
@@ -58,6 +71,11 @@ impl GuiData for HeroData<'_> {
         match key {
             "hero.bag" => self.player.bag.iter().map(|i| i.kind).collect(),
             "hero.equipment" => self.player.equipment.iter().map(|i| i.kind).collect(),
+            // What the open warehouse keeps.
+            "storage.items" => (self.state.storage)
+                .and_then(|npc| self.player.storage.get(&npc))
+                .map(|items| items.iter().map(|i| i.kind).collect())
+                .unwrap_or_default(),
             // What the open shop sells.
             "shop.items" => (self.player.shop)
                 .map(|npc| self.view.sim.rules().shop(npc).to_vec())

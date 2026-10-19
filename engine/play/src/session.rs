@@ -925,6 +925,7 @@ impl Session {
             UiAction::Buy { npc, kind } => Input::Buy { npc, kind },
             UiAction::Sell { npc, item } => Input::Sell { npc, item },
             UiAction::CloseShop => Input::CloseShop,
+            UiAction::Game(input) => input,
             UiAction::Use(item) => Input::Use(item),
             UiAction::Unequip(item) => Input::Unequip(item),
             UiAction::Cast(slot) => {

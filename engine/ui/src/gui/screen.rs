@@ -79,7 +79,8 @@ impl Gui {
     ) -> Vec<GuiEvent> {
         let mut events = Vec::new();
         let shown = |d: &Control| {
-            let set = !d.when.is_empty() && data.number(&d.when).is_some_and(|v| v != 0.0);
+            let set = (d.when.split('|').filter(|w| !w.is_empty()))
+                .any(|w| data.number(w).is_some_and(|v| v != 0.0));
             d.screen == self.screen && set
         };
         for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
