@@ -54,6 +54,7 @@ pub fn rules_blueprint() -> Blueprint {
     xp_bar(&mut bp.events, next_lane(500.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
+    upequipment(&mut bp.events, next_lane(1600.0));
     bp.functions.push(allot());
     bp
 }
@@ -641,6 +642,193 @@ fn upgrade_name(
         node,
         pin: "value".into(),
     })
+}
+
+/// The NPC upgrades of TQ's action 509, by the number the converter raises them with.
+pub const UPEQUIPMENT: [&str; 6] = [
+    "up_lev",
+    "down_lev",
+    "up_quality",
+    "recover_dur",
+    "up_levultra",
+    "up_levultra2",
+];
+
+/// An item's lowest level (progression §8.3, items §2.7): helmets, armour and shields 0,
+/// rings and boots 1, necklaces and weapons 2.
+const LOWEST_LEVEL: &str = "if(t / 10000 == 11 || t / 10000 == 13 || t / 10000 == 14 || t / 100000 == 9, t - (t / 10 % 100) * 10, if(t / 10000 == 15 || t / 10000 == 16, t - (t / 10 % 100) * 10 + 10, if(t / 10000 == 12 || t / 100000 == 4 || t / 100000 == 5, t - (t / 10 % 100) * 10 + 20, t)))";
+
+/// What an upgrade takes from the bag: items with types low..=high, and how many.
+type Cost = (i64, i64, Operand);
+
+/// TQ's NPC upgrades (action 509, items §2.4–2.7, §3.4, §5.2), the `upequipment` signal with
+/// the upgrade's number (1 up_lev ... 6 up_levultra2), the slot and a flag: raising the worn
+/// item's level for Meteors, its quality for DragonBalls, lowering its level, restoring its
+/// durability, and the free raises.
+fn upequipment(g: &mut Graph, top: f32) {
+    let signal = node(
+        g,
+        "event.signal",
+        [0.0, top],
+        &[("name", text("upequipment"))],
+    );
+    let pin = |p: &str| Operand::Pin {
+        node: signal,
+        pin: p.into(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let id = {
+        let n = w.node("item.worn_id", &[]);
+        w.feed(&pin("b"), n, "slot");
+        Operand::Pin {
+            node: n,
+            pin: "value".into(),
+        }
+    };
+    let t = {
+        let n = w.node("held.type", &[]);
+        w.feed(&id, n, "item");
+        Operand::Pin {
+            node: n,
+            pin: "value".into(),
+        }
+    };
+    let mut lets: Vec<(String, Operand)> = vec![
+        ("cmd".into(), pin("a")),
+        ("t".into(), t),
+        ("used".into(), Operand::Number(0.0)),
+    ];
+    let write = |w: &mut ExprWriter, lets: &mut Vec<(String, Operand)>, name: &str, text: &str| {
+        let value = w
+            .write(text, &mut |w, n, args| {
+                upgrade_name(w, lets, n, args).or_else(|| {
+                    let names = Names {
+                        pins: Vec::new(),
+                        default_record: None,
+                        lets: Vec::new(),
+                    };
+                    player_value(w, &names, n)
+                })
+            })
+            .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"));
+        if !name.is_empty() {
+            lets.push((name.to_owned(), value.clone()));
+        }
+        value
+    };
+    write(&mut w, &mut lets, "q", "t % 10");
+    write(&mut w, &mut lets, "next", NEXT_LEVEL);
+    write(&mut w, &mut lets, "has", HAS);
+    write(
+        &mut w,
+        &mut lets,
+        "lv",
+        "if(has, t % 100 / 10, t % 1000 / 10)",
+    );
+    write(&mut w, &mut lets, "chance", METEOR_CHANCE);
+    write(&mut w, &mut lets, "next_q", NEXT_QUALITY);
+    write(&mut w, &mut lets, "need", "required(t)");
+    write(&mut w, &mut lets, "q_chance", QUALITY_CHANCE);
+    let meteors = write(&mut w, &mut lets, "", "(100 / chance + 1) * 12 / 10");
+    let balls = write(&mut w, &mut lets, "", "100 / q_chance + 1");
+    let lowest = write(&mut w, &mut lets, "", LOWEST_LEVEL);
+    let worn = write(&mut w, &mut lets, "", "t != 0");
+    let plus10 = write(&mut w, &mut lets, "", "t + 10");
+    let get = |name: &str| {
+        lets.iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.clone())
+            .expect("written")
+    };
+    let (next, next_q, t) = (get("next"), get("next_q"), get("t"));
+    // Each upgrade: when its number and whether it may happen, what it costs, what it gives.
+    let cases: [(i64, String, Option<Cost>, Operand); 5] = [
+        (1, "next != 0 && q >= 3 && required(next) <= level".into(), Some((1_088_001, 1_088_002, meteors)), next.clone()),
+        (2, "q != 0".into(), None, lowest),
+        (3, "q >= 3 && q <= 8 && exists(next_q)".into(), Some((DRAGON_BALL, DRAGON_BALL, balls)), next_q),
+        (5, "t / 100000 >= 4 && t / 100000 <= 5 && t / 10 % 100 >= 22 && t / 10 % 100 <= 32 && exists(t + 10) && required(t + 10) <= level".into(), None, plus10),
+        (6, "next != 0 && q >= 3 && required(next) <= level".into(), None, next),
+    ];
+    let mut from = (signal, "then");
+    let worn_branch = w.node("flow.branch", &[]);
+    w.feed(&worn, worn_branch, "condition");
+    let mut steps: Vec<((u32, &'static str), u32)> = vec![(from, worn_branch)];
+    from = (worn_branch, "true");
+    for (code, allowed, cost, to) in cases {
+        let is = write(&mut w, &mut lets, "", &format!("cmd == {code}"));
+        let which = w.node("flow.branch", &[]);
+        w.feed(&is, which, "condition");
+        steps.push((from, which));
+        let may = write(&mut w, &mut lets, "", &allowed);
+        let ok = w.node("flow.branch", &[]);
+        w.feed(&may, ok, "condition");
+        steps.push(((which, "true"), ok));
+        let set = w.node("held.set_type", &[]);
+        w.feed(&id, set, "item");
+        w.feed(&to, set, "type");
+        match cost {
+            Some((low, high, count)) => {
+                let take = w.node(
+                    "item.take_between",
+                    &[
+                        ("low", Literal::Number(low as f64)),
+                        ("high", Literal::Number(high as f64)),
+                    ],
+                );
+                w.feed(&count, take, "count");
+                let paid = w.node("flow.branch", &[]);
+                w.feed(
+                    &Operand::Pin {
+                        node: take,
+                        pin: "taken".into(),
+                    },
+                    paid,
+                    "condition",
+                );
+                steps.push(((ok, "true"), take));
+                steps.push(((take, "then"), paid));
+                steps.push(((paid, "true"), set));
+                let short = w.node(
+                    "player.message",
+                    &[("text", text("You haven't enough to pay for that."))],
+                );
+                steps.push(((paid, "false"), short));
+            }
+            None => steps.push(((ok, "true"), set)),
+        }
+        let refused = w.node(
+            "player.message",
+            &[("text", text("That can't be done to this item."))],
+        );
+        steps.push(((ok, "false"), refused));
+        from = (which, "false");
+    }
+    // 4: restore the durability to the item's full.
+    let is = write(&mut w, &mut lets, "", "cmd == 4");
+    let which = w.node("flow.branch", &[]);
+    w.feed(&is, which, "condition");
+    steps.push((from, which));
+    let full = {
+        let n = w.node(
+            "table.lookup",
+            &[
+                ("table", text(c3_play::data_rules::ITEMS)),
+                ("column", text("durability")),
+            ],
+        );
+        w.feed(&t, n, "key");
+        Operand::Pin {
+            node: n,
+            pin: "value".into(),
+        }
+    };
+    let restore = w.node("held.set_durability", &[]);
+    w.feed(&id, restore, "item");
+    w.feed(&full, restore, "durability");
+    steps.push(((which, "true"), restore));
+    for (from, to) in steps {
+        wire(g, from, (to, "exec"));
+    }
 }
 
 /// A rebirth's key in the rebirths table.

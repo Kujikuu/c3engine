@@ -834,6 +834,25 @@ impl<'a> Builder<'a> {
             1073 | 1074 => self.statistic(g, a, column),
             1080 | 1081 => self.timestamp(g, a, column),
             // Male: Conquer's male bodies are 3 and 4 (TQ: lookface 1003, 1004).
+            // NPC upgrades: Conquer's rules blueprint answers the signal (items §2.4–5.2).
+            509 => {
+                let cmd = tokens.first().map(|c| c.to_ascii_lowercase());
+                let code = (crate::rule_blueprint::UPEQUIPMENT.iter())
+                    .position(|c| Some(*c) == cmd.as_deref())
+                    .map(|i| i as i64 + 1);
+                match (code, int(1)) {
+                    (Some(code), Some(slot)) => {
+                        let values = [
+                            ("name", txt("upequipment")),
+                            ("a", num(code)),
+                            ("b", num(slot)),
+                            ("c", num(int(2).unwrap_or(0))),
+                        ];
+                        Self::plain(g, "flow.raise", &values, column)
+                    }
+                    _ => self.not_converted(g, a, column),
+                }
+            }
             // Rebirth: Conquer's rules blueprint answers the signal (progression §8).
             1040 => match (int(0), int(1)) {
                 (Some(profession), Some(look)) => {
