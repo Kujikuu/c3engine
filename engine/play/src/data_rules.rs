@@ -286,6 +286,11 @@ fn skill_columns() -> Vec<Column> {
         int("level", "The level needed to learn it"),
         text("effect", "The effect shown on each one it reaches"),
         int("status", "The status it puts on those it reaches; 0: none"),
+        text(
+            "cost_attribute",
+            "A player attribute a cast costs beside mana (an XP bar); empty: none",
+        ),
+        int("cost", "How much of that attribute a cast costs"),
     ]
 }
 
@@ -336,6 +341,7 @@ fn skill_rows() -> Vec<Vec<Value>> {
         row.extend(ints(&numbers[..6]));
         row.push(Value::Text(String::new()));
         row.push(Value::Int(numbers[6]));
+        row.extend([Value::Text(String::new()), Value::Int(0)]);
         row
     };
     vec![
@@ -612,6 +618,8 @@ impl DataRules {
                 level: row.uint("level"),
                 effect: row.text("effect").to_owned(),
                 status: row.uint("status"),
+                cost_attribute: row.text("cost_attribute").trim().to_owned(),
+                cost: row.int("cost"),
             };
             self.skills.insert(id, skill);
         }

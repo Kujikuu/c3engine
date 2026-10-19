@@ -14,6 +14,7 @@ const CHARM: u32 = 400;
 const FIRE: u32 = 10;
 const MEND: u32 = 11;
 const QUAKE: u32 = 12;
+const SUPERMAN: u32 = 13;
 const RAGE: u32 = 20;
 const POISON: u32 = 21;
 const STUN: u32 = 22;
@@ -179,6 +180,15 @@ fn test_rules() -> TestRules {
                 kind: SkillKind::Heal,
                 mana: 5,
                 power: 30,
+                ..SkillType::default()
+            },
+            SkillType {
+                id: SUPERMAN,
+                name: "Superman".into(),
+                target: SkillTarget::Myself,
+                kind: SkillKind::Heal,
+                cost_attribute: "xp".into(),
+                cost: 100,
                 ..SkillType::default()
             },
             SkillType {
@@ -788,6 +798,29 @@ fn older_saves_name_items_by_type() {
 }
 
 #[test]
+fn skills_may_cost_an_attribute() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let hero = sim.add_player("Hero", (5, 5), 5);
+    assert!(sim.learn_skill(hero, SUPERMAN));
+    sim.cast(hero, SUPERMAN, CastAt::Entity(hero));
+    sim.advance(50);
+    let refused = sim
+        .take_events()
+        .iter()
+        .any(|e| matches!(e, Event::Message { text, .. } if text == "Not enough xp for Superman."));
+    assert!(refused);
+    let p = sim.players.get_mut(&hero).unwrap();
+    p.attributes.insert("xp".into(), 100);
+    sim.cast(hero, SUPERMAN, CastAt::Entity(hero));
+    sim.advance(50);
+    assert_eq!(
+        sim.player(hero).unwrap().attributes["xp"],
+        0,
+        "the full bar spent"
+    );
+}
+
+#[test]
 fn skills_cost_mana_rest_and_reach_their_area() {
     let mut sim = Sim::new(
         Grid::new(40, 40),
@@ -935,7 +968,11 @@ fn the_dead_walk_as_ghosts_and_come_back_when_they_ask() {
     sim.input(b, Input::Walk((6, 9)));
     sim.advance(10_000);
     let ghost = sim.player(b).unwrap();
-    assert!(ghost.ghost && !ghost.is_alive() && ghost.cell == (6, 9), "{:?}", ghost.cell);
+    assert!(
+        ghost.ghost && !ghost.is_alive() && ghost.cell == (6, 9),
+        "{:?}",
+        ghost.cell
+    );
     sim.input(b, Input::Revive);
     sim.advance(1_000);
     let back = sim.player(b).unwrap();

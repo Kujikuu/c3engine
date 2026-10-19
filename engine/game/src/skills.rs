@@ -133,6 +133,25 @@ impl Sim {
             self.message(id, text);
             return;
         }
+        // An attribute the cast costs (an XP skill's full bar, stamina).
+        if !t.cost_attribute.is_empty() {
+            let default = (self.settings.attributes.iter())
+                .find(|a| a.name == t.cost_attribute)
+                .map_or(0, |a| a.default);
+            let p = self.players.get_mut(&id).expect("casting");
+            let have = p
+                .attributes
+                .get(&t.cost_attribute)
+                .copied()
+                .unwrap_or(default);
+            if have < t.cost {
+                let text = format!("Not enough {} for {}.", t.cost_attribute, t.name);
+                self.message(id, text);
+                return;
+            }
+            p.attributes.insert(t.cost_attribute.clone(), have - t.cost);
+        }
+        let p = self.players.get_mut(&id).expect("casting");
         p.mana -= t.mana;
         p.cooldowns.insert(t.id, now + u64::from(t.cooldown_ms));
         p.direction = c3_scene::path::facing(p.cell, goal).unwrap_or(p.direction);

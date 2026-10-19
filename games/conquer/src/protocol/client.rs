@@ -95,11 +95,18 @@ fn points(p: &Player) -> Points {
     })
 }
 
-/// A player's status bits: dead, and its name's colour.
+/// The hero's XP bar (the `xp` attribute).
+fn xp(p: &Player) -> u64 {
+    u64::try_from(p.attributes.get("xp").copied().unwrap_or(0).max(0)).unwrap_or(0)
+}
+
+/// A player's status bits: dead, a ghost, a full XP bar, and its name's colour.
 fn status(p: &Player) -> u32 {
     let dead = if p.is_alive() { 0 } else { pk::STATUS_DEAD };
     let ghost = if p.ghost { pk::STATUS_GHOST } else { 0 };
+    let xp_full = if xp(p) >= 100 { pk::STATUS_XP_FULL } else { 0 };
     dead | ghost
+        | xp_full
         | match p.mark {
             c3_game::NameMark::Good => 0,
             c3_game::NameMark::Criminal => pk::STATUS_CRIME,
@@ -356,6 +363,7 @@ impl ConquerClient {
             (attr::MAX_MANA, p.stats.max_mana.into()),
             (attr::MONEY, p.money),
             (attr::EXP, p.exp),
+            (attr::XP, xp(p)),
             (attr::LEVEL, p.level.into()),
         ]
     }

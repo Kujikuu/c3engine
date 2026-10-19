@@ -201,6 +201,12 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
             _ if r.int("ground") != 0 => "ground",
             _ => "enemy",
         };
+        // XP skills need the full XP bar (battle M.11); others may cost stamina.
+        let cost = match (r.int("use_xp"), r.int("use_ep")) {
+            (xp, _) if xp != 0 => ("xp", 100),
+            (_, ep) if ep > 0 => ("stamina", ep),
+            _ => ("", 0),
+        };
         let area = if r.int("multi") != 0 {
             r.int("range")
         } else {
@@ -224,6 +230,8 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
             ("power", int(power)),
             ("level", int(r.int("need_level"))),
             ("status", int(status)),
+            ("cost_attribute", text(cost.0)),
+            ("cost", int(cost.1)),
         ]);
     }
     (skills.table, statuses.table, magic_types)

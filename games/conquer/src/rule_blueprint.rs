@@ -51,6 +51,7 @@ pub fn rules_blueprint() -> Blueprint {
     level_up(&mut bp.events, next_lane(300.0));
     death(&mut bp.events, next_lane(700.0));
     revive(&mut bp.events, next_lane(200.0));
+    xp_bar(&mut bp.events, next_lane(500.0));
     bp.functions.push(allot());
     bp
 }
@@ -268,8 +269,82 @@ fn level_up(g: &mut Graph, top: f32) {
     let branch = w.node("flow.branch", &[]);
     w.feed(&fresh, branch, "condition");
     let call = w.node("flow.call", &[("name", text("allot"))]);
-    wire(g, (login, "then"), (branch, "exec"));
+    // Logging in also starts the XP bar's clock.
+    let seq = w.node("flow.sequence", &[]);
+    let clock = w.node(
+        "player.start_timer",
+        &[("name", text(XP_TIMER)), ("seconds", Literal::Number(30.0))],
+    );
+    wire(g, (login, "then"), (seq, "exec"));
+    wire(g, (seq, "then 0"), (branch, "exec"));
     wire(g, (branch, "true"), (call, "exec"));
+    wire(g, (seq, "then 1"), (clock, "exec"));
+}
+
+/// The XP bar's timer.
+const XP_TIMER: &str = "xp";
+
+/// The XP bar (progression §5.5, battle M.11): every 30 seconds from level 3 it fills by 10;
+/// full, it empties at the next tick (a window to use an XP skill); each kill adds 1 below
+/// 99. XP skills spend the full bar.
+fn xp_bar(g: &mut Graph, top: f32) {
+    let timer = node(g, "event.timer", [0.0, top], &[]);
+    let names = Names {
+        pins: vec![("name", timer)],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let is_xp = w.node("text.equal", &[("b", text(XP_TIMER))]);
+    w.feed(
+        &Operand::Pin {
+            node: timer,
+            pin: "name".into(),
+        },
+        is_xp,
+        "a",
+    );
+    let ours = w.node("flow.branch", &[]);
+    w.feed(
+        &Operand::Pin {
+            node: is_xp,
+            pin: "value".into(),
+        },
+        ours,
+        "condition",
+    );
+    let grown = branch_on(&mut w, &names, "level >= 3");
+    let full = branch_on(&mut w, &names, "xp >= 100");
+    let empty = w.node(
+        "player.set_attr",
+        &[("name", text("xp")), ("value", Literal::Number(0.0))],
+    );
+    let fill = w.node(
+        "player.add_attr",
+        &[("name", text("xp")), ("amount", Literal::Number(10.0))],
+    );
+    let again = w.node(
+        "player.start_timer",
+        &[("name", text(XP_TIMER)), ("seconds", Literal::Number(30.0))],
+    );
+    let seq = w.node("flow.sequence", &[]);
+    wire(g, (timer, "then"), (ours, "exec"));
+    wire(g, (ours, "true"), (seq, "exec"));
+    wire(g, (seq, "then 0"), (grown, "exec"));
+    wire(g, (grown, "true"), (full, "exec"));
+    wire(g, (full, "true"), (empty, "exec"));
+    wire(g, (full, "false"), (fill, "exec"));
+    wire(g, (seq, "then 1"), (again, "exec"));
+    // A kill adds 1.
+    let kill = node(g, "event.kill", [0.0, top + 300.0], &[]);
+    let mut w = ExprWriter::new(g, [260.0, top + 300.0]);
+    let below = branch_on(&mut w, &names, "xp < 99");
+    let one = w.node(
+        "player.add_attr",
+        &[("name", text("xp")), ("amount", Literal::Number(1.0))],
+    );
+    wire(g, (kill, "then"), (below, "exec"));
+    wire(g, (below, "true"), (one, "exec"));
 }
 
 /// TQ's jail (map 6000, at its first portal): red and black names killed by guards or
@@ -415,6 +490,7 @@ fn player_value(w: &mut ExprWriter, names: &Names, name: &str) -> Option<Operand
         "profession" => w.node("player.profession", &[]),
         "money" => w.node("player.money", &[]),
         "exp" => w.node("player.exp", &[]),
+        "xp" => w.node("player.attr", &[("name", text("xp"))]),
         "pk" => w.node("player.pk", &[]),
         "pk_free" => w.node("world.map_pk_free", &[]),
         "killed_by_monster" => w.node("player.killed_by_monster", &[]),

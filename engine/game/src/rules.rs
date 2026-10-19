@@ -226,6 +226,10 @@ pub struct SkillType {
     pub effect: String,
     /// The status it puts on those it reaches; 0: none.
     pub status: u32,
+    /// A player attribute a cast costs beside mana (an XP bar, stamina); empty: none.
+    pub cost_attribute: String,
+    /// How much of it.
+    pub cost: i64,
 }
 
 /// Something a monster leaves on the ground when it dies.

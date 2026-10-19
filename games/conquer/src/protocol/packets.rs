@@ -65,6 +65,7 @@ pub mod attr {
     pub const PK: u32 = 6;
     pub const LOOK_FACE: u32 = 12;
     pub const STATUS: u32 = 26;
+    pub const XP: u32 = 28;
 }
 
 /// MsgInteract kinds.
@@ -94,6 +95,8 @@ pub const STATUS_RED: u32 = 0x4000;
 pub const STATUS_BLACK: u32 = 0x8000;
 /// A ghost.
 pub const STATUS_GHOST: u32 = 0x400;
+/// The XP bar is full: XP skills may be cast.
+pub const STATUS_XP_FULL: u32 = 0x10;
 /// MsgTaskDialog actions and the closing link.
 pub const DIALOG_TEXT: u8 = 1;
 pub const DIALOG_LINK: u8 = 2;
