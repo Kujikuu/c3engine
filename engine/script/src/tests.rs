@@ -272,3 +272,32 @@ fn collect_quests_take_the_items() {
     assert!(e, "unknown quests fail when run, not when checked");
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn levels_walk_for_experience_and_time() {
+    let script =
+        "fn talk() { text(`${level_after(100)} ${percent_after(100)} ${exp_for_time(600)}`); }";
+    let (mut host, root) = project("levels", &[("levels", script)]);
+    let mut levels = Table::new(
+        "levels",
+        ["level", "exp", "time"]
+            .map(|c| Column::new(c, ColumnKind::Int))
+            .to_vec(),
+    );
+    for (level, exp, time) in [(1, 100, 600), (2, 200, 600), (3, 0, 0)] {
+        levels
+            .rows
+            .push(vec![Value::Int(level), Value::Int(exp), Value::Int(time)]);
+    }
+    c3_data::save_table(&levels, &root.join("tables/levels.table.ron")).unwrap();
+    let mut player = PlayerState {
+        level: 1,
+        exp: 50,
+        ..Default::default()
+    };
+    let reply = host.talk("levels", &npc(), &mut player).unwrap();
+    // 150 experience: level 2, a quarter in; one level's time from halfway: 150 more.
+    assert_eq!(reply.page.lines, ["2 25 150"]);
+    assert_eq!((player.level, player.exp), (1, 50), "nothing changes");
+    let _ = std::fs::remove_dir_all(root);
+}

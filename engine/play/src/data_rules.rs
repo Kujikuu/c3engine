@@ -137,6 +137,10 @@ pub fn table_templates() -> Vec<Table> {
     let mut levels = vec![
         int("level", "The level (the key)"),
         int("exp", "Experience to the next level; 0 at the top"),
+        int(
+            "time",
+            "How long the level takes at a steady pace, in the units exp_for_time counts",
+        ),
     ];
     levels.extend(stat_columns());
     let mut monsters = vec![
@@ -228,7 +232,7 @@ pub fn table_templates() -> Vec<Table> {
     let mut sword = vec![Value::Int(2), Value::Text("Short Sword".into())];
     sword.extend(ints(&[150, 4, 0, 0, 6, 10, 0, 0, 0, 1, 40]));
     sword.extend([Value::Text(String::new()), Value::Int(1)]);
-    let mut first = ints(&[1, 100]).collect::<Vec<_>>();
+    let mut first = ints(&[1, 100, 600]).collect::<Vec<_>>();
     first.extend(ints(&[120, 60, 10, 15, 1, 5, 5]));
     vec![
         table(

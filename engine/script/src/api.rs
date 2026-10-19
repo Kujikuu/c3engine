@@ -43,6 +43,7 @@ pub(crate) fn register(engine: &mut Engine, shared: &Shared, tables: &Rc<RefCell
     items(engine, shared);
     world(engine, shared);
     data(engine, tables);
+    levels(engine, shared, tables);
     quests(engine, shared, tables);
     more(engine, shared);
     let s = shared.clone();
@@ -460,6 +461,76 @@ fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {
     let t = tables.clone();
     engine.register_fn("has_row", move |table: &str, key: i64| -> Fallible<bool> {
         Ok(t.borrow_mut().table(table)?.find(key).is_some())
+    });
+}
+
+/// The levels table's name (its rows: a level's experience to the next, and its time).
+const LEVELS: &str = "levels";
+
+/// Column `column` of level `level` in the levels table; `None` past the last level.
+fn level_value(tables: &Rc<RefCell<Tables>>, level: i64, column: &str) -> Fallible<Option<i64>> {
+    let value = tables.borrow_mut().lookup(LEVELS, level, column)?;
+    Ok(value.as_int().ok())
+}
+
+/// The level and the whole percent into it the player would be at with `exp` more
+/// experience: the levels table walked from the player's level (nothing changes).
+fn level_after(
+    tables: &Rc<RefCell<Tables>>,
+    level: i64,
+    exp: i64,
+    more: i64,
+) -> Fallible<(i64, i64)> {
+    let mut e = exp.saturating_add(more);
+    let (mut l, mut last) = (level, 0);
+    while let Some(need) = level_value(tables, l, "exp")? {
+        last = need;
+        if need <= 0 || e < need {
+            break;
+        }
+        e -= need;
+        l += 1;
+    }
+    Ok((l, e.saturating_mul(100) / last.max(1)))
+}
+
+/// Registers the functions that walk the levels table for the player.
+fn levels(engine: &mut Engine, shared: &Shared, tables: &Rc<RefCell<Tables>>) {
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("level_after", move |more: i64| -> Fallible<i64> {
+        let (level, exp) = with(&s, |c| (c.player.level, c.player.exp))?;
+        Ok(level_after(&t, level, exp, more)?.0)
+    });
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("percent_after", move |more: i64| -> Fallible<i64> {
+        let (level, exp) = with(&s, |c| (c.player.level, c.player.exp))?;
+        Ok(level_after(&t, level, exp, more)?.1)
+    });
+    // The experience that takes the player `units` of the levels' `time` further.
+    let (s, t) = (shared.clone(), tables.clone());
+    engine.register_fn("exp_for_time", move |units: i64| -> Fallible<i64> {
+        let (mut l, cur) = with(&s, |c| (c.player.level, c.player.exp))?;
+        let (Some(exp), Some(time)) = (level_value(&t, l, "exp")?, level_value(&t, l, "time")?)
+        else {
+            return Ok(0);
+        };
+        let mut left = units + (time as f64 * (cur as f64 / exp.max(1) as f64)) as i64;
+        let mut total = 0i64;
+        while let (Some(exp), Some(time)) =
+            (level_value(&t, l, "exp")?, level_value(&t, l, "time")?)
+        {
+            if exp <= 0 {
+                break;
+            }
+            if left < time {
+                total += (exp as f64 * (left as f64 / time.max(1) as f64)) as i64;
+                break;
+            }
+            left -= time;
+            total += exp;
+            l += 1;
+        }
+        Ok(total.max(cur) - cur)
     });
 }
 

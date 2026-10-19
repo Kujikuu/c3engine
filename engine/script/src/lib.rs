@@ -79,6 +79,16 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "level_after(exp) / percent_after(exp)",
+        "The level, and the whole percent into it, the player would be at with `exp` more \
+         experience (the levels table walked; nothing changes)",
+    ),
+    (
+        "exp_for_time(units)",
+        "The experience that takes the player `units` further by the levels table's `time` \
+         column (how long each level takes)",
+    ),
+    (
         "pick_worn(name, op, value)",
         "A random slot whose worn item's `name` (an item attribute, or \"type\") compares \
          by `op` (==, <, <=, >, >=) with `value`; 0 when none does",

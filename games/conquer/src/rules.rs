@@ -406,10 +406,17 @@ fn items(t: &Table) -> Table {
 
 fn levels(t: &Table) -> Table {
     let mut out = Out::new(c3_play::data_rules::LEVELS, &[]);
-    let mut levels: Vec<(i64, i64)> = rows(t).map(|r| (r.int("level"), r.int("exp"))).collect();
+    // up_lev_time: 600 of it is one exp ball (progression §9.4).
+    let mut levels: Vec<(i64, i64, i64)> = rows(t)
+        .map(|r| (r.int("level"), r.int("exp"), r.int("up_lev_time")))
+        .collect();
     levels.sort_unstable();
-    for (level, exp) in levels {
-        out.row(&[("level", int(level)), ("exp", int(exp))]);
+    for (level, exp, time) in levels {
+        out.row(&[
+            ("level", int(level)),
+            ("exp", int(exp)),
+            ("time", int(time)),
+        ]);
     }
     out.table
 }

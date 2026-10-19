@@ -266,6 +266,13 @@ impl Canvas {
         self.wire(from, (to, c3_script::blueprint::EXEC_IN));
     }
 
+    /// Sets input `pin` of node `to` to `value`.
+    fn set_value(&mut self, to: u32, pin: &str, value: Literal) {
+        if let Some(node) = self.graph.nodes.iter_mut().find(|n| n.id == to) {
+            node.values.insert(pin.to_owned(), value);
+        }
+    }
+
     /// Wires pure node `from`'s value into input `pin` of `to`.
     fn data(&mut self, from: u32, to: u32, pin: &str) {
         self.wire((from, "value"), (to, pin));
@@ -293,6 +300,12 @@ fn item_column(field: i64) -> Option<&'static str> {
         20 => "color",
         _ => return None,
     })
+}
+
+/// A number in an action's param: written there, or worked out by a node.
+enum Number {
+    Literal(i64),
+    Node(u32),
 }
 
 /// TQ dialogue text as the engine's: `~` is a space, `%user_name` the player's name...
@@ -1029,6 +1042,7 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             516 => self.pick_worn(g, a, &tokens, column),
+            1084 | 1086 => self.level_exp(g, a, &tokens, column),
             517 => self.equip_attr(g, a, &tokens, column),
             // Writing a log row: nothing the game shows or keeps.
             127 if a
@@ -1258,6 +1272,70 @@ impl<'a> Builder<'a> {
         g.data(worn_at_all, and, "a");
         g.data(cmp, and, "b");
         Self::branch(g, and, column)
+    }
+
+    /// 1084: the level and percent `exp` more would bring, kept in two of the player's
+    /// `iter_var_data`; 1086: the experience `units` of level time bring (600 an exp ball).
+    fn level_exp(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let var = |t: Option<&&str>| {
+            (t?.parse::<i64>().ok())
+                .filter(|i| (0..=8).contains(i))
+                .map(|i| format!("var_data{i}"))
+        };
+        let Some(input) = tokens.first().and_then(|t| self.number(g, t, column)) else {
+            return self.not_converted(g, a, column);
+        };
+        let keeps: Vec<(&str, Option<String>)> = match a.kind {
+            1084 => vec![
+                ("player.level_after", var(tokens.get(1))),
+                ("player.percent_after", var(tokens.get(2))),
+            ],
+            _ => vec![("player.exp_for_time", var(tokens.get(1)))],
+        };
+        let mut nodes = Vec::new();
+        for (def, flag) in keeps {
+            let Some(flag) = flag else {
+                return self.not_converted(g, a, column);
+            };
+            let pin = if a.kind == 1084 { "exp" } else { "units" };
+            let value = g.node(def, &[], column);
+            self.feed(g, &input, value, pin);
+            let keep = g.node("player.set_flag", &[("name", txt(&flag))], column);
+            g.data(value, keep, "value");
+            if let Some(&last) = nodes.last() {
+                g.exec((last, "then"), keep);
+            }
+            nodes.push(keep);
+        }
+        let last = *nodes.last().expect("one at least");
+        Emitted {
+            entry: nodes.first().copied(),
+            ok: Some((last, "then")),
+            fail: None,
+        }
+    }
+
+    /// A number an action's param gives: a literal, or `%iter_var_data<i>` (flag
+    /// `var_data<i>`, read by a node).
+    fn number(&mut self, g: &mut Canvas, token: &str, column: i32) -> Option<Number> {
+        if let Ok(n) = token.parse::<i64>() {
+            return Some(Number::Literal(n));
+        }
+        let i = token.strip_prefix("%iter_var_data")?.parse::<i64>().ok()?;
+        let flag = format!("var_data{}", i.clamp(0, 8));
+        Some(Number::Node(g.node(
+            "player.flag",
+            &[("name", txt(&flag))],
+            column,
+        )))
+    }
+
+    /// Gives input `pin` of node `to` the number.
+    fn feed(&mut self, g: &mut Canvas, n: &Number, to: u32, pin: &str) {
+        match n {
+            Number::Literal(v) => g.set_value(to, pin, num(*v)),
+            Number::Node(from) => g.data(*from, to, pin),
+        }
     }
 
     /// 516: a random worn item whose `cq_item` column compares with a number; its slot kept
@@ -1541,6 +1619,19 @@ impl<'a> Builder<'a> {
 
     /// 1001: the player's attributes, read or changed.
     fn user_attr(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        if let (Some(attr), Some(&"+="), Some(var)) = (tokens.first(), tokens.get(1), tokens.get(2))
+            && attr.eq_ignore_ascii_case("exp")
+            && var.starts_with("%iter_var_data")
+            && let Some(amount) = self.number(g, var, column)
+        {
+            let give = g.node("player.give_exp", &[], column);
+            self.feed(g, &amount, give, "amount");
+            return Emitted {
+                entry: Some(give),
+                ok: Some((give, "then")),
+                fail: None,
+            };
+        }
         let (Some(attr), Some(op), Some(v)) = (
             tokens.first().map(|t| t.to_ascii_lowercase()),
             tokens.get(1).copied(),
