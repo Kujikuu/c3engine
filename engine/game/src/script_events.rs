@@ -25,6 +25,75 @@ impl Sim {
         }
     }
 
+    /// Whether this map runs the world events (`on_minute`, world timers): a server has one
+    /// map do it, so they run once.
+    pub fn set_world_events(&mut self, on: bool) {
+        self.world_events = on;
+    }
+
+    /// `on_minute` every minute of game time, and world timers that ran out.
+    pub(crate) fn tick_world_events(&mut self) {
+        if !self.world_events {
+            return;
+        }
+        let tick = self.settings.tick_ms.max(1);
+        if self.now_ms / 60_000 != self.now_ms.saturating_sub(tick) / 60_000 {
+            self.world_event("on_minute");
+        }
+        let now = self.now_ms;
+        let (due, left): (Vec<_>, Vec<_>) = std::mem::take(&mut self.world_timers)
+            .into_iter()
+            .partition(|(at, _)| *at <= now);
+        self.world_timers = left;
+        for (_, name) in due {
+            self.world_event(&name);
+        }
+    }
+
+    /// Runs `function()` of every events script and blueprint with no player: what it does
+    /// to the world (variables, guilds, announcements, monsters, NPCs, effects) happens.
+    pub fn world_event(&mut self, function: &str) {
+        let Some(host) = self.scripts.as_mut() else {
+            return;
+        };
+        for script in host.event_scripts() {
+            let Some(host) = self.scripts.as_mut() else {
+                return;
+            };
+            if !host.defines(&script, function, 0) {
+                continue;
+            }
+            let mut state = c3_script::PlayerState {
+                map: self.map_ids.first().copied().map_or(0, i64::from),
+                world: self.world_flags.clone(),
+                guilds: self.world.guild_views(),
+                ..Default::default()
+            };
+            let host = self.scripts.as_mut().expect("checked above");
+            let npc = NpcInfo {
+                id: 0,
+                name: String::new(),
+            };
+            match Conversation::event_in(host, &script, function, Vec::new(), npc, &mut state) {
+                Ok((_, effects)) => {
+                    let changed: Vec<(String, i64)> = (state.world.iter())
+                        .filter(|(k, v)| self.world_flags.get(*k) != Some(v))
+                        .map(|(k, &v)| (k.clone(), v))
+                        .collect();
+                    for (name, value) in changed {
+                        self.change_world(c3_script::WorldChange::Flag { name, value });
+                    }
+                    for effect in effects {
+                        self.script_effect(EntityId(0), 0, effect);
+                    }
+                }
+                Err(e) => self
+                    .events
+                    .push(crate::Event::Warning(format!("Script error: {e}"))),
+            }
+        }
+    }
+
     /// Whether any events script or blueprint answers `function` with `arity` arguments.
     pub(crate) fn event_defined(&mut self, function: &str, arity: usize) -> bool {
         let Some(host) = self.scripts.as_mut() else {

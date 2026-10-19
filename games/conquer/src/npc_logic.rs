@@ -109,6 +109,10 @@ pub struct Triggers {
     pub monsters: Vec<(u32, u32)>,
 }
 
+/// TQ's system timer: every minute, actions 2030000-2030099 that exist run with no player
+/// (`(map group process + 200) × 10000`).
+const SYSTEM_TIMER: std::ops::RangeInclusive<u32> = 2_030_000..=2_030_099;
+
 /// TQ's fixed hook actions and the engine events that run them.
 const HOOKS: [(u32, &str); 4] = [
     (1_000_000, "event.login"),
@@ -241,12 +245,23 @@ pub fn convert_triggers(
             spend: false,
         })
         .collect();
+    let minute: Vec<u32> = SYSTEM_TIMER.filter(|a| have(a)).collect();
+    let world_events: Vec<Trigger> = match minute.is_empty() {
+        true => Vec::new(),
+        false => vec![Trigger {
+            def: "event.minute",
+            name: None,
+            action: 0,
+            spend: false,
+        }],
+    };
     let report = format!(
         "Triggers: {} items run a chain when used, {} monster types when killed, {} of TQ's \
-         hooks (login, death, revive, level-up)",
+         hooks (login, death, revive, level-up), {} system-timer chains every minute",
         item_events.len(),
         monster_events.len(),
-        hook_events.len()
+        hook_events.len(),
+        minute.len()
     );
     let mut out = Vec::new();
     let mut skipped: BTreeMap<u32, usize> = BTreeMap::new();
@@ -254,11 +269,13 @@ pub fn convert_triggers(
         ("tq/items", item_events),
         ("tq/monsters", monster_events),
         ("tq/hooks", hook_events),
+        ("tq/world", world_events),
     ] {
         if events.is_empty() {
             continue;
         }
         let mut builder = Builder::new(logic, items);
+        builder.minute = minute.clone();
         builder.triggers(&events);
         for (kind, n) in builder.skipped {
             *skipped.entry(kind).or_default() += n;
@@ -297,6 +314,10 @@ struct Builder<'a> {
     to_make: Vec<u32>,
     task_events: BTreeSet<u32>,
     to_event: Vec<u32>,
+    /// The system timer's chains (the world blueprint's minute event).
+    minute: Vec<u32>,
+    /// Chains a world timer runs later (126), each a custom event `world_a<id>`.
+    world_timers: BTreeSet<u32>,
     /// Chains a timer runs later (1071), each by its function's name.
     timers: BTreeSet<u32>,
     actions_seen: BTreeSet<u32>,
@@ -450,6 +471,8 @@ impl<'a> Builder<'a> {
             task_events: BTreeSet::new(),
             to_event: Vec::new(),
             timers: BTreeSet::new(),
+            minute: Vec::new(),
+            world_timers: BTreeSet::new(),
             actions_seen: BTreeSet::new(),
             skipped: BTreeMap::new(),
             missing: BTreeSet::new(),
@@ -558,6 +581,7 @@ impl<'a> Builder<'a> {
             }
         }
         self.timer_lane(&mut events);
+        self.world_timer_lanes(&mut events);
         self.blueprint.events = events.graph;
     }
 
@@ -583,7 +607,11 @@ impl<'a> Builder<'a> {
 
     /// A blueprint of trigger events, each running its chain.
     fn triggers(&mut self, triggers: &[Trigger]) {
-        let starts: Vec<u32> = triggers.iter().map(|t| t.action).collect();
+        // Each chain a trigger starts, and the minute's chains.
+        let starts: Vec<u32> = (triggers.iter().map(|t| t.action))
+            .filter(|&a| a != 0)
+            .chain(self.minute.iter().copied())
+            .collect();
         self.count_refs_from(&starts);
         let mut events = Canvas::new();
         for t in triggers {
@@ -594,6 +622,19 @@ impl<'a> Builder<'a> {
             };
             let start = events.node(t.def, &values, 0);
             let mut from: Exit = (start, "then");
+            if t.def == "event.minute" {
+                // Each chain a function, called in turn.
+                for chain in self.minute.clone() {
+                    if self.functions.insert(chain) {
+                        self.to_make.push(chain);
+                    }
+                    let name = format!("a{chain}");
+                    let call = events.node("flow.call", &[("name", txt(&name))], 1);
+                    events.exec(from, call);
+                    from = (call, "then");
+                }
+                continue;
+            }
             if t.spend {
                 let used = events.node("item.used", &[], 1);
                 let spend = events.node("held.erase", &[], 1);
@@ -613,7 +654,19 @@ impl<'a> Builder<'a> {
             }
         }
         self.timer_lane(&mut events);
+        self.world_timer_lanes(&mut events);
         self.blueprint.events = events.graph;
+    }
+
+    /// World timers' chains (126): custom event `world_a<id>` calls function `a<id>`.
+    fn world_timer_lanes(&mut self, events: &mut Canvas) {
+        for chain in std::mem::take(&mut self.world_timers) {
+            events.lane();
+            let name = format!("world_a{chain}");
+            let start = events.node("event.custom", &[("name", txt(&name))], 0);
+            let call = events.node("flow.call", &[("name", txt(&format!("a{chain}")))], 1);
+            events.exec((start, "then"), call);
+        }
     }
 
     /// Custom event `task_<id>`: the task's check, then its chains (a failed check with no
@@ -1545,6 +1598,22 @@ impl<'a> Builder<'a> {
                         ("skill", num(skill)),
                     ];
                     Self::plain(g, "player.transform", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // A chain run later, with no player (the map group's timer).
+            126 => match (int(0), int(1)) {
+                (Some(secs), Some(chain)) if chain > 0 => {
+                    let chain = chain as u32;
+                    if self.functions.insert(chain) {
+                        self.to_make.push(chain);
+                    }
+                    self.world_timers.insert(chain);
+                    let values = [
+                        ("name", txt(&format!("world_a{chain}"))),
+                        ("seconds", num(secs)),
+                    ];
+                    Self::plain(g, "world.timer", &values, column)
                 }
                 _ => self.not_converted(g, a, column),
             },
@@ -3258,7 +3327,11 @@ mod tests {
             .flat_map(|p| &p.npcs)
             .map(|n| (n.id, crate::server_data::npc_tasks(n)))
             .collect();
-        let converted = convert(&logic, &npcs, &HashMap::new());
+        let mut converted = convert(&logic, &npcs, &HashMap::new());
+        // The trigger blueprints too (no item or monster table here: the hooks and the world).
+        let (triggers, _) = convert_triggers(&logic, &Triggers::default(), &HashMap::new());
+        assert!(triggers.iter().any(|(name, _)| name == "tq/world"));
+        converted.blueprints.extend(triggers);
         let host = c3_script::ScriptHost::new(std::env::temp_dir(), None);
         let failing: Vec<String> = (converted.blueprints.iter())
             .filter_map(|(name, bp)| match c3_script::blueprint::compile(name, bp) {

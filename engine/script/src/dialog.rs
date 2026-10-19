@@ -335,6 +335,11 @@ pub enum Effect {
     },
     /// The NPCs of kind `kind` on this map gone.
     EraseNpcs(i64),
+    /// World event `name` (no player) runs after `secs`.
+    WorldTimer {
+        name: String,
+        secs: i64,
+    },
     /// The player turned into a monster of type `monster` for `secs` (its look and its
     /// fighting numbers), after skill `skill`'s effect; refused while already one.
     Transform {

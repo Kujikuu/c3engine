@@ -135,7 +135,7 @@ impl Sim {
         }
     }
 
-    fn script_effect(&mut self, id: EntityId, npc: u32, effect: Effect) {
+    pub(crate) fn script_effect(&mut self, id: EntityId, npc: u32, effect: Effect) {
         let name = |s: &Sim, kind: i64| {
             u32::try_from(kind)
                 .ok()
@@ -314,6 +314,10 @@ impl Sim {
                 secs,
                 skill,
             } => self.transform(id, monster, secs, skill),
+            Effect::WorldTimer { name, secs } => {
+                let at = self.now_ms + u64::try_from(secs.max(0)).unwrap_or(0) * 1000;
+                self.world_timers.push((at, name));
+            }
             Effect::EraseNpcs(kind) => {
                 let gone: Vec<u32> = (self.npcs.iter())
                     .filter(|n| i64::from(n.kind) == kind)

@@ -61,6 +61,10 @@ pub struct Sim {
     pub(crate) using: Option<(EntityId, u32)>,
     /// Where the monster being killed fell, while its `killed_<type>` event runs.
     pub(crate) dying_at: Option<CellPos>,
+    /// Whether this map runs the world events (one map of a server does); and the world
+    /// timers to come: (when, event).
+    pub(crate) world_events: bool,
+    pub(crate) world_timers: Vec<(u64, String)>,
     /// Team invitations: the invited player → the inviting leader.
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
     /// Players on the host's other maps, for teams across maps.
@@ -117,6 +121,8 @@ impl Sim {
             world_changes: Vec::new(),
             using: None,
             dying_at: None,
+            world_events: true,
+            world_timers: Vec::new(),
             team_invites: BTreeMap::new(),
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),
@@ -192,6 +198,7 @@ impl Sim {
         self.tick_statuses();
         self.tick_timers();
         self.tick_transforms();
+        self.tick_world_events();
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {
             self.tick_player(id);

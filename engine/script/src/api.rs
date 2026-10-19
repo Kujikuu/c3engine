@@ -492,6 +492,15 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("world_timer", move |name: &str, secs: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::WorldTimer {
+                name: name.to_owned(),
+                secs,
+            })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("used_item", move || with(&s, |c| c.player.used_item));
     let s = shared.clone();
     engine.register_fn("npc_look", move |npc: i64| {

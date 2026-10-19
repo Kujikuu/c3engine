@@ -81,6 +81,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "world_timer(name, secs)",
+        "Runs world event `name` (a custom event with no player) after `secs`",
+    ),
+    (
         "transform(monster, secs, skill)",
         "Turns the player into a monster type for a while (its look and fighting numbers), \
          skill `skill`'s effect shown first (0: none)",

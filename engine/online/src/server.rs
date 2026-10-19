@@ -104,6 +104,10 @@ impl GameServer {
         assert!(!maps.is_empty(), "a server needs a map");
         assert!(!fronts.is_empty(), "a server needs a front");
         let world = Self::load_world(&config.accounts);
+        let mut maps = maps;
+        for (i, map) in maps.iter_mut().enumerate() {
+            map.sim.set_world_events(i == 0);
+        }
         Self {
             fronts,
             maps,
@@ -424,6 +428,9 @@ impl GameServer {
             .ok_or("the server runs only the maps it started with")?;
         let world = load(key)?;
         self.log.push(format!("Loaded map {}", world.key));
+        // The first map runs the world events.
+        let mut world = world;
+        world.sim.set_world_events(false);
         self.maps.push(world);
         Ok(self.maps.len() - 1)
     }

@@ -1559,3 +1559,29 @@ fn a_transformation_lasts_its_time() {
     );
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn world_events_run_every_minute_and_by_timer() {
+    let dir = std::env::temp_dir().join(format!("c3-game-world-ev-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_minute() {\n\
+             set_world_flag(\"minutes\", world_flag(\"minutes\") + 1);\n\
+             world_timer(\"later\", 5);\n\
+         }\n\
+         fn later() { set_world_flag(\"later\", 1); }\n",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    sim.advance(61_000);
+    assert_eq!(
+        sim.world_state().flags.get("minutes"),
+        Some(&1),
+        "with no player"
+    );
+    sim.advance(5_000);
+    assert_eq!(sim.world_state().flags.get("later"), Some(&1));
+    let _ = std::fs::remove_dir_all(dir);
+}

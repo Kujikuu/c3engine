@@ -216,6 +216,15 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    event("event.minute", "Every minute (no player)", "on_minute", &[]),
+    action(
+        "world.timer",
+        "Start a world timer",
+        "World",
+        &[("name", Text), ("seconds", Number)],
+        &[],
+        "world_timer({name}, {seconds});",
+    ),
     action(
         "player.transform",
         "Transform",
