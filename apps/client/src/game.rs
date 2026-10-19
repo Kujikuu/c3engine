@@ -42,6 +42,8 @@ pub struct GameArgs {
     pub front: bool,
     /// Chat lines said at the start, in turn.
     pub say: Vec<String>,
+    /// Dialogs of the game's UI open from the start.
+    pub open: Vec<u32>,
 }
 
 /// Opens the game window and plays until it is closed.
@@ -88,6 +90,9 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         };
         for line in &args.say {
             session.say(line);
+        }
+        for &dialog in &args.open {
+            session.open_dialog(dialog);
         }
         Phase::Game(Box::new(GameScreen::new(
             session,

@@ -683,6 +683,11 @@ impl Session {
         }
     }
 
+    /// Opens dialog `id` of the game's UI from data.
+    pub fn open_dialog(&mut self, id: u32) {
+        self.ui.open_dialog(id);
+    }
+
     /// Says `line` in chat, as typed (`/` commands run).
     pub fn say(&mut self, line: &str) {
         self.act(UiAction::Say(line.to_owned()));

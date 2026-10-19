@@ -166,6 +166,13 @@ impl GameUi {
     pub fn set_gui(&mut self, gui: Option<gui::Gui>) {
         self.gui = gui;
     }
+
+    /// Opens dialog `id` of the game's UI from data.
+    pub fn open_dialog(&mut self, id: u32) {
+        if let Some(gui) = &mut self.gui {
+            gui.open(id);
+        }
+    }
     /// Carries out what the player clicked on the data-driven UI. Actions name the engine's
     /// windows (`bag`, `quests`, `menu`, `chat`), a game input (`run`, `sound`), or open a
     /// dialog of the UI (`toggle:<dialog id>`).

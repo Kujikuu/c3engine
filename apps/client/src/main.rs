@@ -318,6 +318,7 @@ struct Args {
     front: bool,
     /// Chat lines said at the start, in turn (`/` commands too).
     say: Vec<String>,
+    open: Vec<u32>,
 }
 
 fn parse_args() -> Args {
@@ -353,6 +354,10 @@ fn parse_args() -> Args {
         say: (args.windows(2))
             .filter(|w| w[0] == "--say")
             .map(|w| w[1].clone())
+            .collect(),
+        open: (args.windows(2))
+            .filter(|w| w[0] == "--dialog")
+            .filter_map(|w| w[1].parse().ok())
             .collect(),
     }
 }
@@ -407,6 +412,7 @@ fn main() {
             online,
             front: args.front,
             say: args.say,
+            open: args.open,
         };
         if let Err(e) = game::run(game) {
             eprintln!("error: {e}");
