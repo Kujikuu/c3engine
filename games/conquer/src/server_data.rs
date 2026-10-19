@@ -98,6 +98,9 @@ const DYNANPC_COLUMNS: [&str; 31] = [
     "magic_def",
 ];
 
+/// TQ's NPC sort bit: its `linkid` chain runs when it is destroyed.
+pub const DIE_ACTION: u32 = 0x10;
+
 /// `extra` key marking an NPC of `cq_dynanpc` (its value is `1`).
 pub const DYNAMIC: &str = "dynamic";
 /// `extra` key holding a dynamic NPC's own id when it had to take another.
@@ -269,6 +272,18 @@ impl ServerPopulation {
         (self.maps.values())
             .flat_map(|p| &p.npcs)
             .map(|n| (n.id, npc_tasks(n)))
+            .collect()
+    }
+
+    /// The chains NPCs run when destroyed (sort bit 0x10, `linkid`).
+    pub fn npc_death_chains(&self) -> Vec<u32> {
+        (self.maps.values())
+            .flat_map(|p| &p.npcs)
+            .filter_map(|n| {
+                let number = |k: &str| n.extra.get(k)?.trim().parse::<u32>().ok();
+                let link = number("linkid").filter(|&l| l != 0)?;
+                (number("sort")? & DIE_ACTION != 0).then_some(link)
+            })
             .collect()
     }
 

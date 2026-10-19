@@ -105,6 +105,21 @@ impl Sim {
 
     /// Runs `function(args...)` of the events script for player `id`, if the project has it.
     pub(crate) fn script_event(&mut self, id: EntityId, function: &str, args: Vec<Dynamic>) {
+        self.script_event_with(id, None, function, args);
+    }
+
+    /// Runs custom event `function` for player `id` with `npc` as the dialogue's NPC.
+    pub(crate) fn npc_event(&mut self, id: EntityId, npc: &c3_scene::Npc, function: &str) {
+        self.script_event_with(id, Some(npc), function, Vec::new());
+    }
+
+    fn script_event_with(
+        &mut self,
+        id: EntityId,
+        npc: Option<&c3_scene::Npc>,
+        function: &str,
+        args: Vec<Dynamic>,
+    ) {
         if !self.players.contains_key(&id) {
             return;
         }
@@ -122,13 +137,13 @@ impl Sim {
             }
             let mut state = self.player_state(id);
             let host = self.scripts.as_mut().expect("checked above");
-            let npc = NpcInfo {
-                id: 0,
-                name: String::new(),
+            let info = NpcInfo {
+                id: npc.map_or(0, |n| n.id),
+                name: npc.map(|n| n.name.clone()).unwrap_or_default(),
             };
             let step =
-                Conversation::event_in(host, &script, function, args.clone(), npc, &mut state);
-            self.after_step(id, 0, step, state);
+                Conversation::event_in(host, &script, function, args.clone(), info, &mut state);
+            self.after_step(id, npc.map_or(0, |n| n.id), step, state);
         }
     }
 

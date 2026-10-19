@@ -316,6 +316,30 @@ impl Default for NewCharacter {
     }
 }
 
+/// The names of the NPC extra values that make an NPC one to hit: an NPC with a `max_life`
+/// value above 0 can be hit; empty names: no NPC can.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NpcCombatSettings {
+    /// Its most life.
+    pub max_life: String,
+    /// Its life at the start.
+    pub life: String,
+    /// Its level.
+    pub level: String,
+    /// Its defence.
+    pub defence: String,
+    /// The extra value naming its destruction's event `npc_destroyed_<value>` (shared by NPCs
+    /// with one chain); empty or 0: `npc_destroyed_<NPC id>`.
+    pub destroyed_event: String,
+}
+
+impl NpcCombatSettings {
+    fn is_off(&self) -> bool {
+        self.max_life.is_empty()
+    }
+}
+
 /// The simulation's numbers: timing, ranges, the bag, the start, game masters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -378,6 +402,9 @@ pub struct GameplaySettings {
     /// Items one storage NPC keeps for a player.
     #[serde(default = "storage_size")]
     pub storage_size: u32,
+    /// NPCs that can be hit (training goals, gates): their extra values' names.
+    #[serde(default, skip_serializing_if = "NpcCombatSettings::is_off")]
+    pub npc_combat: NpcCombatSettings,
     /// Cells from a killed monster within which teammates share its kill experience; 0: the
     /// view range.
     #[serde(default, skip_serializing_if = "is_zero")]
@@ -443,6 +470,7 @@ impl Default for GameplaySettings {
             storage_size: storage_size(),
             guild_member_rank: guild_member_rank(),
             team_exp_range: 0,
+            npc_combat: NpcCombatSettings::default(),
             spouse_text: String::new(),
             socket_item_base: 0,
             equipment_slots: Vec::new(),

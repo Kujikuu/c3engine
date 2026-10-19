@@ -92,7 +92,8 @@ impl Sim {
                 .get(&e)
                 .filter(|m| m.is_alive())
                 .map(|m| m.cell)
-                .or_else(|| self.living_player_cell(e)),
+                .or_else(|| self.living_player_cell(e))
+                .or_else(|| self.hittable_npc_cell(e)),
         }
     }
 
@@ -245,7 +246,7 @@ impl Sim {
             return damage;
         }
         let Some(m) = self.monsters.get_mut(&target) else {
-            return 0;
+            return self.player_hits_npc(id, target, Some(t));
         };
         let defender = m.fighter(&*self.rules);
         let damage = self

@@ -236,9 +236,10 @@ pub const NODES: &[NodeDef] = &[
             ("look", Number),
             ("kind", Number),
             ("script", Text),
+            ("extra", Text),
         ],
         &[],
-        "create_npc({map}, {x}, {y}, {name}, {look}, {kind}, {script});",
+        "create_npc({map}, {x}, {y}, {name}, {look}, {kind}, {script}, {extra});",
     ),
     action(
         "map_copy.make",

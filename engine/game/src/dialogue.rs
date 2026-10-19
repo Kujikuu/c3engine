@@ -371,7 +371,26 @@ impl Sim {
                 look,
                 kind,
                 script,
-            } => self.create_npc(map, cell, name, look, kind, script),
+                extra,
+            } => {
+                let npc = c3_scene::Npc {
+                    id: 0,
+                    name,
+                    cell: (
+                        i32::try_from(cell.0).unwrap_or(-1),
+                        i32::try_from(cell.1).unwrap_or(-1),
+                    ),
+                    direction: 0,
+                    look: u32::try_from(look).unwrap_or(0),
+                    kind: u32::try_from(kind).unwrap_or(0),
+                    script,
+                    extra: (extra.split_whitespace())
+                        .filter_map(|pair| pair.split_once('='))
+                        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                        .collect(),
+                };
+                self.create_npc(map, npc);
+            }
             Effect::AddStatusNear { status, range } => {
                 if let Ok(status) = u32::try_from(status) {
                     self.add_status_near(id, status, range);
@@ -518,38 +537,20 @@ impl Sim {
         self.events.push(Event::NpcArrived(npc));
     }
 
-    /// An NPC made while playing: here when `map` is this map's, else carried there by the
-    /// host. Its id is above any of the game's, unique to this map's own map id.
-    fn create_npc(
-        &mut self,
-        map: i64,
-        cell: (i64, i64),
-        name: String,
-        look: i64,
-        kind: i64,
-        script: String,
-    ) {
-        let (Ok(map), Ok(x), Ok(y)) = (
-            u32::try_from(map),
-            i32::try_from(cell.0),
-            i32::try_from(cell.1),
-        ) else {
+    /// NPC `npc` made while playing: here when `map` is this map's, else carried there by the
+    /// host. It gets an id above any of the game's, unique to this map's own map id.
+    fn create_npc(&mut self, map: i64, mut npc: c3_scene::Npc) {
+        let Ok(map) = u32::try_from(map) else {
             return;
         };
+        if npc.cell.0 < 0 || npc.cell.1 < 0 {
+            return;
+        }
         self.npcs_made += 1;
         let home = self.map_ids.first().copied().unwrap_or(0) % 100_000;
-        let npc = c3_scene::Npc {
-            id: 3_000_000_000u32
-                .wrapping_add(home.wrapping_mul(10_000))
-                .wrapping_add(self.npcs_made),
-            name,
-            cell: (x, y),
-            direction: 0,
-            look: u32::try_from(look).unwrap_or(0),
-            kind: u32::try_from(kind).unwrap_or(0),
-            script,
-            extra: Default::default(),
-        };
+        npc.id = 3_000_000_000u32
+            .wrapping_add(home.wrapping_mul(10_000))
+            .wrapping_add(self.npcs_made);
         if self.map_ids.contains(&map) {
             self.arrive_npc(npc);
         } else {

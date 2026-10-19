@@ -90,8 +90,8 @@ pub const API: &[(&str, &str)] = &[
         "The NPCs on the player's map: all, or those of `name` or `kind` `value`",
     ),
     (
-        "create_npc(map, x, y, name, look, kind, script)",
-        "An NPC made on map `map` (here, or carried there) with its look, kind and talk script",
+        "create_npc(map, x, y, name, look, kind, script, extra)",
+        "An NPC made on map `map` (here, or carried there) with its look, kind, talk script and extra values (`key=value` between spaces)",
     ),
     (
         "make_map_copy(base, x, y, level) / map_copy(id, field) / set_map_copy(id, field, value) / map_copy_of(owner)",

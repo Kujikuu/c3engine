@@ -14,6 +14,7 @@ mod index;
 mod input;
 mod monster_ai;
 mod monsters;
+mod npc_fights;
 mod players;
 mod portals;
 mod pvp;
@@ -43,6 +44,7 @@ pub use commands::HELP as COMMAND_HELP;
 pub use entity::{GroundItem, Item, Monster, NameMark, Player, PlayerLook, Task};
 pub use event::Event;
 pub use input::{Input, MAX_CHAT};
+pub use npc_fights::{npc_destroyed_event, npc_life_flag};
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{

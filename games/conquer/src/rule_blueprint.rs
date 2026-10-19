@@ -463,7 +463,9 @@ fn exp(g: &mut Graph, top: f32) {
         &["attacker", "target", "damage"],
         None,
         |w, names| {
-            names.define(w, "base", "damage");
+            // A training goal (an NPC of kind 21-23, at most the attacker's level) gives 10%
+            // (an archer's half first); other NPCs give nothing (battle exp §1).
+            names.define(w, "base", "if(target.npc > 0, if(target.monster >= 21 && target.monster <= 23 && target.level <= attacker.level, max(if(attacker.worn4 / 1000 == 500, damage / 2, damage) * 10 / 100, 1), 0), damage)");
             for (name, text) in EXP_STEPS {
                 names.define(w, name, text);
             }

@@ -69,6 +69,15 @@ const HOME: &str = "home_id";
 pub(crate) const POLICE_TARGET: &str = "police_target";
 const WANTED_MODIFY: &str = "wanted_modify";
 
+/// The chain an NPC made by 2007 `param` runs when destroyed: its `linkid` (token 11) when its
+/// sort (token 2) has the die-action bit.
+fn created_npc_death_chain(param: &str) -> Option<u32> {
+    let tokens: Vec<&str> = param.split_whitespace().collect();
+    let sort: u32 = tokens.get(2)?.parse().ok()?;
+    let link: u32 = tokens.get(11)?.parse().ok()?;
+    (sort & crate::server_data::DIE_ACTION != 0 && link != 0).then_some(link)
+}
+
 /// The blueprint an NPC made while playing (2007) talks by: its first task's.
 fn created_npc_blueprint(first_task: u32) -> String {
     format!("tq/dyn_{first_task}")
@@ -144,6 +153,8 @@ pub struct Triggers {
     pub monsters: Vec<(u32, u32)>,
     /// Trap types and the chains stepping on them runs.
     pub traps: Vec<(u32, u32)>,
+    /// The chains NPCs run when destroyed (their `linkid`).
+    pub destroyed: Vec<u32>,
 }
 
 /// TQ's system timer: every minute, actions 2030000-2030099 that exist run with no player
@@ -294,6 +305,25 @@ pub fn convert_triggers(
             spend: false,
         })
         .collect();
+    // Destroyed NPCs' chains: the population's and those of NPCs made while playing (2007).
+    let made = (logic.actions.values())
+        .filter(|a| a.kind == 2007)
+        .filter_map(|a| created_npc_death_chain(&a.param));
+    let death_chains: std::collections::BTreeSet<u32> = triggers
+        .destroyed
+        .iter()
+        .copied()
+        .chain(made)
+        .filter(have)
+        .collect();
+    let death_events: Vec<Trigger> = (death_chains.into_iter())
+        .map(|action| Trigger {
+            def: "event.custom",
+            name: Some(c3_game::npc_destroyed_event(action)),
+            action,
+            spend: false,
+        })
+        .collect();
     let hook_events: Vec<Trigger> = (HOOKS.iter())
         .filter(|(a, _)| have(a))
         .map(|&(action, def)| Trigger {
@@ -329,6 +359,7 @@ pub fn convert_triggers(
         ("tq/hooks", hook_events),
         ("tq/world", world_events),
         ("tq/traps", trap_events),
+        ("tq/destroyed", death_events),
     ] {
         if events.is_empty() {
             continue;
@@ -1230,11 +1261,19 @@ impl<'a> Builder<'a> {
                     .filter(|&t| t != 0)
                     .map(|t| c3_script::blueprint::graph_script(&created_npc_blueprint(t)))
                     .unwrap_or_default();
+                // Its life (token 9), sort (2) and destruction chain (11) as extra values.
+                let extra: Vec<String> = [("life", 9), ("maxlife", 9), ("sort", 2), ("linkid", 11)]
+                    .iter()
+                    .filter_map(|(k, i)| {
+                        Some(format!("{k}={}", tokens.get(*i)?.parse::<i64>().ok()?))
+                    })
+                    .collect();
                 let values = [
                     ("name", txt(name)),
                     ("look", num(look)),
                     ("kind", num(kind)),
                     ("script", txt(&script)),
+                    ("extra", txt(&extra.join(" "))),
                 ];
                 let create = g.node("npc.create", &values, column);
                 self.feed(g, &map, create, "map");

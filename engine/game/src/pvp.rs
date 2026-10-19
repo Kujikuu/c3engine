@@ -107,7 +107,10 @@ impl Sim {
         if let Some(m) = self.monsters.get(&target) {
             return (m.is_alive() && self.may_fight(from, m.cell, false)).then_some(m.cell);
         }
-        let p = self.players.get(&target)?;
+        let Some(p) = self.players.get(&target) else {
+            let cell = self.hittable_npc_cell(target)?;
+            return self.may_fight(from, cell, false).then_some(cell);
+        };
         let allowed = self.pk && target != attacker && p.is_alive();
         (allowed && self.may_fight(from, p.cell, true)).then_some(p.cell)
     }

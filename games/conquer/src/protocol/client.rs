@@ -226,9 +226,16 @@ fn trap_item(t: &c3_scene::Trap, action: u8) -> Vec<u8> {
 /// Client ids of traps start here (TQ's trap ids).
 const TRAP_IDS: u32 = 900_000_000;
 
-fn npc_info(n: &c3_scene::Npc) -> Vec<u8> {
+/// How NPC `n` shows: with its life (`hit_points`) when it can be hit.
+fn npc_info(n: &c3_scene::Npc, hit_points: Option<(u32, u32)>) -> Vec<u8> {
     let look = (n.look * 10 + u32::from(n.direction % 8)) as u16;
-    pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name)
+    match hit_points {
+        Some(hp) => {
+            let sort = (n.extra.get("sort").and_then(|s| s.trim().parse().ok())).unwrap_or(0);
+            pk::npc_info_ex(n.id, hp, cell16(n.cell), look, n.kind as u16, sort, &n.name)
+        }
+        None => pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name),
+    }
 }
 
 fn slot_of(rules: &dyn Rules, item: &c3_game::Item) -> u8 {
@@ -329,6 +336,8 @@ pub struct ConquerClient {
     /// The map's id in the client's `GameMap.dat`.
     map_id: u32,
     npcs: Vec<Npc>,
+    /// The most life and life of the NPCs that can be hit, by id.
+    npc_hit_points: HashMap<u32, (u32, u32)>,
     /// The map's traps.
     traps: Vec<c3_scene::Trap>,
     /// Whether the client loaded the map (until then, spawns wait).
@@ -369,7 +378,7 @@ impl ConquerClient {
             .ok_or("The character isn't in the world.")?;
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
-        self.npcs = sim.npcs().to_vec();
+        self.set_npcs(sim);
         self.traps = sim.traps().to_vec();
         self.cells.insert(p.id, p.cell);
         let look = player_look(p);
@@ -436,7 +445,7 @@ impl ConquerClient {
         );
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
-        self.npcs = sim.npcs().to_vec();
+        self.set_npcs(sim);
         self.traps = sim.traps().to_vec();
         self.seen.clear();
         self.cells.clear();
@@ -480,9 +489,17 @@ impl ConquerClient {
         out
     }
 
+    /// The map's NPCs, with the life of those that can be hit.
+    fn set_npcs(&mut self, sim: &Sim) {
+        self.npcs = sim.npcs().to_vec();
+        self.npc_hit_points = (self.npcs.iter())
+            .filter_map(|n| Some((n.id, sim.npc_hit_points(n)?)))
+            .collect();
+    }
+
     /// The map's NPCs and every role in view.
     fn surroundings(&self) -> Vec<Vec<u8>> {
-        let npcs = self.npcs.iter().map(npc_info);
+        let npcs = (self.npcs.iter()).map(|n| npc_info(n, self.npc_hit_points.get(&n.id).copied()));
         let traps = self.traps.iter().map(|t| trap_item(t, pk::MAP_ITEM_TRAP));
         (npcs.chain(traps))
             .chain(self.seen.values().map(|(_, packet)| packet.clone()))
@@ -852,7 +869,8 @@ impl ConquerClient {
                 match cell {
                     Some(cell) => {
                         self.npcs[at].cell = *cell;
-                        out.push(npc_info(&self.npcs[at]));
+                        let hp = self.npc_hit_points.get(npc).copied();
+                        out.push(npc_info(&self.npcs[at], hp));
                     }
                     None => {
                         self.npcs.remove(at);
@@ -863,7 +881,11 @@ impl ConquerClient {
             Event::NpcArrived(npc) => {
                 self.npcs.retain(|n| n.id != npc.id);
                 self.npcs.push(npc.clone());
-                vec![npc_info(npc)]
+                let hp = sim.npc_hit_points(npc);
+                if let Some(hp) = hp {
+                    self.npc_hit_points.insert(npc.id, hp);
+                }
+                vec![npc_info(npc, hp)]
             }
             Event::TrapPlaced(trap) => {
                 self.traps.retain(|t| t.id != trap.id);
@@ -924,6 +946,28 @@ impl ConquerClient {
                         dir.into(),
                     )]
                 }
+            }
+            // A hit on an NPC: its life from the world's.
+            Event::Attacked {
+                attacker,
+                target,
+                damage,
+            } if self.npc_hit_points.contains_key(&target.0) && !self.seen.contains_key(target) => {
+                let Some(a) = self.client_id(*attacker, ids) else {
+                    return Vec::new();
+                };
+                let Some(npc) = self.npcs.iter().find(|n| n.id == target.0) else {
+                    return Vec::new();
+                };
+                let Some(hp) = sim.npc_hit_points(npc) else {
+                    return Vec::new();
+                };
+                let cell = cell16(npc.cell);
+                self.npc_hit_points.insert(target.0, hp);
+                vec![
+                    pk::interact(interact::ATTACK, a, target.0, cell, *damage),
+                    pk::attributes(target.0, &[(attr::LIFE, hp.1.into())]),
+                ]
             }
             Event::Attacked {
                 attacker,

@@ -169,7 +169,7 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
     let mut converted = crate::npc_logic::convert(&logic, &server.npc_tasks(), &names);
     // The chains items, monsters and TQ's hooks run.
     let (triggers, line) =
-        crate::npc_logic::convert_triggers(&logic, &triggers_of(&tables), &names);
+        crate::npc_logic::convert_triggers(&logic, &triggers_of(&tables, &server), &names);
     converted.blueprints.extend(triggers);
     converted.report.push(line);
     server.set_scripts(&converted.scripts);
@@ -267,7 +267,7 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
 /// Item types by name, from `cq_itemtype` (several qualities share a name).
 /// The actions TQ's item types run when used (`cq_itemtype.id_action`) and its monster types
 /// when killed (`cq_monstertype.action`).
-fn triggers_of(tables: &[c3_data::Table]) -> crate::npc_logic::Triggers {
+fn triggers_of(tables: &[c3_data::Table], server: &ServerPopulation) -> crate::npc_logic::Triggers {
     let pairs = |table: &str, column: &str| -> Vec<(u32, u32)> {
         let Some(t) = tables.iter().find(|t| t.name == table) else {
             return Vec::new();
@@ -287,6 +287,7 @@ fn triggers_of(tables: &[c3_data::Table]) -> crate::npc_logic::Triggers {
         items: pairs(crate::server_data::ITEM_TABLE, "id_action"),
         monsters: pairs(crate::rules::MONSTER_TABLE, "action"),
         traps: pairs("cq_traptype", "action_id"),
+        destroyed: server.npc_death_chains(),
     }
 }
 

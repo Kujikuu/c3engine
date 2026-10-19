@@ -437,7 +437,8 @@ pub enum Effect {
         to: i64,
         cell: (i64, i64),
     },
-    /// An NPC made on map `map` at `cell`: its name, look, kind and talk script.
+    /// An NPC made on map `map` at `cell`: its name, look, kind, talk script and extra values
+    /// (`key=value` pairs between spaces).
     CreateNpc {
         map: i64,
         cell: (i64, i64),
@@ -445,6 +446,7 @@ pub enum Effect {
         look: i64,
         kind: i64,
         script: String,
+        extra: String,
     },
     /// Status `status` on the other living players within `range` cells who lack it.
     AddStatusNear {

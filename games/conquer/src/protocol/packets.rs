@@ -144,6 +144,7 @@ pub const GEM_EMBED: u16 = 1027;
 /// Composing +N: the main item, two minors and the gems (items spec §7.1).
 pub const COMPOSE: u16 = 2036;
 pub const NPC_INFO: u16 = 2030;
+pub const NPC_INFO_EX: u16 = 1109;
 pub const NPC: u16 = 2031;
 pub const DIALOG: u16 = 2032;
 
@@ -648,6 +649,31 @@ pub fn npc_info(id: u32, cell: (u16, u16), look: u16, kind: u16, name: &str) -> 
         strings(w, &[name]);
     })
 }
+
+/// MsgNpcInfoEx: an NPC that can be hit, with its life (TQ's FUN_00483fa9; the name only
+/// for a guild flag, kind 10).
+pub fn npc_info_ex(
+    id: u32,
+    hit_points: (u32, u32),
+    cell: (u16, u16),
+    look: u16,
+    kind: u16,
+    sort: u16,
+    name: &str,
+) -> Vec<u8> {
+    packet(NPC_INFO_EX, |w| {
+        w.u32(id).u32(hit_points.0).u32(hit_points.1);
+        w.u16(cell.0).u16(cell.1).u16(look).u16(kind).u16(sort);
+        if kind == GUILD_FLAG {
+            strings(w, &[name]);
+        } else {
+            w.u16(0);
+        }
+    })
+}
+
+/// The kind of a guild-war pole, the only NPC whose MsgNpcInfoEx carries a name.
+const GUILD_FLAG: u16 = 10;
 
 /// One part of an NPC dialog.
 pub fn dialog(action: u8, index: u8, text: &str) -> Vec<u8> {

@@ -612,8 +612,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
         while playing (2007, 403; their tasks' blueprints `tq/dyn_<task>`, carried to their
         map), NPCs laid by players (401 runs the laying task at once, at the player's cell),
         NPCs counted (402), guild teleport beacons (208), TQ's unknown type 0 failing
-  - [ ] NPC laying through the client's placement (MsgNpc 2031 EVENT_LAYNPC and its answer),
-        destructible NPCs (training goals' link chains)
+  - [x] Destructible NPCs: dynamic NPCs with life (`[gameplay.npc_combat]`: training goals,
+        the guild-war pole and gates, also those made by 2007) are hit by blows and skills,
+        their life a world flag (`npc<id>.life`), shown to the client as MsgNpcInfoEx 1109;
+        at 0 their `linkid` chain runs (`npc_destroyed_<linkid>`, sort bit 0x10; play-tested:
+        a Magic target hit six times)
+  - [ ] NPC laying through the client's placement (MsgNpc 2031 EVENT_LAYNPC and its answer)
   - [x] The wanted list (3001-3008) on the shared world state (`wanted.*` nodes) and text
         variables kept with the player (`text_var`); play-tested: Sunfer takes a 200,000
         bounty on a name typed
@@ -668,7 +672,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
         saves): one-handed weapons in the left hand, from the client's use-in-slot
   - [x] Lucky time: Bless (cast-pray) grows it 3 s a second and makes players within 3 cells pray (1 s a second while a caster is near), else it runs down (play-tested: 15 s after 5 s of Bless)
   - [x] The kill bonus doubled with a newbie teammate near (`team_newbie`, after the team's share) and ×10 at 0.5% in lucky time
-  - [ ] Training goals' cut (10%, half for archers; needs destructible NPCs)
+  - [x] Training goals' cut: 10% of the life taken (an archer's half), none above the attacker's level (play-tested: 1 a hit at level 46 on a level-45 target, 0 at level 30)
   - [x] Team experience sharing by TQ's rule (rules `team_exp`: within 32 cells of the kill, newbie, spouse, healer and Rainbow factors)
   - [x] Moon gems' magic experience (their percent on a cast's skill experience)
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted

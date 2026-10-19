@@ -172,6 +172,15 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.guild_member_rank = 50;
     // Teammates within 32 cells of a kill share it (battle §4); a spouse is `mate`.
     s.gameplay.team_exp_range = 32;
+    // Dynamic NPCs with life (training goals, the guild-war pole and gates) can be hit; a
+    // goal's level is its `data3`; at 0 life the `linkid` chain runs (sort bit 0x10).
+    s.gameplay.npc_combat = c3_core::settings::NpcCombatSettings {
+        max_life: "maxlife".into(),
+        life: "life".into(),
+        level: "data3".into(),
+        defence: "defence".into(),
+        destroyed_event: "linkid".into(),
+    };
     s.gameplay.spouse_text = crate::npc_logic::MATE.to_owned();
     s.gameplay.new_character = game::new_character();
     s.network.fronts.push(c3_core::settings::FrontSettings {

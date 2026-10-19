@@ -425,7 +425,14 @@ fn more(engine: &mut Engine, shared: &Shared) {
     let s = shared.clone();
     engine.register_fn(
         "create_npc",
-        move |map: i64, x: i64, y: i64, name: &str, look: i64, kind: i64, script: &str| {
+        move |map: i64,
+              x: i64,
+              y: i64,
+              name: &str,
+              look: i64,
+              kind: i64,
+              script: &str,
+              extra: &str| {
             with(&s, |c| {
                 c.effects.push(Effect::CreateNpc {
                     map,
@@ -434,6 +441,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
                     look,
                     kind,
                     script: script.to_owned(),
+                    extra: extra.to_owned(),
                 })
             })
         },

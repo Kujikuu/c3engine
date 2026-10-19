@@ -784,15 +784,24 @@ impl Sim {
                 p.direction = path::facing(p.cell, goal).unwrap_or(p.direction);
                 if self.monsters.contains_key(&target) {
                     self.player_hits(id, target);
-                } else {
+                } else if self.players.contains_key(&target) {
                     self.player_hits_player(id, target);
+                } else {
+                    self.player_hits_npc(id, target, None);
                 }
             }
             return;
         }
-        // Re-plan when the monster moved away from where the path leads.
+        // Re-plan when the monster moved away from where the path leads; an NPC stands on a
+        // cell no one walks on, so the way leads beside it.
         if p.path.back().is_none_or(|&end| distance(end, goal) > range) {
-            self.plan_path(id, goal);
+            let here = p.cell;
+            let to = match self.monsters.contains_key(&target) || self.players.contains_key(&target)
+            {
+                true => goal,
+                false => self.beside(goal, here),
+            };
+            self.plan_path(id, to);
             let p = self.players.get_mut(&id).expect("ticking");
             if p.path.is_empty() {
                 // Nothing brings it closer (a wall between them).

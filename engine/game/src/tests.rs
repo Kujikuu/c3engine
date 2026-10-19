@@ -1858,3 +1858,51 @@ fn a_guild_handed_over_swaps_its_leaders_ranks() {
     assert_eq!(g.leader, "New");
     assert_eq!((g.members["New"], g.members["Old"]), (100, 50));
 }
+
+#[test]
+fn npcs_with_life_are_hit_down_and_run_their_destruction_event() {
+    let dir = std::env::temp_dir().join(format!("c3-game-npc-hit-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn npc_destroyed_77() { set_flag(\"broke\", npc_id()); }\n",
+    )
+    .unwrap();
+    let mut stake = shopkeeper();
+    stake.extra = [("hp", "40"), ("chain", "77")]
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .into();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![stake.clone()], vec![], rules(), 3);
+    let mut settings = sim.settings().clone();
+    settings.npc_combat = c3_core::settings::NpcCombatSettings {
+        max_life: "hp".into(),
+        life: "hp".into(),
+        destroyed_event: "chain".into(),
+        ..Default::default()
+    };
+    sim.set_settings(settings);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let hero = sim.add_player("Hero", (6, 6), 1);
+    assert_eq!(sim.npc_hit_points(&stake), Some((40, 40)));
+
+    sim.attack(hero, EntityId(SHOP_NPC));
+    assert!(run_until(&mut sim, 60_000, |s| s
+        .player(hero)
+        .unwrap()
+        .flags
+        .contains_key("broke")));
+    assert_eq!(
+        sim.player(hero).unwrap().flags["broke"],
+        i64::from(SHOP_NPC)
+    );
+    assert_eq!(
+        sim.npc_hit_points(&stake),
+        Some((40, 0)),
+        "life kept as the world's"
+    );
+    assert!(
+        sim.player(hero).unwrap().exp > 0,
+        "hits on it give experience"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -129,7 +129,7 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
     }
     let end = sim.player(player).map(|p| {
         json!({
-            "cell": p.cell, "level": p.level, "life": p.life, "money": p.money,
+            "cell": p.cell, "level": p.level, "exp": p.exp, "life": p.life, "money": p.money,
             "bag": p.bag, "equipment": p.equipment, "flags": p.flags,
             "storage": p.storage, "saved_money": p.saved_money,
             "alive": p.is_alive(), "profession": p.profession,
