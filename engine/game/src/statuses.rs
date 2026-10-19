@@ -66,12 +66,23 @@ impl Sim {
     /// Puts status `status` on `target` (a player or monster) for its time, from `from`;
     /// one already there starts over. False if there is no such status or no such target.
     pub fn add_status(&mut self, target: EntityId, status: u32, from: Option<EntityId>) -> bool {
+        self.add_status_for(target, status, from, None)
+    }
+
+    /// [`Sim::add_status`] for `ms` (`None`: the status type's own time).
+    pub fn add_status_for(
+        &mut self,
+        target: EntityId,
+        status: u32,
+        from: Option<EntityId>,
+        ms: Option<u64>,
+    ) -> bool {
         let Some(t) = self.rules.status(status).cloned() else {
             return false;
         };
         let active = ActiveStatus {
             id: status,
-            until_ms: self.now_ms + u64::from(t.duration_ms),
+            until_ms: self.now_ms + ms.unwrap_or(u64::from(t.duration_ms)),
             next_tick_ms: self.now_ms + u64::from(t.tick_ms.max(1)),
             from,
         };
@@ -83,6 +94,19 @@ impl Sim {
         self.events.push(Event::StatusStarted { target, status });
         self.refresh_any_stats(target);
         true
+    }
+
+    /// Takes status `status` off `target`.
+    pub fn remove_status(&mut self, target: EntityId, status: u32) {
+        let Some(list) = self.statuses_mut(target) else {
+            return;
+        };
+        let before = list.len();
+        list.retain(|s| s.id != status);
+        if list.len() != before {
+            self.events.push(Event::StatusEnded { target, status });
+            self.refresh_any_stats(target);
+        }
     }
 
     /// Whether `id` bears a status that keeps it from acting.

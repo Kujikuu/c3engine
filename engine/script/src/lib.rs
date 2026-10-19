@@ -81,6 +81,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "add_status_for(status, secs) / remove_status(status)",
+        "A status on the player for `secs` (0: its own time); a status taken off",
+    ),
+    (
         "drop_at(item, map, x, y) / remove_monsters(map, kind) / map_travel(from, to, x, y)",
         "An item left on a cell of a map; a map's living monsters of a type gone; every \
          player on map `from` sent to a cell of map `to` (each: this map only)",

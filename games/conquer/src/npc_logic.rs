@@ -1662,6 +1662,29 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // TQ's statuses by their bit on the player: on for a while, asked about, off.
+            1082 => match (
+                tokens.first().map(|t| t.to_ascii_lowercase()),
+                tokens.get(1),
+                int(2),
+                int(4),
+            ) {
+                (Some(target), Some(op), Some(bit), secs) if target == "self" => {
+                    let status = num(crate::rules::TQ_STATUS + bit);
+                    match op.to_ascii_lowercase().as_str() {
+                        "add" => {
+                            let values = [("status", status), ("seconds", num(secs.unwrap_or(0)))];
+                            Self::plain(g, "status.add_for", &values, column)
+                        }
+                        "chk" => {
+                            let has = g.node("status.has", &[("status", status)], column);
+                            Self::branch(g, has, column)
+                        }
+                        _ => Self::plain(g, "status.remove", &[("status", status)], column),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // The trap set off, gone.
             2102 => Self::plain(g, "world.erase_trap", &[], column),
             // A chain run later, with no player (the map group's timer).

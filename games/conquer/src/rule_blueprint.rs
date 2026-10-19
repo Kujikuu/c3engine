@@ -37,7 +37,7 @@ const HIT_STEPS: [(&str, &str); 14] = [
     ),
     (
         "atk0",
-        "attacker.roll + attacker.socket_gem_attack * attacker.roll / 100",
+        "attacker.roll + attacker.status_attack_add + attacker.socket_gem_attack * attacker.roll / 100",
     ),
     // A weapon skill above level 12: 1% more a level.
     (
@@ -52,7 +52,7 @@ const HIT_STEPS: [(&str, &str); 14] = [
     // Superman halves the defence.
     (
         "def",
-        "if(attacker.status_superman > 0, target.defence / 2, target.defence)",
+        "if(attacker.status_superman > 0, (target.defence + target.status_defence_add) / 2, target.defence + target.status_defence_add)",
     ),
     // The least damage: the attacker's attack over the target armour's quality.
     (

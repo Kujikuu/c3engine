@@ -104,11 +104,16 @@ fn xp(p: &Player) -> u64 {
 }
 
 /// A player's status bits: dead, a ghost, a full XP bar, and its name's colour.
-fn status(p: &Player) -> u32 {
+fn status(p: &Player, rules: &dyn Rules) -> u32 {
     let dead = if p.is_alive() { 0 } else { pk::STATUS_DEAD };
+    // The client's effect bits of its statuses (TQ's, from their `client_bit`).
+    let effects = (p.statuses.iter())
+        .filter_map(|s| rules.status(s.id)?.facts.get("client_bit").copied())
+        .fold(0, |bits, bit| bits | u32::try_from(bit).unwrap_or(0));
     let ghost = if p.ghost { pk::STATUS_GHOST } else { 0 };
     let xp_full = if xp(p) >= 100 { pk::STATUS_XP_FULL } else { 0 };
     dead | ghost
+        | effects
         | xp_full
         | match p.mark {
             c3_game::NameMark::Good => 0,
@@ -182,7 +187,7 @@ fn spawn(state: &EntityState, ids: &mut Ids, rules: &dyn Rules) -> Vec<u8> {
             pk::spawn(&Spawn {
                 id,
                 look: look_face(p, rules),
-                status: status(p),
+                status: status(p, rules),
                 gear: [look.armet, look.armor, look.r_weapon, look.l_weapon],
                 life: p.life.min(u16::MAX.into()) as u16,
                 level: p.level as u16,
@@ -435,10 +440,13 @@ impl ConquerClient {
         if !changed.is_empty() {
             out.push(pk::attributes(id, &changed));
         }
-        if status(old) != status(new) || old.pk != new.pk || old.transform != new.transform {
+        if status(old, rules) != status(new, rules)
+            || old.pk != new.pk
+            || old.transform != new.transform
+        {
             let pk_points = u64::try_from(new.pk.max(0)).unwrap_or(0);
             let values = [
-                (attr::STATUS, status(new).into()),
+                (attr::STATUS, status(new, rules).into()),
                 (attr::PK, pk_points),
                 (attr::LOOK_FACE, look_face(new, rules).into()),
             ];
@@ -501,11 +509,14 @@ impl ConquerClient {
             // Another player's name colour changed: its status.
             if let (Some((EntityState::Player(old), _)), EntityState::Player(p)) =
                 (self.seen.get(&id), state)
-                && status(old) != status(p)
+                && status(old, sim.rules()) != status(p, sim.rules())
                 && self.entered
                 && let Some(client) = self.client_id(id, ids)
             {
-                out.push(pk::attributes(client, &[(attr::STATUS, status(p).into())]));
+                out.push(pk::attributes(
+                    client,
+                    &[(attr::STATUS, status(p, sim.rules()).into())],
+                ));
             }
             let fresh = self
                 .seen

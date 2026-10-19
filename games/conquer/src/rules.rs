@@ -220,8 +220,26 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
     let extra = [
         ("superman", ColumnKind::Int, "1: TQ's Superman (XP)"),
         ("cyclone", ColumnKind::Int, "1: TQ's Cyclone (XP)"),
+        ("attack_add", ColumnKind::Int, "Attack added"),
+        ("defence_add", ColumnKind::Int, "Defence added"),
+        (
+            "client_bit",
+            ColumnKind::Int,
+            "The Conquer client's effect bit",
+        ),
     ];
     let mut statuses = Out::new(c3_play::data_rules::STATUSES, &extra);
+    for (bit, name, attack, defence, client) in TQ_STATUSES {
+        statuses.row(&[
+            ("id", int(TQ_STATUS + bit)),
+            ("name", text(name)),
+            ("duration_ms", int(60_000)),
+            ("tick_ms", int(1000)),
+            ("attack_add", int(attack)),
+            ("defence_add", int(defence)),
+            ("client_bit", int(client)),
+        ]);
+    }
     let magic_types = rows(t).map(|r| (r.int("id"), r.int("type"))).collect();
     for r in rows(t).filter(|r| r.int("level") == 0) {
         let id = r.int("type");
@@ -274,6 +292,18 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
     }
     (skills.table, statuses.table, magic_types)
 }
+
+/// Statuses TQ's actions put on by their bit (1082: `self add <bit> <power> <secs>`), each
+/// a status `TQ_STATUS + bit`: its name, what it adds (TQ's power 200, added), and the
+/// client's effect bit (battle spec S3).
+pub const TQ_STATUS: i64 = 1_000_000_000;
+const TQ_STATUSES: [(i64, &str, i64, i64, i64); 5] = [
+    (0x4, "Poison", 0, 0, 0x2),
+    (0x40, "Defence+", 0, 200, 0x100),
+    (0x80, "Attack+", 200, 0, 0x200),
+    (0x20000, "Invisible", 0, 0, 0x40_0000),
+    (0x400_0000, "Praying", 0, 0, 0x8000_0000),
+];
 
 /// The status attach-status magic `id` puts on (its `status` flag says which stat; its power
 /// is 30000 + the stat's new percent; `step_secs` how long); `None` for a flag not modelled.

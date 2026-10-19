@@ -364,6 +364,17 @@ impl Sim {
                     self.travel(player, to);
                 }
             }
+            Effect::AddStatusFor { status, secs } => {
+                if let Ok(status) = u32::try_from(status) {
+                    let ms = (secs > 0).then(|| secs as u64 * 1000);
+                    self.add_status_for(id, status, None, ms);
+                }
+            }
+            Effect::RemoveStatus(status) => {
+                if let Ok(status) = u32::try_from(status) {
+                    self.remove_status(id, status);
+                }
+            }
             Effect::WorldTimer { name, secs } => {
                 let at = self.now_ms + u64::try_from(secs.max(0)).unwrap_or(0) * 1000;
                 self.world_timers.push((at, name));

@@ -361,6 +361,12 @@ pub enum Effect {
         to: i64,
         cell: (i64, i64),
     },
+    /// Status `status` on the player for `secs` (its type's own time: 0); taken off.
+    AddStatusFor {
+        status: i64,
+        secs: i64,
+    },
+    RemoveStatus(i64),
     /// World event `name` (no player) runs after `secs`.
     WorldTimer {
         name: String,

@@ -217,6 +217,30 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     action(
+        "status.add_for",
+        "Add a status for a while",
+        "Statuses",
+        &[("status", Number), ("seconds", Number)],
+        &[],
+        "add_status_for({status}, {seconds});",
+    ),
+    action(
+        "status.remove",
+        "Remove a status",
+        "Statuses",
+        &[("status", Number)],
+        &[],
+        "remove_status({status});",
+    ),
+    pure(
+        "status.has",
+        "Has a status",
+        "Statuses",
+        &[("status", Number)],
+        Bool,
+        "has_status({status})",
+    ),
+    action(
         "world.drop_at",
         "Leave an item on a cell",
         "World",

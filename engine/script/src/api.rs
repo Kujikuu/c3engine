@@ -534,6 +534,13 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("add_status_for", move |status: i64, secs: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::AddStatusFor { status, secs })
+        })
+    });
+    engine.register_fn("remove_status", effect(shared, Effect::RemoveStatus));
+    let s = shared.clone();
     engine.register_fn("world_timer", move |name: &str, secs: i64| {
         with(&s, |c| {
             c.effects.push(Effect::WorldTimer {
