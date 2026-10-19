@@ -11,6 +11,7 @@ pub mod module;
 pub mod npc;
 pub mod npc_logic;
 pub mod protocol;
+pub mod rule_blueprint;
 pub mod rules;
 pub mod server_data;
 pub mod sound;

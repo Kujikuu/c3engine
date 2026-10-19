@@ -140,6 +140,10 @@ pub struct ItemType {
     pub durability: u32,
     /// The currency it is priced in (one of the settings' `currencies`); empty: the money.
     pub currency: String,
+    /// The level a player needs to wear it (0: any).
+    pub requires_level: u32,
+    /// The game's other numbers for it (requirements, kinds...), for formulas.
+    pub facts: std::collections::BTreeMap<String, i64>,
 }
 
 /// What a skill is aimed at.
@@ -293,6 +297,11 @@ pub trait Rules: std::any::Any {
     /// Life `skill` cast by `healer` restores.
     fn skill_heal(&self, _healer: &Fighter, skill: &SkillType) -> u32 {
         skill.power
+    }
+
+    /// Whether `player` may wear `item` (beyond its level, which the engine checks).
+    fn can_wear(&self, _player: &Fighter, _item: &ItemType) -> bool {
+        true
     }
 
     /// Money a shop pays for an item (TQ: a third of its price).

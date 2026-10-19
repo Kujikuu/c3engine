@@ -22,6 +22,9 @@ pub struct ServerData {
     pub tables: Vec<Table>,
     /// NPC behaviour as blueprints, by name (NPCs name them as `graphs/<name>`).
     pub blueprints: Vec<(String, c3_script::blueprint::Blueprint)>,
+    /// Blueprints a project starts from (the game's rules): written only when the project
+    /// has none of that name, so its own edits stay.
+    pub starters: Vec<(String, c3_script::blueprint::Blueprint)>,
     /// What was read and what was left out, a line each.
     pub report: Vec<String>,
 }
@@ -52,9 +55,13 @@ pub fn write(project: &Project, data: &ServerData, listed: &[MapEntry], source: 
         }
     }
     let scripts = project.scripts_dir();
-    for (name, blueprint) in &data.blueprints {
-        let file = (scripts.join(c3_script::blueprint::BLUEPRINT_DIR))
-            .join(format!("{name}{}", c3_script::blueprint::BLUEPRINT_SUFFIX));
+    let blueprint_file = |name: &str| {
+        (scripts.join(c3_script::blueprint::BLUEPRINT_DIR))
+            .join(format!("{name}{}", c3_script::blueprint::BLUEPRINT_SUFFIX))
+    };
+    let starters = (data.starters.iter()).filter(|(name, _)| !blueprint_file(name).exists());
+    for (name, blueprint) in data.blueprints.iter().chain(starters) {
+        let file = blueprint_file(name);
         let written = c3_script::blueprint::save_blueprint(blueprint, &file)
             .and_then(|()| c3_script::blueprint::build_blueprint(&scripts, name));
         match written {

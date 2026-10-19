@@ -113,6 +113,25 @@ fn ints(values: &[i64]) -> impl Iterator<Item = Value> + '_ {
     values.iter().map(|&v| Value::Int(v))
 }
 
+/// The items table's columns the engine reads (others are the game's facts for formulas).
+const ITEM_COLUMNS: [&str; 15] = [
+    "id",
+    "name",
+    "price",
+    "slot",
+    "life",
+    "mana",
+    "attack_min",
+    "attack_max",
+    "defence",
+    "dodge",
+    "dexterity",
+    "stack",
+    "durability",
+    "currency",
+    "requires_level",
+];
+
 /// The tables the engine's rules read, each with an example row, as a new project gets them.
 pub fn table_templates() -> Vec<Table> {
     let mut levels = vec![
@@ -176,6 +195,7 @@ pub fn table_templates() -> Vec<Table> {
             "Durability of a new one; 0: it never wears out",
         ),
         text("currency", "The currency it is priced in; empty: the money"),
+        int("requires_level", "The level needed to wear it; 0: any"),
     ]);
     let slime = |id, name: &str, level, life| {
         let mut row = vec![
@@ -199,10 +219,10 @@ pub fn table_templates() -> Vec<Table> {
     };
     let mut potion = vec![Value::Int(1), Value::Text("Healing Potion".into())];
     potion.extend(ints(&[20, 0, 70, 0, 0, 0, 0, 0, 0, 10, 0]));
-    potion.push(Value::Text(String::new()));
+    potion.extend([Value::Text(String::new()), Value::Int(0)]);
     let mut sword = vec![Value::Int(2), Value::Text("Short Sword".into())];
     sword.extend(ints(&[150, 4, 0, 0, 6, 10, 0, 0, 0, 1, 40]));
-    sword.push(Value::Text(String::new()));
+    sword.extend([Value::Text(String::new()), Value::Int(1)]);
     let mut first = ints(&[1, 100]).collect::<Vec<_>>();
     first.extend(ints(&[120, 60, 10, 15, 1, 5, 5]));
     vec![
@@ -448,30 +468,11 @@ impl DataRules {
                 .inspect_err(|e| problems.push(format!("{name}: {e}")))
                 .ok()
         };
-        if let Some(t) = read(LEVELS, &mut problems) {
-            rules.read_levels(&t);
-        }
-        if let Some(t) = read(MONSTERS, &mut problems) {
-            rules.read_monsters(&t, &mut problems);
-        }
-        if let Some(t) = read(ITEMS, &mut problems) {
-            rules.read_items(&t);
-        }
-        if let Some(t) = read(SKILLS, &mut problems) {
-            rules.read_skills(&t, &mut problems);
-        }
-        if let Some(t) = read(STATUSES, &mut problems) {
-            rules.read_statuses(&t);
-        }
-        if let Some(t) = read(SHOPS, &mut problems) {
-            for row in rows(&t) {
-                rules
-                    .shops
-                    .entry(row.uint("npc"))
-                    .or_default()
-                    .push(row.uint("item"));
-            }
-        }
+        let tables: Vec<Table> = [LEVELS, MONSTERS, ITEMS, SKILLS, STATUSES, SHOPS]
+            .iter()
+            .filter_map(|name| read(name, &mut problems))
+            .collect();
+        rules.read_tables(&tables, &mut problems);
         let scripts = dir.parent().map(|p| p.join("scripts"));
         if let Some(scripts) = scripts {
             match Formulas::load_dir(&scripts) {
@@ -480,6 +481,34 @@ impl DataRules {
             }
         }
         (rules, problems)
+    }
+
+    /// The rules of `tables` (by their names), without formulas.
+    pub fn from_tables(tables: &[Table]) -> Self {
+        let mut rules = Self::default();
+        rules.read_tables(tables, &mut Vec::new());
+        rules
+    }
+
+    fn read_tables(&mut self, tables: &[Table], problems: &mut Vec<String>) {
+        for t in tables {
+            match t.name.as_str() {
+                LEVELS => self.read_levels(t),
+                MONSTERS => self.read_monsters(t, problems),
+                ITEMS => self.read_items(t),
+                SKILLS => self.read_skills(t, problems),
+                STATUSES => self.read_statuses(t),
+                SHOPS => {
+                    for row in rows(t) {
+                        self.shops
+                            .entry(row.uint("npc"))
+                            .or_default()
+                            .push(row.uint("item"));
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     fn read_levels(&mut self, t: &Table) {
@@ -600,6 +629,11 @@ impl DataRules {
                 Some(_) => (0, 0, stats),
                 None => (stats.max_life, stats.max_mana, Stats::default()),
             };
+            // Columns the engine doesn't read are the game's numbers for its formulas.
+            let facts = (t.columns.iter().enumerate())
+                .filter(|(_, c)| !ITEM_COLUMNS.contains(&c.name.as_str()))
+                .filter_map(|(i, c)| Some((c.name.clone(), row.values.get(i)?.as_int()?)))
+                .collect();
             let item = ItemType {
                 id,
                 name: row.text("name").to_owned(),
@@ -611,6 +645,8 @@ impl DataRules {
                 stack: row.uint("stack"),
                 durability: row.uint("durability"),
                 currency: row.text("currency").to_owned(),
+                requires_level: row.uint("requires_level"),
+                facts,
             };
             self.items.insert(id, item);
         }
@@ -667,6 +703,25 @@ pub(crate) fn fighter_map(f: &Fighter) -> Map {
         map.insert(key.into(), i64::from(value).into());
     }
     for (key, &value) in &f.facts {
+        map.insert(key.as_str().into(), value.into());
+    }
+    map
+}
+
+/// An item type's numbers as a script map: its id, slot, level, stats and facts.
+pub(crate) fn item_map(t: &ItemType) -> Map {
+    let mut map = Map::new();
+    for (key, value) in [
+        ("id", t.id),
+        ("slot", t.slot.map_or(0, u32::from)),
+        ("requires_level", t.requires_level),
+        ("attack_min", t.bonus.attack_min),
+        ("attack_max", t.bonus.attack_max),
+        ("defence", t.bonus.defence),
+    ] {
+        map.insert(key.into(), i64::from(value).into());
+    }
+    for (key, &value) in &t.facts {
         map.insert(key.as_str().into(), value.into());
     }
     map
@@ -744,9 +799,8 @@ impl Rules for DataRules {
 
     fn player_stats(&self, who: &StatsFor) -> Stats {
         let level = who.level;
-        let mut stats = if let Some(row) = self.levels.get(&level) {
-            row.stats
-        } else if let Some(map) = self.formula("player_stats", |f| stats_formula(f, who)) {
+        // The formula (it knows the player), else the level's row, else the engine's own.
+        let mut stats = if let Some(map) = self.formula("player_stats", |f| stats_formula(f, who)) {
             Stats {
                 max_life: uint(map_int(&map, "life")),
                 max_mana: uint(map_int(&map, "mana")),
@@ -757,6 +811,8 @@ impl Rules for DataRules {
                 dexterity: uint(map_int(&map, "dexterity")),
                 ..Stats::default()
             }
+        } else if let Some(row) = self.levels.get(&level) {
+            row.stats
         } else {
             default_stats(level)
         };
@@ -881,6 +937,13 @@ impl Rules for DataRules {
                 .saturating_sub(target.stats.defence / 2)
                 .max(1),
         }
+    }
+
+    fn can_wear(&self, player: &Fighter, item: &ItemType) -> bool {
+        self.formula("can_wear", |f| {
+            f.int("can_wear", (fighter_map(player), item_map(item)))
+        })
+        .is_none_or(|ok| ok != 0)
     }
 
     fn skill_heal(&self, healer: &Fighter, skill: &SkillType) -> u32 {

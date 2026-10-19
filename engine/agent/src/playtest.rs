@@ -39,6 +39,7 @@ pub(crate) fn tools() -> Vec<Tool> {
             "map": { "type": "string" },
             "cell": { "type": "array", "items": { "type": "integer" } },
             "level": { "type": "integer" },
+            "profession": { "type": "integer", "description": "The game's profession number" },
             "steps": { "type": "array", "items": {} },
         }),
         &["steps"],
@@ -83,6 +84,7 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
     let level = opt_arg::<u32>(args, "level")?.unwrap_or(1);
     let mut save = c3_play::settings::new_character(&settings.gameplay, "Tester", cell);
     save.level = level.max(1);
+    save.profession = opt_arg::<u32>(args, "profession")?.unwrap_or(0);
     let player = sim.add_saved_player(&save);
     sim.logged_in(player);
     let mut log = vec![report(&mut sim, player, json!("enter"))];
@@ -106,6 +108,11 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
             "cell": p.cell, "level": p.level, "life": p.life, "money": p.money,
             "bag": p.bag, "equipment": p.equipment, "flags": p.flags,
             "alive": p.is_alive(), "profession": p.profession,
+            "attributes": p.attributes, "stats": {
+                "life": p.stats.max_life, "mana": p.stats.max_mana,
+                "attack": [p.stats.attack_min, p.stats.attack_max],
+                "defence": p.stats.defence, "dodge": p.stats.dodge,
+            },
         })
     });
     Ok(json!({

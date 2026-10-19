@@ -3,7 +3,6 @@
 
 use super::packets::{self as pk, Request, Spawn, action, attr, channel, interact, item};
 use crate::character::player_look;
-use crate::rules::{ConquerRules, Points};
 use c3_game::{EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
 use c3_online::Welcome;
 use c3_scene::{CellPos, Npc, path};
@@ -79,9 +78,15 @@ fn look_face(p: &Player) -> u32 {
     FACE * 10_000 + 1000 + player_look(p).look
 }
 
-/// The hero's attribute points at `level` under Conquer's rules (none under others).
-fn points(rules: &dyn Rules, level: u32) -> Points {
-    c3_game::find_rules::<ConquerRules>(rules).map_or([0; 4], |r| r.points_at(level))
+/// Strength, agility, vitality and spirit.
+type Points = [u32; 4];
+
+/// The hero's attribute points.
+fn points(p: &Player) -> Points {
+    ["strength", "agility", "vitality", "spirit"].map(|name| {
+        let value = p.attributes.get(name).copied().unwrap_or(0);
+        u32::try_from(value.max(0)).unwrap_or(u32::MAX)
+    })
 }
 
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
@@ -226,7 +231,7 @@ impl ConquerClient {
                     0 => PROFESSION,
                     chosen => u8::try_from(chosen).unwrap_or(PROFESSION),
                 },
-                points: points(sim.rules(), p.level).map(|v| v.min(u16::MAX.into()) as u16),
+                points: points(p).map(|v| v.min(u16::MAX.into()) as u16),
                 name: &p.name,
             }),
         ];
@@ -236,7 +241,7 @@ impl ConquerClient {
                 .iter()
                 .map(|i| pk::item_info(i.id, i.kind, slot_of(sim.rules(), i.kind))),
         );
-        self.points = points(sim.rules(), p.level);
+        self.points = points(p);
         self.me = Some(p.clone());
         Ok(out)
     }
@@ -278,7 +283,7 @@ impl ConquerClient {
             cell16(p.cell),
             p.direction.into(),
         ));
-        self.points = points(sim.rules(), p.level);
+        self.points = points(&p);
         out.push(pk::attributes(
             self.hero_id(),
             &Self::stats(&p, self.points),
@@ -339,7 +344,7 @@ impl ConquerClient {
     /// What changed on the hero, as attribute and item packets.
     fn hero_changes(&self, old: &Player, new: &Player, rules: &dyn Rules) -> Vec<Vec<u8>> {
         let id = self.hero_id();
-        let changed: Vec<(u32, u64)> = Self::stats(new, points(rules, new.level))
+        let changed: Vec<(u32, u64)> = Self::stats(new, points(new))
             .into_iter()
             .zip(Self::stats(old, self.points))
             .filter(|(n, o)| n != o)
@@ -388,7 +393,7 @@ impl ConquerClient {
                     if let (true, Some(old)) = (self.entered, &self.me) {
                         out.extend(self.hero_changes(old, p, sim.rules()));
                     }
-                    self.points = points(sim.rules(), p.level);
+                    self.points = points(p);
                     self.me = Some((**p).clone());
                 }
                 continue;

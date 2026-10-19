@@ -222,6 +222,15 @@ impl Sim {
             return;
         };
         if t.slot.is_some() {
+            if p.level < t.requires_level {
+                let text = format!("You must be level {} to wear {}.", t.requires_level, t.name);
+                self.message(id, text);
+                return;
+            }
+            if !self.rules.can_wear(&self.player_fighter(id), t) {
+                self.message(id, format!("You can't wear {} yet.", t.name));
+                return;
+            }
             let worn = self
                 .players
                 .get_mut(&id)

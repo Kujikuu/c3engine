@@ -161,6 +161,16 @@ impl Rules for FormulaRules {
         scripted.map_or_else(|| self.inner.skill_hit(attacker, target, skill, rng), uint)
     }
 
+    fn can_wear(&self, player: &Fighter, item: &ItemType) -> bool {
+        match self.formula("can_wear", |f| {
+            let player = crate::data_rules::fighter_map(player);
+            f.int("can_wear", (player, crate::data_rules::item_map(item)))
+        }) {
+            Some(ok) => ok != 0,
+            None => self.inner.can_wear(player, item),
+        }
+    }
+
     fn skill_heal(&self, healer: &Fighter, skill: &SkillType) -> u32 {
         self.formula("skill_heal", |f| {
             f.int("skill_heal", (fighter_map(healer), skill_map(skill)))

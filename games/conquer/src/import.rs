@@ -173,7 +173,24 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
 
     out.report.extend(converted.report);
     out.blueprints = converted.blueprints;
+    // The engine's rule tables made of TQ's, and TQ's formulas as the rules blueprint.
+    let (rule_tables, problems) = crate::rules::engine_tables(&tables);
+    out.report.extend(problems);
+    out.report.push(format!(
+        "Rules: {} engine tables ({}); formulas in blueprint {}",
+        rule_tables.len(),
+        (rule_tables.iter())
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+        crate::rule_blueprint::RULES_BLUEPRINT
+    ));
+    out.starters.push((
+        crate::rule_blueprint::RULES_BLUEPRINT.into(),
+        crate::rule_blueprint::rules_blueprint(),
+    ));
     out.tables = tables;
+    out.tables.extend(rule_tables);
     for table in &out.tables {
         out.report
             .push(format!("Table {}: {} rows", table.name, table.rows.len()));
@@ -248,7 +265,14 @@ INSERT INTO `cq_map` VALUES ('1005', 'Arena', 'x', '1005', '0009', '0', '0000', 
         let population = &import.populations[&twin.key];
         assert!(population.npcs.len() > 50, "{}", population.npcs.len());
         assert!(!population.spawns.is_empty() && !population.links.is_empty());
-        assert_eq!(import.tables.len(), DATA_TABLES.len());
+        // TQ's tables and the engine's rule tables made of them.
+        assert_eq!(import.tables.len(), DATA_TABLES.len() + 7);
+        assert!(
+            import
+                .starters
+                .iter()
+                .any(|(n, _)| n == crate::rule_blueprint::RULES_BLUEPRINT)
+        );
         assert!(import.report.iter().any(|l| l.starts_with("Population:")));
         eprintln!(
             "{}",

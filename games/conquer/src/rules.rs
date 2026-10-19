@@ -1,404 +1,37 @@
-//! Conquer's game rules for the engine's simulation, read from the project's tables (TQ's
-//! `cq_monstertype`, `cq_itemtype`, `cq_levexp`, `cq_goods`, `cq_point_allot`, and
-//! `cq_magictype` for skills: each magic type at its first level, until skill levels come).
-//!
-//! The formulas follow TQ's server where its rules are known (damage − defence, at least 1;
-//! experience per point of damage, scaled by level difference; a kill bonus of 5% of the
-//! monster's life) and are simplified where they are not yet (dodge, drops): M7 brings them
-//! to parity.
+//! Conquer's game data as the engine's: TQ's tables (`cq_monstertype`, `cq_itemtype`,
+//! `cq_levexp`, `cq_goods`, `cq_point_allot`, `cq_magictype`) read into the engine's rule
+//! tables (`monsters`, `items`, `levels`, `shops`, `skills`, `statuses`, and `points`: the
+//! attribute points each class has at each level), so a Conquer project plays on the engine's
+//! data rules with its formulas as a blueprint ([`crate::rule_blueprint`]). Nothing here runs
+//! while playing; it is what the import writes.
 
-use c3_data::{Table, Value};
-use c3_game::{
-    Drop, Fighter, ItemType, MonsterType, Rng, Rules, SkillKind, SkillTarget, SkillType, Stats,
-    StatsFor, StatusType,
-};
-use std::collections::HashMap;
-use std::path::Path;
+use c3_data::{Column, ColumnKind, Table, Value};
+use std::collections::BTreeMap;
 
 /// TQ's monster types table (`cq_monstertype`).
 pub const MONSTER_TABLE: &str = "cq_monstertype";
+/// The engine table of attribute points by class and level (key: class × 1000 + level).
+pub const POINTS_TABLE: &str = "points";
 
 /// `attack_user` bit: attacks players on sight (`ATKUSER_ACTIVE`).
 const ACTIVE: i64 = 0x02;
 /// `attack_user` bits of monsters that hunt players by their name colour (guard, police,
 /// evil killer).
 const GUARD_LIKE: i64 = 0x8 | 0x10 | 0x800;
-/// Out of 100: chance a dead monster drops money, its life potion, its mana potion.
-const MONEY_CHANCE: u32 = 40;
-const LIFE_POTION_CHANCE: u32 = 8;
-const MANA_POTION_CHANCE: u32 = 4;
 /// `cq_magictype.sort` of healing magic (`MAGICSORT_RECRUIT`).
 const SORT_HEAL: i64 = 2;
-/// Where `read_monsters` finds `magic_type` (then `magic_hitrate`, `escape_life`).
-const MONSTER_MAGIC: usize = 18;
 /// `cq_magictype.sort` of magic that puts a status on (`MAGICSORT_ATTACHSTATUS`).
 const SORT_STATUS: i64 = 6;
 /// `cq_magictype.status` flags (TQ's `KEEPEFFECT_*`) and the stat each raises.
-const STATUS_ACCURACY: u32 = 0x20;
-const STATUS_SHIELD: u32 = 0x40;
-const STATUS_SUPERMAN: u32 = 0x2000;
-const STATUS_CYCLONE: u32 = 0x40000;
+const STATUS_ACCURACY: i64 = 0x20;
+const STATUS_SHIELD: i64 = 0x40;
+const STATUS_SUPERMAN: i64 = 0x2000;
+const STATUS_CYCLONE: i64 = 0x40000;
 /// A `cq_magictype.power` above this is a physical skill: that much over, in percent of a hit.
-const PERCENT_POWER: u32 = 30000;
-/// Profession whose stat growth players get until professions are chosen (Trojan).
-const PROFESSION: i64 = 1;
-/// Milliseconds per walking step and between a player's hits.
-const PLAYER_STEP_MS: u32 = 500;
-const PLAYER_ATTACK_MS: u32 = 1000;
-
-/// What a monster can drop.
-#[derive(Debug, Clone, Copy, Default)]
-struct MonsterDrops {
-    money: u64,
-    life_potion: u32,
-    mana_potion: u32,
-}
-
-/// Stat points of a level: strength, agility, vitality, spirit.
-/// Strength, agility, vitality and spirit.
-pub type Points = [u32; 4];
-
-#[derive(Debug, Default)]
-pub struct ConquerRules {
-    monsters: HashMap<u32, MonsterType>,
-    drops: HashMap<u32, MonsterDrops>,
-    items: HashMap<u32, ItemType>,
-    /// Experience to rise from level `i + 1`.
-    level_exp: Vec<u64>,
-    points: HashMap<u32, Points>,
-    shops: HashMap<u32, Vec<u32>>,
-    skills: HashMap<u32, SkillType>,
-    statuses: HashMap<u32, StatusType>,
-    /// `cq_magictype.id` (a magic at a level) → its type.
-    magic_types: HashMap<u32, u32>,
-}
-
-/// A table's rows read by column name.
-struct Rows<'a> {
-    table: &'a Table,
-    columns: Vec<usize>,
-}
-
-impl<'a> Rows<'a> {
-    fn new(table: &'a Table, names: &[&str]) -> Result<Self, String> {
-        let columns = names
-            .iter()
-            .map(|n| {
-                table
-                    .column(n)
-                    .ok_or_else(|| format!("table {} has no column {n}", table.name))
-            })
-            .collect::<Result<_, _>>()?;
-        Ok(Self { table, columns })
-    }
-
-    /// Each row's values in the order the columns were named.
-    fn each(&self) -> impl Iterator<Item = Vec<&'a Value>> + '_ {
-        self.table
-            .rows
-            .iter()
-            .map(|row| self.columns.iter().map(|&c| &row[c]).collect())
-    }
-}
-
-fn int(v: &Value) -> i64 {
-    v.as_int().unwrap_or(0)
-}
-
-fn uint(v: &Value) -> u32 {
-    int(v).clamp(0, u32::MAX.into()) as u32
-}
-
-impl ConquerRules {
-    /// Reads the rules from the tables in `dir`; a missing table leaves its part empty and is
-    /// reported.
-    pub fn from_tables(dir: &Path) -> (Self, Vec<String>) {
-        let mut rules = Self::default();
-        let mut problems = Vec::new();
-        let mut load = |name: &str, read: &mut dyn FnMut(&Table) -> Result<(), String>| {
-            let file = dir.join(format!("{name}{}", c3_data::TABLE_SUFFIX));
-            let result = c3_data::load_table(&file)
-                .map_err(|e| format!("table {name}: {e}"))
-                .and_then(|t| read(&t));
-            if let Err(e) = result {
-                problems.push(e);
-            }
-        };
-        // Monsters name their magic, so magic first.
-        if dir
-            .join(format!("cq_magictype{}", c3_data::TABLE_SUFFIX))
-            .exists()
-        {
-            load("cq_magictype", &mut |t| rules.read_magic(t));
-        }
-        load(MONSTER_TABLE, &mut |t| rules.read_monsters(t));
-        load(crate::server_data::ITEM_TABLE, &mut |t| rules.read_items(t));
-        load("cq_levexp", &mut |t| rules.read_levels(t));
-        load("cq_point_allot", &mut |t| rules.read_points(t));
-        load("cq_goods", &mut |t| rules.read_shops(t));
-        (rules, problems)
-    }
-
-    /// Magic types at their first level (`level` 0) as skills, by their type.
-    fn read_magic(&mut self, t: &Table) -> Result<(), String> {
-        let rows = Rows::new(
-            t,
-            &[
-                "type",
-                "sort",
-                "name",
-                "level",
-                "use_mp",
-                "power",
-                "distance",
-                "range",
-                "multi",
-                "ground",
-                "delay_ms",
-                "need_level",
-                "status",
-                "step_secs",
-                "id",
-            ],
-        )?;
-        for v in rows.each() {
-            self.magic_types.insert(uint(v[14]), uint(v[0]));
-        }
-        for v in rows.each().filter(|v| int(v[3]) == 0) {
-            let id = uint(v[0]);
-            let kind = match int(v[1]) {
-                SORT_HEAL => SkillKind::Heal,
-                SORT_STATUS => SkillKind::Status,
-                _ => SkillKind::Damage,
-            };
-            let status = (kind == SkillKind::Status)
-                .then(|| self.read_status(id, v[2].as_text().unwrap_or_default(), &v))
-                .flatten()
-                .unwrap_or(0);
-            let target = match kind {
-                SkillKind::Heal | SkillKind::Status => SkillTarget::Myself,
-                SkillKind::Damage if int(v[9]) != 0 => SkillTarget::Ground,
-                SkillKind::Damage => SkillTarget::Enemy,
-            };
-            let area = if int(v[8]) != 0 { uint(v[7]) } else { 0 };
-            self.skills.insert(
-                id,
-                SkillType {
-                    id,
-                    name: v[2].as_text().unwrap_or_default().to_owned(),
-                    target,
-                    kind,
-                    range: uint(v[6]).max(1),
-                    area,
-                    cooldown_ms: uint(v[10]).max(500),
-                    mana: uint(v[4]),
-                    // A negative power (Restore's -32768) heals fully.
-                    power: if int(v[5]) < 0 { u32::MAX } else { uint(v[5]) },
-                    level: uint(v[11]),
-                    effect: String::new(),
-                    status,
-                },
-            );
-        }
-        Ok(())
-    }
-
-    /// The status an attach-status magic puts on (its `status` flag says which stat; its power
-    /// is 30000 + the stat's new percent; `step_secs` how long), by the magic's type.
-    fn read_status(&mut self, id: u32, name: &str, v: &[&Value]) -> Option<u32> {
-        let change = i64::from(uint(v[5])) - i64::from(PERCENT_POWER) - 100;
-        let change = change.clamp(-100, 10_000) as i32;
-        let mut status = StatusType {
-            id,
-            name: name.to_owned(),
-            duration_ms: uint(v[13]).saturating_mul(1000),
-            tick_ms: 1000,
-            ..StatusType::default()
-        };
-        match uint(v[12]) {
-            STATUS_ACCURACY => status.dodge_percent = change,
-            STATUS_SHIELD => status.defence_percent = change,
-            STATUS_SUPERMAN => status.attack_percent = change,
-            // Cyclone's power is its speed gain itself.
-            STATUS_CYCLONE => status.speed_percent = change + 100,
-            _ => return None,
-        }
-        self.statuses.insert(id, status);
-        Some(id)
-    }
-
-    fn read_monsters(&mut self, t: &Table) -> Result<(), String> {
-        let rows = Rows::new(
-            t,
-            &[
-                "id",
-                "name",
-                "lookface",
-                "level",
-                "life",
-                "attack_min",
-                "attack_max",
-                "defence",
-                "dodge",
-                "dexterity",
-                "attack_range",
-                "view_range",
-                "attack_speed",
-                "move_speed",
-                "attack_user",
-                "drop_money",
-                "drop_hp",
-                "drop_mp",
-                "magic_type",
-                "magic_hitrate",
-                "escape_life",
-            ],
-        )?;
-        for v in rows.each() {
-            let id = uint(v[0]);
-            self.monsters.insert(
-                id,
-                MonsterType {
-                    id,
-                    name: v[1].as_text().unwrap_or_default().to_owned(),
-                    look: uint(v[2]),
-                    level: uint(v[3]),
-                    stats: Stats {
-                        max_life: uint(v[4]).max(1),
-                        max_mana: 0,
-                        attack_min: uint(v[5]),
-                        attack_max: uint(v[6]).max(uint(v[5])),
-                        defence: uint(v[7]),
-                        dodge: uint(v[8]),
-                        dexterity: uint(v[9]),
-                        attack_range: uint(v[10]).max(1),
-                        attack_ms: uint(v[12]).max(300),
-                        step_ms: uint(v[13]).max(200),
-                    },
-                    view_range: uint(v[11]),
-                    // Guards and police start fights only with players of a bad name
-                    // (blue, black; virtuous ones for evil killers), not everyone in view.
-                    aggressive: int(v[14]) & ACTIVE != 0 && int(v[14]) & GUARD_LIKE == 0,
-                    // `magic_type` names a magic level (`cq_magictype.id`); skills go by type.
-                    skill: self
-                        .magic_types
-                        .get(&uint(v[MONSTER_MAGIC]))
-                        .copied()
-                        .unwrap_or(0),
-                    skill_percent: uint(v[MONSTER_MAGIC + 1]).min(100),
-                    flee_percent: (u64::from(uint(v[MONSTER_MAGIC + 2])) * 100
-                        / u64::from(uint(v[4]).max(1)))
-                    .min(100) as u32,
-                    ..MonsterType::default()
-                },
-            );
-            self.drops.insert(
-                id,
-                MonsterDrops {
-                    money: uint(v[15]).into(),
-                    life_potion: uint(v[16]),
-                    mana_potion: uint(v[17]),
-                },
-            );
-        }
-        Ok(())
-    }
-
-    fn read_items(&mut self, t: &Table) -> Result<(), String> {
-        let rows = Rows::new(
-            t,
-            &[
-                "id",
-                "name",
-                "price",
-                "life",
-                "mana",
-                "attack_min",
-                "attack_max",
-                "defense",
-                "dodge",
-                "dexterity",
-            ],
-        )?;
-        for v in rows.each() {
-            let id = uint(v[0]);
-            let slot = slot(id);
-            // Worn items add their life and mana; potions restore them.
-            let (restores, adds) = if slot.is_some() {
-                ((0, 0), (uint(v[3]), uint(v[4])))
-            } else {
-                ((uint(v[3]), uint(v[4])), (0, 0))
-            };
-            self.items.insert(
-                id,
-                ItemType {
-                    id,
-                    name: v[1].as_text().unwrap_or_default().to_owned(),
-                    price: uint(v[2]).into(),
-                    restores_life: restores.0,
-                    restores_mana: restores.1,
-                    slot,
-                    bonus: Stats {
-                        max_life: adds.0,
-                        max_mana: adds.1,
-                        attack_min: uint(v[5]),
-                        attack_max: uint(v[6]),
-                        defence: uint(v[7]),
-                        dodge: uint(v[8]),
-                        dexterity: uint(v[9]),
-                        ..Default::default()
-                    },
-                    ..ItemType::default()
-                },
-            );
-        }
-        Ok(())
-    }
-
-    fn read_levels(&mut self, t: &Table) -> Result<(), String> {
-        let rows = Rows::new(t, &["level", "exp"])?;
-        let mut levels: Vec<(u32, u64)> = rows
-            .each()
-            .map(|v| (uint(v[0]), int(v[1]) as u64))
-            .collect();
-        levels.sort_unstable();
-        self.level_exp = levels.into_iter().map(|(_, exp)| exp).collect();
-        Ok(())
-    }
-
-    fn read_points(&mut self, t: &Table) -> Result<(), String> {
-        let rows = Rows::new(
-            t,
-            &["profession", "level", "force", "Speed", "health", "soul"],
-        )?;
-        for v in rows.each().filter(|v| int(v[0]) == PROFESSION) {
-            self.points
-                .insert(uint(v[1]), [uint(v[2]), uint(v[3]), uint(v[4]), uint(v[5])]);
-        }
-        Ok(())
-    }
-
-    fn read_shops(&mut self, t: &Table) -> Result<(), String> {
-        let rows = Rows::new(t, &["ownerid", "itemtype"])?;
-        for v in rows.each() {
-            self.shops.entry(uint(v[0])).or_default().push(uint(v[1]));
-        }
-        Ok(())
-    }
-
-    /// Stat points at `level`: the table's, else the nearest level below it.
-    pub fn points_at(&self, level: u32) -> Points {
-        (1..=level)
-            .rev()
-            .find_map(|l| self.points.get(&l))
-            .copied()
-            .unwrap_or([5, 2, 3, 0])
-    }
-
-    pub fn monster_count(&self) -> usize {
-        self.monsters.len()
-    }
-}
+const PERCENT_POWER: i64 = 30000;
+/// Chances (percent) a dead monster drops its life and mana potions.
+const LIFE_POTION_CHANCE: i64 = 8;
+const MANA_POTION_CHANCE: i64 = 4;
 
 /// Equipment slots (TQ's `ITEMPOSITION_*`).
 pub mod slot {
@@ -439,238 +72,393 @@ pub fn slot(id: u32) -> Option<u8> {
     }
 }
 
-/// Experience scale (percent) for hitting a monster `delta` levels above the player.
-fn level_scale(delta: i64) -> u64 {
-    match delta {
-        3.. => 120,
-        -3..=2 => 100,
-        -8..=-4 => 50,
-        _ => 10,
+/// A row of a TQ table, read by column name; a missing column reads as nothing.
+struct TqRow<'a> {
+    table: &'a Table,
+    values: &'a [Value],
+}
+
+impl TqRow<'_> {
+    fn int(&self, column: &str) -> i64 {
+        (self.table.column(column))
+            .and_then(|i| self.values.get(i))
+            .and_then(Value::as_int)
+            .unwrap_or(0)
+    }
+
+    fn text(&self, column: &str) -> String {
+        (self.table.column(column))
+            .and_then(|i| self.values.get(i))
+            .and_then(Value::as_text)
+            .unwrap_or_default()
+            .to_owned()
     }
 }
 
-impl Rules for ConquerRules {
-    fn monster(&self, kind: u32) -> Option<&MonsterType> {
-        self.monsters.get(&kind)
+/// Every row of `table`.
+fn rows(table: &Table) -> impl Iterator<Item = TqRow<'_>> {
+    (table.rows.iter()).map(move |values| TqRow { table, values })
+}
+
+/// An engine table being filled, its rows given by column name.
+struct Out {
+    table: Table,
+}
+
+impl Out {
+    /// The engine's template of table `name` (its columns), with `extra` columns after.
+    fn new(name: &str, extra: &[(&str, ColumnKind, &str)]) -> Self {
+        let mut table = (c3_play::data_rules::table_templates().into_iter())
+            .find(|t| t.name == name)
+            .unwrap_or_else(|| Table::new(name, Vec::new()));
+        table.rows.clear();
+        for (column, kind, doc) in extra {
+            table.columns.push(Column {
+                doc: (*doc).into(),
+                ..Column::new(*column, *kind)
+            });
+        }
+        Self { table }
     }
 
-    fn skill(&self, id: u32) -> Option<&SkillType> {
-        self.skills.get(&id)
+    /// Adds a row of `values` by column name; columns not named get their empty value.
+    fn row(&mut self, values: &[(&str, Value)]) {
+        let row = (self.table.columns.iter())
+            .map(|c| {
+                (values.iter())
+                    .find(|(name, _)| *name == c.name)
+                    .map_or_else(|| c.kind.default_value(), |(_, v)| v.clone())
+            })
+            .collect();
+        self.table.rows.push(row);
     }
+}
 
-    fn status(&self, id: u32) -> Option<&StatusType> {
-        self.statuses.get(&id)
-    }
+fn int(v: i64) -> Value {
+    Value::Int(v)
+}
 
-    fn item(&self, kind: u32) -> Option<&ItemType> {
-        self.items.get(&kind)
-    }
+fn text(v: impl Into<String>) -> Value {
+    Value::Text(v.into())
+}
 
-    /// TQ's life formula (`CUser::GetMaxLife`): vitality × 24 + the other points × 3.
-    fn player_stats(&self, who: &StatsFor) -> Stats {
-        let [strength, agility, vitality, spirit] = self.points_at(who.level);
-        Stats {
-            max_life: vitality * 24 + (strength + agility + spirit) * 3,
-            max_mana: spirit * 5,
-            attack_min: strength,
-            attack_max: strength + strength / 2,
-            defence: 0,
-            dodge: agility,
-            dexterity: agility,
-            attack_range: 1,
-            attack_ms: PLAYER_ATTACK_MS,
-            step_ms: PLAYER_STEP_MS,
+/// Makes an engine table of a TQ one.
+type TableMaker<'a> = dyn Fn(&Table) -> Table + 'a;
+
+/// The engine's rule tables made of TQ's `tables`, and what couldn't be made.
+pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
+    let find = |name: &str| tables.iter().find(|t| t.name == name);
+    let mut out = Vec::new();
+    let mut problems = Vec::new();
+    let mut missing = |name: &str| problems.push(format!("Rules: the dump has no {name}"));
+    let (skills, statuses, magic_types) = match find("cq_magictype") {
+        Some(t) => skills_and_statuses(t),
+        None => {
+            missing("cq_magictype");
+            (
+                Out::new(c3_play::data_rules::SKILLS, &[]).table,
+                Out::new(c3_play::data_rules::STATUSES, &[]).table,
+                BTreeMap::new(),
+            )
+        }
+    };
+    out.extend([skills, statuses]);
+    let makers: [(&str, &TableMaker); 5] = [
+        (MONSTER_TABLE, &|t| monsters(t, &magic_types)),
+        (crate::server_data::ITEM_TABLE, &items),
+        ("cq_levexp", &levels),
+        ("cq_goods", &shops),
+        ("cq_point_allot", &points),
+    ];
+    for (name, make) in makers {
+        match find(name) {
+            Some(t) => out.push(make(t)),
+            None => missing(name),
         }
     }
+    (out, problems)
+}
 
-    fn level_exp(&self, level: u32) -> Option<u64> {
-        let exp = *self.level_exp.get(level.checked_sub(1)? as usize)?;
-        (exp > 0).then_some(exp)
-    }
-
-    fn hit(&self, attacker: &Fighter, target: &Fighter, rng: &mut Rng) -> u32 {
-        let miss = target
-            .stats
-            .dodge
-            .saturating_sub(attacker.stats.dexterity)
-            .min(90)
-            / 2;
-        if rng.chance(miss, 100) {
-            return 0;
-        }
-        let a = &attacker.stats;
-        let attack = rng.range(a.attack_min.into(), a.attack_max.into()) as u32;
-        attack.saturating_sub(target.stats.defence).max(1)
-    }
-
-    /// TQ's skill damage: a physical skill strikes a percentage of a hit, less defence; a
-    /// spell deals its power.
-    fn skill_hit(
-        &self,
-        attacker: &Fighter,
-        target: &Fighter,
-        skill: &SkillType,
-        rng: &mut Rng,
-    ) -> u32 {
-        match skill.power.checked_sub(PERCENT_POWER) {
-            Some(percent) => {
-                let a = &attacker.stats;
-                let attack = rng.range(a.attack_min.into(), a.attack_max.into()) as u32;
-                (attack * percent / 100)
-                    .saturating_sub(target.stats.defence)
-                    .max(1)
-            }
-            None => skill.power.max(1),
-        }
-    }
-
-    fn hit_exp(&self, level: u32, target: &Fighter, damage: u32) -> u64 {
-        u64::from(damage) * level_scale(i64::from(target.level) - i64::from(level)) / 100
-    }
-
-    fn kill_exp(&self, level: u32, target: &Fighter) -> u64 {
-        u64::from(target.stats.max_life) * 5 / 100
-            * level_scale(i64::from(target.level) - i64::from(level))
-            / 100
-    }
-
-    fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop> {
-        let Some(d) = self.drops.get(&kind) else {
-            return Vec::new();
+/// Magic types at their first level (`level` 0) as skills, the statuses attach-status magic
+/// puts on, and each magic level's id → its type (monsters name magic levels).
+fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
+    let mut skills = Out::new(c3_play::data_rules::SKILLS, &[]);
+    let mut statuses = Out::new(c3_play::data_rules::STATUSES, &[]);
+    let magic_types = rows(t).map(|r| (r.int("id"), r.int("type"))).collect();
+    for r in rows(t).filter(|r| r.int("level") == 0) {
+        let id = r.int("type");
+        let name = r.text("name");
+        let (kind, status) = match r.int("sort") {
+            SORT_HEAL => ("heal", 0),
+            SORT_STATUS => match status(&mut statuses, id, &name, &r) {
+                Some(status) => ("status", status),
+                None => ("damage", 0),
+            },
+            _ => ("damage", 0),
         };
-        let mut out = Vec::new();
-        if d.money > 0 && rng.chance(MONEY_CHANCE, 100) {
-            out.push(Drop::Money(
-                rng.range((d.money / 2).max(1) as i64, d.money as i64) as u64,
-            ));
-        }
-        if d.life_potion != 0 && rng.chance(LIFE_POTION_CHANCE, 100) {
-            out.push(Drop::Item(d.life_potion));
-        }
-        if d.mana_potion != 0 && rng.chance(MANA_POTION_CHANCE, 100) {
-            out.push(Drop::Item(d.mana_potion));
-        }
-        out
-    }
-
-    fn loot(&self, kind: u32) -> c3_game::Loot {
-        let Some(d) = self.drops.get(&kind) else {
-            return Default::default();
+        let target = match kind {
+            "heal" | "status" => "self",
+            _ if r.int("ground") != 0 => "ground",
+            _ => "enemy",
         };
+        let area = if r.int("multi") != 0 {
+            r.int("range")
+        } else {
+            0
+        };
+        // A negative power (Restore's -32768) heals fully.
+        let power = if r.int("power") < 0 {
+            i64::from(u32::MAX)
+        } else {
+            r.int("power")
+        };
+        skills.row(&[
+            ("id", int(id)),
+            ("name", text(name)),
+            ("target", text(target)),
+            ("kind", text(kind)),
+            ("range", int(r.int("distance").max(1))),
+            ("area", int(area)),
+            ("cooldown_ms", int(r.int("delay_ms").max(500))),
+            ("mana", int(r.int("use_mp"))),
+            ("power", int(power)),
+            ("level", int(r.int("need_level"))),
+            ("status", int(status)),
+        ]);
+    }
+    (skills.table, statuses.table, magic_types)
+}
+
+/// The status attach-status magic `id` puts on (its `status` flag says which stat; its power
+/// is 30000 + the stat's new percent; `step_secs` how long); `None` for a flag not modelled.
+fn status(out: &mut Out, id: i64, name: &str, r: &TqRow) -> Option<i64> {
+    let change = (r.int("power") - PERCENT_POWER - 100).clamp(-100, 10_000);
+    let (column, change) = match r.int("status") {
+        STATUS_ACCURACY => ("dodge_percent", change),
+        STATUS_SHIELD => ("defence_percent", change),
+        STATUS_SUPERMAN => ("attack_percent", change),
+        // Cyclone's power is its speed gain itself.
+        STATUS_CYCLONE => ("speed_percent", change + 100),
+        _ => return None,
+    };
+    out.row(&[
+        ("id", int(id)),
+        ("name", text(name)),
+        ("duration_ms", int(r.int("step_secs") * 1000)),
+        ("tick_ms", int(1000)),
+        (column, int(change)),
+    ]);
+    Some(id)
+}
+
+fn monsters(t: &Table, magic_types: &BTreeMap<i64, i64>) -> Table {
+    let extra = [
+        (
+            "attack_user",
+            ColumnKind::Int,
+            "TQ's behaviour bits (2 active, 8 guard, 16 police...)",
+        ),
+        (
+            "defence2",
+            ColumnKind::Int,
+            "Damage it takes, in ten-thousandths (10000: all)",
+        ),
+    ];
+    let mut out = Out::new(c3_play::data_rules::MONSTERS, &extra);
+    for r in rows(t) {
+        let attack_user = r.int("attack_user");
         let potions = [
-            (d.life_potion, LIFE_POTION_CHANCE),
-            (d.mana_potion, MANA_POTION_CHANCE),
+            ("drop_hp", LIFE_POTION_CHANCE),
+            ("drop_mp", MANA_POTION_CHANCE),
         ];
-        c3_game::Loot {
-            money: d.money,
-            money_percent: MONEY_CHANCE,
-            items: potions.into_iter().filter(|(item, _)| *item != 0).collect(),
-        }
+        let drops: Vec<String> = (potions.iter())
+            .filter(|(column, _)| r.int(column) != 0)
+            .map(|(column, chance)| format!("{}:{chance}", r.int(column)))
+            .collect();
+        let life = r.int("life").max(1);
+        let skill = magic_types.get(&r.int("magic_type")).copied().unwrap_or(0);
+        out.row(&[
+            ("id", int(r.int("id"))),
+            ("name", text(r.text("name"))),
+            ("look", int(r.int("lookface"))),
+            ("level", int(r.int("level"))),
+            ("life", int(life)),
+            ("attack_min", int(r.int("attack_min"))),
+            (
+                "attack_max",
+                int(r.int("attack_max").max(r.int("attack_min"))),
+            ),
+            ("defence", int(r.int("defence"))),
+            ("dodge", int(r.int("dodge"))),
+            ("dexterity", int(r.int("dexterity"))),
+            ("attack_range", int(r.int("attack_range").max(1))),
+            ("attack_ms", int(r.int("attack_speed").max(300))),
+            ("step_ms", int(r.int("move_speed").max(200))),
+            ("view_range", int(r.int("view_range"))),
+            // Guards and police start fights only with players of a bad name.
+            (
+                "aggressive",
+                Value::Bool(attack_user & ACTIVE != 0 && attack_user & GUARD_LIKE == 0),
+            ),
+            ("drop_money", int(r.int("drop_money"))),
+            ("drops", text(drops.join(", "))),
+            (
+                "flee_percent",
+                int((r.int("escape_life") * 100 / life).min(100)),
+            ),
+            ("skill", int(skill)),
+            ("skill_percent", int(r.int("magic_hitrate").min(100))),
+            ("attack_user", int(attack_user)),
+            ("defence2", int(r.int("defence2"))),
+        ]);
     }
+    out.table
+}
 
-    fn shop(&self, npc: u32) -> &[u32] {
-        self.shops.get(&npc).map_or(&[], Vec::as_slice)
+/// TQ's item columns kept as the game's facts (requirements and weapon numbers).
+const ITEM_FACTS: [(&str, &str); 11] = [
+    (
+        "req_profession",
+        "The profession needed (TQ: class × 10 + its step)",
+    ),
+    ("req_weaponskill", "The weapon skill level needed"),
+    ("req_sex", "The sex needed (1 male, 2 female; 0 any)"),
+    ("req_force", "Strength needed"),
+    ("req_speed", "Agility needed"),
+    ("req_health", "Vitality needed"),
+    ("req_soul", "Spirit needed"),
+    ("atk_speed", "Milliseconds between a weapon's hits"),
+    ("atk_range", "A weapon's reach in cells"),
+    ("magic_atk", "Magic attack"),
+    ("magic_def", "Magic defence"),
+];
+
+fn items(t: &Table) -> Table {
+    let extra: Vec<(&str, ColumnKind, &str)> = (ITEM_FACTS.iter())
+        .map(|(column, doc)| (*column, ColumnKind::Int, *doc))
+        .collect();
+    let mut out = Out::new(c3_play::data_rules::ITEMS, &extra);
+    for r in rows(t) {
+        let id = r.int("id");
+        let slot = slot(u32::try_from(id).unwrap_or(0));
+        // A price in CPs when there is no money price.
+        let (price, currency) = match (r.int("price"), r.int("emoney_price")) {
+            (0, cps) if cps > 0 => (cps, crate::module::CONQUER_POINTS),
+            (price, _) => (price, ""),
+        };
+        // Worn items' amount limit is their durability (in hundredths); arrows' how many
+        // stack.
+        let limit = r.int("amount_limit");
+        let (durability, stack) = match slot {
+            Some(_) if id / 10_000 == 105 => (0, limit),
+            Some(_) => (limit / 100, 0),
+            None => (0, 0),
+        };
+        let mut values = vec![
+            ("id", int(id)),
+            ("name", text(r.text("name"))),
+            ("price", int(price)),
+            ("slot", int(slot.map_or(0, i64::from))),
+            ("life", int(r.int("life"))),
+            ("mana", int(r.int("mana"))),
+            ("attack_min", int(r.int("attack_min"))),
+            ("attack_max", int(r.int("attack_max"))),
+            ("defence", int(r.int("defense"))),
+            ("dodge", int(r.int("dodge"))),
+            ("dexterity", int(r.int("dexterity"))),
+            ("stack", int(stack)),
+            ("durability", int(durability)),
+            ("currency", text(currency)),
+            ("requires_level", int(r.int("req_level"))),
+        ];
+        values.extend(
+            ITEM_FACTS
+                .iter()
+                .map(|(column, _)| (*column, int(r.int(column)))),
+        );
+        out.row(&values);
     }
+    out.table
+}
+
+fn levels(t: &Table) -> Table {
+    let mut out = Out::new(c3_play::data_rules::LEVELS, &[]);
+    let mut levels: Vec<(i64, i64)> = rows(t).map(|r| (r.int("level"), r.int("exp"))).collect();
+    levels.sort_unstable();
+    for (level, exp) in levels {
+        out.row(&[("level", int(level)), ("exp", int(exp))]);
+    }
+    out.table
+}
+
+fn shops(t: &Table) -> Table {
+    let mut out = Out::new(c3_play::data_rules::SHOPS, &[]);
+    for (i, r) in rows(t).enumerate() {
+        out.row(&[
+            ("id", int(i as i64 + 1)),
+            ("npc", int(r.int("ownerid"))),
+            ("item", int(r.int("itemtype"))),
+        ]);
+    }
+    out.table
+}
+
+/// The points each class has at each level (`cq_point_allot`), keyed class × 1000 + level.
+fn points(t: &Table) -> Table {
+    let column = |name: &str, doc: &str| Column {
+        doc: doc.into(),
+        ..Column::new(name, ColumnKind::Int)
+    };
+    let mut out = Table::new(
+        POINTS_TABLE,
+        vec![
+            column(
+                "key",
+                "Class × 1000 + level (class: 1 Trojan, 2 Warrior, 4 Archer, 10 Taoist)",
+            ),
+            column("strength", "Strength at that level"),
+            column("agility", "Agility"),
+            column("vitality", "Vitality"),
+            column("spirit", "Spirit"),
+        ],
+    );
+    out.doc = "The attribute points each class has at each level (TQ's cq_point_allot)".into();
+    for r in rows(t) {
+        out.rows.push(vec![
+            int(r.int("profession") * 1000 + r.int("level")),
+            int(r.int("force")),
+            int(r.int("Speed")),
+            int(r.int("health")),
+            int(r.int("soul")),
+        ]);
+    }
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use c3_data::{Column, ColumnKind};
-
-    /// A table of int columns (`name` is text) with `rows` in column order.
-    fn table(name: &str, columns: &[&str], rows: Vec<Vec<i64>>) -> Table {
-        let kind = |c: &str| {
-            if c == "name" {
-                ColumnKind::Text
-            } else {
-                ColumnKind::Int
-            }
-        };
-        let mut t = Table::new(
-            name,
-            columns.iter().map(|c| Column::new(*c, kind(c))).collect(),
-        );
-        for row in rows {
-            let value = |(c, v): (&&str, i64)| {
-                if *c == "name" {
-                    Value::Text(format!("n{v}"))
-                } else {
-                    Value::Int(v)
-                }
-            };
-            t.rows.push(columns.iter().zip(row).map(value).collect());
-        }
-        t
-    }
+    use c3_game::Rules;
 
     #[test]
-    fn monsters_cast_their_magic_type_and_statuses_come_from_attach_magic() {
-        let mut rules = ConquerRules::default();
-        let magic = [
-            "id",
-            "type",
-            "sort",
-            "name",
-            "level",
-            "use_mp",
-            "power",
-            "distance",
-            "range",
-            "multi",
-            "ground",
-            "delay_ms",
-            "need_level",
-            "status",
-            "step_secs",
-        ];
-        rules
-            .read_magic(&table(
-                "cq_magictype",
-                &magic,
-                vec![
-                    vec![1000, 1000, 1, 0, 0, 1, 7, 9, 0, 0, 0, 0, 0, 0, 0],
-                    vec![1001, 1000, 1, 0, 1, 6, 16, 9, 0, 0, 0, 0, 10, 0, 0],
-                    vec![1027, 1020, 6, 0, 0, 0, 30300, 0, 0, 0, 0, 0, 15, 0x40, 120],
-                ],
-            ))
-            .unwrap();
-        let monster = [
-            "id",
-            "name",
-            "lookface",
-            "level",
-            "life",
-            "attack_min",
-            "attack_max",
-            "defence",
-            "dodge",
-            "dexterity",
-            "attack_range",
-            "view_range",
-            "attack_speed",
-            "move_speed",
-            "attack_user",
-            "drop_money",
-            "drop_hp",
-            "drop_mp",
-            "magic_type",
-            "magic_hitrate",
-            "escape_life",
-        ];
-        rules
-            .read_monsters(&table(
-                "cq_monstertype",
-                &monster,
-                vec![vec![
-                    30, 0, 1, 50, 200, 5, 9, 1, 1, 1, 9, 9, 1000, 500, 3, 0, 0, 0, 1001, 40, 50,
-                ]],
-            ))
-            .unwrap();
-        let m = rules.monster(30).unwrap();
-        assert_eq!((m.skill, m.skill_percent, m.flee_percent), (1000, 40, 25));
-        let shield = rules.status(1020).expect("Shield's status");
-        assert_eq!((shield.defence_percent, shield.duration_ms), (200, 120_000));
-        assert_eq!(rules.skill(1020).unwrap().status, 1020);
+    fn tq_tables_become_the_engines() {
+        let dump =
+            std::path::Path::new(r"D:\Conquer2\Tools\eosource\tq_re\db\cq_finalized_mariadb.sql");
+        let Ok(bytes) = std::fs::read(dump) else {
+            return;
+        };
+        let sql = String::from_utf8_lossy(&bytes);
+        let tq = c3_data::sql::import_tables(&sql, crate::server_data::DATA_TABLES);
+        let (tables, problems) = engine_tables(&tq);
+        assert!(problems.is_empty(), "{problems:?}");
+        let rules = c3_play::data_rules::DataRules::from_tables(&tables);
+        let blade = rules.item(410003).expect("SteelBlade");
+        assert_eq!(
+            (blade.slot, blade.requires_level, blade.durability),
+            (Some(4), 5, 15)
+        );
+        assert!(rules.monster(1).is_some() && rules.skill(1000).is_some());
+        let points = tables.iter().find(|t| t.name == POINTS_TABLE).unwrap();
+        assert!(points.find(1001).is_some(), "Trojan level 1");
     }
 }

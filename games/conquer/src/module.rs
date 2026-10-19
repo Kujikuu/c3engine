@@ -5,7 +5,7 @@ use crate::Content;
 use crate::character::{DEFAULT_HERO, RoleLook, action, player_look, weapon_family};
 use crate::game;
 use crate::protocol::FRONT_KIND;
-use crate::rules::{ConquerRules, SLOT_NAMES};
+use crate::rules::SLOT_NAMES;
 use c3_assets::Image;
 use c3_audio::MusicRegion;
 use c3_core::settings::AttributeDef;
@@ -62,18 +62,13 @@ impl ConquerModule {
     }
 }
 
-/// Conquer's rules from a project's tables (built-in ones without).
+/// Conquer's rules: the engine's data rules over the project's tables and formulas (the
+/// import writes them from TQ's server data: [`crate::rules`], [`crate::rule_blueprint`]).
 pub struct ConquerGameRules;
 
 impl GameRules for ConquerGameRules {
     fn rules(&self, tables: Option<&Path>) -> (Box<dyn Rules>, Vec<String>) {
-        match tables {
-            Some(dir) => {
-                let (rules, problems) = ConquerRules::from_tables(dir);
-                (Box::new(rules), problems)
-            }
-            None => (Box::new(ConquerRules::default()), Vec::new()),
-        }
+        c3_play::data_rules::DataGameRules.rules(tables)
     }
 }
 

@@ -206,7 +206,9 @@ const fn formula(
 pub fn returns(function: &str) -> Option<PinType> {
     match function {
         "player_stats" => Some(Record),
-        "level_exp" | "hit" | "hit_exp" | "kill_exp" | "skill_hit" | "skill_heal" => Some(Number),
+        "level_exp" | "hit" | "hit_exp" | "kill_exp" | "skill_hit" | "skill_heal" | "can_wear" => {
+            Some(Number)
+        }
         "drops" => Some(List),
         _ => None,
     }
@@ -311,6 +313,12 @@ pub const NODES: &[NodeDef] = &[
         "Healing of a skill",
         "skill_heal",
         &[("healer", Record), ("skill", Record)],
+    ),
+    formula(
+        "formula.can_wear",
+        "May wear an item (1 yes, 0 no)",
+        "can_wear",
+        &[("player", Record), ("item", Record)],
     ),
     pure(
         "record.get",
