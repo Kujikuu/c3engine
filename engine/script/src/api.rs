@@ -423,6 +423,14 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("combine_items", move || {
+        with(&s, |c| {
+            (c.player.combining.iter())
+                .map(|&i| Dynamic::from(i))
+                .collect::<rhai::Array>()
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("npc_near", move |kind: i64, range: i64| {
         with(&s, |c| {
             (c.player.map_npcs.iter()).any(|(_, k, d)| *k == kind && *d <= range)

@@ -217,6 +217,14 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     pure(
+        "combine.items",
+        "Items worked together",
+        "Items",
+        &[],
+        List,
+        "combine_items()",
+    ),
+    pure(
         "npc.near",
         "NPC of a kind near",
         "NPCs",

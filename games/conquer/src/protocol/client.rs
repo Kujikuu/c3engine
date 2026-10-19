@@ -1349,6 +1349,11 @@ impl ConquerClient {
                 pk::PACKAGE_CHECK_OUT => Input::Retrieve { npc, item },
                 _ => Input::OpenStorage(npc),
             }),
+            Request::Fuse { kind, items } if !items.is_empty() => inputs.push(Input::Combine {
+                kind: pk::combine::FUSE,
+                items,
+                value: i64::from(kind),
+            }),
             Request::GemEmbed {
                 item: target,
                 gem,

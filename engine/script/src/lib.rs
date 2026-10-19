@@ -82,6 +82,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "combine_items()",
+        "Every item being worked together (in `on_combine`, which names only the first five)",
+    ),
+    (
         "npc_near(kind, range)",
         "Whether an NPC of `kind` stands within `range` cells of the player",
     ),

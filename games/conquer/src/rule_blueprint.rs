@@ -158,6 +158,7 @@ pub fn rules_blueprint() -> Blueprint {
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
     combine(&mut bp.events, next_lane(2400.0));
+    fuse(&mut bp.events, next_lane(500.0));
     lottery(&mut bp.events, next_lane(700.0));
     reset_points(&mut bp.events, next_lane(500.0));
     bp.functions.push(allot());
@@ -1939,6 +1940,50 @@ fn item_name(
         }
         // Its own max durability, else its type's.
         "maxdur" => derived(w, "if(attr_max_dur(x) > 0, attr_max_dur(x), typedur(x))"),
+        // Its fusing chance (items §7.2): its type's row, or its kind's (sorts 1-8) when higher.
+        "fuse_chance" => {
+            let t = ty(w);
+            let row = |w: &mut ExprWriter, key: &str| {
+                let key = w
+                    .write(key, &mut |_, n, _| (n == "t").then(|| t.clone()))
+                    .ok()?;
+                let has = w.node(
+                    "table.has_row",
+                    &[("table", text(crate::import::FUSE_TABLE))],
+                );
+                w.feed(&key, has, "key");
+                let get = w.node(
+                    "table.lookup",
+                    &[
+                        ("table", text(crate::import::FUSE_TABLE)),
+                        ("column", text("chance")),
+                    ],
+                );
+                w.feed(&key, get, "key");
+                let (has, get) = (pin(has), pin(get));
+                w.write("if(h, c, 0)", &mut |_, n, _| match n {
+                    "h" => Some(has.clone()),
+                    "c" => Some(get.clone()),
+                    _ => None,
+                })
+                .ok()
+            };
+            let exact = row(w, "200000000 + t")?;
+            let kind = row(
+                w,
+                "100000000 + t / 1000 * 1000 + t / 10 % 100 * 10 + t % 10",
+            )?;
+            w.write(
+                "if(t / 100000 >= 1 && t / 100000 <= 8, max(a, b), a)",
+                &mut |_, n, _| match n {
+                    "t" => Some(t.clone()),
+                    "a" => Some(exact.clone()),
+                    "b" => Some(kind.clone()),
+                    _ => None,
+                },
+            )
+            .ok()
+        }
         // A +N stone, or the main item's sort (weapons: one- or two-handed, bows only with
         // bows, backswords only with backswords; others their subtype).
         "fits" => {
@@ -1976,6 +2021,133 @@ fn item_name(
         }
     }
 }
+
+/// Fusing gear into a +1 stone (items §7.2, MsgFuse 1028): every item must be fusable (no
+/// plus, not a stone, worn gear below Elite at no more than half durability) or nothing is
+/// done; their `cq_fuse` chances are summed, all are erased, and a roll under the sum (in
+/// ten-thousandths) gives a +1 stone.
+fn fuse(g: &mut Graph, top: f32) {
+    let (event, on) = event_lane(g, "event.combine", [0.0, top]);
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let flag = |w: &mut ExprWriter, name: &str| Operand::Pin {
+        node: w.node("player.flag", &[("name", text(name))]),
+        pin: "value".into(),
+    };
+    let set_flag = |w: &mut ExprWriter, name: &str, value: &Operand| {
+        let n = w.node("player.set_flag", &[("name", text(name))]);
+        w.feed(value, n, "value");
+        n
+    };
+    let kind = Operand::Pin {
+        node: event,
+        pin: "kind".into(),
+    };
+    let fuse_type = Operand::Pin {
+        node: event,
+        pin: "value".into(),
+    };
+    let mut lets: Vec<(String, Operand)> =
+        vec![("kind".into(), kind), ("fuse_type".into(), fuse_type)];
+    let write = |w: &mut ExprWriter, lets: &[(String, Operand)], text: &str| {
+        w.write(text, &mut |w, n, args| match (n, args) {
+            ("bad", []) => Some(flag(w, FUSE_BAD)),
+            ("sum", []) => Some(flag(w, FUSE_SUM)),
+            _ => item_name(w, lets, n, args),
+        })
+        .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"))
+    };
+    let ours = write(
+        &mut w,
+        &lets,
+        &format!(
+            "kind == {} && fuse_type == 0",
+            crate::protocol::packets::combine::FUSE
+        ),
+    );
+    let is_ours = w.node("flow.branch", &[]);
+    w.feed(&ours, is_ours, "condition");
+    let zero = write(&mut w, &lets, "0");
+    let clear_bad = set_flag(&mut w, FUSE_BAD, &zero);
+    let clear_sum = set_flag(&mut w, FUSE_SUM, &zero);
+    let items = w.node("combine.items", &[]);
+    let items = Operand::Pin {
+        node: items,
+        pin: "value".into(),
+    };
+    // Each item checked and its chance added.
+    let check = w.node("flow.for_each", &[]);
+    w.feed(&items, check, "list");
+    lets.push((
+        "cur".into(),
+        Operand::Pin {
+            node: check,
+            pin: "item".into(),
+        },
+    ));
+    let unfit = write(
+        &mut w,
+        &lets,
+        "plus(cur) > 0 || t(cur) / 10000 == 73 || typedur(cur) > 0 && t(cur) % 10 < 6 && dur(cur) * 2 > maxdur(cur)",
+    );
+    let is_unfit = w.node("flow.branch", &[]);
+    w.feed(&unfit, is_unfit, "condition");
+    let one = write(&mut w, &lets, "1");
+    let mark_bad = set_flag(&mut w, FUSE_BAD, &one);
+    let added = write(&mut w, &lets, "sum + fuse_chance(cur)");
+    let add = set_flag(&mut w, FUSE_SUM, &added);
+    // Then: refused, or all erased and the roll.
+    let any_bad = write(&mut w, &lets, "bad > 0");
+    let refused = w.node("flow.branch", &[]);
+    w.feed(&any_bad, refused, "condition");
+    let say_no = w.node(
+        "player.message",
+        &[("text", text("Those items can't be fused."))],
+    );
+    let erase_all = w.node("flow.for_each", &[]);
+    w.feed(&items, erase_all, "list");
+    let erase = w.node("held.erase", &[]);
+    w.feed(
+        &Operand::Pin {
+            node: erase_all,
+            pin: "item".into(),
+        },
+        erase,
+        "item",
+    );
+    let won = write(&mut w, &lets, "random(0, 9999) <= sum");
+    let roll = w.node("flow.branch", &[]);
+    w.feed(&won, roll, "condition");
+    let give = w.node(
+        "item.give",
+        &[
+            ("item", Literal::Number(PLUS_ONE_STONE as f64)),
+            ("count", Literal::Number(1.0)),
+        ],
+    );
+    let say_won = w.node(
+        "player.message",
+        &[("text", text("The items fused into a +1 stone."))],
+    );
+    let say_lost = w.node("player.message", &[("text", text("The fusion failed."))]);
+    wire(g, on, (is_ours, "exec"));
+    chain(g, (is_ours, "true"), &[clear_bad, clear_sum, check]);
+    wire(g, (check, "body"), (is_unfit, "exec"));
+    wire(g, (is_unfit, "true"), (mark_bad, "exec"));
+    wire(g, (is_unfit, "false"), (add, "exec"));
+    wire(g, (check, "done"), (refused, "exec"));
+    wire(g, (refused, "true"), (say_no, "exec"));
+    wire(g, (refused, "false"), (erase_all, "exec"));
+    wire(g, (erase_all, "body"), (erase, "exec"));
+    wire(g, (erase_all, "done"), (roll, "exec"));
+    chain(g, (roll, "true"), &[give, say_won]);
+    wire(g, (roll, "false"), (say_lost, "exec"));
+}
+
+/// Player flags fusing keeps while it checks the items.
+const FUSE_BAD: &str = "fuse_refused";
+const FUSE_SUM: &str = "fuse_chance";
+/// What fusing makes: a +1 stone (730001; TQ adds the items' highest plus, always 0).
+const PLUS_ONE_STONE: i64 = 730_001;
 
 /// The NPC upgrades of TQ's action 509, by the number the converter raises them with.
 pub const UPEQUIPMENT: [&str; 6] = [

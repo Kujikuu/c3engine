@@ -682,7 +682,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Repairs (MsgItem 14): TQ's cost by lost durability and quality, 5 Meteors for a broken
         item, the max durability's decay, next to a blacksmith (play-tested: 61 silver for a
         blade at 3 durability; GM `/durability ITEM N`)
-  - [ ] Fusing gear into +1 stones (Msg 1028, `cq_fuse`)
+  - [x] Fusing gear into +1 stones (MsgFuse 1028, up to 20 items; `cq_fuse` as the `fuse` table; scripts read every item with `combine_items`; play-tested: full-durability helmets refused, worn ones erased and rolled)
   - [x] Profession promotions and rebirth end to end (NPC chains converted and played):
         WarriorGod promotes a Warrior with TQ's checks, skills and reward; Eternity's whole
         rebirth conversation reborns a Trojan King as a Warrior (stone, gem, skills, points,

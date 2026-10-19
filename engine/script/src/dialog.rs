@@ -24,6 +24,8 @@ pub struct PlayerState {
     pub world: BTreeMap<String, i64>,
     /// Statuses the player is under.
     pub statuses: Vec<i64>,
+    /// The items being worked together (in `on_combine`).
+    pub combining: Vec<i64>,
     /// The game id of the player's map and the cell it stands on.
     pub map: i64,
     pub cell: (i64, i64),

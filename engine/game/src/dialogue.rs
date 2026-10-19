@@ -619,6 +619,7 @@ impl Sim {
             texts: p.texts.clone(),
             world: self.world_flags.clone(),
             statuses: p.statuses.iter().map(|s| i64::from(s.id)).collect(),
+            combining: p.combining.iter().map(|&i| i64::from(i)).collect(),
             map: self.map_ids.first().copied().map_or(0, i64::from),
             cell: (i64::from(p.cell.0), i64::from(p.cell.1)),
             life: p.life.into(),

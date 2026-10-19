@@ -141,6 +141,7 @@ pub const PACKAGE_CHECK_OUT: u8 = 2;
 pub const PACKAGE_STORAGE: u8 = 10;
 /// Setting a gem in a socket or taking it out (items spec §6.1).
 pub const GEM_EMBED: u16 = 1027;
+pub const FUSE: u16 = 1028;
 /// Composing +N: the main item, two minors and the gems (items spec §7.1).
 pub const COMPOSE: u16 = 2036;
 pub const NPC_INFO: u16 = 2030;
@@ -294,6 +295,8 @@ pub mod combine {
     pub const ENCHANT: u32 = 4;
     /// A worn-down item repaired (MsgItem 14).
     pub const REPAIR: u32 = 5;
+    /// Gear fused into a +1 stone (MsgFuse 1028, `value` its fuse type).
+    pub const FUSE: u32 = 6;
 }
 
 /// Status flag of a dead role.
@@ -762,6 +765,11 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// Items fused into a +1 stone (`kind` 0; TQ knows no other).
+    Fuse {
+        kind: u16,
+        items: Vec<u32>,
+    },
     /// A guild action about a guild or player.
     Guild {
         action: u16,
@@ -876,6 +884,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 kind,
                 item: r.u32()?,
             }
+        }
+        FUSE => {
+            r.skip(4)?;
+            let kind = r.u16()?;
+            let count = usize::from(r.u16()?).min(20);
+            let items = (0..count).map(|_| r.u32()).collect::<Result<Vec<u32>, _>>()?;
+            Request::Fuse { kind, items }
         }
         GEM_EMBED => {
             r.skip(4)?;

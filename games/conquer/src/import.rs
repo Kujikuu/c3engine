@@ -69,6 +69,44 @@ fn map_types(rows: &[MapRow]) -> c3_data::Table {
     out
 }
 
+/// The table fusing reads (items §7.2): each `cq_fuse` row's chance by TQ's key, `sort ×
+/// 100,000,000 +` the item type (sort 2) or `subtype × 1000 + level × 10 + quality` (sort 1).
+fn fuse_table(rows: &c3_data::Table) -> c3_data::Table {
+    let column = |name: &str, doc: &str| c3_data::Column {
+        doc: doc.into(),
+        ..c3_data::Column::new(name, c3_data::ColumnKind::Int)
+    };
+    let mut out = c3_data::Table::new(
+        FUSE_TABLE,
+        vec![
+            column("key", "Sort x 100,000,000 + the item (see the doc)"),
+            column("chance", "Its chance, in ten-thousandths"),
+        ],
+    );
+    out.doc = "Fusing gear into +1 stones: each item's chance (TQ's cq_fuse)".into();
+    let int = |row: &Vec<c3_data::Value>, name: &str| {
+        (rows.column(name))
+            .and_then(|c| row.get(c)?.as_int())
+            .unwrap_or(0)
+    };
+    let mut keyed: BTreeMap<i64, i64> = BTreeMap::new();
+    for row in &rows.rows {
+        let sort = int(row, "sort");
+        let item = match sort {
+            1 => int(row, "type") * 1000 + int(row, "lev") * 10 + int(row, "quality"),
+            _ => int(row, "type"),
+        };
+        keyed.insert(sort * 100_000_000 + item, int(row, "chance"));
+    }
+    out.rows = (keyed.into_iter())
+        .map(|(k, c)| vec![c3_data::Value::Int(k), c3_data::Value::Int(c)])
+        .collect();
+    out
+}
+
+/// See [`fuse_table`].
+pub const FUSE_TABLE: &str = "fuse";
+
 fn map_rows(sql: &str) -> (Vec<MapRow>, usize) {
     let mut rows = Vec::new();
     let mut skipped = 0;
@@ -251,6 +289,14 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
     out.tables = tables;
     out.tables.extend(rule_tables);
     out.tables.push(map_types(&rows));
+    if let Some(fuse) = out
+        .tables
+        .iter()
+        .find(|t| t.name == "cq_fuse")
+        .map(fuse_table)
+    {
+        out.tables.push(fuse);
+    }
     for table in &out.tables {
         out.report
             .push(format!("Table {}: {} rows", table.name, table.rows.len()));
@@ -352,7 +398,7 @@ INSERT INTO `cq_map` VALUES ('1005', 'Arena', 'x', '1005', '0009', '0', '0000', 
         assert!(population.npcs.len() > 50, "{}", population.npcs.len());
         assert!(!population.spawns.is_empty() && !population.links.is_empty());
         // TQ's tables and the engine's rule tables made of them.
-        assert_eq!(import.tables.len(), DATA_TABLES.len() + 13);
+        assert_eq!(import.tables.len(), DATA_TABLES.len() + 14);
         let traps: usize = import.populations.values().map(|p| p.traps.len()).sum();
         assert!(traps > 100, "{traps} traps placed");
         assert!(

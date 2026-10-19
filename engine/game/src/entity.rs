@@ -152,6 +152,8 @@ pub struct Player {
     /// The events script's timers: name, and when (game ms) it runs out.
     #[serde(skip)]
     pub(crate) timers: Vec<(String, u64)>,
+    /// The items being worked together while `on_combine` runs.
+    pub(crate) combining: Vec<u32>,
     /// The regions it stands in (ids), to tell scripts when that changes.
     #[serde(skip)]
     pub(crate) regions: Vec<u32>,

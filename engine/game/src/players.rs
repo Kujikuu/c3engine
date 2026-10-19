@@ -24,6 +24,10 @@ const PLAYER_PATH: PathRules = PathRules {
     max_nodes: 20_000,
 };
 
+/// The most items worked together at once (`on_combine` names the first 5; scripts read
+/// them all with `combine_items`).
+const MAX_COMBINED: usize = 20;
+
 impl Sim {
     /// Brings a player into the world at `cell` (or the walkable cell nearest it).
     pub fn add_player(&mut self, name: impl Into<String>, cell: CellPos, level: u32) -> EntityId {
@@ -58,6 +62,7 @@ impl Sim {
                 statuses: Vec::new(),
                 pk_kills: 0,
                 timers: Vec::new(),
+                combining: Vec::new(),
                 regions: Vec::new(),
                 stats,
                 bag: Vec::new(),
@@ -342,13 +347,19 @@ impl Sim {
             return;
         };
         let held = |item: &u32| p.bag.iter().chain(&p.equipment).any(|i| i.id == *item);
-        if items.is_empty() || items.len() > 5 || !items.iter().all(held) {
+        if items.is_empty() || items.len() > MAX_COMBINED || !items.iter().all(held) {
             return;
         }
         let mut args: Vec<c3_script::Dynamic> = vec![i64::from(kind).into()];
         args.extend((0..5).map(|i| i64::from(items.get(i).copied().unwrap_or(0)).into()));
         args.push(value.into());
+        if let Some(p) = self.players.get_mut(&id) {
+            p.combining = items.to_vec();
+        }
         self.script_event(id, "on_combine", args);
+        if let Some(p) = self.players.get_mut(&id) {
+            p.combining.clear();
+        }
         self.events.push(Event::Dressed { player: id });
     }
 
