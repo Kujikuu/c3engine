@@ -272,12 +272,23 @@ impl GameUi {
             }
             gui::GuiEvent::Item { .. } => return,
         };
+        // Several actions, `;` between them, run in turn; a workbench clears after.
+        for part in action.split(';') {
+            self.run_action(part, actions);
+        }
+        if action.contains("combine:") {
+            self.gui_state.work.clear();
+        }
+    }
+
+    /// Carries out one action of the data-driven UI.
+    fn run_action(&mut self, action: &str, actions: &mut Vec<UiAction>) {
         let storage = self.gui_state.storage;
         let typed = |s: &Self| -> u64 {
             let text = s.gui_state.fields.get("storage.amount");
             text.and_then(|t| t.trim().parse().ok()).unwrap_or(0)
         };
-        match action.as_str() {
+        match action {
             "storage_deposit" | "storage_withdraw" if storage.is_some() => {
                 let (npc, amount) = (storage.expect("checked"), typed(self));
                 actions.push(UiAction::Game(if action == "storage_deposit" {
@@ -295,14 +306,32 @@ impl GameUi {
                 actions.push(UiAction::Game(c3_game::Input::TradeMoney(amount)));
             }
             "trade_accept" => actions.push(UiAction::Game(c3_game::Input::TradeAccept)),
-            // The workbench's items worked together (`combine:<kind>`), then cleared.
+            // The workbench's items worked together: `combine:<kind>[:<value>[:<slots>]]`, the
+            // slots `0,1` (all when left out; none sent when one of them is empty).
             _ if action.starts_with("combine:") => {
-                if let Some(kind) = action.strip_prefix("combine:").and_then(|k| k.parse().ok()) {
-                    let items = std::mem::take(&mut self.gui_state.work);
+                let mut parts = action
+                    .strip_prefix("combine:")
+                    .unwrap_or_default()
+                    .split(':');
+                let kind = parts.next().and_then(|k| k.parse().ok());
+                let value = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+                let work = &self.gui_state.work;
+                let items: Option<Vec<u32>> = match parts.next() {
+                    Some(slots) => (slots.split(','))
+                        .map(|n| {
+                            n.trim()
+                                .parse::<usize>()
+                                .ok()
+                                .and_then(|n| work.get(n).copied())
+                        })
+                        .collect(),
+                    None => Some(work.clone()),
+                };
+                if let (Some(kind), Some(items)) = (kind, items) {
                     actions.push(UiAction::Game(c3_game::Input::Combine {
                         kind,
                         items,
-                        value: 0,
+                        value,
                     }));
                 }
             }

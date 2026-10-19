@@ -692,7 +692,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Windows the game opens by number (1046 → `ui.open`; MsgAction 126 to the Conquer
         client; `window=N` on a dialog); composing in CDlgItemCompose (275, window 1): a
         workbench (`work.N` slots filled by bag clicks, `combine:<kind>`) (screenshot)
-  - [ ] Compose: checked with real items; the oven (windows 2, 3), gem setting (CDlgEmbed)
+  - [x] Gem setting in CDlgEmbed (229) on the workbench: each placed gem set in its socket,
+        Remove takes socket 1's out (`combine:<kind>:<value>:<slots>`, `;` between actions)
+  - [ ] Compose and gems checked with real items; choosing the socket to remove; the oven
+        (windows 2, 3)
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,
