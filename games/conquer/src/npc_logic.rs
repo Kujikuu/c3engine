@@ -1536,6 +1536,18 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // A skill's effect, then the player turned into a monster for a while.
+            513 => match (int(0), int(2), int(3)) {
+                (Some(skill), Some(monster), Some(secs)) => {
+                    let values = [
+                        ("monster", num(monster)),
+                        ("secs", num(secs)),
+                        ("skill", num(skill)),
+                    ];
+                    Self::plain(g, "player.transform", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // Fireworks with words over the player (the first 8 bytes), for everyone around.
             315 => {
                 let words: String = a.param.chars().take(8).collect();

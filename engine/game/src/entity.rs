@@ -205,6 +205,9 @@ pub struct Player {
     /// Dead and up as a ghost.
     #[serde(default)]
     pub ghost: bool,
+    /// Turned into a monster of this type until this game time (ms).
+    #[serde(skip)]
+    pub transform: Option<(u32, u64)>,
     /// The type of the monster that last killed it (0: none, or a player).
     #[serde(skip)]
     pub(crate) killed_by_monster: u32,

@@ -309,6 +309,11 @@ impl Sim {
                     self.start_timer(player, name.clone(), 0.0);
                 }
             }
+            Effect::Transform {
+                monster,
+                secs,
+                skill,
+            } => self.transform(id, monster, secs, skill),
             Effect::EraseNpcs(kind) => {
                 let gone: Vec<u32> = (self.npcs.iter())
                     .filter(|n| i64::from(n.kind) == kind)
@@ -716,6 +721,51 @@ impl Sim {
             ("durability", _) => item.durability = u32::try_from(value.max(0)).unwrap_or(u32::MAX),
             (_, Some(i)) if i < item.attrs.len() => item.attrs[i] = value32,
             _ => {}
+        }
+    }
+
+    /// Turns player `id` into monster type `monster` for `secs` (none while it already is,
+    /// or for a type there isn't); skill `skill`'s effect is shown first.
+    fn transform(&mut self, id: EntityId, monster: i64, secs: i64, skill: i64) {
+        let Ok(monster) = u32::try_from(monster) else {
+            return;
+        };
+        if self.rules.monster(monster).is_none() {
+            return;
+        }
+        let until = self.now_ms + u64::try_from(secs.max(0)).unwrap_or(0) * 1000;
+        let Some(p) = self.players.get_mut(&id).filter(|p| p.transform.is_none()) else {
+            return;
+        };
+        p.transform = Some((monster, until));
+        let cell = p.cell;
+        if let Ok(skill) = u32::try_from(skill)
+            && skill > 0
+        {
+            self.events.push(Event::Cast {
+                caster: id,
+                skill,
+                cell,
+                targets: vec![id],
+            });
+        }
+        self.refresh_stats(id);
+        self.events.push(Event::Dressed { player: id });
+    }
+
+    /// Transformations that ran out.
+    pub(crate) fn tick_transforms(&mut self) {
+        let now = self.now_ms;
+        let done: Vec<EntityId> = (self.players.values())
+            .filter(|p| p.transform.is_some_and(|(_, until)| until <= now))
+            .map(|p| p.id)
+            .collect();
+        for id in done {
+            if let Some(p) = self.players.get_mut(&id) {
+                p.transform = None;
+            }
+            self.refresh_stats(id);
+            self.events.push(Event::Dressed { player: id });
         }
     }
 

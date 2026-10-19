@@ -482,6 +482,16 @@ fn more(engine: &mut Engine, shared: &Shared) {
         with(&s, |c| c.effects.push(Effect::EraseNpcs(kind)))
     });
     let s = shared.clone();
+    engine.register_fn("transform", move |monster: i64, secs: i64, skill: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::Transform {
+                monster,
+                secs,
+                skill,
+            })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("used_item", move || with(&s, |c| c.player.used_item));
     let s = shared.clone();
     engine.register_fn("npc_look", move |npc: i64| {

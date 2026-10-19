@@ -83,6 +83,7 @@ impl Sim {
                 next_attack_ms: 0,
                 revive_at_ms: None,
                 ghost: false,
+                transform: None,
                 killed_by_monster: 0,
             },
         );
@@ -493,6 +494,14 @@ impl Sim {
                 let percent = 100 + u32::from(e.quality) * per_step;
                 stats.with_bonus(&t.bonus.scaled(percent))
             });
+        // Transformed: the monster's fighting numbers, its own life kept.
+        if let Some(t) = p.transform.and_then(|(m, _)| self.rules.monster(m)) {
+            p.stats = crate::Stats {
+                max_life: p.stats.max_life,
+                max_mana: p.stats.max_mana,
+                ..t.stats
+            };
+        }
         p.stats = crate::statuses::with_statuses(p.stats, &p.statuses, &*self.rules);
         p.life = p.life.min(p.stats.max_life);
         p.mana = p.mana.min(p.stats.max_mana);

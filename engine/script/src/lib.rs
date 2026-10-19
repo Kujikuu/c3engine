@@ -81,6 +81,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "transform(monster, secs, skill)",
+        "Turns the player into a monster type for a while (its look and fighting numbers), \
+         skill `skill`'s effect shown first (0: none)",
+    ),
+    (
         "room_cue_text(name, a, text) / team_effect(effect) / map_timer(map, name, count) / \
          erase_npcs(kind)",
         "A room cue with a text; an effect on each teammate here; timer `name` at once for \

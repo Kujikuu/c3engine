@@ -1530,3 +1530,32 @@ fn guilds_and_world_variables_reach_every_map() {
     assert_eq!(there.world_state().flags["guilds"], 1);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn a_transformation_lasts_its_time() {
+    let dir = std::env::temp_dir().join(format!("c3-game-transform-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_login() { transform(1, 2, 0); }\n",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    sim.logged_in(hero);
+    let p = sim.player(hero).unwrap();
+    assert_eq!(p.transform.map(|(m, _)| m), Some(1));
+    let monster = sim.rules().monster(1).unwrap().stats;
+    assert_eq!(
+        p.stats.attack_max, monster.attack_max,
+        "the monster's numbers"
+    );
+    sim.advance(2_100);
+    assert_eq!(
+        sim.player(hero).unwrap().transform,
+        None,
+        "two seconds later"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

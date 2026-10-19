@@ -335,6 +335,13 @@ pub enum Effect {
     },
     /// The NPCs of kind `kind` on this map gone.
     EraseNpcs(i64),
+    /// The player turned into a monster of type `monster` for `secs` (its look and its
+    /// fighting numbers), after skill `skill`'s effect; refused while already one.
+    Transform {
+        monster: i64,
+        secs: i64,
+        skill: i64,
+    },
     /// An item of type `item` (or `money`) lies where the monster being killed fell (where
     /// the player stands, out of a kill).
     Loot {

@@ -217,6 +217,14 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     action(
+        "player.transform",
+        "Transform",
+        "Player",
+        &[("monster", Number), ("secs", Number), ("skill", Number)],
+        &[],
+        "transform({monster}, {secs}, {skill});",
+    ),
+    action(
         "player.room_cue_text",
         "Cue the clients around (text)",
         "Player",

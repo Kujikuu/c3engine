@@ -74,8 +74,11 @@ fn cell16(c: CellPos) -> (u16, u16) {
     (c.0.max(0) as u16, c.1.max(0) as u16)
 }
 
-fn look_face(p: &Player) -> u32 {
+fn look_face(p: &Player, rules: &dyn Rules) -> u32 {
     let face = FACE * 10_000 + 1000 + player_look(p).look;
+    if let Some(t) = p.transform.and_then(|(m, _)| rules.monster(m)) {
+        return face + (t.look % 1000) * 10_000_000;
+    }
     // A ghost's look: the body's plus 980000000 (male) or 990000000 (female).
     match (p.ghost, p.look.body > 2) {
         (false, _) => face,
@@ -170,7 +173,7 @@ fn spawn(state: &EntityState, ids: &mut Ids, rules: &dyn Rules) -> Vec<u8> {
             let look = player_look(p);
             pk::spawn(&Spawn {
                 id,
-                look: look_face(p),
+                look: look_face(p, rules),
                 status: status(p),
                 gear: [look.armet, look.armor, look.r_weapon, look.l_weapon],
                 life: p.life.min(u16::MAX.into()) as u16,
@@ -289,7 +292,7 @@ impl ConquerClient {
             pk::talk(channel::ENTRANCE, "SYSTEM", "ALLUSERS", "ANSWER_OK", WHITE),
             pk::user_info(&pk::HeroInfo {
                 id: Ids::player(p.id),
-                look: look_face(p),
+                look: look_face(p, sim.rules()),
                 hair: look.hair as u16,
                 money: p.money.min(u32::MAX.into()) as u32,
                 exp: p.exp.min(u32::MAX.into()) as u32,
@@ -418,12 +421,12 @@ impl ConquerClient {
         if !changed.is_empty() {
             out.push(pk::attributes(id, &changed));
         }
-        if status(old) != status(new) || old.pk != new.pk {
+        if status(old) != status(new) || old.pk != new.pk || old.transform != new.transform {
             let pk_points = u64::try_from(new.pk.max(0)).unwrap_or(0);
             let values = [
                 (attr::STATUS, status(new).into()),
                 (attr::PK, pk_points),
-                (attr::LOOK_FACE, look_face(new).into()),
+                (attr::LOOK_FACE, look_face(new, rules).into()),
             ];
             out.push(pk::attributes(id, &values));
         }
