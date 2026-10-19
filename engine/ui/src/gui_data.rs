@@ -93,6 +93,11 @@ impl GuiData for HeroData<'_> {
             "trade.agreed" => u8::from(self.state.trade.as_ref().is_some_and(|t| t.agreed)).into(),
             // 1 while the hero talks with an NPC.
             "hero.talking" => u8::from(p.dialogue.is_some()).into(),
+            // The picture of the NPC's page (its face), when it has one.
+            "dialogue.picture" => {
+                let page = &p.dialogue.as_ref()?.page;
+                page.picture? as f64
+            }
             // The NPC whose shop is open (0: none).
             "hero.shop" => p.shop.unwrap_or(0).into(),
             "hero.profession" => p.profession.into(),

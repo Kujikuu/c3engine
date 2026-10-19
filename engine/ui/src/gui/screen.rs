@@ -277,9 +277,14 @@ impl Painter<'_, '_> {
         data: &dyn GuiData,
         events: &mut Vec<GuiEvent>,
     ) {
+        // A bound picture: its section is `ani` followed by what the binding reads (`Face`
+        // and a face number).
         let section = match control.value.is_empty() {
             true => control.ani.clone(),
-            false => data.text(&control.value).unwrap_or_default(),
+            false => match data.text(&control.value) {
+                Some(value) => format!("{}{value}", control.ani),
+                None => return,
+            },
         };
         // A bound picture fills the control's place (as the login scales server art).
         let sized = (!control.value.is_empty() && size.x > 0.0 && size.y > 0.0).then_some(size);
