@@ -200,8 +200,9 @@ pub struct Control {
     pub rows: u32,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
-    /// Bindings (`|` between them): the dialog shows while one is set (not 0), as the game
-    /// opens it (a shop: `hero.shop`), in place of the engine's own window.
+    /// Bindings (`|` between them): a dialog shows while one is set (not 0), as the game opens
+    /// it (a shop: `hero.shop`), in place of the engine's own window; a control in a dialog
+    /// shows only then (a text box a page asks for).
     pub when: String,
     /// The screen a dialog belongs to (`login`, `servers`, `characters`, `create`,
     /// `loading`); empty: the game's.

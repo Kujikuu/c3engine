@@ -668,7 +668,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Talking with NPCs in CDlgTask (173): the NPC's words wrapped in yellow, its
         answers to click, shown while talking (screenshot: the Barber); GM `/talk NPC`
   - [x] NPC talk: the NPC's face (NpcFace.Ani's Face<n>, a bound image's `ani` prefix)
-  - [ ] NPC talk: typed answers (text boxes), the dialog's height
+  - [x] NPC talk: typed answers (the text box shows when a page asks; `when` on controls)
+  - [ ] NPC talk: a typed answer checked live, the dialog's height
         following its text
   - [x] The warehouse (CDlgDepot 161) while a storage NPC's is open: savings, an amount to
         deposit or withdraw, stored items (a click takes one out; a bag click stores one),

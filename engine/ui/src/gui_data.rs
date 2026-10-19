@@ -93,6 +93,11 @@ impl GuiData for HeroData<'_> {
             "trade.agreed" => u8::from(self.state.trade.as_ref().is_some_and(|t| t.agreed)).into(),
             // 1 while the hero talks with an NPC.
             "hero.talking" => u8::from(p.dialogue.is_some()).into(),
+            // 1 when an answer of the NPC's page is typed (a text box).
+            "dialogue.typing" => {
+                let page = &p.dialogue.as_ref()?.page;
+                u8::from(page.options.iter().any(|o| o.input.is_some())).into()
+            }
             // The picture of the NPC's page (its face), when it has one.
             "dialogue.picture" => {
                 let page = &p.dialogue.as_ref()?.page;
@@ -112,7 +117,7 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
-            "storage.amount" | "trade.amount" => {
+            "storage.amount" | "trade.amount" | "dialogue.typed" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // Team member `n`'s name (the leader first), empty past the team's end.

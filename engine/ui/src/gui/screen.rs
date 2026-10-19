@@ -78,11 +78,7 @@ impl Gui {
         textures: &mut dyn Textures,
     ) -> Vec<GuiEvent> {
         let mut events = Vec::new();
-        let shown = |d: &Control| {
-            let set = (d.when.split('|').filter(|w| !w.is_empty()))
-                .any(|w| data.number(w).is_some_and(|v| v != 0.0));
-            d.screen == self.screen && set
-        };
+        let shown = |d: &Control| d.screen == self.screen && !d.when.is_empty() && set(d, data);
         for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
             let place = self.place(dialog, area);
             let r = self.rect(dialog);
@@ -131,7 +127,10 @@ impl Gui {
         };
         painter.picture(dialog, &dialog.ani, Pos2::ZERO, None);
         for control in (self.controls.iter()).filter(|c| c.parent == dialog.id) {
-            if control.kind != ControlKind::Dialog {
+            // A control with `when` shows only while one of its bindings is set.
+            if control.kind != ControlKind::Dialog
+                && (control.when.is_empty() || set(control, data))
+            {
                 painter.control(control, self.rect(control), data, &mut events);
             }
         }
@@ -180,6 +179,12 @@ impl Gui {
         };
         Rect::from_min_size(place.screen(r.x as f32, r.y as f32), size * place.scale)
     }
+}
+
+/// Whether one of `control`'s `when` bindings (`|` between them) is set (not 0).
+fn set(control: &Control, data: &dyn GuiData) -> bool {
+    (control.when.split('|').filter(|w| !w.is_empty()))
+        .any(|w| data.number(w).is_some_and(|v| v != 0.0))
 }
 
 /// Where a dialog's origin lands: scaled, and kept to its side of the screen.

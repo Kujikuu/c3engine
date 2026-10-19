@@ -66,7 +66,17 @@ fn grid_click(
             let kind = *gui::GuiData::items(data, list).get(index)?;
             Some(UiAction::Buy { npc, kind })
         }
-        ("dialogue.answers", _) => Some(UiAction::Answer(index)),
+        // An answer that is typed sends what is in the text box.
+        ("dialogue.answers", _) => {
+            let page = &player.dialogue.as_ref()?.page;
+            Some(match page.options.get(index)?.input {
+                Some(_) => UiAction::Game(c3_game::Input::AnswerText {
+                    index,
+                    text: (data.state.fields.get("dialogue.typed").cloned()).unwrap_or_default(),
+                }),
+                None => UiAction::Answer(index),
+            })
+        }
         ("hero.bag", shop) => {
             let item = player.bag.get(index)?.id;
             Some(match shop {
