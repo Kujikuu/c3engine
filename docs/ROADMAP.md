@@ -600,8 +600,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Events (2003 compares, 2006 spawns, 2008 monster counts), team actions (1101-1107),
         NPC removal (205), task mask bits, sounds, heaven's blessing, the lock key, the timed
         experience percent, weapon sockets, typed answers, worked-out cells (1003/1004)
-  - [ ] NPC looks and life (201 `lookface`, `life`, `%npc_life`), `%user_id` (a lasting
-        player id)
+  - [x] NPC looks and life (201 `lookface`, `life`, `%npc_life`), `%user_id` (a lasting
+        player number), transformations (513), unlearning weapon skills, point resets, the
+        dying record
+  - [x] TQ's trigger map beside NPC talks: items used (814 item types, `use_<type>`),
+        monsters killed (281 types, `killed_<type>`, their loot 801), the login, death,
+        revive and level-up hooks, the system timer every minute (52 chains, world events
+        with no player), delayed chains (126), traps (424 placed, 144 types, `trap_<type>`,
+        2101/2102), map effects, fireworks, chains for a map's players (2013)
+  - [ ] Left in the trigger chains: drops on a map cell (304), statuses by TQ's bit ids
+        (1082), deleting monsters (2009), moving a map's players (2012), destructible NPCs
+        (training goals' link chains), NPCs placed by players (401/402)
   - [ ] PK bounties (2201-2205) and the wanted list (3001-3012)
   - [ ] Player homes (306 on `%user_home_id`, 1033-1035, 2007 item boxes)
   - [ ] Marriage (1024, 1025, 1102 `mate`), magic levels (1020 `check type lev`),

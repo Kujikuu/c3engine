@@ -111,6 +111,7 @@ pub fn scene_from_dmap(dmap: &DMap, ground: TileLayer) -> Scene {
         npcs: Vec::new(),
         spawns: Vec::new(),
         regions: Vec::new(),
+        traps: Vec::new(),
         grid,
         meta,
     }
