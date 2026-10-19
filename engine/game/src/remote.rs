@@ -175,7 +175,11 @@ impl Sim {
                 // NPCs coming and going concern the whole map.
                 None if matches!(
                     e,
-                    Event::NpcMoved { .. } | Event::NpcArrived(_) | Event::CellEffect { .. }
+                    Event::NpcMoved { .. }
+                        | Event::NpcArrived(_)
+                        | Event::CellEffect { .. }
+                        | Event::TrapPlaced(_)
+                        | Event::TrapGone(_)
                 ) =>
                 {
                     true

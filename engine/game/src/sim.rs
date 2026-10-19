@@ -64,6 +64,9 @@ pub struct Sim {
     /// Whether this map runs the world events (one map of a server does); and the world
     /// timers to come: (when, event).
     pub(crate) world_events: bool,
+    /// The map's traps, and the one a player is setting off while its event runs.
+    pub(crate) traps: Vec<c3_scene::Trap>,
+    pub(crate) trap_now: Option<u32>,
     pub(crate) world_timers: Vec<(u64, String)>,
     /// Team invitations: the invited player → the inviting leader.
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
@@ -122,6 +125,8 @@ impl Sim {
             using: None,
             dying_at: None,
             world_events: true,
+            traps: Vec::new(),
+            trap_now: None,
             world_timers: Vec::new(),
             team_invites: BTreeMap::new(),
             elsewhere: BTreeMap::new(),

@@ -171,6 +171,9 @@ pub enum Event {
         cell: CellPos,
         effect: String,
     },
+    /// A trap was placed on this map, or (by id) went away.
+    TrapPlaced(c3_scene::Trap),
+    TrapGone(u32),
     /// NPC `npc` moved to `cell` of this map, or (`None`) left it.
     NpcMoved {
         npc: u32,

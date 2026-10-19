@@ -1585,3 +1585,32 @@ fn world_events_run_every_minute_and_by_timer() {
     assert_eq!(sim.world_state().flags.get("later"), Some(&1));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn stepping_on_a_trap_sets_it_off() {
+    let dir = std::env::temp_dir().join(format!("c3-game-trap-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn trap_7() { set_flag(\"stepped\", flag(\"stepped\") + 1); erase_trap(); }\n",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    sim.set_traps(vec![c3_scene::Trap {
+        id: 1,
+        kind: 7,
+        cell: (8, 5),
+        look: 3,
+    }]);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    sim.input(hero, Input::Walk((10, 5)));
+    assert!(run_until(&mut sim, 10_000, |s| s
+        .player(hero)
+        .unwrap()
+        .cell
+        == (10, 5)));
+    assert_eq!(sim.player(hero).unwrap().flags["stepped"], 1);
+    assert!(sim.traps().is_empty(), "erased by its event");
+    let _ = std::fs::remove_dir_all(dir);
+}

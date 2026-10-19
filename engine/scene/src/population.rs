@@ -78,6 +78,8 @@ pub struct PortalLink {
 pub struct Population {
     #[serde(default)]
     pub npcs: Vec<Npc>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub traps: Vec<Trap>,
     #[serde(default)]
     pub spawns: Vec<Spawn>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -86,9 +88,21 @@ pub struct Population {
     pub regions: Vec<crate::Region>,
 }
 
+/// A trap on a map: stepping on its cell sets it off (what it does is its kind's, the
+/// game's); `look` is how clients show it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Trap {
+    pub id: u32,
+    pub kind: u32,
+    pub cell: CellPos,
+    #[serde(default)]
+    pub look: u32,
+}
+
 impl Population {
     pub fn is_empty(&self) -> bool {
         self.npcs.is_empty()
+            && self.traps.is_empty()
             && self.spawns.is_empty()
             && self.links.is_empty()
             && self.regions.is_empty()

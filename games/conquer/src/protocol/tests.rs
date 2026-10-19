@@ -54,6 +54,7 @@ fn scene() -> Scene {
         }],
         spawns: Vec::new(),
         regions: Vec::new(),
+        traps: Vec::new(),
         meta: BTreeMap::new(),
     }
 }

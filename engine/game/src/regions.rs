@@ -8,6 +8,47 @@ use c3_scene::{CellPos, Region};
 
 impl Sim {
     /// The map's regions from now on.
+    /// The map's traps.
+    pub fn set_traps(&mut self, traps: Vec<c3_scene::Trap>) {
+        self.traps = traps;
+    }
+
+    pub fn traps(&self) -> &[c3_scene::Trap] {
+        &self.traps
+    }
+
+    /// Player `id` stepped onto `cell`: a trap there goes off (`trap_<kind>`).
+    pub(crate) fn step_on_traps(&mut self, id: EntityId, cell: CellPos) {
+        let Some(trap) = self.traps.iter().find(|t| t.cell == cell).cloned() else {
+            return;
+        };
+        self.trap_now = Some(trap.id);
+        self.script_event(id, &format!("trap_{}", trap.kind), Vec::new());
+        self.trap_now = None;
+    }
+
+    /// A trap of `kind` on `cell`, shown as `look`.
+    pub(crate) fn place_trap(&mut self, kind: u32, look: u32, cell: CellPos) {
+        let id = self.traps.iter().map(|t| t.id).max().unwrap_or(0) + 1;
+        let trap = c3_scene::Trap {
+            id,
+            kind,
+            cell,
+            look,
+        };
+        self.traps.push(trap.clone());
+        self.events.push(crate::Event::TrapPlaced(trap));
+    }
+
+    /// Trap `id` gone.
+    pub(crate) fn remove_trap(&mut self, id: u32) {
+        let before = self.traps.len();
+        self.traps.retain(|t| t.id != id);
+        if self.traps.len() != before {
+            self.events.push(crate::Event::TrapGone(id));
+        }
+    }
+
     pub fn set_regions(&mut self, regions: Vec<Region>) {
         self.regions = regions;
     }

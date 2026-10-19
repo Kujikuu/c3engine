@@ -107,6 +107,8 @@ impl NpcLogic {
 pub struct Triggers {
     pub items: Vec<(u32, u32)>,
     pub monsters: Vec<(u32, u32)>,
+    /// Trap types and the chains stepping on them runs.
+    pub traps: Vec<(u32, u32)>,
 }
 
 /// TQ's system timer: every minute, actions 2030000-2030099 that exist run with no player
@@ -236,6 +238,15 @@ pub fn convert_triggers(
             spend: false,
         })
         .collect();
+    let trap_events: Vec<Trigger> = (triggers.traps.iter())
+        .filter(|(_, a)| have(a))
+        .map(|&(kind, action)| Trigger {
+            def: "event.custom",
+            name: Some(format!("trap_{kind}")),
+            action,
+            spend: false,
+        })
+        .collect();
     let hook_events: Vec<Trigger> = (HOOKS.iter())
         .filter(|(a, _)| have(a))
         .map(|&(action, def)| Trigger {
@@ -270,6 +281,7 @@ pub fn convert_triggers(
         ("tq/monsters", monster_events),
         ("tq/hooks", hook_events),
         ("tq/world", world_events),
+        ("tq/traps", trap_events),
     ] {
         if events.is_empty() {
             continue;
@@ -1601,6 +1613,23 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // A trap of a type on a cell of a map (only the look's last digit counts, its
+            // facing; TQ adds the type's look, which the client shows).
+            2101 => match (int(0), int(1), int(3), int(4), int(5)) {
+                (Some(kind), Some(look), Some(map), Some(x), Some(y)) => {
+                    let values = [
+                        ("kind", num(kind)),
+                        ("look", num(look)),
+                        ("map", num(map)),
+                        ("x", num(x)),
+                        ("y", num(y)),
+                    ];
+                    Self::plain(g, "world.create_trap", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // The trap set off, gone.
+            2102 => Self::plain(g, "world.erase_trap", &[], column),
             // A chain run later, with no player (the map group's timer).
             126 => match (int(0), int(1)) {
                 (Some(secs), Some(chain)) if chain > 0 => {

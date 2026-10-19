@@ -81,6 +81,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "create_trap(kind, look, map, x, y) / erase_trap()",
+        "A trap on a cell of a map (this one): stepping on it raises custom event \
+         `trap_<kind>`; the trap the player set off, gone",
+    ),
+    (
         "world_timer(name, secs)",
         "Runs world event `name` (a custom event with no player) after `secs`",
     ),

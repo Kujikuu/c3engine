@@ -335,6 +335,15 @@ pub enum Effect {
     },
     /// The NPCs of kind `kind` on this map gone.
     EraseNpcs(i64),
+    /// A trap of kind `kind` (shown as `look`) on `cell` of game map `map` (this one).
+    CreateTrap {
+        kind: i64,
+        look: i64,
+        map: i64,
+        cell: (i64, i64),
+    },
+    /// The trap the player set off, gone.
+    EraseTrap,
     /// World event `name` (no player) runs after `secs`.
     WorldTimer {
         name: String,

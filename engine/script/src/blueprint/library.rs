@@ -216,6 +216,28 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    action(
+        "world.create_trap",
+        "Place a trap",
+        "World",
+        &[
+            ("kind", Number),
+            ("look", Number),
+            ("map", Map),
+            ("x", Number),
+            ("y", Number),
+        ],
+        &[],
+        "create_trap({kind}, {look}, {map}, {x}, {y});",
+    ),
+    action(
+        "world.erase_trap",
+        "Remove the trap",
+        "World",
+        &[],
+        &[],
+        "erase_trap();",
+    ),
     event("event.minute", "Every minute (no player)", "on_minute", &[]),
     action(
         "world.timer",

@@ -156,6 +156,14 @@ fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> 
 }
 
 /// NPC `n` as MsgNpcInfo: its look with its facing.
+/// Trap `t` as a map item: placed (`MAP_ITEM_TRAP`) or gone (`MAP_ITEM_TRAP_GONE`).
+fn trap_item(t: &c3_scene::Trap, action: u8) -> Vec<u8> {
+    pk::map_item(TRAP_IDS + t.id, t.look, cell16(t.cell), action)
+}
+
+/// Client ids of traps start here (TQ's trap ids).
+const TRAP_IDS: u32 = 900_000_000;
+
 fn npc_info(n: &c3_scene::Npc) -> Vec<u8> {
     let look = (n.look * 10 + u32::from(n.direction % 8)) as u16;
     pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name)
@@ -256,6 +264,8 @@ pub struct ConquerClient {
     /// The map's id in the client's `GameMap.dat`.
     map_id: u32,
     npcs: Vec<Npc>,
+    /// The map's traps.
+    traps: Vec<c3_scene::Trap>,
     /// Whether the client loaded the map (until then, spawns wait).
     entered: bool,
     /// The hero as last shown, and its attribute points.
@@ -286,6 +296,7 @@ impl ConquerClient {
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
         self.npcs = sim.npcs().to_vec();
+        self.traps = sim.traps().to_vec();
         self.cells.insert(p.id, p.cell);
         let look = player_look(p);
         let mut out = vec![
@@ -340,6 +351,7 @@ impl ConquerClient {
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
         self.npcs = sim.npcs().to_vec();
+        self.traps = sim.traps().to_vec();
         self.seen.clear();
         self.cells.clear();
         self.cells.insert(p.id, p.cell);
@@ -385,7 +397,9 @@ impl ConquerClient {
     /// The map's NPCs and every role in view.
     fn surroundings(&self) -> Vec<Vec<u8>> {
         let npcs = self.npcs.iter().map(npc_info);
-        npcs.chain(self.seen.values().map(|(_, packet)| packet.clone()))
+        let traps = self.traps.iter().map(|t| trap_item(t, pk::MAP_ITEM_TRAP));
+        (npcs.chain(traps))
+            .chain(self.seen.values().map(|(_, packet)| packet.clone()))
             .collect()
     }
 
@@ -575,6 +589,18 @@ impl ConquerClient {
                 self.npcs.push(npc.clone());
                 vec![npc_info(npc)]
             }
+            Event::TrapPlaced(trap) => {
+                self.traps.retain(|t| t.id != trap.id);
+                self.traps.push(trap.clone());
+                vec![trap_item(trap, pk::MAP_ITEM_TRAP)]
+            }
+            Event::TrapGone(id) => match self.traps.iter().position(|t| t.id == *id) {
+                Some(at) => {
+                    let trap = self.traps.remove(at);
+                    vec![trap_item(&trap, pk::MAP_ITEM_TRAP_GONE)]
+                }
+                None => Vec::new(),
+            },
             Event::Moved { id, to, running } => {
                 let (Some(cid), Some(from)) =
                     (self.client_id(*id, ids), self.cells.get(id).copied())

@@ -42,6 +42,7 @@ impl LookPreview {
             npcs: Vec::new(),
             spawns: Vec::new(),
             regions: Vec::new(),
+            traps: Vec::new(),
             meta: Default::default(),
         };
         let mid = (CELLS / 2) as i32;

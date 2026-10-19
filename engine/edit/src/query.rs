@@ -223,6 +223,7 @@ mod tests {
             npcs: Vec::new(),
             spawns: Vec::new(),
             regions: Vec::new(),
+            traps: Vec::new(),
             meta: Default::default(),
         });
         d.execute(&SceneCommand::SetBlocked {

@@ -156,6 +156,7 @@ mod tests {
             npcs: Vec::new(),
             spawns: Vec::new(),
             regions: Vec::new(),
+            traps: Vec::new(),
             meta: Default::default(),
         };
         let at = arrival(&scene, (5, 5)).unwrap();

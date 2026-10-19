@@ -204,6 +204,7 @@ pub struct Scene {
     pub npcs: Vec<Npc>,
     pub spawns: Vec<Spawn>,
     pub regions: Vec<crate::Region>,
+    pub traps: Vec<crate::Trap>,
     /// Format-specific values an exporter needs back (e.g. file version). Not edited by tools.
     pub meta: BTreeMap<String, String>,
 }
@@ -227,6 +228,7 @@ impl Scene {
             npcs: self.npcs.clone(),
             spawns: self.spawns.clone(),
             regions: self.regions.clone(),
+            traps: self.traps.clone(),
             links: self
                 .portals
                 .iter()
@@ -240,6 +242,7 @@ impl Scene {
         self.npcs = population.npcs;
         self.spawns = population.spawns;
         self.regions = population.regions;
+        self.traps = population.traps;
         for portal in &mut self.portals {
             portal.to = population
                 .links

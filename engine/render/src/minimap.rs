@@ -128,6 +128,7 @@ mod tests {
             npcs: Vec::new(),
             spawns: Vec::new(),
             regions: Vec::new(),
+            traps: Vec::new(),
             meta: Default::default(),
         };
         let [l, t, r, b] = scene_bounds(&scene);

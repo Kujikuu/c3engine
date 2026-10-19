@@ -314,6 +314,23 @@ impl Sim {
                 secs,
                 skill,
             } => self.transform(id, monster, secs, skill),
+            Effect::CreateTrap {
+                kind,
+                look,
+                map,
+                cell,
+            } => {
+                let here = u32::try_from(map).is_ok_and(|m| self.is_this_map(m));
+                if let (true, Ok(kind), Ok(look)) = (here, u32::try_from(kind), u32::try_from(look))
+                {
+                    self.place_trap(kind, look, (cell.0 as i32, cell.1 as i32));
+                }
+            }
+            Effect::EraseTrap => {
+                if let Some(trap) = self.trap_now {
+                    self.remove_trap(trap);
+                }
+            }
             Effect::WorldTimer { name, secs } => {
                 let at = self.now_ms + u64::try_from(secs.max(0)).unwrap_or(0) * 1000;
                 self.world_timers.push((at, name));
@@ -450,6 +467,11 @@ impl Sim {
                 self.npcs.retain(|n| n.id != npc.id);
                 self.npcs.push(npc.clone());
             }
+            Event::TrapPlaced(trap) => {
+                self.traps.retain(|t| t.id != trap.id);
+                self.traps.push(trap.clone());
+            }
+            Event::TrapGone(id) => self.traps.retain(|t| t.id != *id),
             _ => {}
         }
     }

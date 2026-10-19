@@ -15,7 +15,7 @@ mod region;
 mod scene;
 
 pub use grid::{Cell, Grid};
-pub use population::{Npc, Population, PortalLink, Spawn};
+pub use population::{Npc, Population, PortalLink, Spawn, Trap};
 pub use projection::IsoProjection;
 pub use region::{Region, Weather, WeatherKind};
 pub use scene::{

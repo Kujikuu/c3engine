@@ -60,6 +60,8 @@ struct PopulationFile {
     links: Vec<PortalLink>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     regions: Vec<Region>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    traps: Vec<crate::Trap>,
 }
 
 /// A ground layer without its tile ids (they are in the `.scene.bin`).
@@ -209,6 +211,7 @@ pub fn load_scene(file: &Path) -> Result<Scene> {
         npcs: text.npcs,
         spawns: text.spawns,
         regions: text.regions,
+        traps: Vec::new(),
         meta: text.meta,
     })
 }
@@ -227,6 +230,7 @@ pub fn save_population(population: &Population, file: &Path) -> Result<()> {
         spawns: population.spawns.clone(),
         links: population.links.clone(),
         regions: population.regions.clone(),
+        traps: population.traps.clone(),
     };
     let ron = ron::ser::to_string_pretty(&text, ron::ser::PrettyConfig::default())
         .map_err(|e| invalid(file, e))?;
@@ -258,6 +262,7 @@ pub fn load_population(file: &Path) -> Result<Population> {
         spawns: parsed.spawns,
         links: parsed.links,
         regions: parsed.regions,
+        traps: parsed.traps,
     })
 }
 
@@ -365,6 +370,7 @@ mod tests {
                 extra: BTreeMap::new(),
             }],
             regions: Vec::new(),
+            traps: Vec::new(),
             meta: [("version".to_owned(), "1".to_owned())].into(),
         };
         let dir = std::env::temp_dir().join(format!("c3-scene-native-{}", std::process::id()));

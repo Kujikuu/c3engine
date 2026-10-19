@@ -163,6 +163,11 @@ pub fn merge_population(own: &Population, imported: &Population) -> (Population,
         .iter()
         .filter(|s| !imported.spawns.iter().any(|i| i.id == s.id));
     out.spawns.extend(spawns.cloned());
+    let traps = own
+        .traps
+        .iter()
+        .filter(|t| !imported.traps.iter().any(|i| i.id == t.id));
+    out.traps.extend(traps.cloned());
     let links = own
         .links
         .iter()

@@ -258,6 +258,7 @@ fn triggers_of(tables: &[c3_data::Table]) -> crate::npc_logic::Triggers {
     crate::npc_logic::Triggers {
         items: pairs(crate::server_data::ITEM_TABLE, "id_action"),
         monsters: pairs(crate::rules::MONSTER_TABLE, "action"),
+        traps: pairs("cq_traptype", "action_id"),
     }
 }
 
@@ -323,6 +324,8 @@ INSERT INTO `cq_map` VALUES ('1005', 'Arena', 'x', '1005', '0009', '0', '0000', 
         assert!(!population.spawns.is_empty() && !population.links.is_empty());
         // TQ's tables and the engine's rule tables made of them.
         assert_eq!(import.tables.len(), DATA_TABLES.len() + 10);
+        let traps: usize = import.populations.values().map(|p| p.traps.len()).sum();
+        assert!(traps > 100, "{traps} traps placed");
         assert!(
             import
                 .starters

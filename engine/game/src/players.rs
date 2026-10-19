@@ -756,6 +756,7 @@ impl Sim {
             to: next,
             running: p.running,
         });
+        self.step_on_traps(id, next);
         // Stepping onto a portal on the way somewhere goes through it, as in the classic game.
         if walking && let Some(to) = self.portal_at(next) {
             self.travel(id, to);

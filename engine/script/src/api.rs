@@ -492,6 +492,24 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn(
+        "create_trap",
+        move |kind: i64, look: i64, map: i64, x: i64, y: i64| {
+            with(&s, |c| {
+                c.effects.push(Effect::CreateTrap {
+                    kind,
+                    look,
+                    map,
+                    cell: (x, y),
+                })
+            })
+        },
+    );
+    let s = shared.clone();
+    engine.register_fn("erase_trap", move || {
+        with(&s, |c| c.effects.push(Effect::EraseTrap))
+    });
+    let s = shared.clone();
     engine.register_fn("world_timer", move |name: &str, secs: i64| {
         with(&s, |c| {
             c.effects.push(Effect::WorldTimer {

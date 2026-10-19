@@ -16,6 +16,9 @@ pub const ACCOUNT: u16 = 1051;
 pub const CONNECT: u16 = 1052;
 pub const LOGIN_REPLY: u16 = 1055;
 pub const MAP_ITEM: u16 = 1101;
+/// MsgMapItem actions of a trap: placed, gone (TQ's TRAP_CREATE / TRAP_ERASE).
+pub const MAP_ITEM_TRAP: u8 = 10;
+pub const MAP_ITEM_TRAP_GONE: u8 = 12;
 /// Names shown in the world: effects on a cell or a role, sounds (MsgName).
 pub const NAME: u16 = 1015;
 /// MsgName types: an effect on a map cell, on a role.

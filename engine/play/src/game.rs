@@ -100,6 +100,7 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     sim.set_revive_point(setup.revive);
     sim.set_portals(&scene.portals);
     sim.set_regions(scene.regions.clone());
+    sim.set_traps(scene.traps.clone());
     if let Some(dir) = &setup.scripts {
         let host = ScriptHost::new(dir, setup.tables.clone());
         host.debug().borrow_mut().breakpoints = setup.breakpoints.clone();

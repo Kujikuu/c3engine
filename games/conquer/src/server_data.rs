@@ -25,6 +25,7 @@ pub const DATA_TABLES: &[&str] = &[
     "cq_point_allot",
     "cq_disdain",
     "cq_lottery",
+    "cq_traptype",
 ];
 
 /// `extra` key holding the game map id a row belongs to.
@@ -111,6 +112,10 @@ const PASSWAY_COLUMNS: [&str; 5] = [
     "passway_mapid",
     "passway_mapportal",
 ];
+/// `cq_trap`'s columns: traps placed on maps.
+const TRAP_COLUMNS: [&str; 8] = [
+    "id", "type", "look", "owner_id", "map_id", "pos_x", "pos_y", "data",
+];
 
 const PORTAL_COLUMNS: [&str; 5] = ["id", "mapid", "portal_idx", "portal_x", "portal_y"];
 
@@ -166,6 +171,7 @@ impl ServerPopulation {
         let mut passways: BTreeMap<(u32, i32), (u32, i32)> = BTreeMap::new();
         let mut portals: HashMap<(u32, i32), (i32, i32)> = HashMap::new();
         let mut skipped = 0;
+        let mut traps: Vec<(u32, c3_scene::Trap)> = Vec::new();
         for line in sql.lines() {
             if let Some(values) = insert_values(line, "cq_npc") {
                 match npc_from_row(&NPC_COLUMNS, &values) {
@@ -199,6 +205,19 @@ impl ServerPopulation {
                     }
                     None => skipped += 1,
                 }
+            } else if let Some(values) = insert_values(line, "cq_trap") {
+                match Row::new(&TRAP_COLUMNS, &values) {
+                    Some(row) => traps.push((
+                        row.number::<u32>("map_id"),
+                        c3_scene::Trap {
+                            id: row.number("id"),
+                            kind: row.number("type"),
+                            cell: (row.number("pos_x"), row.number("pos_y")),
+                            look: row.number("look"),
+                        },
+                    )),
+                    None => skipped += 1,
+                }
             } else if let Some(values) = insert_values(line, "cq_portal") {
                 match Row::new(&PORTAL_COLUMNS, &values) {
                     Some(row) => {
@@ -229,6 +248,9 @@ impl ServerPopulation {
                 .or_default()
                 .spawns
                 .push(spawn);
+        }
+        for (map, trap) in traps {
+            maps.entry(map).or_default().traps.push(trap);
         }
         // A passway leads to a portal of another map: its cell is in `cq_portal`.
         for ((map, passway), (to_map, to_portal)) in passways {
@@ -266,6 +288,7 @@ impl ServerPopulation {
             if let Some(p) = self.maps.get(id) {
                 out.npcs.extend(p.npcs.iter().cloned());
                 out.spawns.extend(p.spawns.iter().cloned());
+                out.traps.extend(p.traps.iter().cloned());
                 out.links.extend(p.links.iter().copied());
             }
         }
