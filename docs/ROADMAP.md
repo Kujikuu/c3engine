@@ -667,8 +667,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         plus and gems) and picked up (MsgMapItem 1101)
   - [x] Teams: MsgTeam 1023 (create, invite, accept, leave, dismiss, kick) and the member
         list MsgTeamMember 1026 with each member's life
-  - [ ] Teams: TQ's apply-to-join (1, 5), closing the team and the money and item
-        pick-up locks (8 to 13)
+  - [x] Teams: TQ's apply-to-join (1, 5) and closing a team to newcomers (8, 9)
+  - [ ] Teams: the money and item pick-up locks (10 to 13)
   - [x] Guilds shown: each player's guild and rank in MsgPlayer, the hero's guild
         (MsgSyndicateAttributeInfo 1106), guild names (MsgName 3, asked by MsgSyndicate 6)
   - [ ] Guild actions from the client (MsgSyndicate join, invite, leave, kick, donate,

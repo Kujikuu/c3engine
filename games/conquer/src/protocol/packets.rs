@@ -55,11 +55,15 @@ pub fn guild_info(g: &GuildInfo) -> Vec<u8> {
 pub const TEAM: u16 = 1023;
 pub mod team {
     pub const CREATE: u16 = 0;
+    pub const APPLY: u16 = 1;
     pub const LEAVE: u16 = 2;
     pub const ACCEPT_INVITE: u16 = 3;
     pub const INVITE: u16 = 4;
+    pub const AGREE_JOIN: u16 = 5;
     pub const DISMISS: u16 = 6;
     pub const KICK: u16 = 7;
+    pub const CLOSE: u16 = 8;
+    pub const OPEN: u16 = 9;
 }
 /// A team's members, the list replacing the client's (MsgTeamMember 1026).
 pub const TEAM_MEMBER: u16 = 1026;

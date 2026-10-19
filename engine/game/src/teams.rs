@@ -15,8 +15,9 @@ use serde::{Deserialize, Serialize};
 pub const TEAM_SIZE: usize = 5;
 
 /// What `/team` does, for its usage line.
-const USAGE: &str =
-    "/team · /team create · /team invite NAME · /team join NAME · /team leave · /team kick NAME";
+const USAGE: &str = "/team · /team create · /team invite NAME · /team join NAME · \
+     /team apply NAME · /team accept NAME · /team close · /team open · /team leave · \
+     /team kick NAME";
 
 /// A player as teams see it, on any map: its name, team and life.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,6 +36,12 @@ pub enum TeamAction {
     Invite(EntityId),
     /// Join the team of the leader who invited the player.
     Join(EntityId),
+    /// Ask a leader (here) to join its team; a leader takes in one who asked.
+    Apply(EntityId),
+    Accept(EntityId),
+    /// A leader closes its team to newcomers, or opens it again.
+    Close,
+    Open,
     Leave,
     Kick(EntityId),
 }
@@ -87,6 +94,10 @@ impl Sim {
             TeamAction::Create => ("create", None),
             TeamAction::Invite(e) => ("invite", Some(e)),
             TeamAction::Join(e) => ("join", Some(e)),
+            TeamAction::Apply(e) => ("apply", Some(e)),
+            TeamAction::Accept(e) => ("accept", Some(e)),
+            TeamAction::Close => ("close", None),
+            TeamAction::Open => ("open", None),
             TeamAction::Leave => ("leave", None),
             TeamAction::Kick(e) => ("kick", Some(e)),
         };
@@ -251,6 +262,60 @@ impl Sim {
                 self.tell_team(leader, &format!("{my_name} joined the team."));
                 Ok("You joined the team.".into())
             }
+            "apply" => {
+                let leader = target(self)?;
+                if my_team.is_some() {
+                    return Err("You are in a team already.".into());
+                }
+                if !self.players.contains_key(&leader) || self.team_of_any(leader) != Some(leader) {
+                    return Err("They lead no team here.".into());
+                }
+                if self.closed_teams.contains(&leader) {
+                    return Err("That team takes no one now.".into());
+                }
+                if self.in_team(leader).len() >= TEAM_SIZE {
+                    return Err(format!("A team has at most {TEAM_SIZE} players."));
+                }
+                self.team_applies.insert(id, leader);
+                self.events.push(Event::TeamApplied {
+                    player: leader,
+                    applicant: id,
+                });
+                self.tell(leader, format!("{my_name} asks to join your team."));
+                Ok(format!(
+                    "You asked {} to join the team.",
+                    self.name_of(leader)
+                ))
+            }
+            "accept" => {
+                if !lead {
+                    return Err("Only a team's leader takes players in.".into());
+                }
+                let other = target(self)?;
+                if self.team_applies.get(&other) != Some(&id) {
+                    return Err("They haven't asked to join.".into());
+                }
+                if self.team_of_any(other).is_some() || self.in_team(id).len() >= TEAM_SIZE {
+                    return Err("They can't join.".into());
+                }
+                self.team_applies.remove(&other);
+                let name = self.name_of(other);
+                self.set_member_team(other, Some(id));
+                self.tell_team(id, &format!("{name} joined the team."));
+                Ok(format!("{name} joined the team."))
+            }
+            "close" | "open" => {
+                if !lead {
+                    return Err("Only a team's leader does that.".into());
+                }
+                if words[0] == "close" {
+                    self.closed_teams.insert(id);
+                    Ok("Your team takes no one now.".into())
+                } else {
+                    self.closed_teams.remove(&id);
+                    Ok("Your team takes players again.".into())
+                }
+            }
             "leave" => {
                 let leader = my_team.ok_or("You are in no team.")?;
                 self.leave_team(id, leader);
@@ -275,6 +340,8 @@ impl Sim {
     /// Player `id` leaves `leader`'s team; a leader leaving ends it (on every map).
     pub(crate) fn leave_team(&mut self, id: EntityId, leader: EntityId) {
         if id == leader {
+            self.closed_teams.remove(&leader);
+            self.team_applies.retain(|_, l| *l != leader);
             self.tell_team(leader, "The team broke up.");
             for m in self.in_team(leader) {
                 self.set_member_team(m, None);

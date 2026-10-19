@@ -1723,3 +1723,24 @@ fn team_actions_invite_join_and_leave() {
     sim.input(lead, Input::Team(TeamAction::Leave));
     assert!(sim.team_members(lead).is_empty(), "the team broke up");
 }
+
+#[test]
+fn players_apply_to_open_teams() {
+    use crate::{Input, TeamAction};
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let lead = sim.add_player("Lead", (5, 5), 1);
+    let comer = sim.add_player("Comer", (6, 5), 1);
+    sim.input(lead, Input::Team(TeamAction::Create));
+    sim.input(lead, Input::Team(TeamAction::Close));
+    sim.input(comer, Input::Team(TeamAction::Apply(lead)));
+    sim.input(lead, Input::Team(TeamAction::Accept(comer)));
+    assert_eq!(sim.team_members(lead), [lead], "a closed team takes no one");
+    sim.input(lead, Input::Team(TeamAction::Open));
+    sim.input(comer, Input::Team(TeamAction::Apply(lead)));
+    assert!(sim.take_events().contains(&Event::TeamApplied {
+        player: lead,
+        applicant: comer
+    }));
+    sim.input(lead, Input::Team(TeamAction::Accept(comer)));
+    assert_eq!(sim.team_members(lead), [lead, comer]);
+}

@@ -1010,6 +1010,10 @@ impl ConquerClient {
                     N::Closed => vec![pk::trade(them, pk::trade::FAIL)],
                 }
             }
+            // Someone asks to join the hero's team: the client asks the hero.
+            Event::TeamApplied { player, applicant } if Some(*player) == hero => {
+                vec![pk::team(pk::team::APPLY, Ids::player(*applicant))]
+            }
             // Invited to a team: the client asks the hero.
             Event::TeamInvited { player, leader } if Some(*player) == hero => {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
@@ -1210,6 +1214,10 @@ impl ConquerClient {
                 let other = ids.entity(id);
                 let action = match (a, other) {
                     (pk::team::CREATE, _) => Some(TeamAction::Create),
+                    (pk::team::CLOSE, _) => Some(TeamAction::Close),
+                    (pk::team::OPEN, _) => Some(TeamAction::Open),
+                    (pk::team::APPLY, Some(e)) => Some(TeamAction::Apply(e)),
+                    (pk::team::AGREE_JOIN, Some(e)) => Some(TeamAction::Accept(e)),
                     (pk::team::LEAVE | pk::team::DISMISS, _) => Some(TeamAction::Leave),
                     (pk::team::INVITE, Some(e)) => Some(TeamAction::Invite(e)),
                     (pk::team::ACCEPT_INVITE, Some(e)) => Some(TeamAction::Join(e)),

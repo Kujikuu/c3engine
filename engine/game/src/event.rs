@@ -102,6 +102,11 @@ pub enum Event {
         player: EntityId,
         text: String,
     },
+    /// `applicant` asks to join the team player `player` leads.
+    TeamApplied {
+        player: EntityId,
+        applicant: EntityId,
+    },
     /// Player `player` was invited to `leader`'s team.
     TeamInvited {
         player: EntityId,

@@ -93,6 +93,7 @@ impl Event {
             | Event::StorageOpened { player, .. }
             | Event::Trade { player, .. }
             | Event::TeamInvited { player, .. }
+            | Event::TeamApplied { player, .. }
             | Event::StorageChanged { player, .. } => Some(player),
             _ => None,
         }
