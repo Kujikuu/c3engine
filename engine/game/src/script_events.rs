@@ -8,7 +8,7 @@
 
 use crate::EntityId;
 use crate::sim::Sim;
-use c3_script::{Conversation, Dynamic, EVENTS_SCRIPT, NpcInfo};
+use c3_script::{Conversation, Dynamic, NpcInfo};
 
 impl Sim {
     /// Player `id` came into the game (not just onto another map): `on_login()`.
@@ -25,17 +25,24 @@ impl Sim {
         let Some(host) = self.scripts.as_mut() else {
             return;
         };
-        if !host.defines(EVENTS_SCRIPT, function, arity) {
-            return;
+        // The events script and every blueprint defining the event, in turn.
+        for script in host.event_scripts() {
+            let Some(host) = self.scripts.as_mut() else {
+                return;
+            };
+            if !host.defines(&script, function, arity) {
+                continue;
+            }
+            let mut state = self.player_state(id);
+            let host = self.scripts.as_mut().expect("checked above");
+            let npc = NpcInfo {
+                id: 0,
+                name: String::new(),
+            };
+            let step =
+                Conversation::event_in(host, &script, function, args.clone(), npc, &mut state);
+            self.after_step(id, 0, step, state);
         }
-        let mut state = self.player_state(id);
-        let host = self.scripts.as_mut().expect("checked above");
-        let npc = NpcInfo {
-            id: 0,
-            name: String::new(),
-        };
-        let step = Conversation::event(host, function, args, npc, &mut state);
-        self.after_step(id, 0, step, state);
     }
 
     /// Starts timer `name` of player `id`: `on_timer(name)` runs after `seconds`.

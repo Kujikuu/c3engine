@@ -48,9 +48,21 @@ impl Conversation {
         npc: NpcInfo,
         player: &mut PlayerState,
     ) -> Result<Step, ScriptError> {
-        let reply = host.run_with(EVENTS_SCRIPT, function, args, &npc, player)?;
+        Self::event_in(host, EVENTS_SCRIPT, function, args, npc, player)
+    }
+
+    /// Runs event `function(args...)` of `script` (the events script, or a blueprint's).
+    pub fn event_in(
+        host: &mut ScriptHost,
+        script: &str,
+        function: &str,
+        args: Vec<rhai::Dynamic>,
+        npc: NpcInfo,
+        player: &mut PlayerState,
+    ) -> Result<Step, ScriptError> {
+        let reply = host.run_with(script, function, args, &npc, player)?;
         let next = (!reply.page.is_empty()).then(|| Conversation {
-            script: EVENTS_SCRIPT.to_owned(),
+            script: script.to_owned(),
             npc,
             page: reply.page,
         });

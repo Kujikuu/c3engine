@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+egui-snarl = { path = "../third_party/egui-snarl", features = ["serde"] }
 c3-anim = { version = "0.1.0", path = "../engine/anim" }
 c3-assets = { version = "0.1.0", path = "../engine/assets" }
 c3-audio = { version = "0.1.0", path = "../engine/audio" }

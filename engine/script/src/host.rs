@@ -131,6 +131,17 @@ impl ScriptHost {
         self.run_with(script, function, Vec::new(), npc, player)
     }
 
+    /// The scripts the game's events run in: the events script, then each blueprint's.
+    pub fn event_scripts(&self) -> Vec<String> {
+        let graphs = names_with_suffix(
+            &self.dir.join(crate::blueprint::GRAPHS_DIR),
+            crate::SCRIPT_SUFFIX,
+        );
+        std::iter::once(EVENTS_SCRIPT.to_owned())
+            .chain(graphs.iter().map(|g| crate::blueprint::graph_script(g)))
+            .collect()
+    }
+
     /// Whether `script` exists and defines `function` taking `arity` arguments (an event
     /// the project may leave out). A script that fails to compile counts as defining it, so
     /// running it reports the error.

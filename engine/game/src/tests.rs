@@ -1095,3 +1095,76 @@ fn safe_and_no_pk_regions_stop_fights_and_scripts_hear_regions() {
     assert_eq!(sim.player(hero).unwrap().flags["out"], 1, "on_leave_region");
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn blueprints_hear_events_beside_the_events_script() {
+    use c3_script::blueprint::{Blueprint, Graph, GraphNode, Literal, PinRef, Wire};
+    let dir = std::env::temp_dir().join(format!("c3-game-blueprints-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_login() { give_money(1); }\n",
+    )
+    .unwrap();
+    // On login: give 20, wait a second, give 300.
+    let node = |id: u32, def: &str, amount: Option<f64>| GraphNode {
+        id,
+        def: def.into(),
+        pos: [0.0, 0.0],
+        values: amount
+            .map(|a| {
+                (
+                    if def == "flow.wait" {
+                        "seconds"
+                    } else {
+                        "amount"
+                    },
+                    a,
+                )
+            })
+            .into_iter()
+            .map(|(k, a)| (k.to_owned(), Literal::Number(a)))
+            .collect(),
+    };
+    let wire = |from: u32, to: u32| Wire {
+        from: PinRef {
+            node: from,
+            pin: "then".into(),
+        },
+        to: PinRef {
+            node: to,
+            pin: "exec".into(),
+        },
+    };
+    let blueprint = Blueprint {
+        events: Graph {
+            nodes: vec![
+                node(1, "event.login", None),
+                node(2, "player.give_money", Some(20.0)),
+                node(3, "flow.wait", Some(1.0)),
+                node(4, "player.give_money", Some(300.0)),
+            ],
+            wires: vec![wire(1, 2), wire(2, 3), wire(3, 4)],
+        },
+        ..Blueprint::default()
+    };
+    let code = c3_script::blueprint::compile("gifts", &blueprint).unwrap();
+    std::fs::create_dir_all(dir.join("graphs")).unwrap();
+    std::fs::write(dir.join("graphs").join("gifts.rhai"), code).unwrap();
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 5);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    sim.logged_in(hero);
+    assert_eq!(
+        sim.player(hero).unwrap().money,
+        21,
+        "both scripts heard the login"
+    );
+    sim.advance(1_500);
+    assert_eq!(
+        sim.player(hero).unwrap().money,
+        321,
+        "the wait went on from its timer"
+    );
+    std::fs::remove_dir_all(dir).ok();
+}

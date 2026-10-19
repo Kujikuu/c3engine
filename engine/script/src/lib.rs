@@ -23,6 +23,7 @@
 //! Functions see the script's top-level constants through `global::`.
 
 mod api;
+pub mod blueprint;
 mod conversation;
 mod dialog;
 pub mod formulas;
