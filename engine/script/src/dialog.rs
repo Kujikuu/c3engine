@@ -32,6 +32,10 @@ pub struct PlayerState {
     pub team_leader: String,
     /// The profession chosen when the character was made (0: none).
     pub profession: i64,
+    /// PK points: what killing other players has earned (game-defined).
+    pub pk: i64,
+    /// Equipment slot → the item type worn there.
+    pub worn: BTreeMap<i64, i64>,
 }
 
 impl PlayerState {
@@ -83,6 +87,9 @@ pub struct DialogOption {
 pub struct DialogPage {
     pub lines: Vec<String>,
     pub options: Vec<DialogOption>,
+    /// A picture shown with the page (the NPC's face; game-defined numbers).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<i64>,
 }
 
 impl DialogPage {
@@ -141,6 +148,8 @@ pub enum Effect {
     },
     /// Life back (`heal`), or taken (`hurt`, never below 1).
     Life(i64),
+    /// PK points gained (negative: lost).
+    Pk(i64),
     /// Put the player under status `id`.
     AddStatus(i64),
     /// Play effect `name` on the player.

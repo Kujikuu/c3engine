@@ -20,6 +20,8 @@ pub struct ServerData {
     /// Each map's population, by map key.
     pub populations: BTreeMap<String, Population>,
     pub tables: Vec<Table>,
+    /// NPC behaviour as blueprints, by name (NPCs name them as `graphs/<name>`).
+    pub blueprints: Vec<(String, c3_script::blueprint::Blueprint)>,
     /// What was read and what was left out, a line each.
     pub report: Vec<String>,
 }
@@ -47,6 +49,19 @@ pub fn write(project: &Project, data: &ServerData, listed: &[MapEntry], source: 
             .and_then(|()| c3_data::save_table(table, &path));
         if let Err(e) = written {
             problems.push(format!("table {}: {e}", table.name));
+        }
+    }
+    let scripts = project.scripts_dir();
+    for (name, blueprint) in &data.blueprints {
+        let file = (scripts.join(c3_script::blueprint::BLUEPRINT_DIR))
+            .join(format!("{name}{}", c3_script::blueprint::BLUEPRINT_SUFFIX));
+        let written = c3_script::blueprint::save_blueprint(blueprint, &file)
+            .and_then(|()| c3_script::blueprint::build_blueprint(&scripts, name));
+        match written {
+            Ok(problems) => problems.iter().for_each(|p| {
+                report.push(format!("Blueprint {name}: {}", p.message));
+            }),
+            Err(e) => problems.push(format!("blueprint {name}: {e}")),
         }
     }
     for (key, population) in &data.populations {
@@ -99,8 +114,8 @@ pub fn merge_maps(listed: &[MapEntry], imported: &[MapEntry]) -> Vec<MapEntry> {
 }
 
 /// A map's population `imported` over the project's `own`: rows with the same id are the
-/// import's, keeping the script the project gave the same NPC (same id and name); what only
-/// the project has stays, an NPC whose id the import gives another NPC moving to a free id.
+/// import's, keeping a script the project gave the same NPC (same id and name) over the
+/// import's; what only the project has stays, an NPC whose id the import gives another NPC moving to a free id.
 /// Each move is said in the notes.
 pub fn merge_population(own: &Population, imported: &Population) -> (Population, Vec<String>) {
     let mut out = imported.clone();
@@ -110,7 +125,7 @@ pub fn merge_population(own: &Population, imported: &Population) -> (Population,
             .npcs
             .iter()
             .find(|n| n.id == npc.id && n.name == npc.name)
-            && npc.script.is_empty()
+            && !mine.script.is_empty()
         {
             npc.script = mine.script.clone();
         }

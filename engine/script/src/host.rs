@@ -25,6 +25,8 @@ const MAX_OPERATIONS: u64 = 500_000;
 const MAX_CALL_DEPTH: usize = 32;
 const MAX_STRING: usize = 64 * 1024;
 const MAX_COLLECTION: usize = 10_000;
+/// How deep statements and expressions may nest.
+const MAX_NESTING: usize = 256;
 
 /// A script that failed to load or run.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,6 +257,8 @@ pub(crate) fn sandboxed_engine() -> Engine {
     engine.set_max_string_size(MAX_STRING);
     engine.set_max_array_size(MAX_COLLECTION);
     engine.set_max_map_size(MAX_COLLECTION);
+    // Graphs nest a branch inside the one before (an NPC's long chain of checks).
+    engine.set_max_expr_depths(MAX_NESTING, MAX_NESTING);
     engine.disable_symbol("eval");
     crate::debug::register_quiet(&mut engine);
     engine

@@ -191,6 +191,12 @@ impl Sim {
             Effect::Log(text) => self.events.push(Event::ScriptLog(text)),
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
             Effect::Life(change) => self.script_life(id, change),
+            Effect::Pk(change) => {
+                if let Some(p) = self.players.get_mut(&id) {
+                    // TQ keeps PK points within ±30000.
+                    p.pk = (i64::from(p.pk) + change).clamp(-30_000, 30_000) as i32;
+                }
+            }
             Effect::AddStatus(status) => {
                 if let Ok(status) = u32::try_from(status) {
                     self.add_status(id, status, None);
@@ -280,6 +286,13 @@ impl Sim {
                 .map(|l| l.name.clone())
                 .unwrap_or_default(),
             profession: p.profession.into(),
+            pk: p.pk.into(),
+            worn: (p.equipment.iter())
+                .filter_map(|item| {
+                    let slot = self.rules.item(item.kind)?.slot?;
+                    Some((i64::from(slot), i64::from(item.kind)))
+                })
+                .collect(),
         }
     }
 

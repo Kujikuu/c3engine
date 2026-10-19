@@ -20,6 +20,9 @@ pub const MONSTER_TABLE: &str = "cq_monstertype";
 
 /// `attack_user` bit: attacks players on sight (`ATKUSER_ACTIVE`).
 const ACTIVE: i64 = 0x02;
+/// `attack_user` bits of monsters that hunt players by their name colour (guard, police,
+/// evil killer).
+const GUARD_LIKE: i64 = 0x8 | 0x10 | 0x800;
 /// Out of 100: chance a dead monster drops money, its life potion, its mana potion.
 const MONEY_CHANCE: u32 = 40;
 const LIFE_POTION_CHANCE: u32 = 8;
@@ -273,7 +276,9 @@ impl ConquerRules {
                         step_ms: uint(v[13]).max(200),
                     },
                     view_range: uint(v[11]),
-                    aggressive: int(v[14]) & ACTIVE != 0,
+                    // Guards and police start fights only with players of a bad name
+                    // (blue, black; virtuous ones for evil killers), not everyone in view.
+                    aggressive: int(v[14]) & ACTIVE != 0 && int(v[14]) & GUARD_LIKE == 0,
                     // `magic_type` names a magic level (`cq_magictype.id`); skills go by type.
                     skill: self
                         .magic_types

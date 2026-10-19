@@ -24,6 +24,7 @@
 
 mod api;
 pub mod blueprint;
+mod clock;
 mod conversation;
 pub mod debug;
 mod dialog;
@@ -183,6 +184,22 @@ pub const API: &[(&str, &str)] = &[
     (
         "profession()",
         "The profession chosen when the character was made (0: none)",
+    ),
+    (
+        "pk() / add_pk(n)",
+        "The player's PK points; gives (or with n < 0 takes) some",
+    ),
+    (
+        "worn(slot)",
+        "The item type worn in equipment slot `slot` (0: none)",
+    ),
+    (
+        "picture(id)",
+        "Shows picture `id` (the NPC's face) with what the NPC says",
+    ),
+    (
+        "time_within(mode, window)",
+        "Whether now is in `window`: mode 0 dates `Y-M-D h:m Y-M-D h:m`, 1 yearly `M-D h:m M-D h:m`,          2 monthly `day h:m day h:m`, 3 weekly `weekday h:m weekday h:m` (0 Sunday), 4 daily          `h:m h:m`, 5 hourly `minute minute`",
     ),
     (
         "open_window(id)",

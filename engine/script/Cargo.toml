@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 c3-data = { version = "0.1.0", path = "../data" }
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 rhai = "1"
 ron = "0.12.2"
 schemars = "1.2.3"

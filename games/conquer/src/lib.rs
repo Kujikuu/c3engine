@@ -9,6 +9,7 @@ pub mod import;
 mod magic;
 pub mod module;
 pub mod npc;
+pub mod npc_logic;
 pub mod protocol;
 pub mod rules;
 pub mod server_data;

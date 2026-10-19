@@ -43,6 +43,9 @@ pub struct PlayerSave {
     /// The profession chosen when it was made (0: none).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub profession: u32,
+    /// PK points.
+    #[serde(default, skip_serializing_if = "is_zero_signed")]
+    pub pk: i32,
 }
 
 fn is_default_look(look: &crate::PlayerLook) -> bool {
@@ -132,6 +135,7 @@ impl PlayerSave {
             flags: BTreeMap::new(),
             look: Default::default(),
             profession: 0,
+            pk: 0,
         }
     }
 }
@@ -161,6 +165,7 @@ impl Sim {
         p.flags = save.flags.clone();
         p.look = save.look;
         p.profession = save.profession;
+        p.pk = save.pk;
         self.refresh_stats(id);
         let p = self.players.get_mut(&id).expect("just added");
         // A save without life (a new character) starts full.
@@ -196,6 +201,7 @@ impl Sim {
             flags: p.flags.clone(),
             look: p.look,
             profession: p.profession,
+            pk: p.pk,
         })
     }
 
@@ -257,5 +263,9 @@ impl Sim {
 }
 
 fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+fn is_zero_signed(n: &i32) -> bool {
     *n == 0
 }

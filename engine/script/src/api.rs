@@ -245,6 +245,32 @@ fn more(engine: &mut Engine, shared: &Shared) {
         move |n: i64| with(&s, |c| c.effects.push(make(n)))
     };
     engine.register_fn("give_exp", effect(shared, Effect::Exp));
+    engine.register_fn("add_pk", effect(shared, Effect::Pk));
+    let s = shared.clone();
+    engine.register_fn("pk", move || with(&s, |c| c.player.pk));
+    let s = shared.clone();
+    engine.register_fn("worn", move |slot: i64| {
+        with(&s, |c| c.player.worn.get(&slot).copied().unwrap_or(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("fill", move |text: &str| {
+        with(&s, |c| {
+            let values = [
+                ("{player}", c.player.name.clone()),
+                ("{npc}", c.npc.name.clone()),
+                ("{level}", c.player.level.to_string()),
+                ("{money}", c.player.money.to_string()),
+            ];
+            (values.iter()).fold(text.to_owned(), |t, (key, value)| t.replace(key, value))
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("picture", move |id: i64| {
+        with(&s, |c| c.page.picture = Some(id))
+    });
+    engine.register_fn("time_within", |mode: i64, spec: &str| {
+        crate::clock::within(mode, spec, &crate::clock::now())
+    });
     engine.register_fn("heal", effect(shared, |n| Effect::Life(n.max(0))));
     engine.register_fn("hurt", effect(shared, |n| Effect::Life(-n.max(0))));
     engine.register_fn("add_status", effect(shared, Effect::AddStatus));

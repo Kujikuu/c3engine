@@ -583,7 +583,7 @@ pub const NODES: &[NodeDef] = &[
         "Player",
         &[("text", Text)],
         &[],
-        "message({text});",
+        "message(fill({text}));",
     ),
     action(
         "player.start_timer",
@@ -661,7 +661,7 @@ pub const NODES: &[NodeDef] = &[
         "World",
         &[("text", Text)],
         &[],
-        "announce({text});",
+        "announce(fill({text}));",
     ),
     action(
         "world.spawn",
@@ -854,7 +854,7 @@ pub const NODES: &[NodeDef] = &[
         "Dialogue",
         &[("text", Text)],
         &[],
-        "text({text});",
+        "text(fill({text}));",
     ),
     action(
         "dialogue.option",
@@ -862,7 +862,7 @@ pub const NODES: &[NodeDef] = &[
         "Dialogue",
         &[("label", Text), ("next", Text)],
         &[],
-        "option({label}, {next});",
+        "option(fill({label}), {next});",
     ),
     action(
         "dialogue.close_option",
@@ -870,7 +870,15 @@ pub const NODES: &[NodeDef] = &[
         "Dialogue",
         &[("label", Text)],
         &[],
-        "option({label});",
+        "option(fill({label}));",
+    ),
+    action(
+        "dialogue.picture",
+        "Show picture",
+        "Dialogue",
+        &[("picture", Number)],
+        &[],
+        "picture({picture});",
     ),
     action(
         "dialogue.shop",
@@ -879,6 +887,31 @@ pub const NODES: &[NodeDef] = &[
         &[],
         &[],
         "open_shop();",
+    ),
+    pure("player.pk", "PK points", "Player", &[], Number, "pk()"),
+    action(
+        "player.add_pk",
+        "Add PK points",
+        "Player",
+        &[("points", Number)],
+        &[],
+        "add_pk({points});",
+    ),
+    pure(
+        "item.worn",
+        "Worn item",
+        "Items",
+        &[("slot", Number)],
+        Item,
+        "worn({slot})",
+    ),
+    pure(
+        "time.within",
+        "Time within",
+        "World",
+        &[("mode", Number), ("window", Text)],
+        Bool,
+        "time_within({mode}, {window})",
     ),
     // Tables.
     pure(
@@ -898,6 +931,22 @@ pub const NODES: &[NodeDef] = &[
         "has_row({table}, {key})",
     ),
     // Math and logic.
+    pure(
+        "math.remainder",
+        "Remainder",
+        "Math",
+        &[("a", Number), ("b", Number)],
+        Number,
+        "({a} % {b})",
+    ),
+    pure(
+        "math.chance",
+        "Chance",
+        "Math",
+        &[("times", Number), ("out_of", Number)],
+        Bool,
+        "(random(0, {out_of} - 1) < {times})",
+    ),
     pure(
         "math.add",
         "Add",

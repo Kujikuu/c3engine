@@ -126,6 +126,9 @@ pub struct Player {
     /// The profession chosen when it was made (as the game numbers them; 0: none).
     #[serde(default)]
     pub profession: u32,
+    /// PK points: what killing other players has earned (game-defined).
+    #[serde(default)]
+    pub pk: i32,
     pub running: bool,
     pub task: Task,
     /// The dialogue the player is in, if any.

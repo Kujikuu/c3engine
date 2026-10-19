@@ -943,6 +943,7 @@ name = "c3-script"
 version = "0.1.0"
 dependencies = [
  "c3-data",
+ "chrono",
  "rhai",
  "ron",
  "schemars",

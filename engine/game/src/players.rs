@@ -67,6 +67,7 @@ impl Sim {
                 team: None,
                 mates: Vec::new(),
                 profession: 0,
+                pk: 0,
                 running: false,
                 task: Task::Idle,
                 dialogue: None,

@@ -108,7 +108,12 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
     }
 
     // Each file's population: its rows under every id naming it.
-    let server = ServerPopulation::from_sql(sql);
+    let mut server = ServerPopulation::from_sql(sql);
+    // What NPCs do when clicked: TQ's tasks and actions as blueprints.
+    let logic = crate::npc_logic::NpcLogic::from_sql(sql);
+    let tables = c3_data::sql::import_tables(sql, DATA_TABLES);
+    let converted = crate::npc_logic::convert(&logic, &server.npc_tasks(), &item_names(&tables));
+    server.set_scripts(&converted.scripts);
     let mut placed = std::collections::HashSet::new();
     for (file, ids) in &by_key {
         // The file's own map: its ids in GameMap.dat but those of its copies.
@@ -166,7 +171,9 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
         ));
     }
 
-    out.tables = c3_data::sql::import_tables(sql, DATA_TABLES);
+    out.report.extend(converted.report);
+    out.blueprints = converted.blueprints;
+    out.tables = tables;
     for table in &out.tables {
         out.report
             .push(format!("Table {}: {} rows", table.name, table.rows.len()));
@@ -178,6 +185,28 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
         out.report.push(format!("Table {missing}: not in the dump"));
     }
     out
+}
+
+/// Item types by name, from `cq_itemtype` (several qualities share a name).
+fn item_names(tables: &[c3_data::Table]) -> std::collections::HashMap<String, Vec<u32>> {
+    let mut names: std::collections::HashMap<String, Vec<u32>> = Default::default();
+    let Some(items) = tables
+        .iter()
+        .find(|t| t.name == crate::server_data::ITEM_TABLE)
+    else {
+        return names;
+    };
+    let Some(name) = items.column("name") else {
+        return names;
+    };
+    for row in &items.rows {
+        let id = row.first().and_then(c3_data::Value::as_int);
+        let text = row.get(name).and_then(c3_data::Value::as_text);
+        if let (Some(id), Some(text)) = (id.and_then(|i| u32::try_from(i).ok()), text) {
+            names.entry(text.to_owned()).or_default().push(id);
+        }
+    }
+    names
 }
 
 #[cfg(test)]

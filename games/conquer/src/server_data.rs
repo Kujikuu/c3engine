@@ -240,6 +240,23 @@ impl ServerPopulation {
         Self { maps, skipped }
     }
 
+    /// Every NPC's tasks, by NPC id.
+    pub fn npc_tasks(&self) -> BTreeMap<u32, Vec<u32>> {
+        (self.maps.values())
+            .flat_map(|p| &p.npcs)
+            .map(|n| (n.id, npc_tasks(n)))
+            .collect()
+    }
+
+    /// Gives NPCs the scripts `scripts` names (by NPC id).
+    pub fn set_scripts(&mut self, scripts: &BTreeMap<u32, String>) {
+        for npc in self.maps.values_mut().flat_map(|p| p.npcs.iter_mut()) {
+            if let Some(script) = scripts.get(&npc.id) {
+                npc.script = script.clone();
+            }
+        }
+    }
+
     /// NPCs and spawns of the maps `ids` together (maps that share one map file).
     pub fn for_maps(&self, ids: &[u32]) -> Population {
         let mut out = Population::default();
@@ -252,6 +269,14 @@ impl ServerPopulation {
         }
         out
     }
+}
+
+/// The tasks an NPC runs when clicked (`task0`..`task7`), in order, 0s left out.
+pub fn npc_tasks(npc: &Npc) -> Vec<u32> {
+    (0..8)
+        .filter_map(|i| npc.extra.get(&format!("task{i}"))?.parse().ok())
+        .filter(|&t| t != 0)
+        .collect()
 }
 
 /// The game map id of a row (0 if it has none).
