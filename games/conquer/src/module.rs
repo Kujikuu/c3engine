@@ -8,6 +8,7 @@ use crate::protocol::FRONT_KIND;
 use crate::rules::{ConquerRules, SLOT_NAMES};
 use c3_assets::Image;
 use c3_audio::MusicRegion;
+use c3_core::settings::AttributeDef;
 use c3_game::{EntityId, Player, Rules, Sim, SkillType};
 use c3_play::{
     Act, Character, CharacterMotions, GameModule, GameRules, Look, LookKind, Looks, PartModel,
@@ -33,6 +34,9 @@ const DIE: u32 = 330;
 const NPC_FRAME_MS: u32 = 33;
 /// Weapon family meaning "any weapon" in `ActionSound.ini`.
 const ANY_WEAPON: u32 = 999;
+
+/// The currency TQ calls e-money: Conquer Points.
+pub const CONQUER_POINTS: &str = "CPs";
 
 /// Conquer Online 5065, from a client's content.
 pub struct ConquerModule {
@@ -101,6 +105,36 @@ pub fn conquer_settings() -> ProjectSettings {
         cursor.image = file.into();
     }
     s.gameplay.currency = "Silver".into();
+    s.gameplay.currencies = vec![CONQUER_POINTS.into()];
+    let attribute = |name: &str, doc: &str, default: i64, max: Option<i64>| AttributeDef {
+        name: name.into(),
+        doc: doc.into(),
+        default,
+        min: Some(0),
+        max,
+    };
+    s.gameplay.attributes = vec![
+        attribute("strength", "Raises attack", 0, None),
+        attribute("agility", "Raises accuracy and dodging", 0, None),
+        attribute("vitality", "Raises life", 0, None),
+        attribute("spirit", "Raises mana", 0, None),
+        attribute(
+            "attribute_points",
+            "Points to spend on the four above",
+            0,
+            None,
+        ),
+        attribute("rebirths", "Times reborn (metempsychosis)", 0, Some(2)),
+        attribute("virtue", "Earned by mentoring new players", 0, None),
+        attribute("stamina", "Spent by XP skills and jumping", 100, Some(100)),
+        attribute("xp", "Fills toward an XP skill", 0, Some(100)),
+    ];
+    // TQ's item columns beside type, amount and durability (`cq_item`).
+    s.gameplay.item_attributes = [
+        "plus", "gem1", "gem2", "bless", "enchant", "color", "ident", "data",
+    ]
+    .map(String::from)
+    .to_vec();
     s.gameplay.new_character = game::new_character();
     s.network.fronts.push(c3_core::settings::FrontSettings {
         kind: FRONT_KIND.into(),

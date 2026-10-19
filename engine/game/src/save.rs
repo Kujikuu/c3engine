@@ -46,6 +46,12 @@ pub struct PlayerSave {
     /// PK points.
     #[serde(default, skip_serializing_if = "is_zero_signed")]
     pub pk: i32,
+    /// The game's numbers that differ from their default.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub attributes: BTreeMap<String, i64>,
+    /// Where it comes back to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub record: Option<c3_scene::PortalTarget>,
 }
 
 fn is_default_look(look: &crate::PlayerLook) -> bool {
@@ -63,6 +69,13 @@ pub struct SavedItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub durability: Option<u32>,
     pub quality: u8,
+    /// The game's numbers for it.
+    #[serde(skip_serializing_if = "no_attrs")]
+    pub attrs: [i32; c3_core::settings::ITEM_ATTRIBUTES],
+}
+
+fn no_attrs(attrs: &[i32; c3_core::settings::ITEM_ATTRIBUTES]) -> bool {
+    attrs.iter().all(|&a| a == 0)
 }
 
 impl From<u32> for SavedItem {
@@ -72,6 +85,7 @@ impl From<u32> for SavedItem {
             count: 1,
             durability: None,
             quality: 0,
+            attrs: [0; c3_core::settings::ITEM_ATTRIBUTES],
         }
     }
 }
@@ -89,6 +103,8 @@ enum SavedItemForm {
         durability: Option<u32>,
         #[serde(default)]
         quality: u8,
+        #[serde(default)]
+        attrs: [i32; c3_core::settings::ITEM_ATTRIBUTES],
     },
 }
 
@@ -105,11 +121,13 @@ impl From<SavedItemForm> for SavedItem {
                 count,
                 durability,
                 quality,
+                attrs,
             } => Self {
                 kind,
                 count: count.max(1),
                 durability,
                 quality,
+                attrs,
             },
         }
     }
@@ -136,6 +154,8 @@ impl PlayerSave {
             look: Default::default(),
             profession: 0,
             pk: 0,
+            attributes: BTreeMap::new(),
+            record: None,
         }
     }
 }
@@ -166,6 +186,8 @@ impl Sim {
         p.look = save.look;
         p.profession = save.profession;
         p.pk = save.pk;
+        p.attributes = save.attributes.clone();
+        p.record = save.record;
         self.refresh_stats(id);
         let p = self.players.get_mut(&id).expect("just added");
         // A save without life (a new character) starts full.
@@ -202,6 +224,8 @@ impl Sim {
             look: p.look,
             profession: p.profession,
             pk: p.pk,
+            attributes: p.attributes.clone(),
+            record: p.record,
         })
     }
 
@@ -245,6 +269,7 @@ impl Sim {
         let mut item = self.new_item(s.kind);
         item.count = s.count.max(1);
         item.quality = s.quality;
+        item.attrs = s.attrs;
         if let Some(durability) = s.durability {
             item.durability = durability;
         }
@@ -258,6 +283,7 @@ impl Sim {
             count: item.count,
             durability: has_durability.then_some(item.durability),
             quality: item.quality,
+            attrs: item.attrs,
         }
     }
 }

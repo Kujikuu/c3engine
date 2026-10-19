@@ -246,6 +246,11 @@ fn more(engine: &mut Engine, shared: &Shared) {
     };
     engine.register_fn("give_exp", effect(shared, Effect::Exp));
     engine.register_fn("add_pk", effect(shared, Effect::Pk));
+    engine.register_fn("add_mana", effect(shared, Effect::Mana));
+    let s = shared.clone();
+    engine.register_fn("mana", move || with(&s, |c| c.player.mana));
+    let s = shared.clone();
+    engine.register_fn("max_mana", move || with(&s, |c| c.player.max_mana));
     let s = shared.clone();
     engine.register_fn("pk", move || with(&s, |c| c.player.pk));
     let s = shared.clone();
@@ -264,6 +269,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
             (values.iter()).fold(text.to_owned(), |t, (key, value)| t.replace(key, value))
         })
     });
+    attributes(engine, shared);
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -470,4 +476,135 @@ pub(crate) fn to_dynamic(value: &c3_data::Value) -> Dynamic {
         c3_data::Value::Float(f) => (*f).into(),
         c3_data::Value::Text(t) => t.clone().into(),
     }
+}
+
+/// The player's attributes, record point, worn items' attributes, bag space and items by
+/// a range of types.
+fn attributes(engine: &mut Engine, shared: &Shared) {
+    let s = shared.clone();
+    engine.register_fn("attr", move |name: &str| {
+        with(&s, |c| c.player.attributes.get(name).copied().unwrap_or(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("add_attr", move |name: &str, amount: i64| {
+        with(&s, |c| {
+            let (min, max) = c
+                .player
+                .attribute_limits
+                .get(name)
+                .copied()
+                .unwrap_or_default();
+            let value = c
+                .player
+                .attributes
+                .get(name)
+                .copied()
+                .unwrap_or(0)
+                .saturating_add(amount);
+            // A cost the player can't pay fails; more than the most is cut off.
+            if min.is_some_and(|min| value < min) {
+                return false;
+            }
+            c.player
+                .attributes
+                .insert(name.to_owned(), max.map_or(value, |max| value.min(max)));
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_attr", move |name: &str, value: i64| {
+        with(&s, |c| {
+            let (min, max) = c
+                .player
+                .attribute_limits
+                .get(name)
+                .copied()
+                .unwrap_or_default();
+            let value = value
+                .max(min.unwrap_or(i64::MIN))
+                .min(max.unwrap_or(i64::MAX));
+            c.player.attributes.insert(name.to_owned(), value);
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_record", move |map: i64, x: i64, y: i64| {
+        with(&s, |c| c.player.record = Some((map, (x, y))))
+    });
+    let s = shared.clone();
+    engine.register_fn("go_record", move || {
+        with(&s, |c| match c.player.record {
+            Some((map, cell)) => {
+                c.effects.push(Effect::Teleport { map, cell });
+                true
+            }
+            None => false,
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("worn_attr", move |slot: i64, name: &str| {
+        with(&s, |c| {
+            (c.player.worn_attrs.get(&slot))
+                .and_then(|a| a.get(name))
+                .copied()
+                .unwrap_or(0)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_worn_attr", move |slot: i64, name: &str, value: i64| {
+        with(&s, |c| match c.player.worn_attrs.get_mut(&slot) {
+            Some(attrs) if attrs.contains_key(name) => {
+                attrs.insert(name.to_owned(), value);
+                true
+            }
+            _ => false,
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("bag_space", move || with(&s, |c| c.player.bag_space));
+    let s = shared.clone();
+    engine.register_fn("count_items_between", move |low: i64, high: i64| {
+        with(&s, |c| {
+            c.player
+                .items
+                .range(low..=high)
+                .map(|(_, n)| n)
+                .sum::<i64>()
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn(
+        "take_items_between",
+        move |low: i64, high: i64, count: i64| {
+            with(&s, |c| {
+                let have: i64 = c.player.items.range(low..=high).map(|(_, n)| n).sum();
+                if count <= 0 || have < count {
+                    return false;
+                }
+                let mut left = count;
+                for (&item, n) in c.player.items.range_mut(low..=high) {
+                    let take = left.min(*n);
+                    *n -= take;
+                    left -= take;
+                    if take > 0 {
+                        c.effects.push(Effect::TookItem { item, count: take });
+                    }
+                }
+                c.player.items.retain(|_, n| *n > 0);
+                true
+            })
+        },
+    );
+    let s = shared.clone();
+    engine.register_fn("forget_skill", move |skill: i64| {
+        with(&s, |c| {
+            let known = c.player.skills.contains(&skill);
+            c.player.skills.retain(|&k| k != skill);
+            known
+        })
+    });
+    engine.register_fn("clock", || {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64)
+    });
 }

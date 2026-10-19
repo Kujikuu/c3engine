@@ -36,6 +36,18 @@ pub struct PlayerState {
     pub pk: i64,
     /// Equipment slot → the item type worn there.
     pub worn: BTreeMap<i64, i64>,
+    /// Equipment slot → the worn item's numbers, by the settings' item attribute names.
+    pub worn_attrs: BTreeMap<i64, BTreeMap<String, i64>>,
+    /// The game's numbers (every attribute the settings name, defaults included).
+    pub attributes: BTreeMap<String, i64>,
+    /// Each attribute's range (`None`: unlimited), by name.
+    pub attribute_limits: BTreeMap<String, (Option<i64>, Option<i64>)>,
+    /// Where the player comes back to: game map id and cell.
+    pub record: Option<(i64, (i64, i64))>,
+    /// Free places in the bag.
+    pub bag_space: i64,
+    pub mana: i64,
+    pub max_mana: i64,
 }
 
 impl PlayerState {
@@ -150,6 +162,8 @@ pub enum Effect {
     Life(i64),
     /// PK points gained (negative: lost).
     Pk(i64),
+    /// Mana back (negative: spent, never below 0).
+    Mana(i64),
     /// Put the player under status `id`.
     AddStatus(i64),
     /// Play effect `name` on the player.

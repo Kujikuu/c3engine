@@ -68,6 +68,8 @@ impl Sim {
                 mates: Vec::new(),
                 profession: 0,
                 pk: 0,
+                attributes: std::collections::BTreeMap::new(),
+                record: None,
                 running: false,
                 task: Task::Idle,
                 dialogue: None,

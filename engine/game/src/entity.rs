@@ -21,6 +21,15 @@ pub struct Item {
     /// Its quality step (0: the lowest), each adding to what it gives.
     #[serde(default)]
     pub quality: u8,
+    /// The game's numbers for it (named by the settings' `item_attributes`).
+    #[serde(default, skip_serializing_if = "no_attrs")]
+    pub attrs: [i32; ITEM_ATTRIBUTES],
+}
+
+pub use c3_core::settings::ITEM_ATTRIBUTES;
+
+fn no_attrs(attrs: &[i32; ITEM_ATTRIBUTES]) -> bool {
+    attrs.iter().all(|&a| a == 0)
 }
 
 fn one() -> u32 {
@@ -36,6 +45,7 @@ impl Item {
             count: 1,
             durability: t.map_or(0, |t| t.durability),
             quality: 0,
+            attrs: [0; ITEM_ATTRIBUTES],
         }
     }
 
@@ -129,6 +139,12 @@ pub struct Player {
     /// PK points: what killing other players has earned (game-defined).
     #[serde(default)]
     pub pk: i32,
+    /// The game's numbers (the settings' `attributes`) that differ from their default.
+    #[serde(default)]
+    pub attributes: BTreeMap<String, i64>,
+    /// Where it comes back to (dying, or a script sending it there); `None`: the map's.
+    #[serde(default)]
+    pub record: Option<c3_scene::PortalTarget>,
     pub running: bool,
     pub task: Task,
     /// The dialogue the player is in, if any.

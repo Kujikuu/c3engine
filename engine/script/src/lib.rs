@@ -186,6 +186,33 @@ pub const API: &[(&str, &str)] = &[
         "The profession chosen when the character was made (0: none)",
     ),
     (
+        "mana() / max_mana() / add_mana(n)",
+        "The player's mana; gives (n < 0 spends) some",
+    ),
+    (
+        "attr(name) / add_attr(name, n) / set_attr(name, v)",
+        "The player's attribute `name` (Project Settings > Gameplay > attributes); add_attr is \
+         false (and changes nothing) when it would go below its lowest",
+    ),
+    (
+        "set_record(map, x, y) / go_record()",
+        "Sets where the player comes back to; sends it there",
+    ),
+    ("bag_space()", "Free places in the bag"),
+    (
+        "worn_attr(slot, name) / set_worn_attr(slot, name, v)",
+        "A number of the item worn in `slot` (the settings' item attributes: plus, gems...)",
+    ),
+    (
+        "count_items_between(low, high) / take_items_between(low, high, n)",
+        "Items carried whose types are from `low` to `high`; takes n of them (false: too few)",
+    ),
+    (
+        "forget_skill(id)",
+        "Forgets a skill; false if the player didn't know it",
+    ),
+    ("clock()", "Seconds since 1970 (for timestamps)"),
+    (
         "pk() / add_pk(n)",
         "The player's PK points; gives (or with n < 0 takes) some",
     ),

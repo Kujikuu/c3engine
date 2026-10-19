@@ -31,6 +31,19 @@ impl ProjectSettings {
     /// Why these settings can't be used, if they can't (each problem in words).
     pub fn problems(&self) -> Vec<String> {
         let mut problems = Vec::new();
+        let mut names = std::collections::BTreeSet::new();
+        for a in &self.gameplay.attributes {
+            if a.name.trim().is_empty() {
+                problems.push("A player attribute has no name".to_owned());
+            } else if !names.insert(a.name.as_str()) {
+                problems.push(format!("Two player attributes are called {}", a.name));
+            } else if a.min.zip(a.max).is_some_and(|(min, max)| min > max) {
+                problems.push(format!(
+                    "Player attribute {}: its lowest is above its highest",
+                    a.name
+                ));
+            }
+        }
         let mut check = |ok: bool, problem: &str| {
             if !ok {
                 problems.push(problem.to_owned());
@@ -322,6 +335,12 @@ pub struct GameplaySettings {
     /// Other currencies beside the money (gems, honour), by name; items may be priced in them.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub currencies: Vec<String>,
+    /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
+    #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
+    pub attributes: Vec<AttributeDef>,
+    /// Names of the numbers items keep (up to 8: plus level, gems, blessing...), in order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub item_attributes: Vec<String>,
     /// The equipment slots items are worn in; empty: the game's own.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub equipment_slots: Vec<EquipmentSlot>,
@@ -362,6 +381,8 @@ impl Default for GameplaySettings {
             bag_size: 40,
             currency: "Gold".into(),
             currencies: Vec::new(),
+            attributes: Vec::new(),
+            item_attributes: Vec::new(),
             equipment_slots: Vec::new(),
             qualities: ["Common", "Fine", "Rare", "Epic", "Legendary"]
                 .map(String::from)
@@ -376,6 +397,26 @@ impl Default for GameplaySettings {
         }
     }
 }
+
+/// A number a game keeps on every player (strength, rebirths, stamina...): its name as
+/// scripts and formulas name it, what it is, a new player's value and the range it stays in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct AttributeDef {
+    pub name: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub doc: String,
+    pub default: i64,
+    /// Lowest value; going below it fails (a cost that can't be paid). `None`: no limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<i64>,
+    /// Highest value; more is cut off. `None`: no limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<i64>,
+}
+
+/// Most numbers an item keeps beside its type, count, durability and quality.
+pub const ITEM_ATTRIBUTES: usize = 8;
 
 /// An equipment slot: the number item types name it by, and what players see.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

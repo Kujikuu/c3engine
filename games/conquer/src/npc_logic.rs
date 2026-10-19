@@ -812,8 +812,350 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             1073 | 1074 => self.statistic(g, a, column),
+            1080 | 1081 => self.timestamp(g, a, column),
+            // Where the player comes back to; going there.
+            1004 => match (int(0), int(1), int(2)) {
+                (Some(map), Some(x), Some(y)) => {
+                    let values = [("map", num(map)), ("x", num(x)), ("y", num(y))];
+                    Self::plain(g, "player.set_record", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            1006 => Self::checked(g, "player.go_record", &[], "went", column),
+            // Weapon skills, as attributes `weapon_<type>` (level) and `weapon_exp_<type>`.
+            1021 => match (tokens.first().copied(), int(1), int(2)) {
+                (Some("check"), Some(kind), Some(level)) => {
+                    let cmp = self.attr_compare(g, &format!("weapon_{kind}"), ">=", level, column);
+                    Self::branch(g, cmp, column)
+                }
+                (Some("learn"), Some(kind), Some(level)) => {
+                    let values = [
+                        ("name", txt(&format!("weapon_{kind}"))),
+                        ("value", num(level)),
+                    ];
+                    Self::plain(g, "player.set_attr", &values, column)
+                }
+                (Some("addexp"), Some(kind), Some(exp)) => {
+                    let values = [
+                        ("name", txt(&format!("weapon_exp_{kind}"))),
+                        ("amount", num(exp)),
+                    ];
+                    let add = g.node("player.add_attr", &values, column);
+                    Emitted {
+                        entry: Some(add),
+                        ok: Some((add, "then")),
+                        fail: None,
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Forgetting skills (1045 drops them to level 0: forgotten here too).
+            1039 | 1044 | 1045 => {
+                let skills: Vec<i64> = tokens.iter().filter_map(|t| t.parse().ok()).collect();
+                let mut first = None;
+                let mut last: Option<Exit> = None;
+                for skill in skills {
+                    let node = g.node("skill.forget", &[("skill", num(skill))], column);
+                    match last {
+                        Some(exit) => g.exec(exit, node),
+                        None => first = Some(node),
+                    }
+                    last = Some((node, "then"));
+                }
+                match first {
+                    Some(entry) => Emitted {
+                        entry: Some(entry),
+                        ok: last,
+                        fail: None,
+                    },
+                    None => self.not_converted(g, a, column),
+                }
+            }
+            // Items of a range of types: carries some, take some.
+            506 | 507 => match (int(0), int(1), int(2)) {
+                (Some(low), Some(high), Some(count)) => {
+                    let count = count.max(1);
+                    if a.kind == 506 {
+                        let values = [
+                            ("low", num(low)),
+                            ("high", num(high)),
+                            ("count", num(count)),
+                        ];
+                        Self::checked(g, "item.take_between", &values, "taken", column)
+                    } else {
+                        let have = g.node(
+                            "item.count_between",
+                            &[("low", num(low)), ("high", num(high))],
+                            column,
+                        );
+                        let cmp = self.compare_node(g, have, ">=", count, column);
+                        Self::branch(g, cmp, column)
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            508 => {
+                let space = g.node("player.bag_space", &[], column);
+                let cmp = self.compare_node(g, space, ">=", a.data.max(0), column);
+                Self::branch(g, cmp, column)
+            }
+            // Worn items: worn at all, their level and quality digits, their numbers.
+            511 => {
+                let worn = g.node("item.worn", &[("slot", num(a.data))], column);
+                let none = self.compare_node(g, worn, "==", 0, column);
+                let not = g.node("logic.not", &[], column);
+                g.data(none, not, "a");
+                Self::branch(g, not, column)
+            }
+            510 => self.equip_test(g, a, &tokens, column),
+            512 => match (int(0), int(1)) {
+                (Some(slot), Some(color)) => {
+                    let values = [
+                        ("slot", num(slot)),
+                        ("name", txt("color")),
+                        ("value", num(color)),
+                    ];
+                    // TQ answers false whatever happens: the chain goes on through id_nextfail.
+                    let set = g.node("item.set_worn_attr", &values, column);
+                    Emitted {
+                        entry: Some(set),
+                        ok: None,
+                        fail: Some((set, "then")),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            517 => self.equip_attr(g, a, &tokens, column),
+            // Writing a log row: nothing the game shows or keeps.
+            127 if a
+                .param
+                .to_ascii_uppercase()
+                .starts_with("INSERT INTO CQ_LOG") =>
+            {
+                Self::nothing()
+            }
             _ => self.not_converted(g, a, column),
         }
+    }
+
+    /// Attribute `name` compared with `n` by `op`.
+    fn attr_compare(&mut self, g: &mut Canvas, name: &str, op: &str, n: i64, column: i32) -> u32 {
+        let attr = g.node("player.attr", &[("name", txt(name))], column);
+        self.compare_node(g, attr, op, n, column)
+    }
+
+    /// 510: the level (`type % 1000 / 10`) or quality (`type % 10`) of the item worn in a
+    /// slot, compared.
+    fn equip_test(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let (Some(slot), Some(what), Some(op), Some(n)) = (
+            tokens.first().and_then(|t| t.parse::<i64>().ok()),
+            tokens.get(1).map(|t| t.to_ascii_lowercase()),
+            tokens.get(2).copied(),
+            tokens.get(3).and_then(|t| t.parse::<i64>().ok()),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        let (modulo, divide) = match what.as_str() {
+            "level" => (1000, 10),
+            "quality" => (10, 1),
+            _ => return self.not_converted(g, a, column),
+        };
+        let worn = g.node("item.worn", &[("slot", num(slot))], column);
+        let rem = g.node("math.remainder", &[("b", num(modulo))], column);
+        g.data(worn, rem, "a");
+        let value = match divide {
+            1 => rem,
+            d => {
+                let div = g.node("math.divide", &[("b", num(d))], column);
+                g.data(rem, div, "a");
+                div
+            }
+        };
+        let op = match op {
+            "<=" | ">=" => op,
+            _ => "==",
+        };
+        let cmp = self.compare_node(g, value, op, n, column);
+        // An empty slot fails.
+        let none = self.compare_node(g, worn, "==", 0, column);
+        let worn_at_all = g.node("logic.not", &[], column);
+        g.data(none, worn_at_all, "a");
+        let and = g.node("logic.and", &[], column);
+        g.data(worn_at_all, and, "a");
+        g.data(cmp, and, "b");
+        Self::branch(g, and, column)
+    }
+
+    /// 517: a number of the item worn in a slot (`cq_item` column index), set, added to or
+    /// compared.
+    fn equip_attr(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let int = |i: usize| tokens.get(i).and_then(|t| t.parse::<i64>().ok());
+        let (Some(slot), Some(field), Some(op), Some(value)) =
+            (int(0), int(1), tokens.get(2).copied(), int(3))
+        else {
+            return self.not_converted(g, a, column);
+        };
+        // `cq_item` columns kept as Conquer's item attributes.
+        let name = match field {
+            6 => "ident",
+            8 => "gem1",
+            9 => "gem2",
+            12 => "plus",
+            13 => "data",
+            14 => "bless",
+            15 => "enchant",
+            20 => "color",
+            _ => return self.not_converted(g, a, column),
+        };
+        match op.to_ascii_lowercase().as_str() {
+            "set" => {
+                let values = [
+                    ("slot", num(slot)),
+                    ("name", txt(name)),
+                    ("value", num(value)),
+                ];
+                Self::checked(g, "item.set_worn_attr", &values, "set", column)
+            }
+            "+=" => {
+                let now = g.node(
+                    "item.worn_attr",
+                    &[("slot", num(slot)), ("name", txt(name))],
+                    column,
+                );
+                let add = g.node("math.add", &[("b", num(value))], column);
+                g.data(now, add, "a");
+                let set = g.node(
+                    "item.set_worn_attr",
+                    &[("slot", num(slot)), ("name", txt(name))],
+                    column,
+                );
+                g.data(add, set, "value");
+                let branch = g.node("flow.branch", &[], column);
+                g.wire((set, "set"), (branch, "condition"));
+                g.exec((set, "then"), branch);
+                Emitted {
+                    entry: Some(set),
+                    ok: Some((branch, "true")),
+                    fail: Some((branch, "false")),
+                }
+            }
+            op @ ("==" | ">=") => {
+                let now = g.node(
+                    "item.worn_attr",
+                    &[("slot", num(slot)), ("name", txt(name))],
+                    column,
+                );
+                let cmp = self.compare_node(g, now, op, value, column);
+                Self::branch(g, cmp, column)
+            }
+            _ => self.not_converted(g, a, column),
+        }
+    }
+
+    /// 1080/1081: a statistic's time (flag `ts_<event>_<type>`, seconds): set, moved, compared
+    /// with now, or how long ago it was (seconds, or days with a unit).
+    fn timestamp(&mut self, g: &mut Canvas, a: &Action, column: i32) -> Emitted {
+        let Some((key, rest)) = a.param.split_once(')') else {
+            return self.not_converted(g, a, column);
+        };
+        let key = key
+            .trim_start_matches("timestamp(")
+            .trim_start_matches("interval(");
+        let numbers: Vec<i64> = key
+            .split(',')
+            .filter_map(|n| n.trim().parse().ok())
+            .collect();
+        let rest: Vec<&str> = rest.split_whitespace().collect();
+        let (Some(&event), Some(&kind), Some(op), Some(n)) = (
+            numbers.first(),
+            numbers.get(1),
+            rest.first().copied(),
+            rest.get(1).and_then(|t| t.parse::<i64>().ok()),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        let name = txt(&format!("ts_{event}_{kind}"));
+        let op = op.to_ascii_lowercase();
+        if a.kind == 1080 {
+            return match op.as_str() {
+                "set" if n == 0 => {
+                    let clock = g.node("world.clock", &[], column);
+                    let set = g.node("player.set_flag", &[("name", name)], column);
+                    g.data(clock, set, "value");
+                    Emitted {
+                        entry: Some(set),
+                        ok: Some((set, "then")),
+                        fail: None,
+                    }
+                }
+                "set" => Self::plain(
+                    g,
+                    "player.set_flag",
+                    &[("name", name), ("value", num(n))],
+                    column,
+                ),
+                "+=" => {
+                    let flag = g.node("player.flag", &[("name", name.clone())], column);
+                    let add = g.node("math.add", &[("b", num(n))], column);
+                    g.data(flag, add, "a");
+                    let set = g.node("player.set_flag", &[("name", name)], column);
+                    g.data(add, set, "value");
+                    Emitted {
+                        entry: Some(set),
+                        ok: Some((set, "then")),
+                        fail: None,
+                    }
+                }
+                ">=" | ">" | "==" => {
+                    let flag = g.node("player.flag", &[("name", name)], column);
+                    let reference = match n {
+                        0 => g.node("world.clock", &[], column),
+                        n => g.node("math.add", &[("a", num(n)), ("b", num(0))], column),
+                    };
+                    let cmp = self.compare_nodes(g, flag, &op, reference, column);
+                    Self::branch(g, cmp, column)
+                }
+                _ => self.not_converted(g, a, column),
+            };
+        }
+        // 1081: interval(event, type, unit) op n — how long since the time was set.
+        let unit = numbers.get(2).copied().unwrap_or(0);
+        let per = if unit == 0 { 1 } else { 86_400 };
+        let flag = g.node("player.flag", &[("name", name)], column);
+        let clock = g.node("world.clock", &[], column);
+        let now = g.node("math.divide", &[("b", num(per))], column);
+        g.data(clock, now, "a");
+        let then = g.node("math.divide", &[("b", num(per))], column);
+        g.data(flag, then, "a");
+        let due = g.node("math.add", &[("b", num(n))], column);
+        g.data(then, due, "a");
+        let cmp = self.compare_nodes(g, now, &op, due, column);
+        // A time never set fails.
+        let unset = self.compare_node(g, flag, "==", 0, column);
+        let set = g.node("logic.not", &[], column);
+        g.data(unset, set, "a");
+        let and = g.node("logic.and", &[], column);
+        g.data(set, and, "a");
+        g.data(cmp, and, "b");
+        Self::branch(g, and, column)
+    }
+
+    /// Pure node `a` compared with pure node `b` by `op` (`>=`, `>`, else `==`).
+    fn compare_nodes(&mut self, g: &mut Canvas, a: u32, op: &str, b: u32, column: i32) -> u32 {
+        let (def, negate) = match op {
+            ">=" => ("logic.less", true),
+            ">" => ("logic.greater", false),
+            _ => ("logic.equal", false),
+        };
+        let cmp = g.node(def, &[], column);
+        g.data(a, cmp, "a");
+        g.data(b, cmp, "b");
+        if !negate {
+            return cmp;
+        }
+        let not = g.node("logic.not", &[], column);
+        g.data(cmp, not, "a");
+        not
     }
 
     /// The item type an action names: its data, else the first type of the name in param.
@@ -873,11 +1215,44 @@ impl<'a> Builder<'a> {
         let value_node = match attr.as_str() {
             "money" => Some("player.money"),
             "life" => Some("player.life"),
+            "mana" => Some("player.mana"),
             "level" => Some("player.level"),
             "profession" => Some("player.profession"),
             "pk" => Some("player.pk"),
             _ => None,
         };
+        // TQ's names of numbers kept as Conquer's attributes.
+        let attribute = match attr.as_str() {
+            "force" | "strength" => Some("strength"),
+            "speed" => Some("agility"),
+            "health" => Some("vitality"),
+            "soul" => Some("spirit"),
+            "addpoint" => Some("attribute_points"),
+            "metempsychosis" => Some("rebirths"),
+            "virtue" => Some("virtue"),
+            "ep" => Some("stamina"),
+            "xp" => Some("xp"),
+            _ => None,
+        };
+        if let Some(name) = attribute {
+            return match op {
+                "+=" => {
+                    let values = [("name", txt(name)), ("amount", num(v))];
+                    Self::checked(g, "player.add_attr", &values, "added", column)
+                }
+                "set" => Self::plain(
+                    g,
+                    "player.set_attr",
+                    &[("name", txt(name)), ("value", num(v))],
+                    column,
+                ),
+                "==" | "<" | ">=" | "<=" => {
+                    let cmp = self.attr_compare(g, name, op, v, column);
+                    Self::branch(g, cmp, column)
+                }
+                _ => self.not_converted(g, a, column),
+            };
+        }
         match (attr.as_str(), op) {
             ("money", "+=") if v >= 0 => {
                 Self::plain(g, "player.give_money", &[("amount", num(v))], column)
@@ -894,6 +1269,36 @@ impl<'a> Builder<'a> {
                 Self::plain(g, "player.heal", &[("amount", num(v))], column)
             }
             ("life", "+=") => Self::plain(g, "player.hurt", &[("amount", num(-v))], column),
+            ("mana", "+=") => Self::plain(g, "player.add_mana", &[("amount", num(v))], column),
+            ("e_money", "+=") if v >= 0 => {
+                let values = [
+                    ("currency", txt(crate::module::CONQUER_POINTS)),
+                    ("amount", num(v)),
+                ];
+                Self::plain(g, "player.give_currency", &values, column)
+            }
+            ("e_money", "+=") => {
+                let values = [
+                    ("currency", txt(crate::module::CONQUER_POINTS)),
+                    ("amount", num(-v)),
+                ];
+                Self::checked(g, "player.take_currency", &values, "taken", column)
+            }
+            ("e_money", "==" | "<") => {
+                let cps = g.node(
+                    "player.currency",
+                    &[("currency", txt(crate::module::CONQUER_POINTS))],
+                    column,
+                );
+                let cmp = self.compare_node(g, cps, op, v, column);
+                Self::branch(g, cmp, column)
+            }
+            ("iterator", "=") => Self::plain(
+                g,
+                "player.set_flag",
+                &[("name", txt("iterator")), ("value", num(v))],
+                column,
+            ),
             // TQ's `pk +=` always answers false: the chain goes on through id_nextfail.
             ("pk", "+=") => {
                 let id = g.node("player.add_pk", &[("points", num(v))], column);
@@ -1093,6 +1498,22 @@ mod tests {
             })
             .collect();
         eprintln!("{}", converted.report.join("\n"));
+        // Every value set names an input of its node.
+        for (name, bp) in &converted.blueprints {
+            let graphs = std::iter::once(&bp.events).chain(bp.functions.iter().map(|f| &f.graph));
+            for node in graphs.flat_map(|g| &g.nodes) {
+                let def = c3_script::blueprint::node_def(&node.def).expect("a library node");
+                for key in node.values.keys() {
+                    let named = matches!(key.as_str(), "name" | "text");
+                    assert!(
+                        def.input(key).is_some() || named,
+                        "{name}: node {} ({}) has no input {key}",
+                        node.id,
+                        node.def
+                    );
+                }
+            }
+        }
         assert!(
             failing.is_empty(),
             "{} fail, first {:?}",

@@ -191,6 +191,12 @@ impl Sim {
             Effect::Log(text) => self.events.push(Event::ScriptLog(text)),
             Effect::StartTimer { name, seconds } => self.start_timer(id, name, seconds),
             Effect::Life(change) => self.script_life(id, change),
+            Effect::Mana(change) => {
+                if let Some(p) = self.players.get_mut(&id) {
+                    let mana = (i64::from(p.mana) + change).clamp(0, i64::from(p.stats.max_mana));
+                    p.mana = mana as u32;
+                }
+            }
             Effect::Pk(change) => {
                 if let Some(p) = self.players.get_mut(&id) {
                     // TQ keeps PK points within ±30000.
@@ -293,6 +299,29 @@ impl Sim {
                     Some((i64::from(slot), i64::from(item.kind)))
                 })
                 .collect(),
+            worn_attrs: (p.equipment.iter())
+                .filter_map(|item| {
+                    let slot = self.rules.item(item.kind)?.slot?;
+                    let names = self.settings.item_attributes.iter();
+                    let attrs = (names.zip(item.attrs))
+                        .map(|(name, value)| (name.clone(), i64::from(value)))
+                        .collect();
+                    Some((i64::from(slot), attrs))
+                })
+                .collect(),
+            attributes: (self.settings.attributes.iter())
+                .map(|a| (a.name.clone(), a.default))
+                .chain(p.attributes.iter().map(|(k, &v)| (k.clone(), v)))
+                .collect(),
+            attribute_limits: (self.settings.attributes.iter())
+                .map(|a| (a.name.clone(), (a.min, a.max)))
+                .collect(),
+            record: p
+                .record
+                .map(|r| (i64::from(r.map), (i64::from(r.cell.0), i64::from(r.cell.1)))),
+            bag_space: self.bag_size().saturating_sub(p.bag.len()) as i64,
+            mana: p.mana.into(),
+            max_mana: p.stats.max_mana.into(),
         }
     }
 
@@ -304,6 +333,33 @@ impl Sim {
         };
         p.money = after.money.max(0) as u64;
         p.flags = after.flags.clone();
+        // Attributes at their default aren't kept.
+        let defaults: BTreeMap<&str, i64> = (self.settings.attributes.iter())
+            .map(|a| (a.name.as_str(), a.default))
+            .collect();
+        p.attributes = (after.attributes.iter())
+            .filter(|(k, v)| defaults.get(k.as_str()).copied().unwrap_or(0) != **v)
+            .map(|(k, &v)| (k.clone(), v))
+            .collect();
+        p.record = after.record.map(|(map, cell)| c3_scene::PortalTarget {
+            map: u32::try_from(map).unwrap_or(0),
+            cell: (cell.0 as i32, cell.1 as i32),
+        });
+        let names = self.settings.item_attributes.clone();
+        for item in &mut p.equipment {
+            let Some(slot) = self.rules.item(item.kind).and_then(|t| t.slot) else {
+                continue;
+            };
+            let Some(attrs) = after.worn_attrs.get(&i64::from(slot)) else {
+                continue;
+            };
+            for (i, name) in names.iter().enumerate().take(item.attrs.len()) {
+                if let Some(&v) = attrs.get(name) {
+                    item.attrs[i] = v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+                }
+            }
+        }
+        p.skills.retain(|s| after.skills.contains(&i64::from(*s)));
         self.world_flags = after.world.clone();
         let Some(p) = self.players.get_mut(&id) else {
             return;

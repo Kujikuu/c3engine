@@ -173,7 +173,8 @@ fn to_json(settings: &ProjectSettings) -> Value {
         },
         "camera": {"tilt_deg": null},
         "gameplay": {
-            "start_cell": null, "currencies": [], "equipment_slots": [],
+            "start_cell": null, "currencies": [], "equipment_slots": [], "attribute": [],
+            "item_attributes": [],
             "new_character": {"skills": []}
         },
         "maps": [],

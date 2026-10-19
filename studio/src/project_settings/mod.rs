@@ -6,7 +6,9 @@ use crate::app::{Focus, Studio};
 use crate::icons;
 use crate::theme;
 use c3_core::ProjectSettings;
-use c3_core::settings::{Cursor, EquipmentSlot, FrontSettings, MapEntry};
+use c3_core::settings::{
+    AttributeDef, Cursor, EquipmentSlot, FrontSettings, ITEM_ATTRIBUTES, MapEntry,
+};
 use c3_edit::{SettingsCommand, SettingsDoc};
 use c3_play::GameModule;
 use c3_play::map_list::{self, MapInfo, MapList};
@@ -1177,6 +1179,28 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
             heading(ui, "Equipment slots");
             let game_slots = f.game.map(|g| g.slot_names()).unwrap_or_default();
             f.equipment_slots(ui, &g.equipment_slots, &game_slots);
+            heading(ui, "Player attributes");
+            f.attributes(ui, &g.attributes);
+            heading(ui, "Item attributes");
+            grid(ui, "item attributes", |ui| {
+                f.names(
+                    ui,
+                    (
+                        "Names",
+                        "The numbers every item keeps beside its type, count, durability and \
+                         quality (up to 8), in order",
+                        "e.g. plus, gem1, gem2",
+                    ),
+                    "gameplay.item_attributes",
+                    &g.item_attributes,
+                );
+            });
+            if g.item_attributes.len() > ITEM_ATTRIBUTES {
+                ui.colored_label(
+                    theme::DANGER,
+                    format!("Items keep {ITEM_ATTRIBUTES} numbers: the names past that go unused."),
+                );
+            }
         }
         Section::Maps => f.map_entries(ui, &s.maps),
         Section::Graphics => grid(ui, "graphics", |ui| {
@@ -1703,6 +1727,94 @@ impl Fields<'_> {
         if changed {
             self.set(
                 "gameplay.equipment_slots",
+                serde_json::to_value(&list).unwrap_or_default(),
+            );
+        }
+    }
+
+    /// The numbers every player keeps: name, new players' value, range and what it is for.
+    fn attributes(&mut self, ui: &mut egui::Ui, attributes: &[AttributeDef]) {
+        let mut list = attributes.to_vec();
+        let mut changed = false;
+        let mut remove = None;
+        if list.is_empty() {
+            ui.label(
+                RichText::new(
+                    "None yet: add the numbers your players keep (strength, honour...). Scripts \
+                     and formulas read them with attr(name).",
+                )
+                .color(theme::TEXT_DIM),
+            );
+        }
+        egui::Grid::new("player attributes")
+            .num_columns(6)
+            .spacing([10.0, 6.0])
+            .striped(true)
+            .show(ui, |ui| {
+                if !list.is_empty() {
+                    for title in ["Name", "New players", "Lowest", "Highest", "What it is", ""] {
+                        ui.label(RichText::new(title).color(theme::TEXT_DIM).small());
+                    }
+                    ui.end_row();
+                }
+                for (i, a) in list.iter_mut().enumerate() {
+                    let mut responses = vec![
+                        ui.add_sized(
+                            [130.0, 22.0],
+                            egui::TextEdit::singleline(&mut a.name).hint_text("name"),
+                        ),
+                        ui.add(DragValue::new(&mut a.default)),
+                    ];
+                    for limit in [&mut a.min, &mut a.max] {
+                        let mut on = limit.is_some();
+                        let mut value = limit.unwrap_or(0);
+                        let r = ui
+                            .horizontal(|ui| {
+                                let check = ui.checkbox(&mut on, "");
+                                let drag = ui.add_enabled(on, DragValue::new(&mut value));
+                                check | drag
+                            })
+                            .inner
+                            .on_hover_text("Unticked: no limit");
+                        *limit = on.then_some(value);
+                        responses.push(r);
+                    }
+                    responses.push(ui.add_sized(
+                        [220.0, 22.0],
+                        egui::TextEdit::singleline(&mut a.doc).hint_text("what it is for"),
+                    ));
+                    for r in &responses {
+                        self.track(r, "Player attributes");
+                        changed |= r.changed();
+                    }
+                    if ui
+                        .button(icons::TRASH)
+                        .on_hover_text("Remove this attribute")
+                        .clicked()
+                    {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(i) = remove {
+            list.remove(i);
+            changed = true;
+        }
+        if ui
+            .button(theme::icon_text(icons::PLUS, "Add an attribute"))
+            .clicked()
+        {
+            list.push(AttributeDef {
+                name: format!("attribute{}", list.len() + 1),
+                min: Some(0),
+                ..AttributeDef::default()
+            });
+            changed = true;
+        }
+        if changed {
+            self.set(
+                "gameplay.attribute",
                 serde_json::to_value(&list).unwrap_or_default(),
             );
         }
