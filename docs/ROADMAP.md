@@ -701,6 +701,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
         Remove takes socket 1's out (`combine:<kind>:<value>:<slots>`, `;` between actions)
   - [ ] Compose and gems checked with real items; choosing the socket to remove; the oven
         (windows 2, 3)
+  - [x] The skill strip (CDlgMagic 188, the bar's Skill box): the hero's skills as Magic.Ani's
+        icons (`skill.N`), a click casts (`cast:N`) (screenshot)
+  - [ ] Skills: the strip right-aligned to its skill count, the XP and Kongfu strips
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,

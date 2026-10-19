@@ -177,7 +177,11 @@ pub fn conquer_settings() -> ProjectSettings {
     });
     s.ui.layout = "ini/GUI.ini".into();
     s.ui.skin = "ani/Control.Ani".into();
-    s.ui.skins = vec!["ani/Server.ani".into(), "ani/NpcFace.Ani".into()];
+    s.ui.skins = vec![
+        "ani/Server.ani".into(),
+        "ani/NpcFace.Ani".into(),
+        "ani/Magic.Ani".into(),
+    ];
     // The client's dialog sounds (DXPlaySound in its dialogs).
     s.ui.sound_open = "sound/DlgOpen.wav".into();
     s.ui.sound_close = "sound/DlgClose.wav".into();

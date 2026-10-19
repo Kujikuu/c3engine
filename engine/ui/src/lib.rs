@@ -317,6 +317,12 @@ impl GameUi {
                 self.gui_state.fields.remove("storage.amount");
             }
             "close_storage" => self.gui_state.storage = None,
+            // Cast the hero's skill `n` (`cast:<n>`).
+            _ if action.starts_with("cast:") => {
+                if let Ok(slot) = action.trim_start_matches("cast:").parse() {
+                    actions.push(UiAction::Cast(slot));
+                }
+            }
             _ if action.starts_with("pick:") => {
                 let what = action.trim_start_matches("pick:");
                 self.system(format!("Click a player ({what})."), style::GOLD);

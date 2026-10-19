@@ -124,6 +124,11 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // The hero's skill `n` (its type), none past the last.
+            _ if key.starts_with("skill.") => {
+                let n: usize = key.strip_prefix("skill.")?.parse().ok()?;
+                Some(self.player.skills.get(n)?.to_string())
+            }
             "storage.amount" | "trade.amount" | "dialogue.typed" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
