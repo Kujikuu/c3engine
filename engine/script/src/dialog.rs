@@ -56,6 +56,8 @@ pub struct PlayerState {
     pub exp: i64,
     /// Fights between players on its map bring no crime or PK points.
     pub map_pk_free: bool,
+    /// The living monsters on the player's map, by their type's name.
+    pub monsters: BTreeMap<String, i64>,
     /// What the player typed in the answer's text box (empty: none).
     pub accept: String,
     /// Players on each game map (all, alive).

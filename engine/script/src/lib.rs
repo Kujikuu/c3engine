@@ -79,6 +79,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "monsters_named(map, name)",
+        "How many living monsters of type `name` are on game map `map` (the player's own map; \
+         0 for others)",
+    ),
+    (
         "client_cue(name, a, b)",
         "Sends the player's client cue `name` with two numbers: a message the game's front \
          knows by that name (other fronts let it pass)",

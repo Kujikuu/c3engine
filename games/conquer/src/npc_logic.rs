@@ -1076,6 +1076,154 @@ impl<'a> Builder<'a> {
                 ];
                 Self::plain(g, "player.client_cue", &values, column)
             }
+            // This NPC goes away (TQ hides one at 0, 0).
+            205 if a.data == 0 => {
+                let id = g.node("npc.id", &[], column);
+                let values = [("map", num(0)), ("x", num(0)), ("y", num(0))];
+                let gone = g.node("npc.move", &values, column);
+                g.data(id, gone, "npc");
+                Emitted {
+                    entry: Some(gone),
+                    ok: Some((gone, "then")),
+                    fail: None,
+                }
+            }
+            // Living monsters of a name on a map, compared.
+            2008 => match (int(0), tokens.get(1), tokens.get(2), tokens.get(3), int(4)) {
+                (Some(map), Some(field), Some(name), Some(op), Some(n))
+                    if field.eq_ignore_ascii_case("name") =>
+                {
+                    let values = [("map", num(map)), ("name", txt(name))];
+                    let count = g.node("world.monsters_named", &values, column);
+                    let op = if *op == "<" { "<" } else { "==" };
+                    let cmp = self.compare_node(g, count, op, n, column);
+                    Self::branch(g, cmp, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Two of the player's numbers (or numbers) compared: ==, <, <=.
+            2003 => match (tokens.first(), tokens.get(1).copied(), tokens.get(2)) {
+                (Some(x), Some(op @ ("==" | "<" | "<=")), Some(y)) => {
+                    match (self.number(g, x, column), self.number(g, y, column)) {
+                        (Some(x), Some(y)) => {
+                            let x = self.number_node(g, x, column);
+                            let y = self.number_node(g, y, column);
+                            let cmp = match op {
+                                "<" => {
+                                    let n = g.node("logic.less", &[], column);
+                                    g.data(x, n, "a");
+                                    g.data(y, n, "b");
+                                    n
+                                }
+                                op => self.compare_nodes(g, x, op, y, column),
+                            };
+                            Self::branch(g, cmp, column)
+                        }
+                        _ => self.not_converted(g, a, column),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // A sound for the player (or those around).
+            1029 => match (tokens.first(), tokens.get(1)) {
+                (Some(cmd), Some(media))
+                    if cmd.eq_ignore_ascii_case("play") || cmd.eq_ignore_ascii_case("broacast") =>
+                {
+                    Self::plain(g, "fx.sound", &[("sound", txt(media))], column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Bits of the player's task mask, as flags `taskmask<n>`.
+            1028 => match (tokens.first().map(|t| t.to_ascii_lowercase()), int(1)) {
+                (Some(op), Some(n)) if (0..32).contains(&n) => {
+                    let name = txt(&format!("taskmask{n}"));
+                    match op.as_str() {
+                        "chk" => {
+                            let flag = g.node("player.flag", &[("name", name)], column);
+                            let cmp = self.compare_node(g, flag, "==", 1, column);
+                            Self::branch(g, cmp, column)
+                        }
+                        "add" | "clr" => {
+                            let v = num(i64::from(op == "add"));
+                            Self::plain(
+                                g,
+                                "player.set_flag",
+                                &[("name", name), ("value", v)],
+                                column,
+                            )
+                        }
+                        _ => self.not_converted(g, a, column),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // A command for the client (MsgAction 116 with the command).
+            124 => {
+                let values = [
+                    ("name", txt("msg_action")),
+                    ("a", num(116)),
+                    ("b", num(a.data)),
+                ];
+                Self::plain(g, "player.client_cue", &values, column)
+            }
+            // Heaven's blessing: hours added, or the hours left compared; `chk 0` blessed,
+            // `chk` otherwise cursed (progression §9.6).
+            1083 => self.blessing(g, a, &tokens, column),
+            // The lock key: none, or the number typed (1052); set from it (1053).
+            1052 => {
+                let key = g.node("player.attr", &[("name", txt("lock_key"))], column);
+                let none = self.compare_node(g, key, "==", 0, column);
+                let typed = g.node("dialogue.accept_number", &[], column);
+                let same = self.compare_nodes(g, typed, "==", key, column);
+                let either = g.node("logic.or", &[], column);
+                g.data(none, either, "a");
+                g.data(same, either, "b");
+                Self::branch(g, either, column)
+            }
+            1053 => {
+                let typed = g.node("dialogue.accept_number", &[], column);
+                let set = g.node("player.set_attr", &[("name", txt("lock_key"))], column);
+                g.data(typed, set, "value");
+                Emitted {
+                    entry: Some(set),
+                    ok: Some((set, "then")),
+                    fail: None,
+                }
+            }
+            // The right-hand weapon's sockets: one there (ChkHole), one opened (MakeHole).
+            504 => match (tokens.first().map(|t| t.to_ascii_lowercase()), int(1)) {
+                (Some(cmd), Some(n @ (1 | 2))) => {
+                    let socket = txt(&format!("gem{n}"));
+                    let now = g.node(
+                        "item.worn_attr",
+                        &[("slot", num(4)), ("name", socket.clone())],
+                        column,
+                    );
+                    match cmd.as_str() {
+                        "chkhole" => {
+                            let none = self.compare_node(g, now, "==", 0, column);
+                            let has = g.node("logic.not", &[], column);
+                            g.data(none, has, "a");
+                            Self::branch(g, has, column)
+                        }
+                        "makehole" => {
+                            let closed = self.compare_node(g, now, "==", 0, column);
+                            let branch = g.node("flow.branch", &[], column);
+                            g.data(closed, branch, "condition");
+                            let values = [("slot", num(4)), ("name", socket), ("value", num(255))];
+                            let open = g.node("item.set_worn_attr", &values, column);
+                            g.exec((branch, "true"), open);
+                            Emitted {
+                                entry: Some(branch),
+                                ok: Some((open, "then")),
+                                fail: Some((branch, "false")),
+                            }
+                        }
+                        _ => self.not_converted(g, a, column),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
             // A lottery draw: Conquer's rules blueprint answers the signal.
             1508 => match int(0) {
                 Some(draw) => {
@@ -1406,13 +1554,85 @@ impl<'a> Builder<'a> {
         if let Ok(n) = token.parse::<i64>() {
             return Some(Number::Literal(n));
         }
+        let node = |g: &mut Canvas, def: &str, values: &[(&str, Literal)]| {
+            Some(Number::Node(g.node(def, values, column)))
+        };
+        match token {
+            "%user_map_id" => return node(g, "player.map", &[]),
+            "%user_map_x" => return node(g, "player.x", &[]),
+            "%user_map_y" => return node(g, "player.y", &[]),
+            "%iter_value" => return node(g, "player.flag", &[("name", txt("iterator"))]),
+            // Nobody has a home in this port.
+            "%user_home_id" => return Some(Number::Literal(0)),
+            _ => {}
+        }
         let i = token.strip_prefix("%iter_var_data")?.parse::<i64>().ok()?;
         let flag = format!("var_data{}", i.clamp(0, 8));
-        Some(Number::Node(g.node(
-            "player.flag",
-            &[("name", txt(&flag))],
-            column,
-        )))
+        node(g, "player.flag", &[("name", txt(&flag))])
+    }
+
+    /// A node giving the number (a Number node for a literal).
+    fn number_node(&mut self, g: &mut Canvas, n: Number, column: i32) -> u32 {
+        match n {
+            Number::Node(id) => id,
+            // A literal as a sum with nothing.
+            Number::Literal(v) => g.node("math.add", &[("a", num(v)), ("b", num(0))], column),
+        }
+    }
+
+    /// 1083: heaven's blessing, as attribute `blessing_until` (when it ends, in the clock's
+    /// seconds); `chk` other than 0 asks whether the player is cursed.
+    fn blessing(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let (Some(op), Some(n)) = (
+            tokens.first().copied(),
+            tokens.get(1).and_then(|t| t.parse::<i64>().ok()),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        let until = g.node("player.attr", &[("name", txt("blessing_until"))], column);
+        let clock = g.node("world.clock", &[], column);
+        match op {
+            // From now (or its end), rounded up to whole hours.
+            "+=" => {
+                let from = g.node("math.max", &[], column);
+                g.data(until, from, "a");
+                g.data(clock, from, "b");
+                let add = g.node("math.add", &[("b", num(n * 3600))], column);
+                g.data(from, add, "a");
+                let set = g.node(
+                    "player.set_attr",
+                    &[("name", txt("blessing_until"))],
+                    column,
+                );
+                g.data(add, set, "value");
+                Emitted {
+                    entry: Some(set),
+                    ok: Some((set, "then")),
+                    fail: None,
+                }
+            }
+            "<" | "==" => {
+                let left = g.node("math.subtract", &[], column);
+                g.data(until, left, "a");
+                g.data(clock, left, "b");
+                let hours = g.node("math.divide", &[("b", num(3600))], column);
+                g.data(left, hours, "a");
+                let cmp = self.compare_node(g, hours, op, n, column);
+                Self::branch(g, cmp, column)
+            }
+            "chk" if n == 0 => {
+                let blessed = g.node("logic.greater", &[], column);
+                g.data(until, blessed, "a");
+                g.data(clock, blessed, "b");
+                Self::branch(g, blessed, column)
+            }
+            "chk" => {
+                let cursed = g.node("player.attr", &[("name", txt("cursed"))], column);
+                let cmp = self.compare_node(g, cursed, "==", 1, column);
+                Self::branch(g, cmp, column)
+            }
+            _ => self.not_converted(g, a, column),
+        }
     }
 
     /// Gives input `pin` of node `to` the number.
@@ -1607,6 +1827,12 @@ impl<'a> Builder<'a> {
         ) else {
             return self.not_converted(g, a, column);
         };
+        // Field 1: the worn item's type, compared.
+        if field == 1 && matches!(op, "==" | ">=") {
+            let worn = g.node("item.worn", &[("slot", num(slot))], column);
+            let cmp = self.compare_node(g, worn, op, value, column);
+            return Self::branch(g, cmp, column);
+        }
         let Some(name) = item_column(field) else {
             return self.not_converted(g, a, column);
         };

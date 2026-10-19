@@ -1022,6 +1022,14 @@ pub const NODES: &[NodeDef] = &[
     ),
     pure("player.exp", "Experience", "Player", &[], Number, "exp()"),
     pure(
+        "world.monsters_named",
+        "Monsters on a map",
+        "World",
+        &[("map", Map), ("name", Text)],
+        Number,
+        "monsters_named({map}, {name})",
+    ),
+    pure(
         "world.map_players",
         "Players on a map",
         "World",

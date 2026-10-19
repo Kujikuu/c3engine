@@ -128,6 +128,19 @@ pub fn conquer_settings() -> ProjectSettings {
         attribute("stamina", "Spent by XP skills and jumping", 100, Some(100)),
         attribute("xp", "Fills toward an XP skill", 0, Some(100)),
         attribute(
+            "lock_key",
+            "The number that unlocks the player's items (0: none)",
+            0,
+            None,
+        ),
+        attribute(
+            "blessing_until",
+            "When heaven's blessing ends (seconds of the clock)",
+            0,
+            None,
+        ),
+        attribute("cursed", "Cursed: no battle experience", 0, Some(1)),
+        attribute(
             "lucky_time",
             "Lucky time left, in seconds: double hits, dodged blows",
             0,

@@ -428,6 +428,15 @@ impl Sim {
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
             accept: String::new(),
+            monsters: {
+                let mut counts = BTreeMap::new();
+                for m in self.monsters.values().filter(|m| m.is_alive()) {
+                    if let Some(t) = self.rules.monster(m.kind) {
+                        *counts.entry(t.name.clone()).or_default() += 1;
+                    }
+                }
+                counts
+            },
             map_players: {
                 // Other maps as the host last said; this one as it is.
                 let here = (
