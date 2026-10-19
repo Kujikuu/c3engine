@@ -472,8 +472,10 @@ PUL for the classic client).
     Flash) 5065 dialogs: CDlgLogin 129 and CDlgRoleCreate 151 from the client's GUI.ini and
     Control.Ani, one character per account entered at once, loading as the client's
     centred line. The menu's Settings page keeps the player's volumes and full screen; the
-    radar shows over every game UI (the 5065 minimap window is M12, as decided). Still to
-    come for 5065: RoleChoose 150 (professions, M12) and the 3D preview of the bodies
+    radar shows over every game UI (the 5065 minimap window is M12, as decided)
+  - [ ] Conquer's RoleChoose dialog 150 (profession and sex; needs professions)
+  - [ ] The 3D preview of the bodies on the creation screen
+  - [ ] Server.dat groups and server icons on Conquer's login (a list of names today)
 
 ## M10: Visual scripting (Unreal Blueprints-style; a whole Conquer game without code)
 Decided 2026-10-18: every game rule and behaviour can be made in node graphs; Rhai stays as
@@ -487,18 +489,22 @@ run on the server and the local session alike, and are edited through c3-edit wi
     formulas). Pins: exec, number, text, bool, entity, item, map, list, record (a cell is
     its x and y). Variables local, player (saved) and world; functions with inputs and an
     answer; waits and walks resume from on_timer / on_arrive; type and wiring problems name
-    their node. Macros are functions (the editor's collapse to function)
+    their node
+  - [ ] A cell pin type (cells are two number pins today)
+  - [ ] Macros (inline sub-graphs; functions stand in for them today)
 - [x] Node library over the whole gameplay core: players, monsters, NPCs, items, skills,
       statuses, quests, money, teams, maps, portals, spawns, chat, dialogue pages, UI windows,
       effects and sounds, random, math, tables (read rows by key)
   - Done 2026-10-19: every script function is a node, and the script API grew for it (experience,
     life, statuses, world variables, random, effects, sounds, announcements, opening game
-    UI dialogs, spawning monsters, walking). Teams wait for the engine's team system (M12)
+    UI dialogs, spawning monsters, walking)
+  - [ ] Team nodes (the engine has no team system yet)
 - [x] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
       talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
   - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom
     events; formula events (player stats, level exp, hit, kill exp, skill hit and heal) end
-    at a Return. Drops are table data (no drop formula in the rules yet)
+    at a Return
+  - [ ] A drops formula event (drops are table data; the rules ask no formula for them)
 - [ ] Graph editor in the Studio: Blueprint-like canvas (search palette, typed wiring,
       reroutes, comments, collapse to function), live debugging in Play (breakpoints, watched
       values, the path that ran lit), find references

@@ -6,12 +6,14 @@
 mod compile;
 mod library;
 mod model;
+mod pins;
 
 pub use compile::{GraphRef, Problem, compile};
-pub use library::{DefKind, NODES, NodeDef, node_def};
+pub use library::{DefKind, NODES, NodeDef, node_def, returns};
 pub use model::{
     Blueprint, Function, Graph, GraphNode, Literal, PinRef, PinType, Variable, VariableScope, Wire,
 };
+pub use pins::{EXEC_IN, Pins, formula_answer, pins};
 
 use crate::host::names_with_suffix;
 use serde::{Deserialize, Serialize};
