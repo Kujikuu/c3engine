@@ -1131,6 +1131,14 @@ pub const NODES: &[NodeDef] = &[
         Number,
         "bag_space()",
     ),
+    action(
+        "item.pick_worn",
+        "Pick a worn item",
+        "Items",
+        &[("name", Text), ("op", Text), ("value", Number)],
+        &[("slot", Number)],
+        "pick_worn({name}, {op}, {value})",
+    ),
     pure(
         "item.worn_attr",
         "Worn item attribute",

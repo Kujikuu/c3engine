@@ -79,6 +79,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "pick_worn(name, op, value)",
+        "A random slot whose worn item's `name` (an item attribute, or \"type\") compares \
+         by `op` (==, <, <=, >, >=) with `value`; 0 when none does",
+    ),
+    (
         "raise(name, a, b, c)",
         "Signals `name` with three numbers: every script and blueprint with fn name(a, b, c) \
          (a Signal event) runs it after this step",

@@ -402,7 +402,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
     });
     // Chance: a whole number from `low` to `high`, both included.
     let seed = Rc::new(std::cell::Cell::new(seed()));
-    engine.register_fn("random", move |low: i64, high: i64| {
+    let roll = move |low: i64, high: i64| {
         let (low, high) = (low.min(high), low.max(high));
         let mut x = seed.get();
         x ^= x << 13;
@@ -411,6 +411,36 @@ fn more(engine: &mut Engine, shared: &Shared) {
         seed.set(x);
         let span = (high - low) as u64 + 1;
         low + (x % span) as i64
+    };
+    let random = roll.clone();
+    engine.register_fn("random", move |low: i64, high: i64| random(low, high));
+    let s = shared.clone();
+    engine.register_fn("pick_worn", move |name: &str, op: &str, value: i64| {
+        with(&s, |c| {
+            let slots: Vec<i64> = (c.player.worn.iter())
+                .filter(|(slot, kind)| {
+                    let have = match name {
+                        "type" => **kind,
+                        _ => match c.player.worn_attrs.get(slot).and_then(|a| a.get(name)) {
+                            Some(v) => *v,
+                            None => return false,
+                        },
+                    };
+                    match op {
+                        ">" => have > value,
+                        ">=" => have >= value,
+                        "<" => have < value,
+                        "<=" => have <= value,
+                        _ => have == value,
+                    }
+                })
+                .map(|(slot, _)| *slot)
+                .collect();
+            match slots.len() {
+                0 => 0,
+                n => slots[roll(0, n as i64 - 1) as usize],
+            }
+        })
     });
 }
 

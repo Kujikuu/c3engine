@@ -280,6 +280,21 @@ fn txt(t: &str) -> Literal {
     Literal::Text(t.to_owned())
 }
 
+/// A `cq_item` column kept as one of Conquer's item attributes, by its index.
+fn item_column(field: i64) -> Option<&'static str> {
+    Some(match field {
+        6 => "ident",
+        8 => "gem1",
+        9 => "gem2",
+        12 => "plus",
+        13 => "data",
+        14 => "bless",
+        15 => "enchant",
+        20 => "color",
+        _ => return None,
+    })
+}
+
 /// TQ dialogue text as the engine's: `~` is a space, `%user_name` the player's name...
 fn line(param: &str) -> String {
     let mut text = param.replace('~', " ");
@@ -1013,6 +1028,7 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            516 => self.pick_worn(g, a, &tokens, column),
             517 => self.equip_attr(g, a, &tokens, column),
             // Writing a log row: nothing the game shows or keeps.
             127 if a
@@ -1244,27 +1260,88 @@ impl<'a> Builder<'a> {
         Self::branch(g, and, column)
     }
 
-    /// 517: a number of the item worn in a slot (`cq_item` column index), set, added to or
-    /// compared.
-    fn equip_attr(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+    /// 516: a random worn item whose `cq_item` column compares with a number; its slot kept
+    /// in `iter_var_data<i>` (flag `var_data<i>`), failing when none does.
+    fn pick_worn(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
         let int = |i: usize| tokens.get(i).and_then(|t| t.parse::<i64>().ok());
-        let (Some(slot), Some(field), Some(op), Some(value)) =
-            (int(0), int(1), tokens.get(2).copied(), int(3))
-        else {
+        let (Some(0), Some(field), Some(op), Some(value), Some(&"to"), Some(var)) = (
+            int(0),
+            int(1),
+            tokens.get(2).copied(),
+            int(3),
+            tokens.get(4),
+            int(5),
+        ) else {
             return self.not_converted(g, a, column);
         };
-        // `cq_item` columns kept as Conquer's item attributes.
         let name = match field {
-            6 => "ident",
-            8 => "gem1",
-            9 => "gem2",
-            12 => "plus",
-            13 => "data",
-            14 => "bless",
-            15 => "enchant",
-            20 => "color",
-            _ => return self.not_converted(g, a, column),
+            0 | 1 => "type",
+            f => match item_column(f) {
+                Some(name) => name,
+                None => return self.not_converted(g, a, column),
+            },
         };
+        let op = match op {
+            ">" | ">=" | "<" | "<=" => op,
+            _ => "==",
+        };
+        let values = [("name", txt(name)), ("op", txt(op)), ("value", num(value))];
+        let pick = g.node("item.pick_worn", &values, column);
+        let flag = format!("var_data{}", var.clamp(0, 8));
+        let keep = g.node("player.set_flag", &[("name", txt(&flag))], column);
+        g.wire((pick, "slot"), (keep, "value"));
+        g.exec((pick, "then"), keep);
+        let none = g.node("logic.equal", &[("b", num(0))], column);
+        g.wire((pick, "slot"), (none, "a"));
+        let found = g.node("logic.not", &[], column);
+        g.data(none, found, "a");
+        let branch = g.node("flow.branch", &[], column);
+        g.data(found, branch, "condition");
+        g.exec((keep, "then"), branch);
+        Emitted {
+            entry: Some(pick),
+            ok: Some((branch, "true")),
+            fail: Some((branch, "false")),
+        }
+    }
+
+    /// 517: a number of the item worn in a slot (`cq_item` column index), set, added to or
+    /// compared. The slot may be `%iter_var_data<i>`, one 516 picked.
+    fn equip_attr(&mut self, g: &mut Canvas, a: &Action, tokens: &[&str], column: i32) -> Emitted {
+        let int = |i: usize| tokens.get(i).and_then(|t| t.parse::<i64>().ok());
+        let picked = (tokens.first())
+            .and_then(|t| t.strip_prefix("%iter_var_data"))
+            .and_then(|i| i.parse::<i64>().ok());
+        let (Some(slot), Some(field), Some(op), Some(value)) = (
+            int(0).or(picked.map(|_| 0)),
+            int(1),
+            tokens.get(2).copied(),
+            int(3),
+        ) else {
+            return self.not_converted(g, a, column);
+        };
+        let Some(name) = item_column(field) else {
+            return self.not_converted(g, a, column);
+        };
+        if let Some(var) = picked {
+            // The slot 516 kept: only setting is asked of it.
+            if !op.eq_ignore_ascii_case("set") {
+                return self.not_converted(g, a, column);
+            }
+            let flag = format!("var_data{}", var.clamp(0, 8));
+            let slot = g.node("player.flag", &[("name", txt(&flag))], column);
+            let values = [("name", txt(name)), ("value", num(value))];
+            let set = g.node("item.set_worn_attr", &values, column);
+            g.data(slot, set, "slot");
+            let ok = g.node("flow.branch", &[], column);
+            g.wire((set, "set"), (ok, "condition"));
+            g.exec((set, "then"), ok);
+            return Emitted {
+                entry: Some(set),
+                ok: Some((ok, "true")),
+                fail: Some((ok, "false")),
+            };
+        }
         match op.to_ascii_lowercase().as_str() {
             "set" => {
                 let values = [
@@ -1478,6 +1555,7 @@ impl<'a> Builder<'a> {
             "level" => Some("player.level"),
             "profession" => Some("player.profession"),
             "pk" => Some("player.pk"),
+            "look" => Some("player.body"),
             _ => None,
         };
         // TQ's names of numbers kept as Conquer's attributes.
@@ -1550,6 +1628,22 @@ impl<'a> Builder<'a> {
                     column,
                 );
                 let cmp = self.compare_node(g, cps, op, v, column);
+                Self::branch(g, cmp, column)
+            }
+            ("look", "set") => Self::plain(
+                g,
+                "player.set_body",
+                &[("body", num(v.rem_euclid(1000)))],
+                column,
+            ),
+            // Nobody is transformed but by a spell, which scripts never test for.
+            ("transform", "==" | "<") => {
+                let def = if op == "==" {
+                    "logic.equal"
+                } else {
+                    "logic.less"
+                };
+                let cmp = g.node(def, &[("a", num(0)), ("b", num(v))], column);
                 Self::branch(g, cmp, column)
             }
             ("profession", "set") => Self::plain(
