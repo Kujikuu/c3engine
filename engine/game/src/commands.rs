@@ -6,7 +6,7 @@ use crate::{EntityId, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -122,6 +122,18 @@ impl Sim {
                 p.life = p.stats.max_life;
                 p.mana = p.stats.max_mana;
                 Ok("Healed.".into())
+            }
+            // Beside NPC `npc`, talking to it.
+            "talk" => {
+                let npc = u32::try_from(arg(0)?).map_err(|_| format!("Usage: {HELP}"))?;
+                let cell = (self.npcs.iter().find(|n| n.id == npc))
+                    .map(|n| n.cell)
+                    .ok_or(format!("There is no NPC {npc} here."))?;
+                let from = self.players[&id].cell;
+                let beside = self.beside(cell, from);
+                self.place(id, beside);
+                self.talk(id, npc);
+                Ok(format!("Talking to NPC {npc}."))
             }
             "shop" => {
                 let npc = u32::try_from(arg(0)?).map_err(|_| format!("Usage: {HELP}"))?;

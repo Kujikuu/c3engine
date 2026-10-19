@@ -385,13 +385,16 @@ impl Painter<'_, '_> {
             ControlKind::Text => {
                 let text = expand(&control.text, data);
                 let [r, g, b] = control.color;
-                self.ui.painter().text(
-                    rect.min,
-                    egui::Align2::LEFT_TOP,
-                    text,
-                    crate::fonts::font(control.size * self.place.scale),
-                    Color32::from_rgb(r, g, b),
-                );
+                let font = crate::fonts::font(control.size * self.place.scale);
+                // Wrapped within its width when it has one (an NPC's words).
+                let wrap = if rect.width() > 1.0 {
+                    rect.width()
+                } else {
+                    f32::INFINITY
+                };
+                let galley =
+                    (self.ui.painter()).layout(text, font, Color32::from_rgb(r, g, b), wrap);
+                self.ui.painter().galley(rect.min, galley, Color32::WHITE);
             }
             ControlKind::Model => {
                 if let Some(texture) = data.image(&control.value) {

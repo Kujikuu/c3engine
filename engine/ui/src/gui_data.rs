@@ -32,6 +32,8 @@ impl GuiData for HeroData<'_> {
             "hero.dodge" => p.stats.dodge.into(),
             "hero.dexterity" => p.stats.dexterity.into(),
             "hero.pk" => p.pk.into(),
+            // 1 while the hero talks with an NPC.
+            "hero.talking" => u8::from(p.dialogue.is_some()).into(),
             // The NPC whose shop is open (0: none).
             "hero.shop" => p.shop.unwrap_or(0).into(),
             "hero.profession" => p.profession.into(),
@@ -46,6 +48,8 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // What the NPC says now, a line each.
+            "dialogue.text" => (self.player.dialogue.as_ref()).map(|c| c.page.lines.join("\n")),
             _ => self.number(key).map(|n| format!("{n}")),
         }
     }
@@ -68,6 +72,12 @@ impl GuiData for HeroData<'_> {
             "hero.team" => {
                 let names = self.player.mates.iter().map(|m| m.name.clone());
                 (names.collect(), None)
+            }
+            // The answers the NPC offers.
+            "dialogue.answers" => {
+                let page = self.player.dialogue.as_ref().map(|c| &c.page);
+                let labels = page.into_iter().flat_map(|p| &p.options);
+                (labels.map(|o| o.label.clone()).collect(), None)
             }
             _ => (Vec::new(), None),
         }

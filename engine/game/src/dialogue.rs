@@ -858,7 +858,7 @@ impl Sim {
     }
 
     /// The walkable cell next to `npc` nearest `from` (or the NPC's own cell).
-    fn beside(&self, npc: CellPos, from: CellPos) -> CellPos {
+    pub(crate) fn beside(&self, npc: CellPos, from: CellPos) -> CellPos {
         (-1..=1)
             .flat_map(|dx| (-1..=1).map(move |dy| (npc.0 + dx, npc.1 + dy)))
             .filter(|&c| c != npc && self.walkable(c))

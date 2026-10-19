@@ -663,6 +663,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Dialogs the game opens (`when=<binding>`, in place of the engine's window): an
         NPC's shop (152) with its wares (`shop.items`, a click buys) and the bag beside it;
         bag clicks use, wear or sell (screenshot: shop and bag); GM `/shop NPC`
+  - [x] Talking with NPCs in CDlgTask (173): the NPC's words wrapped in yellow, its
+        answers to click, shown while talking (screenshot: the Barber); GM `/talk NPC`
+  - [ ] NPC talk: the NPC's face, typed answers (text boxes), the dialog's height
+        following its text
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,

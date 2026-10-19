@@ -27,8 +27,8 @@ use c3_game::{EntityId, Event, Player, Sim};
 use c3_scene::CellPos;
 use egui::{Pos2, Rect, TextureId};
 
-/// What a click on slot `index` of grid `list` asks: a shop's ware bought; a bag item sold
-/// to the open shop, else used or worn.
+/// What a click on slot `index` of grid or list `list` asks: a shop's ware bought; an
+/// NPC's answer picked; a bag item sold to the open shop, else used or worn.
 fn grid_click(
     data: &dyn gui::GuiData,
     player: &Player,
@@ -40,6 +40,7 @@ fn grid_click(
             let kind = *data.items(list).get(index)?;
             Some(UiAction::Buy { npc, kind })
         }
+        ("dialogue.answers", _) => Some(UiAction::Answer(index)),
         ("hero.bag", shop) => {
             let item = player.bag.get(index)?.id;
             Some(match shop {
@@ -212,6 +213,7 @@ impl GameUi {
             "chat" => self.open_chat(),
             "sound" => actions.push(UiAction::ToggleSound),
             "close_shop" => actions.push(UiAction::CloseShop),
+            "close_dialogue" => actions.push(UiAction::CloseDialogue),
             "run" => actions.push(UiAction::ToggleRun),
             other => {
                 let id = |prefix: &str| other.strip_prefix(prefix).and_then(|i| i.parse().ok());
@@ -389,7 +391,11 @@ impl GameUi {
         if self.bag_open {
             bag::window(ui, view, shop, icons, &mut self.bag_open, &mut actions);
         }
-        if let Some(conversation) = &player.dialogue {
+        let gui_talk = self
+            .gui
+            .as_ref()
+            .is_some_and(|g| g.shows_while("hero.talking"));
+        if let Some(conversation) = player.dialogue.as_ref().filter(|_| !gui_talk) {
             dialogue::window(ui, view.rect, conversation, free_keys, &mut actions);
         }
         menu::window(ui, view.rect, &mut self.menu, view.controls, &mut actions);
