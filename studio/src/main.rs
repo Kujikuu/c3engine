@@ -11,6 +11,7 @@ mod app;
 mod arrange;
 mod asset_import;
 mod asset_ops;
+mod blueprint_editor;
 mod browser;
 mod character_editor;
 mod code_view;
