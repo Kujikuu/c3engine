@@ -2,7 +2,7 @@
 //! They act on the [`Call`] being run; outside a call they fail with a clear error.
 
 use crate::dialog::{
-    DialogOption, DialogPage, Effect, GuildView, NpcInfo, PlayerState, WorldChange,
+    DialogOption, DialogPage, Effect, GuildView, NpcInfo, PlayerState, WantedView, WorldChange,
 };
 use crate::quest::{self, DONE, NOT_TAKEN, Quest, TAKEN};
 use crate::tables::Tables;
@@ -186,6 +186,22 @@ fn player(engine: &mut Engine, shared: &Shared) {
     let s = shared.clone();
     engine.register_fn("set_flag", move |name: &str, value: i64| {
         with(&s, |c| c.player.set_flag(name.to_owned(), value))
+    });
+    let s = shared.clone();
+    engine.register_fn("text_var", move |name: &str| {
+        with(&s, |c| {
+            c.player.texts.get(name).cloned().unwrap_or_default()
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_text_var", move |name: &str, value: &str| {
+        with(&s, |c| {
+            if value.is_empty() {
+                c.player.texts.remove(name);
+            } else {
+                c.player.texts.insert(name.to_owned(), value.to_owned());
+            }
+        })
     });
 }
 
@@ -388,6 +404,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
     attributes(engine, shared);
     held_items(engine, shared);
     guilds(engine, shared);
+    wanted(engine, shared);
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -1081,6 +1098,72 @@ fn attributes(engine: &mut Engine, shared: &Shared) {
 }
 
 /// The player's guild and the others: reading them, and changes for every map.
+/// The wanted list every map shares: reading it, entries added, raised and removed.
+fn wanted(engine: &mut Engine, shared: &Shared) {
+    // A change seen at once by the script, and sent on for every map.
+    let change = |c: &mut Call, id: i64, view: WantedView| {
+        c.effects.push(Effect::World(WorldChange::Wanted {
+            id,
+            target: view.target.clone(),
+            payer: view.payer.clone(),
+            bounty: view.bounty,
+        }));
+        if view.bounty > 0 {
+            c.player.wanted.insert(id, view);
+        } else {
+            c.player.wanted.remove(&id);
+        }
+    };
+    let s = shared.clone();
+    engine.register_fn("wanted_at", move |index: i64| {
+        with(&s, |c| {
+            let n = usize::try_from(index).unwrap_or(usize::MAX);
+            c.player.wanted.keys().nth(n).copied().unwrap_or(0)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("wanted_bounty", move |id: i64| {
+        with(&s, |c| c.player.wanted.get(&id).map_or(0, |w| w.bounty))
+    });
+    let s = shared.clone();
+    engine.register_fn("wanted_target", move |id: i64| {
+        with(&s, |c| {
+            c.player
+                .wanted
+                .get(&id)
+                .map(|w| w.target.clone())
+                .unwrap_or_default()
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("add_wanted", move |target: &str, bounty: i64| {
+        with(&s, |c| {
+            let id = c
+                .player
+                .wanted
+                .keys()
+                .next_back()
+                .map_or(1, |last| last + 1);
+            let view = WantedView {
+                target: target.to_owned(),
+                payer: c.player.name.clone(),
+                bounty,
+            };
+            change(c, id, view);
+            id
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_wanted_bounty", move |id: i64, bounty: i64| {
+        with(&s, |c| {
+            if let Some(mut view) = c.player.wanted.get(&id).cloned() {
+                view.bounty = bounty;
+                change(c, id, view);
+            }
+        })
+    });
+}
+
 fn guilds(engine: &mut Engine, shared: &Shared) {
     // The player's guild and rank there (0: none).
     let membership = |c: &Call| {
@@ -1305,7 +1388,7 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         WorldChange::MapOwner { map, guild } => {
             p.map_owners.insert(*map, *guild);
         }
-        WorldChange::Relation { .. } | WorldChange::Flag { .. } => {}
+        WorldChange::Relation { .. } | WorldChange::Flag { .. } | WorldChange::Wanted { .. } => {}
     }
 }
 

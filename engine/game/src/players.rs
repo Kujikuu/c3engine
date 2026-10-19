@@ -78,6 +78,7 @@ impl Sim {
                 dialogue: None,
                 shop: None,
                 flags: Default::default(),
+                texts: Default::default(),
                 path: VecDeque::new(),
                 next_step_ms: 0,
                 next_attack_ms: 0,

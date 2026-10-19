@@ -37,6 +37,8 @@ pub struct PlayerSave {
     pub pk_kills: u32,
     #[serde(default)]
     pub flags: BTreeMap<String, i64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub texts: BTreeMap<String, String>,
     /// Body and hair chosen when it was made.
     #[serde(default, skip_serializing_if = "is_default_look")]
     pub look: crate::PlayerLook,
@@ -172,6 +174,7 @@ impl PlayerSave {
             skills: Vec::new(),
             pk_kills: 0,
             flags: BTreeMap::new(),
+            texts: BTreeMap::new(),
             look: Default::default(),
             profession: 0,
             pk: 0,
@@ -211,6 +214,7 @@ impl Sim {
         p.bag = bag;
         p.equipment = worn;
         p.flags = save.flags.clone();
+        p.texts = save.texts.clone();
         p.look = save.look;
         p.profession = save.profession;
         p.pk = save.pk;
@@ -249,6 +253,7 @@ impl Sim {
             skills: p.skills.clone(),
             pk_kills: p.pk_kills,
             flags: p.flags.clone(),
+            texts: p.texts.clone(),
             look: p.look,
             profession: p.profession,
             pk: p.pk,

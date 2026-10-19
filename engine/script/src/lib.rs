@@ -36,7 +36,8 @@ mod tables;
 
 pub use conversation::{Conversation, Step};
 pub use dialog::{
-    DialogOption, DialogPage, Effect, GuildView, HeldItem, NpcInfo, PlayerState, Reply, WorldChange,
+    DialogOption, DialogPage, Effect, GuildView, HeldItem, NpcInfo, PlayerState, Reply, WantedView,
+    WorldChange,
 };
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
@@ -80,6 +81,18 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "wanted_at(index) / wanted_bounty(id) / wanted_target(id)",
+        "The wanted list every map shares: the entry id at `index` (0: none), its bounty and target",
+    ),
+    (
+        "add_wanted(target, bounty) / set_wanted_bounty(id, bounty)",
+        "A wanted entry added (the player pays; its new id), its bounty changed (0 removes it)",
+    ),
+    (
+        "text_var(name) / set_text_var(name, text)",
+        "A text kept with the player (empty when unset); setting it empty removes it",
+    ),
     (
         "open_storage() / saved_money() / add_saved_money(n)",
         "The NPC opens its storage for the player; the money kept in storage, added to (or, \

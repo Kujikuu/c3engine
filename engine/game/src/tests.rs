@@ -1787,3 +1787,29 @@ fn guild_leaders_invite_kick_and_members_give() {
         "each change goes to the host"
     );
 }
+
+#[test]
+fn the_wanted_list_is_shared_and_raised_and_removed() {
+    use c3_script::WorldChange;
+    let mut sim = Sim::new(Grid::new(10, 10), vec![], vec![], rules(), 9);
+    let wanted = |id, bounty| WorldChange::Wanted {
+        id,
+        target: "Bad".into(),
+        payer: "Hero".into(),
+        bounty,
+    };
+    sim.change_world(wanted(1, 200_000));
+    assert_eq!(sim.world_state().wanted[&1].bounty, 200_000);
+    sim.change_world(wanted(1, 250_000));
+    assert_eq!(sim.world_state().wanted_views()[&1].bounty, 250_000);
+    sim.change_world(wanted(1, 0));
+    assert!(
+        sim.world_state().wanted.is_empty(),
+        "a bounty of 0 removes it"
+    );
+    assert_eq!(
+        sim.take_world_changes().len(),
+        3,
+        "each change goes to the host"
+    );
+}

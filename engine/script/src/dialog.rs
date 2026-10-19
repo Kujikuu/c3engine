@@ -18,6 +18,8 @@ pub struct PlayerState {
     pub skills: Vec<i64>,
     /// Script variables kept with the player (quest steps, counters); unset reads as 0.
     pub flags: BTreeMap<String, i64>,
+    /// Script text variables kept with the player; unset reads as empty.
+    pub texts: BTreeMap<String, String>,
     /// Variables of the whole world (every player's scripts share them); unset reads as 0.
     pub world: BTreeMap<String, i64>,
     /// Statuses the player is under.
@@ -67,6 +69,8 @@ pub struct PlayerState {
     pub saved_money: i64,
     /// The guilds by id, and the guild owning each game map that has one.
     pub guilds: BTreeMap<i64, GuildView>,
+    /// The wanted list, by entry id.
+    pub wanted: BTreeMap<i64, WantedView>,
     pub map_owners: BTreeMap<i64, i64>,
     /// The living monsters on the player's map, by their type's name.
     pub monsters: BTreeMap<String, i64>,
@@ -127,6 +131,14 @@ pub struct DialogOption {
     pub input: Option<u32>,
 }
 
+/// An entry of the wanted list as scripts see it: who is wanted, who pays, the bounty.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WantedView {
+    pub target: String,
+    pub payer: String,
+    pub bounty: i64,
+}
+
 /// A guild as scripts see it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct GuildView {
@@ -174,6 +186,13 @@ pub enum WorldChange {
         other: i64,
         ally: bool,
         on: bool,
+    },
+    /// Wanted entry `id`: `target` wanted by `payer` for `bounty` (0: the entry removed).
+    Wanted {
+        id: i64,
+        target: String,
+        payer: String,
+        bounty: i64,
     },
     /// Game map `map` owned by guild `guild` (0: nobody).
     MapOwner {

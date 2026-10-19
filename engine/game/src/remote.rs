@@ -62,6 +62,7 @@ impl Player {
         Player {
             bag: Vec::new(),
             flags: Default::default(),
+            texts: Default::default(),
             dialogue: None,
             shop: None,
             path: Default::default(),

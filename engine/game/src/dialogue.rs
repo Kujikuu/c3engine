@@ -563,6 +563,7 @@ impl Sim {
                 .map(|(k, &v)| (k.clone(), i64::try_from(v).unwrap_or(i64::MAX)))
                 .collect(),
             flags: p.flags.clone(),
+            texts: p.texts.clone(),
             world: self.world_flags.clone(),
             statuses: p.statuses.iter().map(|s| i64::from(s.id)).collect(),
             map: self.map_ids.first().copied().map_or(0, i64::from),
@@ -644,6 +645,7 @@ impl Sim {
                 held
             },
             guilds: self.world.guild_views(),
+            wanted: self.world.wanted_views(),
             map_owners: (self.world.map_owners.iter())
                 .map(|(&m, &g)| (i64::from(m), i64::from(g)))
                 .collect(),
@@ -680,6 +682,7 @@ impl Sim {
         };
         p.money = after.money.max(0) as u64;
         p.flags = after.flags.clone();
+        p.texts = after.texts.clone();
         p.look.hair = u32::try_from(after.hair).unwrap_or(p.look.hair);
         p.look.body = u32::try_from(after.body).unwrap_or(p.look.body);
         p.profession = u32::try_from(after.profession).unwrap_or(p.profession);

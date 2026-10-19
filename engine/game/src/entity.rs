@@ -201,6 +201,8 @@ pub struct Player {
     pub shop: Option<u32>,
     /// Script variables kept with the player (quest steps, counters).
     pub flags: BTreeMap<String, i64>,
+    /// Script text variables kept with the player (a name typed for a later step).
+    pub texts: BTreeMap<String, String>,
     pub(crate) path: VecDeque<CellPos>,
     /// Game time (ms) the next step or hit may happen.
     pub(crate) next_step_ms: u64,

@@ -56,6 +56,13 @@ fn number(values: &[SqlValue], i: usize) -> i64 {
     text(values, i).trim().parse().unwrap_or(0)
 }
 
+/// The player variables TQ's wanted actions keep: the name and bounty being posted, the
+/// entry taken on and the one being raised.
+const WANTED_NAME: &str = "wanted_name";
+const WANTED_BOUNTY: &str = "wanted_bounty";
+const WANTED_ORDER: &str = "wanted_order";
+const WANTED_MODIFY: &str = "wanted_modify";
+
 impl NpcLogic {
     /// The `cq_action` and `cq_task` rows of an SQL dump.
     pub fn from_sql(sql: &str) -> Self {
@@ -1043,6 +1050,9 @@ impl<'a> Builder<'a> {
                 };
                 Self::branch(g, has, column)
             }
+            // The wanted list (3001-3008): walking it, a target named and priced, posted,
+            // taken on, cancelled, raised.
+            3001..=3008 => self.wanted(g, a, column),
             // A GM log line given as an attribute: TQ knows no such attribute and fails.
             // The player's map's cq_map.type bits tested (the map types table).
             306 if tokens
@@ -2353,6 +2363,159 @@ impl<'a> Builder<'a> {
             Number::Node(id) => id,
             // A literal as a sum with nothing.
             Number::Literal(v) => g.node("math.add", &[("a", num(v)), ("b", num(0))], column),
+        }
+    }
+
+    /// 3001-3008: TQ's wanted list (`CGameAction::ProcessActionWanted`), on the shared wanted
+    /// list. The player keeps the name and bounty being posted, and the entry it took on or
+    /// is raising, as variables; TQ's refusal lines are left out.
+    fn wanted(&mut self, g: &mut Canvas, a: &Action, column: i32) -> Emitted {
+        let flag =
+            |g: &mut Canvas, name: &str| g.node("player.flag", &[("name", txt(name))], column);
+        let typed = |g: &mut Canvas| g.node("dialogue.accept_number", &[], column);
+        let bounty_of = |g: &mut Canvas, id: u32| {
+            let b = g.node("wanted.bounty", &[], column);
+            g.data(id, b, "id");
+            b
+        };
+        let set_flag = |g: &mut Canvas, name: &str, value: u32| {
+            let n = g.node("player.set_flag", &[("name", txt(name))], column);
+            g.data(value, n, "value");
+            n
+        };
+        match a.kind {
+            // The next entry: the iterator on, whether there is one there.
+            3001 => {
+                let iter = flag(g, "iterator");
+                let next = g.node("math.add", &[("b", num(1))], column);
+                g.data(iter, next, "a");
+                let step = set_flag(g, "iterator", next);
+                let at = g.node("wanted.at", &[], column);
+                g.data(next, at, "index");
+                let there = self.compare_node(g, at, ">", 0, column);
+                let branch = g.node("flow.branch", &[], column);
+                g.data(there, branch, "condition");
+                g.exec((step, "then"), branch);
+                Emitted {
+                    entry: Some(step),
+                    ok: Some((branch, "true")),
+                    fail: Some((branch, "false")),
+                }
+            }
+            // The name typed, kept for the post.
+            3002 => {
+                let name = g.node("dialogue.accept", &[], column);
+                let empty = g.node("text.equal", &[("b", txt(""))], column);
+                g.data(name, empty, "a");
+                let given = g.node("logic.not", &[], column);
+                g.data(empty, given, "a");
+                let keep = g.node("player.set_text_var", &[("name", txt(WANTED_NAME))], column);
+                g.data(name, keep, "text");
+                self.guarded(g, &[given], None, &[keep], column)
+            }
+            // The bounty typed, under 10,000,000.
+            3003 => {
+                let n = typed(g);
+                let fits = self.compare_node(g, n, "<", 10_000_000, column);
+                let keep = set_flag(g, WANTED_BOUNTY, n);
+                self.guarded(g, &[fits], None, &[keep], column)
+            }
+            // Posted: 100,000 at least, paid by the player.
+            3004 => {
+                let b = flag(g, WANTED_BOUNTY);
+                let enough = self.compare_node(g, b, ">=", 100_000, column);
+                let name = g.node("player.text_var", &[("name", txt(WANTED_NAME))], column);
+                let add = g.node("wanted.add", &[], column);
+                g.data(name, add, "target");
+                g.data(b, add, "bounty");
+                self.guarded(g, &[enough], Some(b), &[add], column)
+            }
+            // Taken on (1,000 to take) or modified next (3007): an entry that exists.
+            3005 | 3007 => {
+                let id = typed(g);
+                let b = bounty_of(g, id);
+                let exists = self.compare_node(g, b, ">", 0, column);
+                let name = if a.kind == 3005 {
+                    WANTED_ORDER
+                } else {
+                    WANTED_MODIFY
+                };
+                let keep = set_flag(g, name, id);
+                let fee = (a.kind == 3005)
+                    .then(|| g.node("math.add", &[("a", num(1000)), ("b", num(0))], column));
+                self.guarded(g, &[exists], fee, &[keep], column)
+            }
+            // Cancelled by anyone paying twice the bounty.
+            3006 => {
+                let id = typed(g);
+                let b = bounty_of(g, id);
+                let exists = self.compare_node(g, b, ">", 0, column);
+                let twice = g.node("math.multiply", &[("b", num(2))], column);
+                g.data(b, twice, "a");
+                let remove = g.node("wanted.set_bounty", &[("bounty", num(0))], column);
+                g.data(id, remove, "id");
+                self.guarded(g, &[exists], Some(twice), &[remove], column)
+            }
+            // Raised by 10,000 or more, below 10,000,000 in all, paid by the player.
+            3008 => {
+                let add = typed(g);
+                let id = flag(g, WANTED_MODIFY);
+                let b = bounty_of(g, id);
+                let exists = self.compare_node(g, b, ">", 0, column);
+                let enough = self.compare_node(g, add, ">=", 10_000, column);
+                let total = g.node("math.add", &[], column);
+                g.data(b, total, "a");
+                g.data(add, total, "b");
+                let fits = self.compare_node(g, total, "<", 10_000_000, column);
+                let raise = g.node("wanted.set_bounty", &[], column);
+                g.data(id, raise, "id");
+                g.data(total, raise, "bounty");
+                self.guarded(g, &[exists, enough, fits], Some(add), &[raise], column)
+            }
+            _ => self.not_converted(g, a, column),
+        }
+    }
+
+    /// A step that goes on when every one of `guards` holds and `pay` (an amount) is paid,
+    /// then does `effects` in turn; any refusal leaves by the one way out.
+    fn guarded(
+        &mut self,
+        g: &mut Canvas,
+        guards: &[u32],
+        pay: Option<u32>,
+        effects: &[u32],
+        column: i32,
+    ) -> Emitted {
+        let mut all = guards[0];
+        for &guard in &guards[1..] {
+            let both = g.node("logic.and", &[], column);
+            g.data(all, both, "a");
+            g.data(guard, both, "b");
+            all = both;
+        }
+        let branch = g.node("flow.branch", &[], column);
+        g.data(all, branch, "condition");
+        let fail = g.node("flow.reroute_exec", &[], column);
+        g.exec((branch, "false"), fail);
+        let mut at: (u32, &'static str) = (branch, "true");
+        if let Some(amount) = pay {
+            let take = g.node("player.take_money", &[], column);
+            g.data(amount, take, "amount");
+            g.exec(at, take);
+            let paid = g.node("flow.branch", &[], column);
+            g.wire((take, "taken"), (paid, "condition"));
+            g.exec((take, "then"), paid);
+            g.exec((paid, "false"), fail);
+            at = (paid, "true");
+        }
+        for &effect in effects {
+            g.exec(at, effect);
+            at = (effect, "then");
+        }
+        Emitted {
+            entry: Some(branch),
+            ok: Some(at),
+            fail: Some((fail, "then")),
         }
     }
 

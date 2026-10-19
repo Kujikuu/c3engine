@@ -37,6 +37,17 @@ pub struct WorldState {
     pub map_owners: BTreeMap<u32, u32>,
     #[serde(default)]
     pub flags: BTreeMap<String, i64>,
+    /// The wanted list, by entry id.
+    #[serde(default)]
+    pub wanted: BTreeMap<u32, Wanted>,
+}
+
+/// A wanted list entry: who is wanted, who pays, the bounty.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Wanted {
+    pub target: String,
+    pub payer: String,
+    pub bounty: i64,
 }
 
 impl WorldState {
@@ -122,6 +133,26 @@ impl WorldState {
                     }
                 }
             }
+            WorldChange::Wanted {
+                id,
+                target,
+                payer,
+                bounty,
+            } => {
+                let Ok(id) = u32::try_from(*id) else {
+                    return;
+                };
+                if *bounty <= 0 {
+                    self.wanted.remove(&id);
+                } else {
+                    let entry = Wanted {
+                        target: target.clone(),
+                        payer: payer.clone(),
+                        bounty: *bounty,
+                    };
+                    self.wanted.insert(id, entry);
+                }
+            }
             WorldChange::MapOwner { map, guild } => {
                 let Ok(map) = u32::try_from(*map) else {
                     return;
@@ -144,6 +175,20 @@ impl WorldState {
     }
 
     /// The guilds as scripts see them.
+    /// The wanted list as scripts see it.
+    pub fn wanted_views(&self) -> BTreeMap<i64, c3_script::WantedView> {
+        (self.wanted.iter())
+            .map(|(id, w)| {
+                let view = c3_script::WantedView {
+                    target: w.target.clone(),
+                    payer: w.payer.clone(),
+                    bounty: w.bounty,
+                };
+                (i64::from(*id), view)
+            })
+            .collect()
+    }
+
     pub fn guild_views(&self) -> BTreeMap<i64, GuildView> {
         (self.guilds.iter())
             .map(|(id, g)| {

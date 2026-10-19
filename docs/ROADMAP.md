@@ -611,7 +611,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] Left in the trigger chains: drops on a map cell (304), statuses by TQ's bit ids
         (1082), deleting monsters (2009), moving a map's players (2012), destructible NPCs
         (training goals' link chains), NPCs placed by players (401/402)
-  - [ ] PK bounties (2201-2205) and the wanted list (3001-3012)
+  - [x] The wanted list (3001-3008) on the shared world state (`wanted.*` nodes) and text
+        variables kept with the player (`text_var`); play-tested: Sunfer takes a 200,000
+        bounty on a name typed
+  - [ ] PK bounties (2201-2205), the police wanted list (3010-3012), the wanted order's
+        name sent to the client (3005's MsgName 8), TQ's refusal lines
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
         node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)
   - [ ] Player homes (306 on `%user_home_id`, 1033-1035, 2007 item boxes)
