@@ -10,6 +10,49 @@ use c3_game::Player;
 pub(crate) struct GuiState {
     pub storage: Option<u32>,
     pub fields: std::collections::HashMap<String, String>,
+    /// The hero's open trade.
+    pub trade: Option<TradeView>,
+}
+
+/// A trade as the hero sees it: the partner's goods, its own, the partner's word.
+#[derive(Debug)]
+pub(crate) struct TradeView {
+    pub partner: c3_game::EntityId,
+    pub theirs: Vec<u32>,
+    pub their_money: u64,
+    /// The bag items the hero offers (their ids).
+    pub mine: Vec<u32>,
+    pub agreed: bool,
+}
+
+impl GuiState {
+    /// What the hero is told about its trade.
+    pub fn trade_news(&mut self, partner: c3_game::EntityId, news: &c3_game::TradeNews) {
+        use c3_game::TradeNews as N;
+        match news {
+            N::Opened => {
+                self.trade = Some(TradeView {
+                    partner,
+                    theirs: Vec::new(),
+                    their_money: 0,
+                    mine: Vec::new(),
+                    agreed: false,
+                })
+            }
+            N::Done | N::Closed => self.trade = None,
+            _ => {}
+        }
+        let Some(t) = &mut self.trade else {
+            return;
+        };
+        match news {
+            N::PartnerItem(item) => t.theirs.push(item.kind),
+            N::PartnerMoney(n) => t.their_money = *n,
+            N::PartnerAccepted => t.agreed = true,
+            N::Refused(item) => t.mine.retain(|i| i != item),
+            _ => {}
+        }
+    }
 }
 
 /// The hero, as bindings see it (`hero.life`, `hero.bag`, ...).
@@ -44,6 +87,10 @@ impl GuiData for HeroData<'_> {
             // The storage NPC whose warehouse is open (0: none), and the money kept.
             "hero.storage" => self.state.storage.unwrap_or(0).into(),
             "storage.money" => p.saved_money as f64,
+            // 1 while the hero trades; the partner's money and word (1: agreed).
+            "hero.trading" => u8::from(self.state.trade.is_some()).into(),
+            "trade.money" => self.state.trade.as_ref().map_or(0, |t| t.their_money) as f64,
+            "trade.agreed" => u8::from(self.state.trade.as_ref().is_some_and(|t| t.agreed)).into(),
             // 1 while the hero talks with an NPC.
             "hero.talking" => u8::from(p.dialogue.is_some()).into(),
             // The NPC whose shop is open (0: none).
@@ -60,7 +107,13 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
-            "storage.amount" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
+            "storage.amount" | "trade.amount" => {
+                Some(self.state.fields.get(key).cloned().unwrap_or_default())
+            }
+            // The trade partner's name.
+            "trade.name" => (self.state.trade.as_ref())
+                .and_then(|t| self.view.sim.player(t.partner))
+                .map(|p| p.name.clone()),
             // What the NPC says now, a line each.
             "dialogue.text" => (self.player.dialogue.as_ref()).map(|c| c.page.lines.join("\n")),
             _ => self.number(key).map(|n| format!("{n}")),
@@ -71,6 +124,18 @@ impl GuiData for HeroData<'_> {
         match key {
             "hero.bag" => self.player.bag.iter().map(|i| i.kind).collect(),
             "hero.equipment" => self.player.equipment.iter().map(|i| i.kind).collect(),
+            // What the partner offers, and what the hero does.
+            "trade.theirs" => self
+                .state
+                .trade
+                .as_ref()
+                .map(|t| t.theirs.clone())
+                .unwrap_or_default(),
+            "trade.mine" => (self.state.trade.as_ref().into_iter())
+                .flat_map(|t| &t.mine)
+                .filter_map(|id| self.player.bag.iter().find(|i| i.id == *id))
+                .map(|i| i.kind)
+                .collect(),
             // What the open warehouse keeps.
             "storage.items" => (self.state.storage)
                 .and_then(|npc| self.player.storage.get(&npc))
@@ -99,5 +164,31 @@ impl GuiData for HeroData<'_> {
             }
             _ => (Vec::new(), None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use c3_game::{EntityId, Item, TradeNews};
+
+    #[test]
+    fn a_trade_follows_its_news() {
+        let mut state = GuiState::default();
+        let partner = EntityId(7);
+        state.trade_news(partner, &TradeNews::PartnerMoney(5));
+        assert!(state.trade.is_none(), "no trade before it opens");
+        state.trade_news(partner, &TradeNews::Opened);
+        let item = Item::new(1, 1001, None);
+        state.trade_news(partner, &TradeNews::PartnerItem(item));
+        state.trade_news(partner, &TradeNews::PartnerMoney(300));
+        state.trade_news(partner, &TradeNews::PartnerAccepted);
+        let t = state.trade.as_ref().unwrap();
+        assert_eq!(
+            (t.theirs.as_slice(), t.their_money, t.agreed),
+            (&[1001][..], 300, true)
+        );
+        state.trade_news(partner, &TradeNews::Done);
+        assert!(state.trade.is_none());
     }
 }

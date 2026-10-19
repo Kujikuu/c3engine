@@ -42,6 +42,11 @@ fn grid_click(
             .and_then(|s| s.get(index))
             .map(|i| i.id)
     };
+    // Trading, a bag item clicked is offered.
+    if data.state.trade.is_some() && list == "hero.bag" {
+        let item = player.bag.get(index)?.id;
+        return Some(UiAction::Game(c3_game::Input::TradeItem(item)));
+    }
     if let Some(npc) = data.state.storage {
         let input = match list {
             "storage.items" => c3_game::Input::Retrieve {
@@ -253,6 +258,14 @@ impl GameUi {
                 self.gui_state.fields.remove("storage.amount");
             }
             "close_storage" => self.gui_state.storage = None,
+            "trade_money" => {
+                let amount = (self.gui_state.fields.remove("trade.amount"))
+                    .and_then(|t| t.trim().parse().ok())
+                    .unwrap_or(0);
+                actions.push(UiAction::Game(c3_game::Input::TradeMoney(amount)));
+            }
+            "trade_accept" => actions.push(UiAction::Game(c3_game::Input::TradeAccept)),
+            "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
             "menu" => self.toggle_menu(),
@@ -366,6 +379,17 @@ impl GameUi {
                 Event::Warning(text) => self.log.push(LogLine::Error(text.clone())),
                 Event::ScriptLog(text) => self.log.push(LogLine::Info(format!("Script: {text}"))),
                 // A game UI shows its own bag beside a shop (its dialogs' `when`).
+                Event::Trade {
+                    player,
+                    partner,
+                    news,
+                } if *player == hero => {
+                    if let c3_game::TradeNews::Asked = news {
+                        let name = sim.player(*partner).map_or("Someone", |p| &p.name);
+                        self.system(format!("{name} asks to trade with you."), style::GOLD);
+                    }
+                    self.gui_state.trade_news(*partner, news);
+                }
                 Event::StorageOpened { player, npc } if *player == hero => {
                     self.gui_state.storage = Some(*npc);
                 }
@@ -415,6 +439,16 @@ impl GameUi {
                 }
                 for event in others {
                     self.gui_event(event, &mut actions);
+                }
+                // What the hero offers shows in its side of the trade.
+                if let Some(trade) = &mut self.gui_state.trade {
+                    for action in &actions {
+                        if let UiAction::Game(c3_game::Input::TradeItem(item)) = action
+                            && !trade.mine.contains(item)
+                        {
+                            trade.mine.push(*item);
+                        }
+                    }
                 }
             }
             None => {

@@ -137,7 +137,8 @@ impl Sim {
             }
             "storage" => {
                 let npc = u32::try_from(arg(0)?).map_err(|_| format!("Usage: {HELP}"))?;
-                self.events.push(crate::Event::StorageOpened { player: id, npc });
+                self.events
+                    .push(crate::Event::StorageOpened { player: id, npc });
                 Ok(format!("NPC {npc}'s warehouse is open."))
             }
             "shop" => {
