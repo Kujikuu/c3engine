@@ -679,6 +679,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         its simulation), make or leave a team, break it up (screenshot)
   - [ ] Team: inviting and kicking from the dialog (they need a player picked), the
         members' faces, the auto-join and pick-up options
+  - [x] The guild (CDlgKnightage 133): its name, leader, the hero's rank, members, fund and
+        member list bound from the shared world state, Quit leaves (layout screenshot)
+  - [ ] Guild: shown with a guild (no way to make one locally to look), its tabs (allies,
+        enemies, bulletin), donating, joining
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,

@@ -277,6 +277,9 @@ impl GameUi {
                 };
                 actions.push(UiAction::Game(c3_game::Input::Team(action)));
             }
+            "guild_leave" => actions.push(UiAction::Game(c3_game::Input::Guild(
+                c3_game::GuildAction::Leave,
+            ))),
             "team_leave" => actions.push(UiAction::Game(c3_game::Input::Team(
                 c3_game::TeamAction::Leave,
             ))),
