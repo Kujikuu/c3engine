@@ -158,8 +158,8 @@ fn npc_info(n: &c3_scene::Npc) -> Vec<u8> {
     pk::npc_info(n.id, cell16(n.cell), look, n.kind as u16, &n.name)
 }
 
-fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
-    rules.item(kind).and_then(|t| t.slot).unwrap_or(0)
+fn slot_of(rules: &dyn Rules, item: &c3_game::Item) -> u8 {
+    item.slot(rules.item(item.kind)).unwrap_or(0)
 }
 
 /// How `state` comes into the client's view.
@@ -306,8 +306,7 @@ impl ConquerClient {
         ];
         out.extend(p.bag.iter().map(|i| item_info(i, 0, pk::ITEM_ADD, sim)));
         out.extend(
-            (p.equipment.iter())
-                .map(|i| item_info(i, slot_of(sim.rules(), i.kind), pk::ITEM_ADD, sim)),
+            (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
         self.points = points(p);
         self.me = Some(p.clone());
@@ -333,8 +332,7 @@ impl ConquerClient {
             .collect();
         out.extend(p.bag.iter().map(|i| item_info(i, 0, pk::ITEM_ADD, sim)));
         out.extend(
-            (p.equipment.iter())
-                .map(|i| item_info(i, slot_of(sim.rules(), i.kind), pk::ITEM_ADD, sim)),
+            (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
@@ -431,7 +429,7 @@ impl ConquerClient {
         }
         let has = |list: &[c3_game::Item], item: u32| list.iter().any(|i| i.id == item);
         for i in &new.equipment {
-            let slot = slot_of(rules, i.kind).into();
+            let slot = slot_of(rules, i).into();
             if !has(&old.equipment, i.id) {
                 out.push(if has(&old.bag, i.id) {
                     pk::item_action(i.id, slot, item::EQUIP)
@@ -445,14 +443,14 @@ impl ConquerClient {
         for i in new.bag.iter().chain(&new.equipment) {
             if before(i.id).is_some_and(|o| o != i) {
                 let worn = new.equipment.iter().any(|e| e.id == i.id);
-                let slot = if worn { slot_of(rules, i.kind) } else { 0 };
+                let slot = if worn { slot_of(rules, i) } else { 0 };
                 out.push(item_info(i, slot, pk::ITEM_UPDATE, sim));
             }
         }
         for i in &new.bag {
             if !has(&old.bag, i.id) {
                 out.push(if has(&old.equipment, i.id) {
-                    pk::item_action(i.id, slot_of(rules, i.kind).into(), item::UNEQUIP)
+                    pk::item_action(i.id, slot_of(rules, i).into(), item::UNEQUIP)
                 } else {
                     item_info(i, 0, pk::ITEM_ADD, sim)
                 });
@@ -767,6 +765,12 @@ impl ConquerClient {
                 id: item_id,
                 data,
             } => match a {
+                // Equipment worn in the slot the client names (data): a one-handed
+                // weapon in the left hand.
+                item::USE if data != 0 => inputs.push(Input::Wear {
+                    item: item_id,
+                    slot: u8::try_from(data).unwrap_or(0),
+                }),
                 item::USE => inputs.push(Input::Use(item_id)),
                 item::UNEQUIP => inputs.push(Input::Unequip(item_id)),
                 item::BUY => inputs.push(Input::Buy {

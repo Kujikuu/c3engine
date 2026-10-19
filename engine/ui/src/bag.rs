@@ -57,9 +57,8 @@ pub(crate) fn window(
             );
             ui.horizontal_wrapped(|ui| {
                 for (slot, name) in view.slots {
-                    let worn = p.equipment.iter().find(|e| {
-                        view.sim.rules().item(e.kind).and_then(|t| t.slot) == Some(*slot)
-                    });
+                    let worn = (p.equipment.iter())
+                        .find(|e| e.slot(view.sim.rules().item(e.kind)) == Some(*slot));
                     let resp = slot_button(ui, view, icons, worn, name);
                     if let Some(item) = worn {
                         if resp

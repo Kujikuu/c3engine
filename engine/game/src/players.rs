@@ -221,6 +221,50 @@ impl Sim {
         self.events.push(Event::Placed { id, cell });
     }
 
+    /// Wears bag item `item` in `slot`: its type's own, or its other one (`alt_slot`).
+    pub fn wear_in(&mut self, id: EntityId, item: u32, slot: u8) {
+        let kind = (self.players.get(&id))
+            .and_then(|p| p.bag.iter().find(|i| i.id == item))
+            .map(|i| i.kind);
+        let Some(t) = kind.and_then(|k| self.rules.item(k)) else {
+            return;
+        };
+        if t.slot == Some(slot) {
+            return self.use_item(id, item);
+        }
+        if t.alt_slot != Some(slot) || !self.may_wear(id, t.id) {
+            return;
+        }
+        let p = self.players.get_mut(&id).expect("found above");
+        let at = p
+            .bag
+            .iter()
+            .position(|i| i.id == item)
+            .expect("found above");
+        let mut worn = p.bag.remove(at);
+        worn.worn_at = slot;
+        self.wear(id, worn);
+    }
+
+    /// Whether player `id` may wear item type `kind` (its level and the game's check); says
+    /// why not.
+    fn may_wear(&mut self, id: EntityId, kind: u32) -> bool {
+        let (Some(p), Some(t)) = (self.players.get(&id), self.rules.item(kind)) else {
+            return false;
+        };
+        if p.level < t.requires_level {
+            let text = format!("You must be level {} to wear {}.", t.requires_level, t.name);
+            self.message(id, text);
+            return false;
+        }
+        if !self.rules.can_wear(&self.player_fighter(id), t) {
+            let text = format!("You can't wear {} yet.", t.name);
+            self.message(id, text);
+            return false;
+        }
+        true
+    }
+
     /// Uses item `item` from the bag: wears equipment, drinks a potion.
     pub fn use_item(&mut self, id: EntityId, item: u32) {
         let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
@@ -234,13 +278,7 @@ impl Sim {
             return;
         };
         if t.slot.is_some() {
-            if p.level < t.requires_level {
-                let text = format!("You must be level {} to wear {}.", t.requires_level, t.name);
-                self.message(id, text);
-                return;
-            }
-            if !self.rules.can_wear(&self.player_fighter(id), t) {
-                self.message(id, format!("You can't wear {} yet.", t.name));
+            if !self.may_wear(id, kind) {
                 return;
             }
             let worn = self
@@ -331,20 +369,23 @@ impl Sim {
 
     /// Puts `item` on, moving what was worn in its slot to the bag.
     fn wear(&mut self, id: EntityId, item: Item) {
-        let slot_of = |kind: u32, rules: &dyn crate::Rules| rules.item(kind).and_then(|t| t.slot);
-        let slot = slot_of(item.kind, &*self.rules);
+        let slot = self.slot_of(&item);
+        let p = self.players.get(&id).expect("wearing");
+        let at = (p.equipment.iter()).position(|e| self.slot_of(e) == slot);
         let p = self.players.get_mut(&id).expect("wearing");
-        if let Some(at) = p
-            .equipment
-            .iter()
-            .position(|e| slot_of(e.kind, &*self.rules) == slot)
-        {
-            let old = p.equipment.remove(at);
+        if let Some(at) = at {
+            let mut old = p.equipment.remove(at);
+            old.worn_at = 0;
             p.bag.push(old);
         }
         p.equipment.push(item);
         self.refresh_stats(id);
         self.events.push(Event::Dressed { player: id });
+    }
+
+    /// The slot worn item `item` is in.
+    pub fn slot_of(&self, item: &Item) -> Option<u8> {
+        item.slot(self.rules.item(item.kind))
     }
 
     /// The player's attributes: every one the settings name (their default unless the player
@@ -376,10 +417,10 @@ impl Sim {
             .filter_map(|item| Some((item, self.rules.item(item.kind)?)))
             .filter(|(item, t)| !item.is_broken(t));
         for (item, t) in worn {
-            if let Some(slot) = t.slot {
+            let slot = item.slot(Some(t));
+            if let Some(slot) = slot {
                 facts.insert(format!("worn{slot}"), i64::from(item.kind));
             }
-            let slot = t.slot;
             for (name, &value) in names.iter().zip(&item.attrs) {
                 *facts.entry(format!("worn_{name}")).or_default() += i64::from(value);
                 if let Some(slot) = slot {

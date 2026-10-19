@@ -72,6 +72,13 @@ pub struct SavedItem {
     /// The game's numbers for it.
     #[serde(skip_serializing_if = "no_attrs")]
     pub attrs: [i32; c3_core::settings::ITEM_ATTRIBUTES],
+    /// The slot it is worn in when not its type's own.
+    #[serde(skip_serializing_if = "is_zero_u8")]
+    pub worn_at: u8,
+}
+
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
 }
 
 fn no_attrs(attrs: &[i32; c3_core::settings::ITEM_ATTRIBUTES]) -> bool {
@@ -86,6 +93,7 @@ impl From<u32> for SavedItem {
             durability: None,
             quality: 0,
             attrs: [0; c3_core::settings::ITEM_ATTRIBUTES],
+            worn_at: 0,
         }
     }
 }
@@ -105,6 +113,8 @@ enum SavedItemForm {
         quality: u8,
         #[serde(default)]
         attrs: [i32; c3_core::settings::ITEM_ATTRIBUTES],
+        #[serde(default)]
+        worn_at: u8,
     },
 }
 
@@ -122,12 +132,14 @@ impl From<SavedItemForm> for SavedItem {
                 durability,
                 quality,
                 attrs,
+                worn_at,
             } => Self {
                 kind,
                 count: count.max(1),
                 durability,
                 quality,
                 attrs,
+                worn_at,
             },
         }
     }
@@ -270,6 +282,7 @@ impl Sim {
         item.count = s.count.max(1);
         item.quality = s.quality;
         item.attrs = s.attrs;
+        item.worn_at = s.worn_at;
         if let Some(durability) = s.durability {
             item.durability = durability;
         }
@@ -284,6 +297,7 @@ impl Sim {
             durability: has_durability.then_some(item.durability),
             quality: item.quality,
             attrs: item.attrs,
+            worn_at: item.worn_at,
         }
     }
 }

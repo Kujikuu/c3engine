@@ -502,6 +502,14 @@ fn items(t: &Table) -> Table {
             ("name", text(r.text("name"))),
             ("price", int(price)),
             ("slot", int(slot.map_or(0, i64::from))),
+            (
+                "alt_slot",
+                int(if id / 100_000 == 4 {
+                    slot::LEFT_HAND.into()
+                } else {
+                    0
+                }),
+            ),
             ("life", int(r.int("life"))),
             ("mana", int(r.int("mana"))),
             ("attack_min", int(r.int("attack_min"))),

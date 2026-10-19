@@ -114,7 +114,7 @@ fn ints(values: &[i64]) -> impl Iterator<Item = Value> + '_ {
 }
 
 /// The items table's columns the engine reads (others are the game's facts for formulas).
-const ITEM_COLUMNS: [&str; 15] = [
+const ITEM_COLUMNS: [&str; 16] = [
     "id",
     "name",
     "price",
@@ -130,6 +130,7 @@ const ITEM_COLUMNS: [&str; 15] = [
     "durability",
     "currency",
     "requires_level",
+    "alt_slot",
 ];
 
 /// The tables the engine's rules read, each with an example row, as a new project gets them.
@@ -204,6 +205,7 @@ pub fn table_templates() -> Vec<Table> {
         ),
         text("currency", "The currency it is priced in; empty: the money"),
         int("requires_level", "The level needed to wear it; 0: any"),
+        int("alt_slot", "Another slot it may be worn in; 0: none"),
     ]);
     let slime = |id, name: &str, level, life| {
         let mut row = vec![
@@ -228,10 +230,10 @@ pub fn table_templates() -> Vec<Table> {
     };
     let mut potion = vec![Value::Int(1), Value::Text("Healing Potion".into())];
     potion.extend(ints(&[20, 0, 70, 0, 0, 0, 0, 0, 0, 10, 0]));
-    potion.extend([Value::Text(String::new()), Value::Int(0)]);
+    potion.extend([Value::Text(String::new()), Value::Int(0), Value::Int(0)]);
     let mut sword = vec![Value::Int(2), Value::Text("Short Sword".into())];
     sword.extend(ints(&[150, 4, 0, 0, 6, 10, 0, 0, 0, 1, 40]));
-    sword.extend([Value::Text(String::new()), Value::Int(1)]);
+    sword.extend([Value::Text(String::new()), Value::Int(1), Value::Int(0)]);
     let mut first = ints(&[1, 100, 600]).collect::<Vec<_>>();
     first.extend(ints(&[120, 60, 10, 15, 1, 5, 5]));
     vec![
@@ -681,6 +683,7 @@ impl DataRules {
                 durability: row.uint("durability"),
                 currency: row.text("currency").to_owned(),
                 requires_level: row.uint("requires_level"),
+                alt_slot: u8::try_from(row.int("alt_slot")).ok().filter(|&s| s > 0),
                 facts,
             };
             self.items.insert(id, item);

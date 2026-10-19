@@ -162,6 +162,8 @@ pub struct ItemType {
     pub restores_mana: u32,
     /// The equipment slot it is worn in (game-defined numbers); `None` if not worn.
     pub slot: Option<u8>,
+    /// Another slot it may be worn in (a one-handed weapon in the other hand).
+    pub alt_slot: Option<u8>,
     /// What wearing it adds (see [`Stats::with_bonus`]).
     pub bonus: Stats,
     /// Most of it one bag slot holds (0 or 1: one each).

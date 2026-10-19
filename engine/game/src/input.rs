@@ -47,6 +47,11 @@ pub enum Input {
         #[serde(default)]
         value: i64,
     },
+    /// Wear bag item `item` in equipment slot `slot` (its type's, or its `alt_slot`).
+    Wear {
+        item: u32,
+        slot: u8,
+    },
     /// Take off worn item `id`.
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
@@ -85,6 +90,7 @@ impl Sim {
             Input::Revive => self.revive(id),
             Input::Ghost => self.become_ghost(id),
             Input::Use(item) => self.use_item(id, item),
+            Input::Wear { item, slot } => self.wear_in(id, item, slot),
             Input::UseOn { item, target } => self.use_item_on(id, item, target),
             Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
             Input::Unequip(item) => self.unequip(id, item),

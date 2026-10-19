@@ -364,13 +364,13 @@ impl Sim {
             pk: p.pk.into(),
             worn: (p.equipment.iter())
                 .filter_map(|item| {
-                    let slot = self.rules.item(item.kind)?.slot?;
+                    let slot = self.slot_of(item)?;
                     Some((i64::from(slot), i64::from(item.kind)))
                 })
                 .collect(),
             worn_attrs: (p.equipment.iter())
                 .filter_map(|item| {
-                    let slot = self.rules.item(item.kind)?.slot?;
+                    let slot = self.slot_of(item)?;
                     let names = self.settings.item_attributes.iter();
                     let attrs = (names.zip(item.attrs))
                         .map(|(name, value)| (name.clone(), i64::from(value)))
@@ -447,7 +447,7 @@ impl Sim {
         });
         let names = self.settings.item_attributes.clone();
         for item in &mut p.equipment {
-            let Some(slot) = self.rules.item(item.kind).and_then(|t| t.slot) else {
+            let Some(slot) = item.slot(self.rules.item(item.kind)) else {
                 continue;
             };
             let Some(attrs) = after.worn_attrs.get(&i64::from(slot)) else {

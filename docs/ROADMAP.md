@@ -610,8 +610,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
         gems, learnt on the first hit, levels to 20 (`on_hit` / On hitting a monster)
   - [x] The left hand's half share of weapon experience; lucky time's double hits and
         dodged blows (`lucky_time` attribute)
-  - [ ] Equipping into the left hand by the client's slot (the engine's Use takes the item
-        type's slot), training goals' cut, what gives lucky time and its countdown
+  - [x] Wearing in a chosen slot (`Input::Wear`, items' `alt_slot`, `worn_at` kept in
+        saves): one-handed weapons in the left hand, from the client's use-in-slot
+  - [ ] Training goals' cut, what gives lucky time and its countdown
   - [ ] Team experience sharing by TQ's rule, Moon gems' magic experience
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)

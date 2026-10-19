@@ -24,6 +24,13 @@ pub struct Item {
     /// The game's numbers for it (named by the settings' `item_attributes`).
     #[serde(default, skip_serializing_if = "no_attrs")]
     pub attrs: [i32; ITEM_ATTRIBUTES],
+    /// Worn, the slot it is in when that isn't its type's own (its `alt_slot`); 0 otherwise.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub worn_at: u8,
+}
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
 }
 
 pub use c3_core::settings::ITEM_ATTRIBUTES;
@@ -46,6 +53,15 @@ impl Item {
             durability: t.map_or(0, |t| t.durability),
             quality: 0,
             attrs: [0; ITEM_ATTRIBUTES],
+            worn_at: 0,
+        }
+    }
+
+    /// The slot it is worn in (if worn), its type `t` saying the usual one.
+    pub fn slot(&self, t: Option<&crate::ItemType>) -> Option<u8> {
+        match self.worn_at {
+            0 => t?.slot,
+            slot => Some(slot),
         }
     }
 
