@@ -101,6 +101,27 @@ impl NpcLogic {
 
 /// NPCs' logic converted: the blueprints, which one each NPC runs (by NPC id), and the
 /// report.
+/// The chains TQ runs beside NPC talks (its trigger map): an item type's when used, a
+/// monster type's when killed, and the hooks of logging in, dying, levelling and reviving.
+#[derive(Debug, Clone, Default)]
+pub struct Triggers {
+    pub items: Vec<(u32, u32)>,
+    pub monsters: Vec<(u32, u32)>,
+}
+
+/// TQ's fixed hook actions and the engine events that run them.
+const HOOKS: [(u32, &str); 4] = [
+    (1_000_000, "event.login"),
+    (80_000_000, "event.death"),
+    (80_000_003, "event.revive"),
+    (80_000_004, "event.level_up"),
+];
+
+/// Item types used up one charge at a time (TQ's counted-use items, 1060xxx).
+fn counted_use(item: u32) -> bool {
+    item / 1000 == 1060
+}
+
 #[derive(Debug, Default)]
 pub struct Converted {
     pub blueprints: Vec<(String, Blueprint)>,
@@ -183,6 +204,85 @@ pub fn convert(
         ));
     }
     out
+}
+
+/// The blueprints of TQ's triggers: `tq/items` (custom events `use_<type>`), `tq/monsters`
+/// (`killed_<type>`) and `tq/hooks` (login, death, revive, level-up); and a report line.
+pub fn convert_triggers(
+    logic: &NpcLogic,
+    triggers: &Triggers,
+    items: &HashMap<String, Vec<u32>>,
+) -> (Vec<(String, Blueprint)>, String) {
+    let have = |action: &u32| logic.actions.contains_key(action);
+    let item_events: Vec<Trigger> = (triggers.items.iter())
+        .filter(|(_, a)| have(a))
+        .map(|&(item, action)| Trigger {
+            def: "event.custom",
+            name: Some(format!("use_{item}")),
+            action,
+            spend: counted_use(item),
+        })
+        .collect();
+    let monster_events: Vec<Trigger> = (triggers.monsters.iter())
+        .filter(|(_, a)| have(a))
+        .map(|&(kind, action)| Trigger {
+            def: "event.custom",
+            name: Some(format!("killed_{kind}")),
+            action,
+            spend: false,
+        })
+        .collect();
+    let hook_events: Vec<Trigger> = (HOOKS.iter())
+        .filter(|(a, _)| have(a))
+        .map(|&(action, def)| Trigger {
+            def,
+            name: None,
+            action,
+            spend: false,
+        })
+        .collect();
+    let report = format!(
+        "Triggers: {} items run a chain when used, {} monster types when killed, {} of TQ's \
+         hooks (login, death, revive, level-up)",
+        item_events.len(),
+        monster_events.len(),
+        hook_events.len()
+    );
+    let mut out = Vec::new();
+    let mut skipped: BTreeMap<u32, usize> = BTreeMap::new();
+    for (name, events) in [
+        ("tq/items", item_events),
+        ("tq/monsters", monster_events),
+        ("tq/hooks", hook_events),
+    ] {
+        if events.is_empty() {
+            continue;
+        }
+        let mut builder = Builder::new(logic, items);
+        builder.triggers(&events);
+        for (kind, n) in builder.skipped {
+            *skipped.entry(kind).or_default() += n;
+        }
+        out.push((name.to_owned(), builder.blueprint));
+    }
+    let mut kinds: Vec<(u32, usize)> = skipped.into_iter().collect();
+    kinds.sort_by_key(|(k, n)| (std::cmp::Reverse(*n), *k));
+    let list: Vec<String> = kinds.iter().map(|(k, n)| format!("{k} ({n})")).collect();
+    let report = match list.is_empty() {
+        true => report,
+        false => format!("{report}; not converted there: {}", list.join(", ")),
+    };
+    (out, report)
+}
+
+/// One trigger's event and the chain it runs.
+struct Trigger {
+    def: &'static str,
+    /// A custom event's name.
+    name: Option<String>,
+    action: u32,
+    /// The used item is spent first (a counted-use item).
+    spend: bool,
 }
 
 /// Builds one NPC's blueprint.
@@ -358,7 +458,19 @@ impl<'a> Builder<'a> {
 
     /// Counts how many places lead to each action reachable from `tasks`.
     fn count_refs(&mut self, tasks: &[u32]) {
-        let mut stack: Vec<(bool, u32)> = tasks.iter().map(|&t| (true, t)).collect();
+        self.count_refs_in(tasks.iter().map(|&t| (true, t)).collect());
+    }
+
+    /// [`Builder::count_refs`] from chains' first actions (each start leads there once).
+    fn count_refs_from(&mut self, actions: &[u32]) {
+        for &a in actions {
+            *self.refs.entry(a).or_default() += 1;
+        }
+        self.count_refs_in(actions.iter().map(|&a| (false, a)).collect());
+    }
+
+    /// Counts the places leading to each action from `stack` (tasks or actions) on.
+    fn count_refs_in(&mut self, mut stack: Vec<(bool, u32)>) {
         let mut seen_tasks = BTreeSet::new();
         let mut seen = BTreeSet::new();
         let lead = |refs: &mut HashMap<u32, usize>, stack: &mut Vec<(bool, u32)>, id: u32| {
@@ -460,6 +572,40 @@ impl<'a> Builder<'a> {
                 let call = events.node("flow.call", &[("name", txt(&name))], 3);
                 events.exec((branch, "true"), call);
                 from = (branch, "false");
+            }
+        }
+        self.blueprint.events = events.graph;
+    }
+
+    /// A blueprint of trigger events, each running its chain.
+    fn triggers(&mut self, triggers: &[Trigger]) {
+        let starts: Vec<u32> = triggers.iter().map(|t| t.action).collect();
+        self.count_refs_from(&starts);
+        let mut events = Canvas::new();
+        for t in triggers {
+            events.lane();
+            let values: Vec<(&str, Literal)> = match &t.name {
+                Some(name) => vec![("name", txt(name))],
+                None => Vec::new(),
+            };
+            let start = events.node(t.def, &values, 0);
+            let mut from: Exit = (start, "then");
+            if t.spend {
+                let used = events.node("item.used", &[], 1);
+                let spend = events.node("held.erase", &[], 1);
+                events.data(used, spend, "item");
+                events.exec(from, spend);
+                from = (spend, "then");
+            }
+            self.chain(&mut events, Some(from), t.action, 2);
+        }
+        loop {
+            if let Some(task) = self.to_event.pop() {
+                self.task_event(&mut events, task);
+            } else if let Some(action) = self.to_make.pop() {
+                self.function(action);
+            } else {
+                break;
             }
         }
         self.blueprint.events = events.graph;
@@ -1381,6 +1527,40 @@ impl<'a> Builder<'a> {
                             }
                         }
                         _ => self.not_converted(g, a, column),
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // A monster's loot where it fell: an item, or money (at least `percent` of it).
+            801 => match (
+                tokens.first().map(|t| t.to_ascii_lowercase()),
+                int(1),
+                int(2),
+            ) {
+                (Some(kw), Some(item), _) if kw == "dropitem" => {
+                    Self::plain(g, "world.loot_item", &[("item", num(item))], column)
+                }
+                (Some(kw), Some(money), percent) if kw == "dropmoney" => {
+                    let least = percent.map_or(100, |p| p % 100);
+                    let roll = g.node(
+                        "math.random",
+                        &[("low", num(least)), ("high", num(99.max(least)))],
+                        column,
+                    );
+                    let scaled = g.node("math.multiply", &[("b", num(money))], column);
+                    g.data(roll, scaled, "a");
+                    let amount = g.node("math.divide", &[("b", num(100))], column);
+                    g.data(scaled, amount, "a");
+                    let drop = g.node("world.loot_money", &[], column);
+                    if least == 100 {
+                        g.set_value(drop, "money", num(money));
+                    } else {
+                        g.data(amount, drop, "money");
+                    }
+                    Emitted {
+                        entry: Some(drop),
+                        ok: Some((drop, "then")),
+                        fail: None,
                     }
                 }
                 _ => self.not_converted(g, a, column),

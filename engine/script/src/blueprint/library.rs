@@ -216,6 +216,30 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    action(
+        "world.loot_item",
+        "Leave an item",
+        "World",
+        &[("item", Item)],
+        &[],
+        "loot_item({item});",
+    ),
+    action(
+        "world.loot_money",
+        "Leave money",
+        "World",
+        &[("money", Number)],
+        &[],
+        "loot_money({money});",
+    ),
+    pure(
+        "item.used",
+        "Item being used",
+        "Items",
+        &[],
+        Number,
+        "used_item()",
+    ),
     pure(
         "npc.look",
         "NPC look",

@@ -138,7 +138,13 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
     // What NPCs do when clicked: TQ's tasks and actions as blueprints.
     let logic = crate::npc_logic::NpcLogic::from_sql(sql);
     let tables = c3_data::sql::import_tables(sql, DATA_TABLES);
-    let converted = crate::npc_logic::convert(&logic, &server.npc_tasks(), &item_names(&tables));
+    let names = item_names(&tables);
+    let mut converted = crate::npc_logic::convert(&logic, &server.npc_tasks(), &names);
+    // The chains items, monsters and TQ's hooks run.
+    let (triggers, line) =
+        crate::npc_logic::convert_triggers(&logic, &triggers_of(&tables), &names);
+    converted.blueprints.extend(triggers);
+    converted.report.push(line);
     server.set_scripts(&converted.scripts);
     let mut placed = std::collections::HashSet::new();
     for (file, ids) in &by_key {
@@ -231,6 +237,30 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
 }
 
 /// Item types by name, from `cq_itemtype` (several qualities share a name).
+/// The actions TQ's item types run when used (`cq_itemtype.id_action`) and its monster types
+/// when killed (`cq_monstertype.action`).
+fn triggers_of(tables: &[c3_data::Table]) -> crate::npc_logic::Triggers {
+    let pairs = |table: &str, column: &str| -> Vec<(u32, u32)> {
+        let Some(t) = tables.iter().find(|t| t.name == table) else {
+            return Vec::new();
+        };
+        let Some(c) = t.column(column) else {
+            return Vec::new();
+        };
+        (t.rows.iter())
+            .filter_map(|row| {
+                let id = u32::try_from(row.first()?.as_int()?).ok()?;
+                let action = u32::try_from(row.get(c)?.as_int()?).ok()?;
+                (action != 0).then_some((id, action))
+            })
+            .collect()
+    };
+    crate::npc_logic::Triggers {
+        items: pairs(crate::server_data::ITEM_TABLE, "id_action"),
+        monsters: pairs(crate::rules::MONSTER_TABLE, "action"),
+    }
+}
+
 fn item_names(tables: &[c3_data::Table]) -> std::collections::HashMap<String, Vec<u32>> {
     let mut names: std::collections::HashMap<String, Vec<u32>> = Default::default();
     let Some(items) = tables

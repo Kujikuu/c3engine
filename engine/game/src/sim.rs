@@ -57,6 +57,10 @@ pub struct Sim {
     /// What every map shares, as this map holds it, and its changes not yet taken.
     pub(crate) world: crate::WorldState,
     pub(crate) world_changes: Vec<c3_script::WorldChange>,
+    /// The item a player is using while its `use_<type>` event runs.
+    pub(crate) using: Option<(EntityId, u32)>,
+    /// Where the monster being killed fell, while its `killed_<type>` event runs.
+    pub(crate) dying_at: Option<CellPos>,
     /// Team invitations: the invited player → the inviting leader.
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
     /// Players on the host's other maps, for teams across maps.
@@ -111,6 +115,8 @@ impl Sim {
             world_flags: BTreeMap::new(),
             world: crate::WorldState::default(),
             world_changes: Vec::new(),
+            using: None,
+            dying_at: None,
             team_invites: BTreeMap::new(),
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),

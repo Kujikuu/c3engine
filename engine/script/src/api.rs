@@ -444,6 +444,16 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("loot_item", move |item: i64| {
+        with(&s, |c| c.effects.push(Effect::Loot { item, money: 0 }))
+    });
+    let s = shared.clone();
+    engine.register_fn("loot_money", move |money: i64| {
+        with(&s, |c| c.effects.push(Effect::Loot { item: 0, money }))
+    });
+    let s = shared.clone();
+    engine.register_fn("used_item", move || with(&s, |c| c.player.used_item));
+    let s = shared.clone();
     engine.register_fn("npc_look", move |npc: i64| {
         with(&s, |c| c.player.npc_looks.get(&npc).copied().unwrap_or(0))
     });

@@ -268,6 +268,17 @@ impl Sim {
                     self.events.push(Event::NpcArrived(n));
                 }
             }
+            Effect::Loot { item, money } => {
+                let here = self.players.get(&id).map(|p| p.cell);
+                let Some(cell) = self.dying_at.or(here) else {
+                    return;
+                };
+                match (u32::try_from(item), u64::try_from(money)) {
+                    (Ok(item), _) if item > 0 => self.drop_at(cell, crate::Drop::Item(item)),
+                    (_, Ok(money)) if money > 0 => self.drop_at(cell, crate::Drop::Money(money)),
+                    _ => {}
+                }
+            }
             Effect::Die => {
                 if let Some(p) = self.players.get_mut(&id) {
                     p.life = 0;
@@ -486,6 +497,10 @@ impl Sim {
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
             accept: String::new(),
+            used_item: match self.using {
+                Some((who, item)) if who == id => i64::from(item),
+                _ => 0,
+            },
             team_here: self.teammates_here(id).len() as i64,
             npc_looks: (self.npcs.iter())
                 .map(|n| (i64::from(n.id), i64::from(n.look)))

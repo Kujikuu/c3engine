@@ -56,6 +56,8 @@ pub struct PlayerState {
     pub exp: i64,
     /// Fights between players on its map bring no crime or PK points.
     pub map_pk_free: bool,
+    /// The item being used (its id), while its `use_<type>` event runs; 0 otherwise.
+    pub used_item: i64,
     /// The looks of the NPCs on the player's map.
     pub npc_looks: BTreeMap<i64, i64>,
     /// The player's living teammates on its map, and how many of them hold each item type.
@@ -316,6 +318,12 @@ pub enum Effect {
     },
     /// The player dies (no one's kill).
     Die,
+    /// An item of type `item` (or `money`) lies where the monster being killed fell (where
+    /// the player stands, out of a kill).
+    Loot {
+        item: i64,
+        money: i64,
+    },
     /// The player's team (the leader with every member on its map) goes to `cell` of game
     /// map `map`.
     TeamTravel {

@@ -81,6 +81,15 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "loot_item(type) / loot_money(n)",
+        "An item of `type` (or money) lies where the monster being killed fell (`killed_<type>` \
+         events), else where the player stands",
+    ),
+    (
+        "used_item()",
+        "The id of the item being used, while its `use_<type>` custom event runs (0 otherwise)",
+    ),
+    (
         "npc_look(npc) / set_npc_look(npc, look) / die() / player_uid() / clear_attrs(prefix)",
         "An NPC's look here and a new one for everyone; the player dies; a number for the \
          player that lasts; the player's attributes starting with `prefix` gone",

@@ -274,6 +274,16 @@ impl Sim {
             return;
         };
         let kind = p.bag[slot].kind;
+        // An item a script answers (custom event `use_<type>`): the script does what it does,
+        // taking the item if it is spent.
+        let event = format!("use_{kind}");
+        if self.event_defined(&event, 0) {
+            self.using = Some((id, item));
+            self.script_event(id, &event, Vec::new());
+            self.using = None;
+            self.events.push(Event::Used { player: id, kind });
+            return;
+        }
         let Some(t) = self.rules.item(kind) else {
             return;
         };

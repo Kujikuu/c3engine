@@ -25,6 +25,15 @@ impl Sim {
         }
     }
 
+    /// Whether any events script or blueprint answers `function` with `arity` arguments.
+    pub(crate) fn event_defined(&mut self, function: &str, arity: usize) -> bool {
+        let Some(host) = self.scripts.as_mut() else {
+            return false;
+        };
+        let scripts = host.event_scripts();
+        scripts.iter().any(|s| host.defines(s, function, arity))
+    }
+
     /// Runs `function(args...)` of the events script for player `id`, if the project has it.
     pub(crate) fn script_event(&mut self, id: EntityId, function: &str, args: Vec<Dynamic>) {
         if !self.players.contains_key(&id) {

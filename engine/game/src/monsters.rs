@@ -309,6 +309,10 @@ impl Sim {
         if let Some(player) = killer {
             self.count_kill(player, kind);
             self.script_event(player, "on_kill", vec![i64::from(kind).into()]);
+            // The monster type's own event, for its killer.
+            self.dying_at = Some(cell);
+            self.script_event(player, &format!("killed_{kind}"), Vec::new());
+            self.dying_at = None;
         }
         let drops = self.rules.drops(kind, &mut self.rng);
         for drop in drops {
