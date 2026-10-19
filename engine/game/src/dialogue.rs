@@ -245,6 +245,26 @@ impl Sim {
                 name,
                 args,
             }),
+            Effect::TeamItem { item, count } => {
+                let Ok(kind) = u32::try_from(item) else {
+                    return;
+                };
+                for member in self.teammates_here(id) {
+                    if count > 0 {
+                        self.give_items(member, kind, 1);
+                    } else {
+                        self.take_items(member, kind, 1);
+                    }
+                }
+            }
+            Effect::TeamSay(text) => {
+                for member in self.teammates_here(id) {
+                    self.events.push(Event::Notice {
+                        player: member,
+                        text: text.clone(),
+                    });
+                }
+            }
             Effect::TeamTravel { map, cell } => {
                 let to = c3_scene::PortalTarget {
                     map: u32::try_from(map).unwrap_or(0),
@@ -449,6 +469,19 @@ impl Sim {
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
             accept: String::new(),
+            team_here: self.teammates_here(id).len() as i64,
+            team_items: {
+                let mut held = BTreeMap::new();
+                for member in self.teammates_here(id) {
+                    let kinds: BTreeSet<i64> = (self.players[&member].bag.iter())
+                        .map(|i| i64::from(i.kind))
+                        .collect();
+                    for kind in kinds {
+                        *held.entry(kind).or_default() += 1;
+                    }
+                }
+                held
+            },
             guilds: self.world.guild_views(),
             map_owners: (self.world.map_owners.iter())
                 .map(|(&m, &g)| (i64::from(m), i64::from(g)))
@@ -609,6 +642,13 @@ impl Sim {
             (_, Some(i)) if i < item.attrs.len() => item.attrs[i] = value32,
             _ => {}
         }
+    }
+
+    /// Player `id`'s living teammates on this map (not itself).
+    pub(crate) fn teammates_here(&self, id: EntityId) -> Vec<EntityId> {
+        (self.team_members(id).into_iter())
+            .filter(|m| *m != id && self.players.get(m).is_some_and(|p| p.is_alive()))
+            .collect()
     }
 
     /// The walkable cell next to `npc` nearest `from` (or the NPC's own cell).

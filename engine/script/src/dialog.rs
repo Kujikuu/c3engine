@@ -56,6 +56,9 @@ pub struct PlayerState {
     pub exp: i64,
     /// Fights between players on its map bring no crime or PK points.
     pub map_pk_free: bool,
+    /// The player's living teammates on its map, and how many of them hold each item type.
+    pub team_here: i64,
+    pub team_items: BTreeMap<i64, i64>,
     /// The guilds by id, and the guild owning each game map that has one.
     pub guilds: BTreeMap<i64, GuildView>,
     pub map_owners: BTreeMap<i64, i64>,
@@ -297,6 +300,13 @@ pub enum Effect {
         name: String,
         args: [i64; 2],
     },
+    /// The player's teammates on its map each given (`count` > 0) or relieved of one item
+    /// of type `item`, or told `text`.
+    TeamItem {
+        item: i64,
+        count: i64,
+    },
+    TeamSay(String),
     /// The player's team (the leader with every member on its map) goes to `cell` of game
     /// map `map`.
     TeamTravel {

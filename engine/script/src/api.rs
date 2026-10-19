@@ -444,6 +444,24 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("team_here", move || with(&s, |c| c.player.team_here));
+    let s = shared.clone();
+    engine.register_fn("team_holding", move |item: i64| {
+        with(&s, |c| c.player.team_items.get(&item).copied().unwrap_or(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("team_give", move |item: i64| {
+        with(&s, |c| c.effects.push(Effect::TeamItem { item, count: 1 }))
+    });
+    let s = shared.clone();
+    engine.register_fn("team_take", move |item: i64| {
+        with(&s, |c| c.effects.push(Effect::TeamItem { item, count: -1 }))
+    });
+    let s = shared.clone();
+    engine.register_fn("team_say", move |text: &str| {
+        with(&s, |c| c.effects.push(Effect::TeamSay(text.to_owned())))
+    });
+    let s = shared.clone();
     engine.register_fn("team_travel", move |map: i64, x: i64, y: i64| {
         with(&s, |c| {
             c.effects.push(Effect::TeamTravel { map, cell: (x, y) })

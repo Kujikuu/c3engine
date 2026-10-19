@@ -81,6 +81,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "team_here() / team_holding(item) / team_give(item) / team_take(item) / team_say(text)",
+        "The player's living teammates on its map, how many of them hold an item type; each of \
+         them given or relieved of one, or told something",
+    ),
+    (
         "guild_id() / guild_rank() / guild_name(id) / guild_fund(id) / guild_master(id) / \
          guild_members(id) / guild_named(name) / next_guild(after) / map_owner(map) / \
          guild_relation(guild, other, ally)",

@@ -287,6 +287,21 @@ fn txt(t: &str) -> Literal {
     Literal::Text(t.to_owned())
 }
 
+/// The statistic (event, type) an SQL like TQ's `select data from cq_statistic where
+/// player_id=%user_id and event_type=9 and data_type=1` reads.
+fn statistic_query(sql: &str) -> Option<(i64, i64)> {
+    let sql = sql.to_ascii_lowercase();
+    if !sql.starts_with("select data from cq_statistic where player_id=%user_id") {
+        return None;
+    }
+    let value = |key: &str| -> Option<i64> {
+        let at = sql.find(key)? + key.len();
+        let digits: String = sql[at..].chars().take_while(char::is_ascii_digit).collect();
+        digits.parse().ok()
+    };
+    Some((value("event_type=")?, value("data_type=")?))
+}
+
 /// A `cq_item` column kept as one of Conquer's item attributes, by its index.
 fn item_column(field: i64) -> Option<&'static str> {
     Some(match field {
@@ -823,15 +838,7 @@ impl<'a> Builder<'a> {
                     fail: None,
                 }
             }
-            1003 => match (int(0), int(1), int(2)) {
-                (Some(map), Some(x), Some(y)) => Self::plain(
-                    g,
-                    "player.teleport",
-                    &[("map", num(map)), ("x", num(x)), ("y", num(y))],
-                    column,
-                ),
-                _ => self.not_converted(g, a, column),
-            },
+            1003 => self.cell_action(g, a, &tokens, "player.teleport", column),
             1010 => Self::plain(
                 g,
                 "player.message",
@@ -942,13 +949,7 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             // Where the player comes back to; going there.
-            1004 => match (int(0), int(1), int(2)) {
-                (Some(map), Some(x), Some(y)) => {
-                    let values = [("map", num(map)), ("x", num(x)), ("y", num(y))];
-                    Self::plain(g, "player.set_record", &values, column)
-                }
-                _ => self.not_converted(g, a, column),
-            },
+            1004 => self.cell_action(g, a, &tokens, "player.set_record", column),
             1006 => Self::checked(g, "player.go_record", &[], "went", column),
             // Weapon skills, as attributes `weapon_<type>` (level) and `weapon_exp_<type>`.
             1021 => match (tokens.first().copied(), int(1), int(2)) {
@@ -1199,6 +1200,69 @@ impl<'a> Builder<'a> {
                     Self::branch(g, both, column)
                 }
                 _ => self.not_converted(g, a, column),
+            },
+            // The leader's team: told something, each given or relieved of an item, or all
+            // holding one (TQ: the leader of a team of two or more).
+            1101 | 1104..=1106 => {
+                let leads = g.node("team.leads", &[], column);
+                let branch = g.node("flow.branch", &[], column);
+                g.data(leads, branch, "condition");
+                let (entry, ok) = match a.kind {
+                    1101 => {
+                        let say = g.node("team.say", &[("text", txt(&line(&a.param)))], column);
+                        (say, (say, "then"))
+                    }
+                    1104 | 1105 => {
+                        let def = if a.kind == 1104 {
+                            "team.give"
+                        } else {
+                            "team.take"
+                        };
+                        let n = g.node(def, &[("item", num(a.data))], column);
+                        (n, (n, "then"))
+                    }
+                    _ => {
+                        let here = g.node("team.here", &[], column);
+                        let holding = g.node("team.holding", &[("item", num(a.data))], column);
+                        let all = self.compare_nodes(g, holding, "==", here, column);
+                        let every = g.node("flow.branch", &[], column);
+                        g.data(all, every, "condition");
+                        (every, (every, "true"))
+                    }
+                };
+                g.exec((branch, "true"), entry);
+                let fail = g.node("flow.reroute_exec", &[], column);
+                g.exec((branch, "false"), fail);
+                if a.kind == 1106 {
+                    g.exec((entry, "false"), fail);
+                }
+                Emitted {
+                    entry: Some(branch),
+                    ok: Some(ok),
+                    fail: Some((fail, "then")),
+                }
+            }
+            // Full mana (TQ's `life` is the heal of 1002 already converted).
+            1002 if a.param.eq_ignore_ascii_case("mana") => {
+                Self::plain(g, "player.add_mana", &[("amount", num(1_000_000))], column)
+            }
+            // A web page's address, said to the player.
+            1041 => Self::plain(g, "player.message", &[("text", txt(&a.param))], column),
+            // TQ's SQL for a statistic of the player: the statistic, kept in var_data<data>.
+            1077 => match statistic_query(&a.param) {
+                Some((event, kind)) => {
+                    let flag = format!("stc_{event}_{kind}");
+                    let stat = g.node("player.flag", &[("name", txt(&flag))], column);
+                    let keep = format!("var_data{}", a.data.clamp(0, 8));
+                    let set = g.node("player.set_flag", &[("name", txt(&keep))], column);
+                    g.data(stat, set, "value");
+                    Emitted {
+                        entry: Some(set),
+                        ok: Some((set, "then")),
+                        fail: None,
+                    }
+                }
+                None => self.not_converted(g, a, column),
             },
             // The leader takes the team to a cell of a map.
             1107 => match (int(0), int(1), int(2)) {
@@ -1652,6 +1716,17 @@ impl<'a> Builder<'a> {
             "%user_map_y" => return node(g, "player.y", &[]),
             "%iter_value" => return node(g, "player.flag", &[("name", txt("iterator"))]),
             "%syn_id" => return node(g, "guild.id", &[]),
+            "%data0" | "%data1" | "%data2" | "%data3" => {
+                let npc = g.node("npc.id", &[], column);
+                let prefix = g.node("text.number", &[("text", txt("npc"))], column);
+                g.data(npc, prefix, "number");
+                let field = format!(".{}", &token[1..]);
+                let name = g.node("text.join", &[("b", txt(&field))], column);
+                g.data(prefix, name, "a");
+                let value = g.node("world.flag", &[], column);
+                g.data(name, value, "name");
+                return Some(Number::Node(value));
+            }
             // This NPC's owner (its `ownerid`, kept as world variable `npc<id>.ownerid`).
             "%npc_ownerid" => {
                 let npc = g.node("npc.id", &[], column);
@@ -1916,6 +1991,33 @@ impl<'a> Builder<'a> {
                 }
             }
             _ => self.not_converted(g, a, column),
+        }
+    }
+
+    /// 1003/1004: node `def` with a map and a cell from the first three tokens (numbers, or
+    /// ones worked out like `%data0` and `%user_map_x`).
+    fn cell_action(
+        &mut self,
+        g: &mut Canvas,
+        a: &Action,
+        tokens: &[&str],
+        def: &str,
+        column: i32,
+    ) -> Emitted {
+        let numbers: Vec<Number> = (tokens.iter().take(3))
+            .filter_map(|t| self.number(g, t, column))
+            .collect();
+        if numbers.len() < 3 {
+            return self.not_converted(g, a, column);
+        }
+        let node = g.node(def, &[], column);
+        for (n, pin) in numbers.iter().zip(["map", "x", "y"]) {
+            self.feed(g, n, node, pin);
+        }
+        Emitted {
+            entry: Some(node),
+            ok: Some((node, "then")),
+            fail: None,
         }
     }
 
