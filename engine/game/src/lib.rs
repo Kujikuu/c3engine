@@ -31,7 +31,7 @@ mod teams;
 mod trades;
 pub use trades::TradeNews;
 mod world_state;
-pub use teams::{Mate, TEAM_SIZE, TeamOp};
+pub use teams::{Mate, TEAM_SIZE, TeamAction, TeamOp};
 pub use world_state::{GUILD_RELATIONS, Guild, WorldState};
 
 pub use c3_core::settings::GameplaySettings;

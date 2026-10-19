@@ -24,6 +24,47 @@ pub const NAME: u16 = 1015;
 /// MsgName types: an effect on a map cell, on a role.
 pub const NAME_MAP_EFFECT: u8 = 9;
 pub const NAME_ROLE_EFFECT: u8 = 10;
+/// A team action about a player (packets spec 1023).
+pub const TEAM: u16 = 1023;
+pub mod team {
+    pub const CREATE: u16 = 0;
+    pub const LEAVE: u16 = 2;
+    pub const ACCEPT_INVITE: u16 = 3;
+    pub const INVITE: u16 = 4;
+    pub const DISMISS: u16 = 6;
+    pub const KICK: u16 = 7;
+}
+/// A team's members, the list replacing the client's (MsgTeamMember 1026).
+pub const TEAM_MEMBER: u16 = 1026;
+const TEAM_MEMBERS_REPLACE: u8 = 1;
+
+/// One member of a team list.
+pub struct TeamMember<'a> {
+    pub name: &'a str,
+    pub id: u32,
+    pub look: u32,
+    pub life: u16,
+    pub max_life: u16,
+}
+
+/// MsgTeam `action` about player `id`.
+pub fn team(action: u16, id: u32) -> Vec<u8> {
+    packet(TEAM, |w| {
+        w.u16(action).u16(0).u32(id);
+    })
+}
+
+/// The hero's whole team.
+pub fn team_members(members: &[TeamMember]) -> Vec<u8> {
+    packet(TEAM_MEMBER, |w| {
+        w.u8(TEAM_MEMBERS_REPLACE).u8(members.len() as u8).u16(0);
+        for m in members {
+            w.fixed_str(m.name, 16);
+            w.u32(m.id).u32(m.look).u16(m.max_life).u16(m.life);
+        }
+    })
+}
+
 /// A trade between two players (packets spec 1056): `data` and an action.
 pub const TRADE: u16 = 1056;
 pub mod trade {
@@ -624,6 +665,11 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// A team action about a player.
+    Team {
+        action: u16,
+        id: u32,
+    },
     /// A trade action with its number (a player, an item, money).
     Trade {
         action: u16,
@@ -692,6 +738,14 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             match r.u16()? {
                 item::PING => Request::Ping(bytes.to_vec()),
                 action => Request::Item { action, id, data },
+            }
+        }
+        TEAM => {
+            let action = r.u16()?;
+            r.skip(2)?;
+            Request::Team {
+                action,
+                id: r.u32()?,
             }
         }
         TRADE => {

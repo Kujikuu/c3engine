@@ -28,6 +28,17 @@ pub struct Mate {
     pub max_life: u32,
 }
 
+/// What a player does about teams (the same as `/team ...`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TeamAction {
+    Create,
+    Invite(EntityId),
+    /// Join the team of the leader who invited the player.
+    Join(EntityId),
+    Leave,
+    Kick(EntityId),
+}
+
 /// What a team asks of a player on another map (the host carries it there).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TeamOp {
@@ -66,10 +77,29 @@ impl Sim {
         match op {
             TeamOp::Notice(text) => self.tell(id, text),
             TeamOp::SetTeam(team) => self.set_member_team(id, team),
-            TeamOp::Invite(leader) => {
-                self.team_invites.insert(id, leader);
-            }
+            TeamOp::Invite(leader) => self.invited(id, leader),
         }
+    }
+
+    /// Player `id` acts on teams; told how it went.
+    pub fn team(&mut self, id: EntityId, action: TeamAction) {
+        let (word, other) = match action {
+            TeamAction::Create => ("create", None),
+            TeamAction::Invite(e) => ("invite", Some(e)),
+            TeamAction::Join(e) => ("join", Some(e)),
+            TeamAction::Leave => ("leave", None),
+            TeamAction::Kick(e) => ("kick", Some(e)),
+        };
+        let name = other.map(|e| self.name_of(e));
+        let words: Vec<&str> = std::iter::once(word).chain(name.as_deref()).collect();
+        let text = self.team_command(id, &words).unwrap_or_else(|why| why);
+        self.events.push(Event::Notice { player: id, text });
+    }
+
+    /// Player `id` (on this map) is invited to `leader`'s team.
+    fn invited(&mut self, id: EntityId, leader: EntityId) {
+        self.team_invites.insert(id, leader);
+        self.events.push(Event::TeamInvited { player: id, leader });
     }
 
     /// The members of player `id`'s team on every map (the leader first); empty when it
@@ -82,7 +112,7 @@ impl Sim {
     }
 
     /// The hero's teammates (itself among them) for its team list, the leader first.
-    pub(crate) fn team_mates(&self, id: EntityId) -> Vec<Mate> {
+    pub fn team_mates(&self, id: EntityId) -> Vec<Mate> {
         let here = self.mates();
         let find = |m: EntityId| {
             (here.iter())
@@ -193,7 +223,7 @@ impl Sim {
                     return Err(format!("A team has at most {TEAM_SIZE} players."));
                 }
                 if self.players.contains_key(&other) {
-                    self.team_invites.insert(other, id);
+                    self.invited(other, id);
                 } else {
                     self.team_ops.push((other, TeamOp::Invite(id)));
                 }

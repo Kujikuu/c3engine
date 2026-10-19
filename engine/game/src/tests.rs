@@ -1702,3 +1702,24 @@ fn dropped_items_and_money_come_back_as_they_were() {
     assert_eq!(p.money, 500);
     assert_eq!(p.bag, vec![armor], "the very item, its attributes kept");
 }
+
+#[test]
+fn team_actions_invite_join_and_leave() {
+    use crate::{Input, TeamAction};
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let lead = sim.add_player("Lead", (5, 5), 1);
+    let mate = sim.add_player("Mate", (6, 5), 1);
+    sim.input(lead, Input::Team(TeamAction::Create));
+    sim.input(lead, Input::Team(TeamAction::Invite(mate)));
+    assert!(sim.take_events().contains(&Event::TeamInvited {
+        player: mate,
+        leader: lead
+    }));
+    sim.input(mate, Input::Team(TeamAction::Join(lead)));
+    let names: Vec<String> = sim.team_mates(mate).into_iter().map(|m| m.name).collect();
+    assert_eq!(names, ["Lead", "Mate"]);
+    sim.input(mate, Input::Team(TeamAction::Leave));
+    assert_eq!(sim.team_members(lead), [lead]);
+    sim.input(lead, Input::Team(TeamAction::Leave));
+    assert!(sim.team_members(lead).is_empty(), "the team broke up");
+}

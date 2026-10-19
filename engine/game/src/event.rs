@@ -102,6 +102,11 @@ pub enum Event {
         player: EntityId,
         text: String,
     },
+    /// Player `player` was invited to `leader`'s team.
+    TeamInvited {
+        player: EntityId,
+        leader: EntityId,
+    },
     /// A message from a script or a gift ("You received 1 Stancher").
     Notice {
         player: EntityId,

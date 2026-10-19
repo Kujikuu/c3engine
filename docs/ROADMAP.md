@@ -660,7 +660,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
         skills as MsgWeaponSkill 1025
   - [x] Items and money dropped on the ground (MsgItem 3 and 12; a dropped item keeps its
         plus and gems) and picked up (MsgMapItem 1101)
-  - [ ] Teams (MsgTeam 1023), guilds (MsgSyndicate 1107 and names), friends (1019)
+  - [x] Teams: MsgTeam 1023 (create, invite, accept, leave, dismiss, kick) and the member
+        list MsgTeamMember 1026 with each member's life
+  - [ ] Teams: TQ's apply-to-join (1, 5), closing the team and the money and item
+        pick-up locks (8 to 13)
+  - [ ] Guilds (MsgSyndicate 1107 and names), friends (1019)
   - [ ] Each of the above checked with the real Conquer.exe
 
 ## M13: Any game of the kind (Eudemons-like or the user's own)

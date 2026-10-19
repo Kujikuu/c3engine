@@ -3,7 +3,9 @@
 
 use super::packets::{self as pk, Request, Spawn, action, attr, channel, interact, item};
 use crate::character::player_look;
-use c3_game::{CastAt, EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
+use c3_game::{
+    CastAt, EntityId, EntityState, Event, Input, Player, Rules, Sim, TeamAction, WorldUpdate,
+};
 use c3_online::Welcome;
 use c3_scene::{CellPos, Npc, path};
 use std::collections::{BTreeMap, HashMap};
@@ -310,6 +312,8 @@ pub struct ConquerClient {
     cells: HashMap<EntityId, CellPos>,
     /// Where the client walked its hero to, ahead of the server.
     steps_to: Option<CellPos>,
+    /// The hero's team as last shown.
+    team: Vec<c3_game::Mate>,
 }
 
 impl ConquerClient {
@@ -571,6 +575,7 @@ impl ConquerClient {
             }
         }
         if self.entered {
+            out.extend(self.team_changes(sim));
             let mut shown = Vec::new();
             for (at, event) in update.events.iter().enumerate() {
                 if shown.contains(&at) {
@@ -586,6 +591,33 @@ impl ConquerClient {
             }
         }
         out
+    }
+
+    /// The hero's team list, when it changed (members, their life); left, an empty team.
+    fn team_changes(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
+        let Some(hero) = self.hero else {
+            return Vec::new();
+        };
+        let team = sim.team_mates(hero);
+        if team == self.team {
+            return Vec::new();
+        }
+        let left = team.is_empty();
+        self.team = team;
+        if left {
+            return vec![pk::team(pk::team::LEAVE, self.hero_id())];
+        }
+        let short = |n: u32| u16::try_from(n).unwrap_or(u16::MAX);
+        let members: Vec<pk::TeamMember> = (self.team.iter())
+            .map(|m| pk::TeamMember {
+                name: &m.name,
+                id: Ids::player(m.id),
+                look: sim.player(m.id).map_or(0, |p| look_face(p, sim.rules())),
+                life: short(m.life),
+                max_life: short(m.max_life),
+            })
+            .collect();
+        vec![pk::team_members(&members)]
     }
 
     /// The client's spell cast (scrambled MsgInteract fields) as the engine's cast.
@@ -877,6 +909,10 @@ impl ConquerClient {
                     N::Closed => vec![pk::trade(them, pk::trade::FAIL)],
                 }
             }
+            // Invited to a team: the client asks the hero.
+            Event::TeamInvited { player, leader } if Some(*player) == hero => {
+                vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
+            }
             // The warehouse as it is now, and the money kept.
             Event::StorageOpened { player, npc } | Event::StorageChanged { player, npc }
                 if Some(*player) == hero =>
@@ -1061,6 +1097,18 @@ impl ConquerClient {
                 }),
                 _ => {}
             },
+            Request::Team { action: a, id } => {
+                let other = ids.entity(id);
+                let action = match (a, other) {
+                    (pk::team::CREATE, _) => Some(TeamAction::Create),
+                    (pk::team::LEAVE | pk::team::DISMISS, _) => Some(TeamAction::Leave),
+                    (pk::team::INVITE, Some(e)) => Some(TeamAction::Invite(e)),
+                    (pk::team::ACCEPT_INVITE, Some(e)) => Some(TeamAction::Join(e)),
+                    (pk::team::KICK, Some(e)) => Some(TeamAction::Kick(e)),
+                    _ => None,
+                };
+                inputs.extend(action.map(Input::Team));
+            }
             Request::Trade { action: a, data } => match a {
                 pk::trade::APPLY => {
                     if let Some(e) = ids.entity(data) {
