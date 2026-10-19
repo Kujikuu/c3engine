@@ -194,7 +194,8 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
         }
     };
     out.extend([skills, statuses]);
-    let makers: [(&str, &TableMaker); 8] = [
+    let makers: [(&str, &TableMaker); 9] = [
+        ("cq_magictype", &magic_levels),
         (MONSTER_TABLE, &|t| monsters(t, &magic_types)),
         (crate::server_data::ITEM_TABLE, &items),
         ("cq_levexp", &levels),
@@ -661,6 +662,43 @@ fn disdain(t: &Table) -> Table {
         })
         .collect();
     rows.sort_by_key(|r| r[0].as_int());
+    out.rows = rows;
+    out
+}
+
+/// The magic levels table: what each level of each magic type needs to reach the next.
+pub const MAGIC_LEVELS_TABLE: &str = "magic_levels";
+
+/// Each magic level (`cq_magictype`), keyed type × 100 + level: the experience it needs to
+/// go up (0 or −1: it doesn't) and the player level needed.
+fn magic_levels(t: &Table) -> Table {
+    let column = |name: &str, doc: &str| Column {
+        doc: doc.into(),
+        ..Column::new(name, ColumnKind::Int)
+    };
+    let mut out = Table::new(
+        MAGIC_LEVELS_TABLE,
+        vec![
+            column("key", "Magic type × 100 + level"),
+            column(
+                "need_exp",
+                "Experience to go up a level (0 or −1: it doesn't)",
+            ),
+            column("need_level", "The player level needed to go up"),
+        ],
+    );
+    out.doc = "Magic levels: what each needs to go up (TQ's cq_magictype)".into();
+    let mut rows: Vec<Vec<Value>> = rows(t)
+        .map(|r| {
+            vec![
+                int(r.int("type") * 100 + r.int("level")),
+                int(r.int("need_exp")),
+                int(r.int("need_level")),
+            ]
+        })
+        .collect();
+    rows.sort_by_key(|r| r[0].as_int());
+    rows.dedup_by_key(|r| r[0].as_int());
     out.rows = rows;
     out
 }

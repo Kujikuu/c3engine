@@ -323,7 +323,7 @@ INSERT INTO `cq_map` VALUES ('1005', 'Arena', 'x', '1005', '0009', '0', '0000', 
         assert!(population.npcs.len() > 50, "{}", population.npcs.len());
         assert!(!population.spawns.is_empty() && !population.links.is_empty());
         // TQ's tables and the engine's rule tables made of them.
-        assert_eq!(import.tables.len(), DATA_TABLES.len() + 10);
+        assert_eq!(import.tables.len(), DATA_TABLES.len() + 11);
         let traps: usize = import.populations.values().map(|p| p.traps.len()).sum();
         assert!(traps > 100, "{traps} traps placed");
         assert!(

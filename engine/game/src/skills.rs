@@ -162,23 +162,29 @@ impl Sim {
             cell: goal,
             targets: targets.clone(),
         });
-        match t.kind {
-            SkillKind::Damage => {
-                for target in targets.iter().copied() {
-                    self.skill_hits(id, t, target);
-                }
-            }
-            SkillKind::Heal => {
-                for target in targets.iter().copied() {
-                    self.heal(id, t, target);
-                }
-            }
-            SkillKind::Status => {}
-        }
+        let caster = self.player_fighter(id);
+        // What the cast did: the life it took or gave back (a status: 1).
+        let amount: u32 = match t.kind {
+            SkillKind::Damage => (targets.iter())
+                .map(|&target| self.skill_hits(id, t, target))
+                .sum(),
+            SkillKind::Heal => (targets.iter())
+                .map(|&target| self.heal(id, t, target))
+                .sum(),
+            SkillKind::Status => 1,
+        };
         if t.status != 0 {
-            for target in targets {
+            for &target in &targets {
                 self.add_status(target, t.status, Some(id));
             }
+        }
+        if amount > 0 && self.players.contains_key(&id) {
+            let args = vec![
+                i64::from(t.id).into(),
+                i64::from(amount).into(),
+                caster.record().into(),
+            ];
+            self.script_event(id, "on_cast", args);
         }
     }
 
@@ -218,15 +224,17 @@ impl Sim {
         }
     }
 
-    fn skill_hits(&mut self, id: EntityId, t: &SkillType, target: EntityId) {
+    /// A damage skill's hit on `target`; the life it took.
+    fn skill_hits(&mut self, id: EntityId, t: &SkillType, target: EntityId) -> u32 {
         let attacker = self.player_fighter(id);
         if self.players.contains_key(&target) {
             let defender = self.player_fighter(target);
             let damage = self.rules.skill_hit(&attacker, &defender, t, &mut self.rng);
-            return self.hurt_player(id, target, damage);
+            self.hurt_player(id, target, damage);
+            return damage;
         }
         let Some(m) = self.monsters.get_mut(&target) else {
-            return;
+            return 0;
         };
         let defender = m.fighter(&*self.rules);
         let damage = self
@@ -247,13 +255,15 @@ impl Sim {
             self.kill_monster(target, Some(id));
         }
         self.gain_exp(id, exp);
+        damage
     }
 
-    fn heal(&mut self, id: EntityId, t: &SkillType, target: EntityId) {
+    /// A healing skill on `target`; the life it gave back.
+    fn heal(&mut self, id: EntityId, t: &SkillType, target: EntityId) -> u32 {
         let healer = self.player_fighter(id);
         let amount = self.rules.skill_heal(&healer, t);
         let Some(p) = self.players.get_mut(&target) else {
-            return;
+            return 0;
         };
         let healed = amount.min(p.stats.max_life - p.life.min(p.stats.max_life));
         p.life += healed;
@@ -261,5 +271,6 @@ impl Sim {
             target,
             amount: healed,
         });
+        healed
     }
 }

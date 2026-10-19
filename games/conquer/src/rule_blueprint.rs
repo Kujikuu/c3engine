@@ -130,6 +130,7 @@ pub fn rules_blueprint() -> Blueprint {
     revive(&mut bp.events, next_lane(200.0));
     xp_bar(&mut bp.events, next_lane(500.0));
     weapon_skills(&mut bp.events, next_lane(1800.0));
+    magic_skills(&mut bp.events, next_lane(900.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
@@ -224,6 +225,21 @@ impl Names<'_> {
         w.write(
             text,
             &mut |w, n, args| match (n.strip_prefix("disdain_"), args) {
+                // `magic_<column>(key)`: that column of the magic levels table.
+                (None, [key]) if n.starts_with("magic_") => {
+                    let lookup = w.node(
+                        "table.lookup",
+                        &[
+                            ("table", self::text(crate::rules::MAGIC_LEVELS_TABLE)),
+                            ("column", self::text(n.trim_start_matches("magic_"))),
+                        ],
+                    );
+                    w.feed(key, lookup, "key");
+                    Some(Operand::Pin {
+                        node: lookup,
+                        pin: "value".into(),
+                    })
+                }
                 (Some(column), [delta]) => {
                     let clamped = w
                         .write("max(min(d, 400), -400)", &mut |_, n, _| {
@@ -594,6 +610,69 @@ fn weapon_skill(g: &mut Graph, top: f32, event: u32, from: (u32, &'static str), 
     wire(g, (held, "true"), (new_skill, "exec"));
     chain(g, (new_skill, "true"), &[learn_level, learn_exp]);
     wire(g, (new_skill, "false"), (grows, "exec"));
+    wire(g, (grows, "true"), (up, "exec"));
+    chain(g, (up, "true"), &[level_up, reset, said]);
+    wire(g, (up, "false"), (keep, "exec"));
+}
+
+/// Skills learn from casts (battle M.7): what a cast did goes into the skill's experience
+/// (attribute `magic_exp_<type>`, its level `magic_<type>`); past the level's need, at the
+/// player level it needs, the skill goes up a level and the leftover is lost.
+fn magic_skills(g: &mut Graph, top: f32) {
+    let event = node(g, "event.cast", [0.0, top], &[]);
+    let mut names = Names {
+        pins: vec![("skill", event), ("amount", event), ("player", event)],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let player = Operand::Pin {
+        node: event,
+        pin: "player".into(),
+    };
+    let skill = names.resolve(&mut w, "skill").expect("a pin");
+    // The skill's level and experience, and those attributes' names.
+    let pin = |node| Operand::Pin {
+        node,
+        pin: "value".into(),
+    };
+    let get = |w: &mut ExprWriter, prefix: &str| {
+        let n = w.node("record.get_named", &[("prefix", text(prefix))]);
+        w.feed(&player, n, "record");
+        w.feed(&skill, n, "key");
+        pin(n)
+    };
+    let name = |w: &mut ExprWriter, prefix: &str| {
+        let n = w.node("text.number", &[("text", text(prefix))]);
+        w.feed(&skill, n, "number");
+        pin(n)
+    };
+    let lvl = get(&mut w, "magic_");
+    let xp = get(&mut w, "magic_exp_");
+    let level_name = name(&mut w, "magic_");
+    let exp_name = name(&mut w, "magic_exp_");
+    names.lets.push(("lvl".into(), lvl));
+    names.lets.push(("xp".into(), xp));
+    names.define(&mut w, "need", "magic_need_exp(skill * 100 + lvl)");
+    names.define(&mut w, "need_level", "magic_need_level(skill * 100 + lvl)");
+    names.define(&mut w, "new", "min(xp + amount, 2147483647)");
+    let set = |w: &mut ExprWriter, names: &Names, name: &Operand, value: &str| {
+        let v = names.write(w, value);
+        let n = w.node("player.set_attr", &[]);
+        w.feed(name, n, "name");
+        w.feed(&v, n, "value");
+        n
+    };
+    let grows = branch_on(&mut w, &names, "need > 0 && player.level >= need_level");
+    let up = branch_on(&mut w, &names, "new >= need");
+    let level_up = set(&mut w, &names, &level_name, "lvl + 1");
+    let reset = set(&mut w, &names, &exp_name, "0");
+    let said = w.node(
+        "player.message",
+        &[("text", text("Your skill went up a level."))],
+    );
+    let keep = set(&mut w, &names, &exp_name, "new");
+    wire(g, (event, "then"), (grows, "exec"));
     wire(g, (grows, "true"), (up, "exec"));
     chain(g, (up, "true"), &[level_up, reset, said]);
     wire(g, (up, "false"), (keep, "exec"));

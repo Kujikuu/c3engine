@@ -216,6 +216,14 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    // A player's cast that did something: the skill, the life it took or gave back (a
+    // status: 1), the player as a fighter.
+    event(
+        "event.cast",
+        "On casting a skill",
+        "on_cast",
+        &[("skill", Number), ("amount", Number), ("player", Record)],
+    ),
     action(
         "npc.open_storage",
         "Open the storage",

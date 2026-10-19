@@ -657,7 +657,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Trade (MsgTrade 1056), warehouse (MsgPackage 1102, saved money), gems (1027),
         compose (2036) and enchant
   - [x] Weapon skills as MsgWeaponSkill 1025 (on entering, and as hits raise them)
-  - [ ] Skill levels and experience (the engine keeps skills without them)
+  - [x] Skill levels and experience: casts raise `magic_exp_<type>` by what they did, the
+        `magic_levels` table (cq_magictype) says when a level goes up (play-tested through
+        the MCP: Thunder 1950 + a hit → level 1), MsgMagicInfo carries both
+  - [ ] A skill's power, range and cost by its level (casts use level 0's)
   - [x] Items and money dropped on the ground (MsgItem 3 and 12; a dropped item keeps its
         plus and gems) and picked up (MsgMapItem 1101)
   - [x] Teams: MsgTeam 1023 (create, invite, accept, leave, dismiss, kick) and the member

@@ -148,9 +148,13 @@ fn weapon_skills(p: &Player) -> BTreeMap<u32, (u16, u32)> {
         .collect()
 }
 
-/// A learned skill as MsgMagicInfo (skills keep no level or experience yet).
-fn magic_info(skill: u32) -> Vec<u8> {
-    pk::magic_info(u16::try_from(skill).unwrap_or(0), 0, 0)
+/// Learned skill `skill` of player `p` as MsgMagicInfo: its level and experience, which the
+/// rules keep as attributes `magic_<type>` and `magic_exp_<type>`.
+fn magic_info(p: &Player, skill: u32) -> Vec<u8> {
+    let attr = |name: String| p.attributes.get(&name).copied().unwrap_or(0);
+    let level = u16::try_from(attr(format!("magic_{skill}")).clamp(0, 0xFFFF)).unwrap_or(0);
+    let exp = u32::try_from(attr(format!("magic_exp_{skill}")).max(0)).unwrap_or(0);
+    pk::magic_info(u16::try_from(skill).unwrap_or(0), level, exp)
 }
 
 /// Stored item `i` as a warehouse list's entry.
@@ -389,7 +393,7 @@ impl ConquerClient {
         out.extend(
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
-        out.extend(p.skills.iter().map(|s| magic_info(*s)));
+        out.extend(p.skills.iter().map(|s| magic_info(p, *s)));
         out.extend(
             weapon_skills(p)
                 .into_iter()
@@ -421,7 +425,7 @@ impl ConquerClient {
         out.extend(
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
-        out.extend(p.skills.iter().map(|s| magic_info(*s)));
+        out.extend(p.skills.iter().map(|s| magic_info(&p, *s)));
         out.extend(
             weapon_skills(&p)
                 .into_iter()
@@ -504,8 +508,10 @@ impl ConquerClient {
     fn hero_changes(&self, old: &Player, new: &Player, sim: &Sim) -> Vec<Vec<u8>> {
         let rules = sim.rules();
         let id = self.hero_id();
-        let learned = (new.skills.iter()).filter(|s| !old.skills.contains(s));
-        let mut out: Vec<Vec<u8>> = learned.map(|s| magic_info(*s)).collect();
+        // Skills learned, or whose level or experience changed.
+        let changed = (new.skills.iter())
+            .filter(|s| !old.skills.contains(s) || magic_info(old, **s) != magic_info(new, **s));
+        let mut out: Vec<Vec<u8>> = changed.map(|s| magic_info(new, *s)).collect();
         let before = weapon_skills(old);
         out.extend(
             (weapon_skills(new).into_iter())
