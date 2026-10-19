@@ -673,7 +673,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Trading in CDlgTrade (137) while a trade is open: the partner's name, money, items
         and word, the hero's offer (a bag click offers an item), money, agree, close; asks
         to trade told in chat (layout screenshot; trade state unit-tested)
-  - [ ] Trade: accepting an ask from the UI (today: ask back by clicking the player),
+  - [ ] Trade: asking and accepting from the UI (no way to start a trade from it yet),
         checked live with two clients
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
