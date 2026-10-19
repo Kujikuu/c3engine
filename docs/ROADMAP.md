@@ -716,8 +716,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] The sound of dressing ([ui] sound_equip on `Dressed`; Conquer's equip.wav)
   - [x] The minimap: the radar shows each map's picture from the client's MiniMap.ani, as
         its CRadar does
-  - [ ] The minimap's own marks (MiniMap.ani's hero, common.ani's PlayerFlag, TeamLeader,
-        Tutor) in place of the radar's dots; Unequip.wav apart from equipping; Dlg_Ok (Dlg_Ok.wav isn't in
+  - [x] The minimap's marks: the game's pictures for the hero, players and team leaders
+        (`GameModule::radar_mark`; MiniMap.ani's hero, common.ani's PlayerFlag and
+        TeamLeader) in place of dots (screenshot)
+  - [ ] The minimap's tutor and student marks; Unequip.wav apart from equipping; Dlg_Ok (Dlg_Ok.wav isn't in
         its sound folder); sounds on the login screens
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:

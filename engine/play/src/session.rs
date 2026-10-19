@@ -128,13 +128,25 @@ pub struct Session {
 struct Minimap {
     image: Option<c3_assets::Image>,
     texture: Option<egui::TextureHandle>,
+    /// The game's mark pictures, then their textures.
+    mark_images: Vec<(&'static str, c3_assets::Image)>,
+    marks: c3_ui::RadarMarks,
+    /// Kept so the marks' textures stay alive.
+    mark_textures: Vec<egui::TextureHandle>,
 }
 
 impl Minimap {
     fn of(game: &dyn GameModule, key: &str, map_ids: &[u32]) -> Self {
+        let mark_images = ["hero", "player", "leader"]
+            .into_iter()
+            .filter_map(|kind| Some((kind, game.radar_mark(kind)?)))
+            .collect();
         Self {
             image: game.minimap(key, map_ids),
             texture: None,
+            mark_images,
+            marks: c3_ui::RadarMarks::default(),
+            mark_textures: Vec::new(),
         }
     }
 
@@ -144,6 +156,18 @@ impl Minimap {
             let size = [image.width as usize, image.height as usize];
             let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
             self.texture = Some(ctx.load_texture("minimap", pixels, Default::default()));
+        }
+        for (kind, image) in std::mem::take(&mut self.mark_images) {
+            let size = [image.width as usize, image.height as usize];
+            let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
+            let texture = ctx.load_texture(kind, pixels, Default::default());
+            let mark = Some((texture.id(), egui::vec2(size[0] as f32, size[1] as f32)));
+            match kind {
+                "hero" => self.marks.hero = mark,
+                "player" => self.marks.player = mark,
+                _ => self.marks.leader = mark,
+            }
+            self.mark_textures.push(texture);
         }
         self.texture.as_ref().map(egui::TextureHandle::id)
     }
@@ -893,6 +917,7 @@ impl Session {
                 texture,
                 bounds: c3_render::minimap::scene_bounds(&self.world.scene),
                 projection: self.world.scene.projection,
+                marks: self.minimap.marks,
             });
         let view = GameView {
             sim: &self.sim,

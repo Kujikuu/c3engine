@@ -194,6 +194,16 @@ pub struct RadarMap {
     pub texture: egui::TextureId,
     pub bounds: [f32; 4],
     pub projection: c3_scene::IsoProjection,
+    /// The game's pictures for the hero, players and team leaders (texture and size).
+    pub marks: RadarMarks,
+}
+
+/// The game's pictures for the radar's marks; none: a dot.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RadarMarks {
+    pub hero: Option<(egui::TextureId, egui::Vec2)>,
+    pub player: Option<(egui::TextureId, egui::Vec2)>,
+    pub leader: Option<(egui::TextureId, egui::Vec2)>,
 }
 
 impl GameView<'_> {

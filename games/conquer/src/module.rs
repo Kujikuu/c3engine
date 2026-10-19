@@ -348,6 +348,10 @@ impl GameModule for ConquerModule {
         self.content.minimap(map_ids)
     }
 
+    fn radar_mark(&self, kind: &str) -> Option<Image> {
+        self.content.radar_mark(kind)
+    }
+
     fn click_effect(&self) -> Option<String> {
         Some(CLICK_EFFECT.to_owned())
     }

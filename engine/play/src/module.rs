@@ -186,6 +186,12 @@ pub trait GameModule {
         let _ = (key, map_ids);
         None
     }
+    /// The picture the radar marks `kind` with (`hero`, `player`, `leader`) in place of its
+    /// dot; none: the dot.
+    fn radar_mark(&self, kind: &str) -> Option<Image> {
+        let _ = kind;
+        None
+    }
     /// The effect every portal shows, looping (TQ's client draws `Exit` on each).
     fn portal_effect(&self) -> Option<String> {
         None

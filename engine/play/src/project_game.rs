@@ -191,6 +191,10 @@ impl GameModule for ProjectGame {
         self.game.portal_effect()
     }
 
+    fn radar_mark(&self, kind: &str) -> Option<Image> {
+        self.game.radar_mark(kind)
+    }
+
     fn skill_media(&self, skill: &SkillType) -> (Option<String>, Option<String>) {
         self.game.skill_media(skill)
     }

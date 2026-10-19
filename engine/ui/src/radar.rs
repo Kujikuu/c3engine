@@ -48,10 +48,33 @@ pub(crate) fn show(ui: &egui::Ui, view: &GameView) {
     for m in view.sim.monsters().filter(|m| m.is_alive()) {
         dot(m.cell, MONSTER, 2.0);
     }
+    let marks = view.minimap.as_ref().map(|m| m.marks).unwrap_or_default();
+    let mark = |at: Pos2, (texture, size): (egui::TextureId, egui::Vec2)| {
+        let uv = egui::Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+        painter.image(
+            texture,
+            egui::Rect::from_center_size(at, size),
+            uv,
+            Color32::WHITE,
+        );
+    };
     for p in view.sim.players().filter(|p| p.id != view.hero) {
-        dot(p.cell, PLAYER, 2.5);
+        let picture = if p.team == Some(p.id) {
+            marks.leader.or(marks.player)
+        } else {
+            marks.player
+        };
+        match (picture, place(center, hero.cell, p.cell)) {
+            (Some(picture), Some(at)) => mark(at, picture),
+            _ => dot(p.cell, PLAYER, 2.5),
+        }
     }
-    painter.circle_filled(center, 3.0, Color32::WHITE);
+    match marks.hero {
+        Some(picture) => mark(center, picture),
+        None => {
+            painter.circle_filled(center, 3.0, Color32::WHITE);
+        }
+    }
     painter.circle_stroke(center, RADIUS, Stroke::new(1.0, style::EDGE));
     painter.text(
         center + egui::vec2(0.0, RADIUS - 4.0),

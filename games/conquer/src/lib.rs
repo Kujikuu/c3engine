@@ -359,6 +359,13 @@ impl Content {
     }
 
     /// The minimap of the first of `map_ids` the client has (see `ConquerModule::minimap`).
+    /// The radar's picture for mark `kind` (see [`RADAR_MARKS`]).
+    pub fn radar_mark(&self, kind: &str) -> Option<Image> {
+        let (_, file, section) = RADAR_MARKS.iter().find(|(k, _, _)| *k == kind)?;
+        let ani = Ani::parse(&self.fs.read(file)?).ok()?;
+        self.load_image(&ani.get(section)?.frame_str(0)?)
+    }
+
     pub fn minimap(&self, map_ids: &[u32]) -> Option<Image> {
         let ani = Ani::parse(&self.fs.read(MINIMAP_ANI)?).ok()?;
         let section = map_ids.iter().find_map(|id| ani.get(&id.to_string()))?;
@@ -396,6 +403,13 @@ impl c3_render::SceneAssets for Content {
 
 /// The client's minimaps, by map id.
 const MINIMAP_ANI: &str = "ani/MiniMap.Ani";
+/// The radar's marks, as CRadar draws them: the hero (MiniMap.ani), players and team
+/// leaders (common.ani).
+const RADAR_MARKS: [(&str, &str, &str); 3] = [
+    ("hero", MINIMAP_ANI, "hero"),
+    ("player", "ani/common.ani", "PlayerFlag"),
+    ("leader", "ani/common.ani", "TeamLeader"),
+];
 
 /// Four images as the quarters of one (top-left, top-right, bottom-left, bottom-right).
 fn quarters(parts: &[Image]) -> Image {
