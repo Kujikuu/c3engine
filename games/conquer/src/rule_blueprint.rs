@@ -4,7 +4,7 @@
 //! who may wear what; and the points a class gets as it levels. Each formula is text here and
 //! nodes in the blueprint ([`ExprWriter`]), so the project's rules are edited as graphs.
 
-use crate::rules::POINTS_TABLE;
+use crate::rules::{BLESS, POINTS_TABLE, STATUS_PRAYING};
 use c3_script::blueprint::{
     Blueprint, ExprWriter, Function, Graph, GraphNode, Literal, Operand, PinRef, Wire,
 };
@@ -153,6 +153,7 @@ pub fn rules_blueprint() -> Blueprint {
     red_name_jailed(&mut bp.events, next_lane(500.0));
     police_wanted(&mut bp.events, next_lane(900.0));
     magic_skills(&mut bp.events, next_lane(900.0));
+    lucky_time(&mut bp.events, next_lane(300.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
     upequipment(&mut bp.events, next_lane(1600.0));
@@ -549,11 +550,103 @@ fn level_up(g: &mut Graph, top: f32) {
         "player.start_timer",
         &[("name", text(XP_TIMER)), ("seconds", Literal::Number(30.0))],
     );
+    let lucky = w.node(
+        "player.start_timer",
+        &[
+            ("name", text(LUCKY_TIMER)),
+            ("seconds", Literal::Number(1.0)),
+        ],
+    );
     wire(g, (login, "then"), (seq, "exec"));
     wire(g, (seq, "then 0"), (branch, "exec"));
     wire(g, (branch, "true"), (call, "exec"));
     wire(g, (seq, "then 1"), (clock, "exec"));
+    wire(g, (clock, "then"), (lucky, "exec"));
 }
+
+/// Lucky time each second (battle §S3, the user timer's two 500 ms steps): a Bless caster
+/// gains 3 s and makes the players within 3 cells pray; one praying near a caster gains 1 s
+/// (praying ends with no caster near); anyone else's runs down 1 s.
+fn lucky_time(g: &mut Graph, top: f32) {
+    let (timer, on) = event_lane(g, "event.timer", [0.0, top]);
+    let names = Names {
+        pins: vec![("name", timer)],
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let ours = w.node("text.equal", &[("b", text(LUCKY_TIMER))]);
+    w.feed(
+        &Operand::Pin {
+            node: timer,
+            pin: "name".into(),
+        },
+        ours,
+        "a",
+    );
+    let is_ours = w.node("flow.branch", &[]);
+    w.feed(
+        &Operand::Pin {
+            node: ours,
+            pin: "value".into(),
+        },
+        is_ours,
+        "condition",
+    );
+    let caster = branch_on(&mut w, &names, "has_bless");
+    let grow = add_lucky(&mut w, 3.0);
+    let pray = w.node(
+        "status.add_near",
+        &[
+            ("status", Literal::Number(STATUS_PRAYING as f64)),
+            ("range", Literal::Number(PRAY_RANGE)),
+        ],
+    );
+    let praying = branch_on(&mut w, &names, "praying");
+    let blessed = branch_on(&mut w, &names, "blessers_near > 0");
+    let gain = add_lucky(&mut w, 1.0);
+    let stop = w.node(
+        "status.remove",
+        &[("status", Literal::Number(STATUS_PRAYING as f64))],
+    );
+    let left = branch_on(&mut w, &names, "lucky_time > 0");
+    let decay = add_lucky(&mut w, -1.0);
+    let again = w.node(
+        "player.start_timer",
+        &[
+            ("name", text(LUCKY_TIMER)),
+            ("seconds", Literal::Number(1.0)),
+        ],
+    );
+    let seq = w.node("flow.sequence", &[]);
+    wire(g, on, (is_ours, "exec"));
+    wire(g, (is_ours, "true"), (seq, "exec"));
+    wire(g, (seq, "then 0"), (caster, "exec"));
+    chain(g, (caster, "true"), &[grow, pray]);
+    wire(g, (caster, "false"), (praying, "exec"));
+    wire(g, (praying, "true"), (blessed, "exec"));
+    wire(g, (blessed, "true"), (gain, "exec"));
+    wire(g, (blessed, "false"), (stop, "exec"));
+    wire(g, (praying, "false"), (left, "exec"));
+    wire(g, (left, "true"), (decay, "exec"));
+    wire(g, (seq, "then 1"), (again, "exec"));
+}
+
+/// Adds `secs` to the player's lucky time.
+fn add_lucky(w: &mut ExprWriter, secs: f64) -> u32 {
+    w.node(
+        "player.add_attr",
+        &[
+            ("name", text("lucky_time")),
+            ("amount", Literal::Number(secs)),
+        ],
+    )
+}
+
+/// The lucky-time timer.
+const LUCKY_TIMER: &str = "lucky";
+/// Cells from a Bless caster within which players pray.
+const PRAY_RANGE: f64 = 3.0;
 
 /// The XP bar's timer.
 const XP_TIMER: &str = "xp";
@@ -906,7 +999,12 @@ fn magic_skills(g: &mut Graph, top: f32) {
     names.lets.push(("xp".into(), xp));
     names.define(&mut w, "need", "magic_need_exp(skill * 100 + lvl)");
     names.define(&mut w, "need_level", "magic_need_level(skill * 100 + lvl)");
-    names.define(&mut w, "new", "min(xp + amount, 2147483647)");
+    // Moon gems add their percent (battle exp §3).
+    names.define(
+        &mut w,
+        "new",
+        "min(xp + amount * (100 + player.socket_gem_magic_exp) / 100, 2147483647)",
+    );
     let set = |w: &mut ExprWriter, names: &Names, name: &Operand, value: &str| {
         let v = names.write(w, value);
         let n = w.node("player.set_attr", &[]);
@@ -2097,6 +2195,19 @@ fn player_value(w: &mut ExprWriter, names: &Names, name: &str) -> Option<Operand
         "pk" => w.node("player.pk", &[]),
         "map" => w.node("player.map", &[]),
         "pk_free" => w.node("world.map_pk_free", &[]),
+        "lucky_time" => w.node("player.attr", &[("name", text(name))]),
+        "has_bless" => w.node("status.has", &[("status", Literal::Number(BLESS as f64))]),
+        "praying" => w.node(
+            "status.has",
+            &[("status", Literal::Number(STATUS_PRAYING as f64))],
+        ),
+        "blessers_near" => w.node(
+            "status.near",
+            &[
+                ("status", Literal::Number(BLESS as f64)),
+                ("range", Literal::Number(PRAY_RANGE)),
+            ],
+        ),
         "killed_by_monster" => w.node("player.killed_by_monster", &[]),
         // The `attack_user` bits of the monster that killed the player.
         "guard" => {

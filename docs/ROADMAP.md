@@ -666,9 +666,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         dodged blows (`lucky_time` attribute)
   - [x] Wearing in a chosen slot (`Input::Wear`, items' `alt_slot`, `worn_at` kept in
         saves): one-handed weapons in the left hand, from the client's use-in-slot
-  - [ ] Training goals' cut, what gives lucky time and its countdown
+  - [x] Lucky time: Bless (cast-pray) grows it 3 s a second and makes players within 3 cells pray (1 s a second while a caster is near), else it runs down (play-tested: 15 s after 5 s of Bless)
+  - [ ] Training goals' cut (10%, half for archers), the kill bonus ×10 in lucky time and doubled with a newbie near
   - [x] Team experience sharing by TQ's rule (rules `team_exp`: within 32 cells of the kill, newbie, spouse, healer and Rainbow factors)
-  - [ ] Moon gems' magic experience
+  - [x] Moon gems' magic experience (their percent on a cast's skill experience)
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
   - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones

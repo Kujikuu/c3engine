@@ -82,6 +82,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "players_near_with(status, range) / add_status_near(status, range)",
+        "Other living players within `range` cells bearing `status`, counted; `status` put on those who lack it",
+    ),
+    (
         "npc_count(field, value)",
         "The NPCs on the player's map: all, or those of `name` or `kind` `value`",
     ),

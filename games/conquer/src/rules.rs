@@ -58,6 +58,12 @@ const STATUS_ACCURACY: i64 = 0x20;
 const STATUS_SHIELD: i64 = 0x40;
 const STATUS_SUPERMAN: i64 = 0x2000;
 const STATUS_CYCLONE: i64 = 0x40000;
+/// Bless: lucky time grows, idle players near pray.
+const STATUS_CAST_PRAY: i64 = 0x200_0000;
+/// The status of a player praying near a Bless caster (TQ's 0x4000000).
+pub const STATUS_PRAYING: i64 = TQ_STATUS + 0x400_0000;
+/// Bless's magic type (its status's id).
+pub const BLESS: i64 = 9876;
 /// A `cq_magictype.power` above this is a physical skill: that much over, in percent of a hit.
 const PERCENT_POWER: i64 = 30000;
 /// Chances (percent) a dead monster drops its life and mana potions.
@@ -222,6 +228,11 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
     let extra = [
         ("superman", ColumnKind::Int, "1: TQ's Superman (XP)"),
         ("cyclone", ColumnKind::Int, "1: TQ's Cyclone (XP)"),
+        (
+            "cast_pray",
+            ColumnKind::Int,
+            "1: TQ's Bless (lucky time, others pray)",
+        ),
         ("attack_add", ColumnKind::Int, "Attack added"),
         ("defence_add", ColumnKind::Int, "Defence added"),
         (
@@ -304,6 +315,7 @@ fn status(out: &mut Out, id: i64, name: &str, r: &TqRow) -> Option<i64> {
         STATUS_SUPERMAN => ("attack_percent", change),
         // Cyclone's power is its speed gain itself.
         STATUS_CYCLONE => ("speed_percent", change + 100),
+        STATUS_CAST_PRAY => ("cast_pray", 1),
         _ => return None,
     };
     let flag = r.int("status");

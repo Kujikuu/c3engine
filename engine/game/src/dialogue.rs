@@ -372,6 +372,11 @@ impl Sim {
                 kind,
                 script,
             } => self.create_npc(map, cell, name, look, kind, script),
+            Effect::AddStatusNear { status, range } => {
+                if let Ok(status) = u32::try_from(status) {
+                    self.add_status_near(id, status, range);
+                }
+            }
             Effect::AddStatusFor { status, secs } => {
                 if let Ok(status) = u32::try_from(status) {
                     let ms = (secs > 0).then(|| secs as u64 * 1000);
@@ -684,6 +689,16 @@ impl Sim {
                 .filter(|m| *m != id)
                 .map(|m| i64::from(self.players[&m].level))
                 .collect(),
+            nearby: {
+                let at = self.players[&id].cell;
+                (self.players.values())
+                    .filter(|p| p.id != id && p.is_alive())
+                    .map(|p| {
+                        let statuses = p.statuses.iter().map(|s| i64::from(s.id)).collect();
+                        (i64::from(distance(p.cell, at)), statuses)
+                    })
+                    .collect()
+            },
             npc_looks: (self.npcs.iter())
                 .map(|n| (i64::from(n.id), i64::from(n.look)))
                 .collect(),
@@ -917,6 +932,21 @@ impl Sim {
     }
 
     /// Player `id`'s living teammates on this map (not itself).
+    /// Status `status` on the living players within `range` cells of `id` who lack it.
+    fn add_status_near(&mut self, id: EntityId, status: u32, range: i64) {
+        let Some(at) = self.players.get(&id).map(|p| p.cell) else {
+            return;
+        };
+        let near: Vec<EntityId> = (self.players.values())
+            .filter(|p| p.id != id && p.is_alive() && i64::from(distance(p.cell, at)) <= range)
+            .filter(|p| !p.statuses.iter().any(|s| s.id == status))
+            .map(|p| p.id)
+            .collect();
+        for m in near {
+            self.add_status(m, status, Some(id));
+        }
+    }
+
     pub(crate) fn teammates_here(&self, id: EntityId) -> Vec<EntityId> {
         (self.team_members(id).into_iter())
             .filter(|m| *m != id && self.players.get(m).is_some_and(|p| p.is_alive()))

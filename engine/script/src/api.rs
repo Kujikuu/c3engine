@@ -454,6 +454,20 @@ fn more(engine: &mut Engine, shared: &Shared) {
         with(&s, |c| c.player.statuses.contains(&id))
     });
     let s = shared.clone();
+    engine.register_fn("players_near_with", move |status: i64, range: i64| {
+        with(&s, |c| {
+            (c.player.nearby.iter())
+                .filter(|(d, statuses)| *d <= range && statuses.contains(&status))
+                .count() as i64
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("add_status_near", move |status: i64, range: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::AddStatusNear { status, range })
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("life", move || with(&s, |c| c.player.life));
     let s = shared.clone();
     engine.register_fn("max_life", move || with(&s, |c| c.player.max_life));

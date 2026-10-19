@@ -67,6 +67,8 @@ pub struct PlayerState {
     /// Their names and levels (the player's own left out).
     pub team_names: Vec<String>,
     pub team_levels: Vec<i64>,
+    /// The other living players on the player's map: how far each is and its statuses.
+    pub nearby: Vec<(i64, Vec<i64>)>,
     pub team_items: BTreeMap<i64, i64>,
     /// The money the player keeps in storage.
     pub saved_money: i64,
@@ -443,6 +445,11 @@ pub enum Effect {
         look: i64,
         kind: i64,
         script: String,
+    },
+    /// Status `status` on the other living players within `range` cells who lack it.
+    AddStatusNear {
+        status: i64,
+        range: i64,
     },
     /// Status `status` on the player for `secs` (its type's own time: 0); taken off.
     AddStatusFor {
