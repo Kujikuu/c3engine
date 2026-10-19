@@ -1043,6 +1043,11 @@ impl<'a> Builder<'a> {
                 };
                 Self::branch(g, has, column)
             }
+            // A GM log line given as an attribute: TQ knows no such attribute and fails.
+            1001 if tokens.first().is_some_and(|t| t.starts_with("gmlog/")) => {
+                let never = g.node("logic.equal", &[("a", num(0)), ("b", num(1))], column);
+                Self::branch(g, never, column)
+            }
             1001 => self.user_attr(g, a, &tokens, column),
             1002 if a.param.eq_ignore_ascii_case("life") => {
                 let max = g.node("player.max_life", &[], column);
@@ -1075,6 +1080,61 @@ impl<'a> Builder<'a> {
                     "learned",
                     column,
                 ),
+                // A level exactly (the rules keep it as attribute `magic_<type>`).
+                (Some(op), Some(skill)) if op.eq_ignore_ascii_case("check") => {
+                    let Some(level) = int(2) else {
+                        return self.not_converted(g, a, column);
+                    };
+                    let knows = g.node("skill.knows", &[("skill", num(skill))], column);
+                    let name = format!("{}{skill}", crate::rules::MAGIC_LEVEL_PREFIX);
+                    let at = self.attr_compare(g, &name, "==", level, column);
+                    let both = g.node("logic.and", &[], column);
+                    g.data(knows, both, "a");
+                    g.data(at, both, "b");
+                    Self::branch(g, both, column)
+                }
+                (Some(op), Some(skill)) if op.eq_ignore_ascii_case("uplevel") => {
+                    let up = [
+                        (
+                            "name",
+                            txt(&format!("{}{skill}", crate::rules::MAGIC_LEVEL_PREFIX)),
+                        ),
+                        ("amount", num(1)),
+                    ];
+                    let up = g.node("player.add_attr", &up, column);
+                    let reset = [
+                        (
+                            "name",
+                            txt(&format!("{}exp_{skill}", crate::rules::MAGIC_LEVEL_PREFIX)),
+                        ),
+                        ("value", num(0)),
+                    ];
+                    let reset = g.node("player.set_attr", &reset, column);
+                    g.exec((up, "then"), reset);
+                    Emitted {
+                        entry: Some(up),
+                        ok: Some((reset, "then")),
+                        fail: None,
+                    }
+                }
+                (Some(op), Some(skill)) if op.eq_ignore_ascii_case("addexp") => {
+                    let Some(exp) = int(2) else {
+                        return self.not_converted(g, a, column);
+                    };
+                    let values = [
+                        (
+                            "name",
+                            txt(&format!("{}exp_{skill}", crate::rules::MAGIC_LEVEL_PREFIX)),
+                        ),
+                        ("amount", num(exp)),
+                    ];
+                    let add = g.node("player.add_attr", &values, column);
+                    Emitted {
+                        entry: Some(add),
+                        ok: Some((add, "then")),
+                        fail: None,
+                    }
+                }
                 _ => self.not_converted(g, a, column),
             },
             1027 if tokens.len() >= 2 && tokens.get(2).is_none() => {
@@ -1393,21 +1453,40 @@ impl<'a> Builder<'a> {
                 Self::plain(g, "player.room_cue", &values, column)
             }
             // A monster of a type on a cell (this map's).
-            2006 => match (int(3), int(4), int(6)) {
-                (Some(x), Some(y), Some(kind)) => {
-                    let values = [("monster", num(kind)), ("x", num(x)), ("y", num(y))];
-                    Self::plain(g, "world.spawn", &values, column)
+            2006 => {
+                let cell = (tokens.get(3), tokens.get(4));
+                let (Some(x), Some(y), Some(kind)) = (
+                    cell.0.and_then(|t| self.number(g, t, column)),
+                    cell.1.and_then(|t| self.number(g, t, column)),
+                    int(6),
+                ) else {
+                    return self.not_converted(g, a, column);
+                };
+                let spawn = g.node("world.spawn", &[("monster", num(kind))], column);
+                self.feed(g, &x, spawn, "x");
+                self.feed(g, &y, spawn, "y");
+                Emitted {
+                    entry: Some(spawn),
+                    ok: Some((spawn, "then")),
+                    fail: None,
                 }
-                _ => self.not_converted(g, a, column),
-            },
+            }
             // How many are in the player's team (TQ: the leader, a team of two or more).
             1102 => match (
                 tokens.first().map(|t| t.to_ascii_lowercase()),
                 tokens.get(1),
                 int(2),
             ) {
-                (Some(attr), Some(&op), Some(n)) if attr == "count" && matches!(op, "<" | "==") => {
-                    let size = g.node("team.size", &[], column);
+                (Some(attr), Some(&op), Some(n))
+                    if (attr == "count" || attr == "count_near") && matches!(op, "<" | "==") =>
+                {
+                    // `count_near`: the teammates here.
+                    let def = if attr == "count" {
+                        "team.size"
+                    } else {
+                        "team.here"
+                    };
+                    let size = g.node(def, &[], column);
                     let cmp = self.compare_node(g, size, op, n, column);
                     let leads = g.node("team.leads", &[], column);
                     let both = g.node("logic.and", &[], column);
