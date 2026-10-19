@@ -225,16 +225,6 @@ impl Names<'_> {
         w.write(
             text,
             &mut |w, n, args| match (n.strip_prefix("disdain_"), args) {
-                // `magic_level(who, skill)`: who's level of that skill.
-                (None, [who, skill]) if n == "magic_level" => {
-                    let level = w.node("record.get_named", &[("prefix", self::text("magic_"))]);
-                    w.feed(who, level, "record");
-                    w.feed(skill, level, "key");
-                    Some(Operand::Pin {
-                        node: level,
-                        pin: "value".into(),
-                    })
-                }
                 // `magic_<column>(key)`: that column of the magic levels table.
                 (None, [key]) if n.starts_with("magic_") => {
                     let lookup = w.node(
@@ -351,21 +341,13 @@ fn player_stats(g: &mut Graph, top: f32) {
     );
 }
 
-/// Magic damage (battle M.6) in steps: the power of the caster's level of the skill (a
-/// monster's: the skill's own) and the caster's gear, less against players, the level
-/// difference against monsters, the target's magic defence, Phoenix gems.
-const MAGIC_STEPS: [(&str, &str); 8] = [
-    (
-        "s_level",
-        "if(attacker.monster == 0, magic_level(attacker, skill.id), 0)",
-    ),
-    (
-        "s_power",
-        "if(attacker.monster == 0 && magic_power(skill.id * 100 + s_level) > 0, magic_power(skill.id * 100 + s_level), skill.power)",
-    ),
+/// Magic damage (battle M.6) in steps: the skill's power (at the caster's level of it) and
+/// the caster's gear, less against players, the level difference against monsters, the
+/// target's magic defence, Phoenix gems.
+const MAGIC_STEPS: [(&str, &str); 6] = [
     (
         "m_power",
-        "s_power + if(attacker.monster == 0, attacker.gear_magic_atk, 0)",
+        "skill.power + if(attacker.monster == 0, attacker.gear_magic_atk, 0)",
     ),
     (
         "m_level",
@@ -390,7 +372,7 @@ const MAGIC_STEPS: [(&str, &str); 8] = [
 ];
 /// A skill's damage: physical skills (power 30000 + percent) a weapon hit's share, others
 /// magic; both then rebirth defence (players) or `defence2` (monsters), and blessing.
-const SKILL_HIT: &str = "if(s_power >= 30000, reborn * (s_power - 30000) / 100, if(target.monster != 0, if(target.defence2 > 0, m_tortoise * target.defence2 / 10000, m_tortoise), m_tortoise * if(target.rebirths >= 2, if(attacker.monster != 0 || attacker.rebirths >= 2, 7000, 5000), if(target.rebirths >= 1 && target.profession % 10 >= 3, 7000, 10000)) / 10000))";
+const SKILL_HIT: &str = "if(skill.power >= 30000, reborn * (skill.power - 30000) / 100, if(target.monster != 0, if(target.defence2 > 0, m_tortoise * target.defence2 / 10000, m_tortoise), m_tortoise * if(target.rebirths >= 2, if(attacker.monster != 0 || attacker.rebirths >= 2, 7000, 5000), if(target.rebirths >= 1 && target.profession % 10 >= 3, 7000, 10000)) / 10000))";
 
 fn skill_hit(g: &mut Graph, top: f32) {
     formula(
@@ -1988,10 +1970,10 @@ mod tests {
         disdain.rows.push(row);
         let file = tables.join(format!("{}.table.ron", crate::rules::DISDAIN_TABLE));
         c3_data::save_table(&disdain, &file).unwrap();
-        // No magic levels: skills hit with their own power.
+        // No magic levels: skills don't level up.
         let levels = c3_data::Table::new(
             crate::rules::MAGIC_LEVELS_TABLE,
-            ["key", "need_exp", "need_level", "power"]
+            ["key", "need_exp", "need_level"]
                 .map(|c| c3_data::Column::new(c, c3_data::ColumnKind::Int))
                 .to_vec(),
         );

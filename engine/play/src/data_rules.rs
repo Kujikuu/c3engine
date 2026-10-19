@@ -31,6 +31,9 @@ pub const MONSTERS: &str = "monsters";
 pub const ITEMS: &str = "items";
 pub const SHOPS: &str = "shops";
 pub const SKILLS: &str = "skills";
+/// Optional: skills' numbers at each rank above the first (`skill`, `rank`, `range`, `area`,
+/// `cooldown_ms`, `mana`, `power`).
+pub const SKILL_RANKS: &str = "skill_ranks";
 pub const STATUSES: &str = "statuses";
 
 /// A project's first `scripts/rules.rhai`: the engine's own formulas, ready to change.
@@ -297,6 +300,10 @@ fn skill_columns() -> Vec<Column> {
             "A player attribute a cast costs beside mana (an XP bar); empty: none",
         ),
         int("cost", "How much of that attribute a cast costs"),
+        text(
+            "rank_attribute",
+            "The player attribute holding the caster's rank of it (the skill_ranks table); empty: one rank",
+        ),
     ]
 }
 
@@ -348,6 +355,7 @@ fn skill_rows() -> Vec<Vec<Value>> {
         row.push(Value::Text(String::new()));
         row.push(Value::Int(numbers[6]));
         row.extend([Value::Text(String::new()), Value::Int(0)]);
+        row.push(Value::Text(String::new()));
         row
     };
     vec![
@@ -398,6 +406,8 @@ pub struct DataRules {
     levels: BTreeMap<u32, Level>,
     shops: HashMap<u32, Vec<u32>>,
     skills: HashMap<u32, SkillType>,
+    /// Skills at their ranks above the first, by skill and rank.
+    skill_ranks: HashMap<(u32, u32), SkillType>,
     statuses: HashMap<u32, StatusType>,
     formulas: Option<Formulas>,
     /// Formula failures: those not handed out yet, and every one seen (each is told once).
@@ -498,10 +508,18 @@ impl DataRules {
                 .inspect_err(|e| problems.push(format!("{name}: {e}")))
                 .ok()
         };
-        let tables: Vec<Table> = [LEVELS, MONSTERS, ITEMS, SKILLS, STATUSES, SHOPS]
-            .iter()
-            .filter_map(|name| read(name, &mut problems))
-            .collect();
+        let tables: Vec<Table> = [
+            LEVELS,
+            MONSTERS,
+            ITEMS,
+            SKILLS,
+            SKILL_RANKS,
+            STATUSES,
+            SHOPS,
+        ]
+        .iter()
+        .filter_map(|name| read(name, &mut problems))
+        .collect();
         rules.read_tables(&tables, &mut problems);
         let scripts = dir.parent().map(|p| p.join("scripts"));
         if let Some(scripts) = scripts {
@@ -538,6 +556,29 @@ impl DataRules {
                 }
                 _ => {}
             }
+        }
+        // Ranks build on their skills.
+        for t in tables.iter().filter(|t| t.name == SKILL_RANKS) {
+            self.read_skill_ranks(t);
+        }
+    }
+
+    /// Each rank's numbers over its skill's own.
+    fn read_skill_ranks(&mut self, t: &Table) {
+        for row in rows(t) {
+            let (id, rank) = (row.uint("skill"), row.uint("rank"));
+            let Some(base) = self.skills.get(&id) else {
+                continue;
+            };
+            let skill = SkillType {
+                range: row.uint("range"),
+                area: row.uint("area"),
+                cooldown_ms: row.uint("cooldown_ms"),
+                mana: row.uint("mana"),
+                power: row.uint("power"),
+                ..base.clone()
+            };
+            self.skill_ranks.insert((id, rank), skill);
         }
     }
 
@@ -628,6 +669,7 @@ impl DataRules {
                 status: row.uint("status"),
                 cost_attribute: row.text("cost_attribute").trim().to_owned(),
                 cost: row.int("cost"),
+                rank_attribute: row.text("rank_attribute").trim().to_owned(),
             };
             self.skills.insert(id, skill);
         }
@@ -971,6 +1013,10 @@ impl Rules for DataRules {
         self.skills.get(&id)
     }
 
+    fn skill_at(&self, id: u32, rank: u32) -> Option<&SkillType> {
+        self.skill_ranks.get(&(id, rank)).or_else(|| self.skill(id))
+    }
+
     fn status(&self, id: u32) -> Option<&StatusType> {
         self.statuses.get(&id)
     }
@@ -1039,6 +1085,37 @@ mod tests {
             std::fs::write(dir.join("scripts").join(c3_script::RULES_SCRIPT), source).unwrap();
         }
         dir
+    }
+
+    #[test]
+    fn skill_ranks_have_their_own_numbers() {
+        let mut tables = table_templates();
+        let int = |n: &str| Column::new(n, c3_data::ColumnKind::Int);
+        let mut ranks = Table::new(
+            SKILL_RANKS,
+            [
+                "id",
+                "skill",
+                "rank",
+                "range",
+                "area",
+                "cooldown_ms",
+                "mana",
+                "power",
+            ]
+            .map(int)
+            .to_vec(),
+        );
+        ranks
+            .rows
+            .push(ints(&[1, 3, 2, 9, 4, 500, 30, 50]).collect());
+        tables.push(ranks);
+        let rules = DataRules::from_tables(&tables);
+        let quake = rules.skill(3).unwrap();
+        let ranked = rules.skill_at(3, 2).unwrap();
+        assert_eq!((ranked.range, ranked.area, ranked.power), (9, 4, 50));
+        assert_eq!(ranked.name, quake.name, "the rest is the skill's own");
+        assert_eq!(rules.skill_at(3, 5), Some(quake), "a rank without numbers");
     }
 
     #[test]

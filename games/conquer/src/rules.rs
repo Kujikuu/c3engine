@@ -194,8 +194,9 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
         }
     };
     out.extend([skills, statuses]);
-    let makers: [(&str, &TableMaker); 9] = [
+    let makers: [(&str, &TableMaker); 10] = [
         ("cq_magictype", &magic_levels),
+        ("cq_magictype", &skill_ranks),
         (MONSTER_TABLE, &|t| monsters(t, &magic_types)),
         (crate::server_data::ITEM_TABLE, &items),
         ("cq_levexp", &levels),
@@ -264,32 +265,19 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
             (_, ep) if ep > 0 => ("stamina", ep),
             _ => ("", 0),
         };
-        let area = if r.int("multi") != 0 {
-            r.int("range")
-        } else {
-            0
-        };
-        // A negative power (Restore's -32768) heals fully.
-        let power = if r.int("power") < 0 {
-            i64::from(u32::MAX)
-        } else {
-            r.int("power")
-        };
-        skills.row(&[
+        let mut row = vec![
             ("id", int(id)),
             ("name", text(name)),
             ("target", text(target)),
             ("kind", text(kind)),
-            ("range", int(r.int("distance").max(1))),
-            ("area", int(area)),
-            ("cooldown_ms", int(r.int("delay_ms").max(500))),
-            ("mana", int(r.int("use_mp"))),
-            ("power", int(power)),
             ("level", int(r.int("need_level"))),
             ("status", int(status)),
             ("cost_attribute", text(cost.0)),
             ("cost", int(cost.1)),
-        ]);
+            ("rank_attribute", text(format!("{MAGIC_LEVEL_PREFIX}{id}"))),
+        ];
+        row.extend(magic_numbers(&r));
+        skills.row(&row);
     }
     (skills.table, statuses.table, magic_types)
 }
@@ -666,11 +654,56 @@ fn disdain(t: &Table) -> Table {
     out
 }
 
+/// The player attribute prefix of a magic's level (`magic_<type>`).
+pub const MAGIC_LEVEL_PREFIX: &str = "magic_";
+
+/// A magic level's numbers as the engine's skill columns: range, area, cooldown, mana and
+/// power (a negative power, Restore's −32768, heals fully).
+fn magic_numbers(r: &TqRow) -> [(&'static str, Value); 5] {
+    let area = if r.int("multi") != 0 {
+        r.int("range")
+    } else {
+        0
+    };
+    let power = if r.int("power") < 0 {
+        i64::from(u32::MAX)
+    } else {
+        r.int("power")
+    };
+    [
+        ("range", int(r.int("distance").max(1))),
+        ("area", int(area)),
+        ("cooldown_ms", int(r.int("delay_ms").max(500))),
+        ("mana", int(r.int("use_mp"))),
+        ("power", int(power)),
+    ]
+}
+
+/// Each magic type's levels above the first as the engine's skill ranks.
+fn skill_ranks(t: &Table) -> Table {
+    let mut columns = vec![
+        Column::new("id", ColumnKind::Int),
+        Column::new("skill", ColumnKind::Int),
+        Column::new("rank", ColumnKind::Int),
+    ];
+    columns.extend(
+        ["range", "area", "cooldown_ms", "mana", "power"].map(|c| Column::new(c, ColumnKind::Int)),
+    );
+    let mut out = Table::new(c3_play::data_rules::SKILL_RANKS, columns);
+    out.doc = "Skills at each level above the first (TQ's cq_magictype)".into();
+    for r in rows(t).filter(|r| r.int("level") > 0) {
+        let mut row = vec![int(r.int("id")), int(r.int("type")), int(r.int("level"))];
+        row.extend(magic_numbers(&r).map(|(_, v)| v));
+        out.rows.push(row);
+    }
+    out
+}
+
 /// The magic levels table: what each level of each magic type needs to reach the next.
 pub const MAGIC_LEVELS_TABLE: &str = "magic_levels";
 
 /// Each magic level (`cq_magictype`), keyed type × 100 + level: the experience it needs to
-/// go up (0 or −1: it doesn't), the player level needed, and the level's power.
+/// go up (0 or −1: it doesn't) and the player level needed.
 fn magic_levels(t: &Table) -> Table {
     let column = |name: &str, doc: &str| Column {
         doc: doc.into(),
@@ -685,10 +718,6 @@ fn magic_levels(t: &Table) -> Table {
                 "Experience to go up a level (0 or −1: it doesn't)",
             ),
             column("need_level", "The player level needed to go up"),
-            column(
-                "power",
-                "The level's power (30000 + percent: a physical skill)",
-            ),
         ],
     );
     out.doc = "Magic levels: what each needs to go up (TQ's cq_magictype)".into();
@@ -698,7 +727,6 @@ fn magic_levels(t: &Table) -> Table {
                 int(r.int("type") * 100 + r.int("level")),
                 int(r.int("need_exp")),
                 int(r.int("need_level")),
-                int(r.int("power")),
             ]
         })
         .collect();

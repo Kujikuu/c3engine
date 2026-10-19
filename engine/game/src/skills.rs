@@ -37,9 +37,21 @@ impl Sim {
         true
     }
 
+    /// Skill `skill` at player `id`'s rank of it.
+    pub fn skill_of(&self, id: EntityId, skill: u32) -> Option<SkillType> {
+        let t = self.rules.skill(skill)?;
+        if t.rank_attribute.is_empty() {
+            return Some(t.clone());
+        }
+        let rank = (self.players.get(&id))
+            .and_then(|p| p.attributes.get(&t.rank_attribute))
+            .map_or(0, |r| u32::try_from(*r).unwrap_or(0));
+        self.rules.skill_at(skill, rank).cloned()
+    }
+
     /// Player `id` casts `skill` at `at`, walking into range first if it must.
     pub fn cast(&mut self, id: EntityId, skill: u32, at: CastAt) {
-        let Some(t) = self.rules.skill(skill).cloned() else {
+        let Some(t) = self.skill_of(id, skill) else {
             return;
         };
         let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
@@ -93,8 +105,7 @@ impl Sim {
 
     /// One tick of a cast: closing in, then casting when the skill is ready.
     pub(crate) fn walk_to_cast(&mut self, id: EntityId, skill: u32, at: CastAt) {
-        let (Some(t), Some(goal)) = (self.rules.skill(skill).cloned(), self.cast_cell(id, at))
-        else {
+        let (Some(t), Some(goal)) = (self.skill_of(id, skill), self.cast_cell(id, at)) else {
             self.players.get_mut(&id).expect("ticking").task = Task::Idle;
             return;
         };

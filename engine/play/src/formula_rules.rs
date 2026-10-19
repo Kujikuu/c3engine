@@ -144,6 +144,10 @@ impl Rules for FormulaRules {
         self.inner.skill(id)
     }
 
+    fn skill_at(&self, id: u32, rank: u32) -> Option<&SkillType> {
+        self.inner.skill_at(id, rank)
+    }
+
     fn status(&self, id: u32) -> Option<&StatusType> {
         self.inner.status(id)
     }

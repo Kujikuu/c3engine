@@ -254,6 +254,9 @@ pub struct SkillType {
     pub cost_attribute: String,
     /// How much of it.
     pub cost: i64,
+    /// The player attribute holding the caster's rank (level) of the skill, each rank its
+    /// own numbers ([`Rules::skill_at`]); empty: one rank.
+    pub rank_attribute: String,
 }
 
 /// Something a monster leaves on the ground when it dies.
@@ -312,6 +315,12 @@ pub trait Rules: std::any::Any {
     /// A skill players may learn.
     fn skill(&self, _id: u32) -> Option<&SkillType> {
         None
+    }
+
+    /// Skill `id` at `rank` (its range, area, cost and power there); its first rank's when
+    /// that rank has no numbers of its own.
+    fn skill_at(&self, id: u32, _rank: u32) -> Option<&SkillType> {
+        self.skill(id)
     }
 
     /// A status effect skills may put on.
