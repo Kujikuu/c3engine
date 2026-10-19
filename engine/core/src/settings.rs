@@ -479,6 +479,12 @@ pub struct NetworkSettings {
     /// The servers the client's login offers (none: this machine's, on `port`).
     #[serde(rename = "server", skip_serializing_if = "Vec::is_empty")]
     pub servers: Vec<ServerEntry>,
+    /// The groups the login sorts servers into (none: one plain list).
+    #[serde(rename = "group", skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<ServerGroup>,
+    /// The picture of this machine's server when no servers are listed (a skin section).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub local_icon: String,
 }
 
 /// A server the login offers: the name players see and its `host:port`.
@@ -487,6 +493,21 @@ pub struct NetworkSettings {
 pub struct ServerEntry {
     pub name: String,
     pub address: String,
+    /// The group it is listed in (a group's name; empty: the first group).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub group: String,
+    /// Its picture on the login (a skin section).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub icon: String,
+}
+
+/// A group of servers on the login (TQ's `Server.dat` groups): its name and picture.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ServerGroup {
+    pub name: String,
+    /// A skin section.
+    pub icon: String,
 }
 
 impl NetworkSettings {
@@ -498,6 +519,8 @@ impl NetworkSettings {
         vec![ServerEntry {
             name: "This computer".into(),
             address: format!("127.0.0.1:{}", self.port),
+            icon: self.local_icon.clone(),
+            ..Default::default()
         }]
     }
 }
@@ -510,6 +533,8 @@ impl Default for NetworkSettings {
             join_timeout_seconds: 8.0,
             fronts: Vec::new(),
             servers: Vec::new(),
+            groups: Vec::new(),
+            local_icon: String::new(),
         }
     }
 }
@@ -583,6 +608,9 @@ pub struct UiSettings {
     pub layout: String,
     /// The images controls show (`Control.Ani` form).
     pub skin: String,
+    /// More images (the same form) for sections the skin hasn't: server pictures.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skins: Vec<String>,
     /// Each control's kind, image, binding and action.
     pub controls: String,
 }

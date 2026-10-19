@@ -108,6 +108,13 @@ pub fn conquer_settings() -> ProjectSettings {
     });
     s.ui.layout = "ini/GUI.ini".into();
     s.ui.skin = "ani/Control.Ani".into();
+    s.ui.skins = vec!["ani/Server.ani".into()];
+    // The login's server groups and pictures, from the client's Server.ani.
+    s.network.groups = vec![c3_core::settings::ServerGroup {
+        name: "Conquer".into(),
+        icon: "GroupPic1".into(),
+    }];
+    s.network.local_icon = "servericon01".into();
     s.ui.controls = UI_CONTROLS.into();
     // One character per account; the four bodies of character creation (lookface % 1000).
     s.characters.per_account = 1;

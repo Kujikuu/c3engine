@@ -7,6 +7,11 @@ use super::{Control, ControlKind, Fill, Gui, GuiRect, Skin};
 use crate::Icons;
 use egui::{Color32, Pos2, Rect, TextureId, Vec2};
 
+/// The skin section drawn over a focused image.
+const FOCUS: &str = "ImageFocus";
+/// The part of the focus picture drawn (`CMyImage::ShowFocus` takes 100 by 100).
+const FOCUS_PART: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(100.0, 100.0));
+
 /// The images a UI shows, by path, as textures of their size in pixels.
 pub trait GuiImages {
     fn image(&mut self, ctx: &egui::Context, path: &str) -> Option<(TextureId, Vec2)>;
@@ -118,7 +123,7 @@ impl Gui {
             place,
             live,
         };
-        painter.picture(dialog, Pos2::ZERO);
+        painter.picture(dialog, &dialog.ani, Pos2::ZERO, None);
         for control in (self.controls.iter()).filter(|c| c.parent == dialog.id) {
             painter.control(control, self.rect(control), data, &mut events);
         }
@@ -222,19 +227,59 @@ impl Painter<'_, '_> {
         self.ui.painter().image(id, rect, uv, Color32::WHITE);
     }
 
-    /// A dialog's or image's picture: its frame (or a piece of it) at `at`.
-    fn picture(&mut self, control: &Control, at: Pos2) {
-        if control.ani.is_empty() {
-            return;
+    /// A dialog's or image's picture: its frame (or a piece of it) at `at`, sized `size`
+    /// when given. Its size in layout pixels, when it has a picture.
+    fn picture(
+        &mut self,
+        control: &Control,
+        section: &str,
+        at: Pos2,
+        size: Option<Vec2>,
+    ) -> Option<Vec2> {
+        if section.is_empty() {
+            return None;
         }
-        let frames = self.skin.frames(&control.ani);
-        let Some(texture) = self.frame(frames, control.frame) else {
-            return;
-        };
+        let frames = self.skin.frames(section);
+        let texture = self.frame(frames, control.frame)?;
         let part = control.src.map(|[l, t, r, b]| {
             Rect::from_min_max(Pos2::new(l as f32, t as f32), Pos2::new(r as f32, b as f32))
         });
-        self.draw(texture, at, part, None);
+        let drawn = size.or(part.map(|p| p.size())).unwrap_or(texture.1);
+        self.draw(texture, at, part, Some(drawn));
+        Some(drawn)
+    }
+
+    /// An image: its skin section (named by its binding when it has one), clickable when
+    /// it has an action, framed by the skin's focus picture when its focus binding is set.
+    fn image(
+        &mut self,
+        control: &Control,
+        at: Pos2,
+        size: Vec2,
+        data: &dyn GuiData,
+        events: &mut Vec<GuiEvent>,
+    ) {
+        let section = match control.value.is_empty() {
+            true => control.ani.clone(),
+            false => data.text(&control.value).unwrap_or_default(),
+        };
+        // A bound picture fills the control's place (as the login scales server art).
+        let sized = (!control.value.is_empty() && size.x > 0.0 && size.y > 0.0).then_some(size);
+        let Some(drawn) = self.picture(control, &section, at, sized) else {
+            return;
+        };
+        if data.number(&control.focus).is_some_and(|v| v != 0.0)
+            && let Some(focus) = self.frame(self.skin.frames(FOCUS), 0)
+        {
+            self.draw(focus, at, Some(FOCUS_PART), Some(drawn));
+        }
+        if self.live && !control.action.is_empty() {
+            let rect = Rect::from_min_size(self.screen(at.x, at.y), drawn * self.place.scale);
+            let id = (self.ui.scope_id()).with(("gui image", control.parent, control.id));
+            if self.ui.interact(rect, id, egui::Sense::click()).clicked() {
+                events.push(GuiEvent::Action(control.action.clone()));
+            }
+        }
     }
 
     fn control(
@@ -248,7 +293,10 @@ impl Painter<'_, '_> {
         let size = Vec2::new(at.w.max(0) as f32, at.h.max(0) as f32);
         let rect = Rect::from_min_size(self.screen(origin.x, origin.y), size * self.place.scale);
         match control.kind {
-            ControlKind::Dialog | ControlKind::Image => self.picture(control, origin),
+            ControlKind::Dialog => {
+                self.picture(control, &control.ani, origin, None);
+            }
+            ControlKind::Image => self.image(control, origin, size, data, events),
             ControlKind::Button | ControlKind::Check => {
                 let frames = self.skin.frames(&control.ani);
                 let id = self

@@ -33,6 +33,25 @@ impl FrontScreen {
     }
 }
 
+/// Group pictures a login shows at once (CDlgLogin's four; the rest scroll).
+pub const GROUP_SLOTS: usize = 4;
+
+/// A server on the login: its name, group (an index of the groups) and picture.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerRow {
+    pub name: String,
+    pub group: usize,
+    /// A skin section.
+    pub icon: String,
+}
+
+/// A group of servers on the login: its name and picture (a skin section).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GroupRow {
+    pub name: String,
+    pub icon: String,
+}
+
 /// A character on the character screen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CharacterRow {
@@ -64,9 +83,13 @@ pub struct FrontEnd {
     pub screen: FrontScreen,
     pub account: String,
     pub password: String,
-    /// The servers to pick from (their names) and the one picked.
-    pub servers: Vec<String>,
+    /// The servers to pick from and the one picked (an index of all of them).
+    pub servers: Vec<ServerRow>,
     pub server: usize,
+    /// The groups servers are sorted into, the one shown, and the first group pictured.
+    pub groups: Vec<GroupRow>,
+    pub group: usize,
+    pub group_top: usize,
     pub characters: Vec<CharacterRow>,
     pub character: usize,
     /// The looks creation offers (their names) and the one picked.
@@ -87,13 +110,22 @@ pub struct FrontEnd {
 }
 
 impl FrontEnd {
-    pub fn new(title: String, servers: Vec<String>, looks: Vec<String>, gui: Option<Gui>) -> Self {
+    pub fn new(
+        title: String,
+        servers: Vec<ServerRow>,
+        groups: Vec<GroupRow>,
+        looks: Vec<String>,
+        gui: Option<Gui>,
+    ) -> Self {
         Self {
             screen: FrontScreen::Login,
             account: String::new(),
             password: String::new(),
+            group: servers.first().map_or(0, |s| s.group),
             servers,
             server: 0,
+            groups,
+            group_top: 0,
             characters: Vec::new(),
             character: 0,
             looks,
@@ -186,7 +218,7 @@ impl FrontEnd {
                 _ => {}
             },
             GuiEvent::Item { list, index } => match list.as_str() {
-                "front.servers" => self.server = index,
+                "front.servers" => self.pick_server(index),
                 "front.characters" => self.character = index,
                 "front.looks" => self.look = index,
                 _ => {}
@@ -219,12 +251,65 @@ impl FrontEnd {
                 }
             }
             "quit" => actions.push(FrontAction::Quit),
+            "group_up" => self.group_top = self.group_top.saturating_sub(1),
+            "group_down" => {
+                let last = self.groups.len().saturating_sub(GROUP_SLOTS);
+                self.group_top = (self.group_top + 1).min(last);
+            }
             other => {
-                if let Some(look) = other.strip_prefix("look:").and_then(|n| n.parse().ok()) {
+                let slot = |prefix: &str| other.strip_prefix(prefix)?.parse::<usize>().ok();
+                if let Some(look) = slot("look:") {
                     self.look = look;
+                } else if let Some(n) = slot("group:") {
+                    self.pick_group(self.group_top + n);
+                } else if let Some(n) = slot("server:") {
+                    self.pick_server(n);
                 }
             }
         }
+    }
+
+    /// The servers of the group shown (all of them when there are no groups), as indices.
+    fn shown_servers(&self) -> Vec<usize> {
+        (0..self.servers.len())
+            .filter(|&i| self.groups.is_empty() || self.servers[i].group == self.group)
+            .collect()
+    }
+
+    /// Shows group `group`, its first server picked.
+    fn pick_group(&mut self, group: usize) {
+        if group >= self.groups.len() {
+            return;
+        }
+        self.group = group;
+        if let Some(&first) = self.shown_servers().first() {
+            self.server = first;
+        }
+    }
+
+    /// Picks the `n`th server shown.
+    fn pick_server(&mut self, n: usize) {
+        if let Some(&server) = self.shown_servers().get(n) {
+            self.server = server;
+        }
+    }
+
+    /// What a login slot shows: `front.group:N` (a group's picture), `front.server_icon:N`
+    /// and `front.server_name:N` (the `N`th server shown).
+    fn slot_text(&self, key: &str) -> Option<String> {
+        let (prefix, n) = key.rsplit_once(':')?;
+        let n: usize = n.parse().ok()?;
+        let server = || self.shown_servers().get(n).map(|&i| &self.servers[i]);
+        match prefix {
+            "front.group" => self.groups.get(self.group_top + n).map(|g| g.icon.clone()),
+            "front.server_icon" => server().map(|s| s.icon.clone()),
+            "front.server_name" => server().map(|s| s.name.clone()),
+            _ => None,
+        }
+    }
+
+    fn server_name(&self) -> String {
+        (self.servers.get(self.server)).map_or(String::new(), |s| s.name.clone())
     }
 
     fn log_in(&mut self, actions: &mut Vec<FrontAction>) {
@@ -300,7 +385,7 @@ impl FrontEnd {
         let enter = password.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
         if self.servers.len() > 1 {
             ui.add_space(4.0);
-            let server = self.servers.get(self.server).cloned().unwrap_or_default();
+            let server = self.server_name();
             if ui
                 .add(egui::Button::new(format!("{}  {server}", icons::GLOBE_SIMPLE)).frame(false))
                 .on_hover_text("Pick another server")
@@ -321,8 +406,22 @@ impl FrontEnd {
 
     fn server_list(&mut self, ui: &mut egui::Ui, _actions: &mut [FrontAction]) {
         Self::heading(ui, icons::GLOBE_SIMPLE, "Servers");
-        for (i, name) in self.servers.iter().enumerate() {
-            let row = egui::Button::selectable(self.server == i, name)
+        if self.groups.len() > 1 {
+            let mut picked = None;
+            ui.horizontal_wrapped(|ui| {
+                for (g, group) in self.groups.iter().enumerate() {
+                    if ui.selectable_label(self.group == g, &group.name).clicked() {
+                        picked = Some(g);
+                    }
+                }
+            });
+            if let Some(g) = picked {
+                self.pick_group(g);
+            }
+            ui.separator();
+        }
+        for i in self.shown_servers() {
+            let row = egui::Button::selectable(self.server == i, &self.servers[i].name)
                 .min_size(egui::vec2(ui.available_width(), 28.0));
             if ui.add(row).clicked() {
                 self.server = i;
@@ -404,10 +503,20 @@ impl FrontEnd {
 /// What the screen's dialogs read.
 impl GuiData for FrontEnd {
     fn number(&self, key: &str) -> Option<f64> {
+        let slot = |prefix: &str| key.strip_prefix(prefix)?.parse::<usize>().ok();
+        let flag = |b: bool| Some(f64::from(u8::from(b)));
         match key {
             "front.progress" => Some(f64::from(self.progress)),
             "front.progress_max" => Some(1.0),
-            _ => None,
+            _ => {
+                if let Some(n) = slot("front.group_picked:") {
+                    flag(self.group_top + n == self.group && !self.groups.is_empty())
+                } else if let Some(n) = slot("front.server_picked:") {
+                    flag(self.shown_servers().get(n) == Some(&self.server))
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -417,10 +526,15 @@ impl GuiData for FrontEnd {
             "front.password" => self.password.clone(),
             "front.name" => self.new_name.clone(),
             "front.message" => self.message.clone().unwrap_or_default(),
-            "front.server" => self.servers.get(self.server).cloned().unwrap_or_default(),
+            "front.server" => self.server_name(),
+            "front.group" => {
+                (self.groups.get(self.group)).map_or(String::new(), |g| g.name.clone())
+            }
             "front.look" => self.looks.get(self.look).cloned().unwrap_or_default(),
             "front.title" => self.title.clone(),
-            _ => return self.number(key).map(|n| format!("{n}")),
+            _ => {
+                return (self.slot_text(key)).or_else(|| self.number(key).map(|n| format!("{n}")));
+            }
         })
     }
 
@@ -435,7 +549,14 @@ impl GuiData for FrontEnd {
 
     fn rows(&self, key: &str) -> (Vec<String>, Option<usize>) {
         match key {
-            "front.servers" => (self.servers.clone(), Some(self.server)),
+            "front.servers" => {
+                let shown = self.shown_servers();
+                let names = shown.iter().map(|&i| self.servers[i].name.clone());
+                (
+                    names.collect(),
+                    shown.iter().position(|&i| i == self.server),
+                )
+            }
             "front.looks" => (self.looks.clone(), Some(self.look)),
             "front.characters" => (
                 (self.characters.iter())
@@ -445,5 +566,43 @@ impl GuiData for FrontEnd {
             ),
             _ => (Vec::new(), None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(name: &str, group: usize, icon: &str) -> ServerRow {
+        ServerRow {
+            name: name.into(),
+            group,
+            icon: icon.into(),
+        }
+    }
+
+    #[test]
+    fn login_slots_follow_the_picked_group() {
+        let groups = (1..=5)
+            .map(|g| GroupRow {
+                name: format!("G{g}"),
+                icon: format!("GroupPic{g}"),
+            })
+            .collect();
+        let servers = vec![row("A", 0, "s1"), row("B", 1, "s2"), row("C", 1, "s3")];
+        let mut front = FrontEnd::new(String::new(), servers, groups, Vec::new(), None);
+        let mut actions = Vec::new();
+        assert_eq!(front.text("front.server_name:0").as_deref(), Some("A"));
+        front.act("group:1", &mut actions);
+        assert_eq!(front.server, 1, "a group's first server is picked");
+        assert_eq!(front.text("front.server_icon:1").as_deref(), Some("s3"));
+        front.act("server:1", &mut actions);
+        assert_eq!(front.text("front.server").as_deref(), Some("C"));
+        assert_eq!(front.number("front.server_picked:1"), Some(1.0));
+        front.act("group_down", &mut actions);
+        front.act("group_down", &mut actions);
+        assert_eq!(front.group_top, 1, "scrolls no further than the last four");
+        assert_eq!(front.text("front.group:0").as_deref(), Some("GroupPic2"));
+        assert_eq!(front.number("front.group_picked:0"), Some(1.0));
     }
 }

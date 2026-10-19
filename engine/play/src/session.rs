@@ -943,10 +943,17 @@ pub fn game_gui(
     if !ui.from_data() {
         return None;
     }
-    let skin = (!ui.skin.is_empty())
-        .then(|| game.read_file(&ui.skin))
-        .flatten()
-        .unwrap_or_default();
+    // The skins one after another: the first section of a name wins.
+    let mut skin = Vec::new();
+    for path in std::iter::once(&ui.skin).chain(&ui.skins) {
+        if let Some(bytes) = (!path.is_empty()).then(|| game.read_file(path)).flatten() {
+            skin.extend_from_slice(&bytes);
+            skin.extend_from_slice(
+                b"
+",
+            );
+        }
+    }
     Some(c3_ui::gui::Gui::new(
         &game.read_file(&ui.layout)?,
         &skin,

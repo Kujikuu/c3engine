@@ -9,7 +9,7 @@ use c3_play::GameModule;
 use c3_play::preview::LookPreview;
 use c3_play::ui_textures::GameTextures;
 use c3_render::Renderer;
-use c3_ui::front::{CharacterRow, FrontAction, FrontEnd, FrontScreen};
+use c3_ui::front::{CharacterRow, FrontAction, FrontEnd, FrontScreen, GroupRow, ServerRow};
 use std::rc::Rc;
 
 /// Pixels each creation look is drawn at.
@@ -51,19 +51,37 @@ impl FrontPhase {
     ) -> Self {
         let mut servers = settings.network.login_servers();
         if let Some(address) = server {
+            // Offered first, in the first server's group and with its picture.
+            let like = servers.first().cloned().unwrap_or_default();
             servers.insert(
                 0,
                 ServerEntry {
                     name: address.clone(),
                     address,
+                    ..like
                 },
             );
         }
+        let groups = &settings.network.groups;
+        let rows = (servers.iter())
+            .map(|s| ServerRow {
+                name: s.name.clone(),
+                group: groups.iter().position(|g| g.name == s.group).unwrap_or(0),
+                icon: s.icon.clone(),
+            })
+            .collect();
+        let group_rows = (groups.iter())
+            .map(|g| GroupRow {
+                name: g.name.clone(),
+                icon: g.icon.clone(),
+            })
+            .collect();
         let looks = settings.characters.looks.clone();
         let gui = c3_play::session::game_gui(&*game, &settings.ui);
         let mut ui = FrontEnd::new(
             title,
-            servers.iter().map(|s| s.name.clone()).collect(),
+            rows,
+            group_rows,
             looks.iter().map(|l| l.name.clone()).collect(),
             gui,
         );

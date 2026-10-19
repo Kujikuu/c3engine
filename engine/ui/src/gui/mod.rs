@@ -167,8 +167,11 @@ pub struct Control {
     pub src: Option<[i32; 4]>,
     /// Its place when the layout has none.
     pub rect: Option<GuiRect>,
-    /// A binding: what a progress bar, check or grid shows.
+    /// A binding: what a progress bar, check or grid shows (an image: its skin section).
     pub value: String,
+    /// A binding: when it is set, the skin's `ImageFocus` is drawn over the control (the
+    /// picked server, as `CMyImage::ShowFocus`).
+    pub focus: String,
     /// A progress bar's full value, a binding or a number.
     pub max: String,
     pub fill: Fill,
@@ -228,6 +231,7 @@ impl Control {
             src,
             rect,
             value: text("value"),
+            focus: text("focus"),
             max: text("max"),
             fill,
             text: text("text"),
