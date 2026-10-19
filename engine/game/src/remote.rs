@@ -91,6 +91,7 @@ impl Event {
             | Event::CommandReply { player, .. }
             | Event::ClientCue { player, .. }
             | Event::StorageOpened { player, .. }
+            | Event::Trade { player, .. }
             | Event::StorageChanged { player, .. } => Some(player),
             _ => None,
         }

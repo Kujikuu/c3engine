@@ -1644,3 +1644,35 @@ fn storage_keeps_items_and_money_across_saves() {
     sim.retrieve(hero, 8, sword);
     assert_eq!(sim.player(hero).unwrap().bag.len(), 1);
 }
+
+#[test]
+fn two_players_trade_an_item_for_money() {
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let mut seller = crate::PlayerSave::new("Seller", (5, 5));
+    seller.bag = vec![ARMOR.into()];
+    let mut buyer = crate::PlayerSave::new("Buyer", (7, 5));
+    buyer.money = 300;
+    let (s, b) = (sim.add_saved_player(&seller), sim.add_saved_player(&buyer));
+    sim.ask_trade(s, b);
+    sim.ask_trade(b, s);
+    let armor = sim.player(s).unwrap().bag[0].id;
+    sim.offer_item(s, armor);
+    sim.offer_money(b, 250);
+    sim.accept_trade(s);
+    assert!(
+        sim.player(b).unwrap().bag.is_empty(),
+        "not until both accept"
+    );
+    sim.accept_trade(b);
+    let (sp, bp) = (sim.player(s).unwrap(), sim.player(b).unwrap());
+    assert!(sp.bag.is_empty() && sp.money == 250);
+    assert_eq!((bp.bag[0].kind, bp.money), (ARMOR, 50));
+    let news: Vec<_> = (sim.take_events().into_iter())
+        .filter_map(|e| match e {
+            Event::Trade { player, news, .. } if player == s => Some(news),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(news.first(), Some(&crate::TradeNews::Opened));
+    assert_eq!(news.last(), Some(&crate::TradeNews::Done));
+}

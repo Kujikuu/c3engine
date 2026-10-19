@@ -28,6 +28,8 @@ mod skills;
 mod statuses;
 mod storage;
 mod teams;
+mod trades;
+pub use trades::TradeNews;
 mod world_state;
 pub use teams::{Mate, TEAM_SIZE, TeamOp};
 pub use world_state::{GUILD_RELATIONS, Guild, WorldState};

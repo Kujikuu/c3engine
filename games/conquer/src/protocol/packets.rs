@@ -24,6 +24,23 @@ pub const NAME: u16 = 1015;
 /// MsgName types: an effect on a map cell, on a role.
 pub const NAME_MAP_EFFECT: u8 = 9;
 pub const NAME_ROLE_EFFECT: u8 = 10;
+/// A trade between two players (packets spec 1056): `data` and an action.
+pub const TRADE: u16 = 1056;
+pub mod trade {
+    pub const APPLY: u16 = 1;
+    pub const QUIT: u16 = 2;
+    pub const OPEN: u16 = 3;
+    pub const FAIL: u16 = 4;
+    pub const SUCCESS: u16 = 5;
+    pub const ADD_ITEM: u16 = 6;
+    pub const ADD_MONEY: u16 = 7;
+    pub const PARTNER_MONEY: u16 = 8;
+    pub const OWN_MONEY: u16 = 9;
+    pub const OK: u16 = 10;
+    pub const ITEM_REFUSED: u16 = 11;
+}
+/// MsgItemInfo's action of an item the trade partner offers.
+pub const ITEM_TRADE: u8 = 2;
 /// A storage NPC's warehouse: listed, an item stored, taken out (packets spec 1102).
 pub const PACKAGE: u16 = 1102;
 /// MsgPackage actions and the warehouse kind.
@@ -298,6 +315,13 @@ pub fn item_info(i: &ItemInfo) -> Vec<u8> {
     })
 }
 
+/// MsgTrade `action` with `data`.
+pub fn trade(data: u32, action: u16) -> Vec<u8> {
+    packet(TRADE, |w| {
+        w.u32(data).u16(action).u16(0);
+    })
+}
+
 /// One stored item of a warehouse list (24 bytes).
 pub struct Stored {
     pub id: u32,
@@ -533,6 +557,11 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// A trade action with its number (a player, an item, money).
+    Trade {
+        action: u16,
+        data: u32,
+    },
     /// A storage NPC's warehouse: listed, an item stored or taken out.
     Package {
         npc: u32,
@@ -590,6 +619,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             match r.u16()? {
                 item::PING => Request::Ping(bytes.to_vec()),
                 action => Request::Item { action, id, data },
+            }
+        }
+        TRADE => {
+            let data = r.u32()?;
+            Request::Trade {
+                action: r.u16()?,
+                data,
             }
         }
         PACKAGE => {

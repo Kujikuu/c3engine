@@ -171,6 +171,12 @@ pub enum Event {
         cell: CellPos,
         effect: String,
     },
+    /// News of player `player`'s trade with `partner`.
+    Trade {
+        player: EntityId,
+        partner: EntityId,
+        news: crate::TradeNews,
+    },
     /// Player `player`'s storage at NPC `npc` opened, or changed (its items or the money).
     StorageOpened {
         player: EntityId,

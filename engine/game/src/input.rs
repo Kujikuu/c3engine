@@ -62,6 +62,13 @@ pub enum Input {
         npc: u32,
         item: u32,
     },
+    /// Ask player `0` to trade (asked back, the trade opens); offer a bag item, some money;
+    /// accept; close the trade.
+    TradeAsk(EntityId),
+    TradeItem(u32),
+    TradeMoney(u64),
+    TradeAccept,
+    TradeClose,
     /// See storage NPC `npc`'s storage (its items and the money kept).
     OpenStorage(u32),
     Retrieve {
@@ -121,6 +128,11 @@ impl Sim {
             Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
             Input::Store { npc, item } => self.store(id, npc, item),
             Input::OpenStorage(npc) => self.open_storage(id, npc),
+            Input::TradeAsk(target) => self.ask_trade(id, target),
+            Input::TradeItem(item) => self.offer_item(id, item),
+            Input::TradeMoney(amount) => self.offer_money(id, amount),
+            Input::TradeAccept => self.accept_trade(id),
+            Input::TradeClose => self.close_trade(id),
             Input::Retrieve { npc, item } => self.retrieve(id, npc, item),
             Input::SaveMoney { npc, amount } => self.move_money(id, npc, amount, true),
             Input::DrawMoney { npc, amount } => self.move_money(id, npc, amount, false),

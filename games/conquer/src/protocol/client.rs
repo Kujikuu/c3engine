@@ -763,6 +763,27 @@ impl ConquerClient {
                     _ => Vec::new(),
                 }
             }
+            // The hero's trade: asked, opened, the partner's goods, accepted, done or closed.
+            Event::Trade {
+                player,
+                partner,
+                news,
+            } if Some(*player) == hero => {
+                use c3_game::TradeNews as N;
+                let them = self.client_id(*partner, ids).unwrap_or(0);
+                let money = |n: &u64| u32::try_from(*n).unwrap_or(u32::MAX);
+                match news {
+                    N::Asked => vec![pk::trade(them, pk::trade::APPLY)],
+                    N::Opened => vec![pk::trade(them, pk::trade::OPEN)],
+                    N::PartnerItem(item) => vec![item_info(item, 0, pk::ITEM_TRADE, sim)],
+                    N::PartnerMoney(n) => vec![pk::trade(money(n), pk::trade::PARTNER_MONEY)],
+                    N::OwnMoney(n) => vec![pk::trade(money(n), pk::trade::OWN_MONEY)],
+                    N::PartnerAccepted => vec![pk::trade(them, pk::trade::OK)],
+                    N::Refused(item) => vec![pk::trade(*item, pk::trade::ITEM_REFUSED)],
+                    N::Done => vec![pk::trade(them, pk::trade::SUCCESS)],
+                    N::Closed => vec![pk::trade(them, pk::trade::FAIL)],
+                }
+            }
             // The warehouse as it is now, and the money kept.
             Event::StorageOpened { player, npc } | Event::StorageChanged { player, npc }
                 if Some(*player) == hero =>
@@ -933,6 +954,18 @@ impl ConquerClient {
                     items: vec![item_id, data],
                     value: 0,
                 }),
+                _ => {}
+            },
+            Request::Trade { action: a, data } => match a {
+                pk::trade::APPLY => {
+                    if let Some(e) = ids.entity(data) {
+                        inputs.push(Input::TradeAsk(e));
+                    }
+                }
+                pk::trade::QUIT => inputs.push(Input::TradeClose),
+                pk::trade::ADD_ITEM => inputs.push(Input::TradeItem(data)),
+                pk::trade::ADD_MONEY => inputs.push(Input::TradeMoney(data.into())),
+                pk::trade::OK => inputs.push(Input::TradeAccept),
                 _ => {}
             },
             Request::Package {

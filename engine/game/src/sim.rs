@@ -64,6 +64,9 @@ pub struct Sim {
     /// Whether this map runs the world events (one map of a server does); and the world
     /// timers to come: (when, event).
     pub(crate) world_events: bool,
+    /// Trades open, and who asked whom to trade.
+    pub(crate) trades: Vec<crate::trades::Trade>,
+    pub(crate) trade_asks: std::collections::BTreeMap<EntityId, EntityId>,
     /// The map's traps, and the one a player is setting off while its event runs.
     pub(crate) traps: Vec<c3_scene::Trap>,
     pub(crate) trap_now: Option<u32>,
@@ -125,6 +128,8 @@ impl Sim {
             using: None,
             dying_at: None,
             world_events: true,
+            trades: Vec::new(),
+            trade_asks: std::collections::BTreeMap::new(),
             traps: Vec::new(),
             trap_now: None,
             world_timers: Vec::new(),
@@ -203,6 +208,7 @@ impl Sim {
         self.tick_statuses();
         self.tick_timers();
         self.tick_transforms();
+        self.tick_trades();
         self.tick_world_events();
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {
