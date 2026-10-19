@@ -658,7 +658,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Dialog pages (a dialog inside a dialog, `page:<id>` tabs) and bindings for any
         attribute (`hero.attr.<name>`), attack, defence, dodge, PK, profession; the status
         dialog's role page shows name, level, PK, attributes and points (screenshot)
-  - [ ] Status: the profession's name, spouse, guild and rank, the details view, adding
+  - [x] Status: the profession's name from the client's ProfessionalName.ini (`names=` on a
+        text control: a file of value,name lines read in place)
+  - [ ] Status: spouse, guild and rank, the details view, adding
         points, the weapon skill and equipment pages' contents
   - [x] Dialogs the game opens (`when=<binding>`, in place of the engine's window): an
         NPC's shop (152) with its wares (`shop.items`, a click buys) and the bag beside it;

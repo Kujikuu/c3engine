@@ -187,6 +187,9 @@ pub struct Control {
     pub fill: Fill,
     /// Text with `{binding}`s in it.
     pub text: String,
+    /// A file of `value,name` lines (TQ's `ProfessionalName.ini`): the text, worked out, is
+    /// shown as the name it maps to.
+    pub names: String,
     /// Text colour, `rrggbb`.
     pub color: [u8; 3],
     pub size: f32,
@@ -248,6 +251,7 @@ impl Control {
             max: text("max"),
             fill,
             text: text("text"),
+            names: text("names"),
             color,
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
@@ -273,6 +277,8 @@ pub struct Gui {
     open: BTreeSet<u32>,
     /// The screen shown (empty: the game).
     screen: String,
+    /// The name files text controls name, read (`value` → name).
+    pub(crate) names: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
 }
 
 impl Gui {
@@ -286,6 +292,27 @@ impl Gui {
                 .collect(),
             open: BTreeSet::new(),
             screen: String::new(),
+            names: Default::default(),
+        }
+    }
+
+    /// Reads the name files the controls name (`names=`), each through `read`.
+    pub fn load_names(&mut self, read: impl Fn(&str) -> Option<Vec<u8>>) {
+        let files: BTreeSet<String> = (self.controls.iter())
+            .filter(|c| !c.names.is_empty())
+            .map(|c| c.names.clone())
+            .collect();
+        for file in files {
+            let Some(bytes) = read(&file) else {
+                continue;
+            };
+            let table = (String::from_utf8_lossy(&bytes).lines())
+                .filter_map(|line| {
+                    let (value, name) = line.trim().split_once(',')?;
+                    Some((value.trim().to_owned(), name.trim().to_owned()))
+                })
+                .collect();
+            self.names.insert(file, table);
         }
     }
 
@@ -442,5 +469,32 @@ type=dialog
             .map(|d| d.id)
             .collect();
         assert_eq!(open, [2, 3]);
+    }
+}
+
+#[cfg(test)]
+mod names_tests {
+    use super::*;
+
+    #[test]
+    fn name_files_the_controls_name_are_read() {
+        let controls = b"[0-1]
+type=dialog
+[1-2]
+type=text
+text={hero.profession}
+names=jobs.ini
+";
+        let mut gui = Gui::new(b"", b"", controls);
+        gui.load_names(|path| {
+            (path == "jobs.ini").then(|| {
+                b"10,InternTrojan
+11,Trojan
+"
+                .to_vec()
+            })
+        });
+        assert_eq!(gui.names["jobs.ini"]["11"], "Trojan");
+        assert_eq!(gui.names["jobs.ini"].len(), 2);
     }
 }

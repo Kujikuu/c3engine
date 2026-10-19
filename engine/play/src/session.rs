@@ -964,11 +964,13 @@ pub fn game_gui(
             );
         }
     }
-    Some(c3_ui::gui::Gui::new(
+    let mut gui = c3_ui::gui::Gui::new(
         &game.read_file(&ui.layout)?,
         &skin,
         &game.read_file(&ui.controls)?,
-    ))
+    );
+    gui.load_names(|path| game.read_file(path));
+    Some(gui)
 }
 
 /// How long joining a server may take.

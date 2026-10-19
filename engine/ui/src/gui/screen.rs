@@ -125,6 +125,7 @@ impl Gui {
             ui,
             textures,
             skin: &self.skin,
+            names: &self.names,
             place,
             live,
         };
@@ -206,6 +207,7 @@ struct Painter<'a, 'u> {
     ui: &'u mut egui::Ui,
     textures: &'a mut dyn Textures,
     skin: &'a Skin,
+    names: &'a std::collections::HashMap<String, std::collections::HashMap<String, String>>,
     place: Place,
     /// Controls answer the pointer.
     live: bool,
@@ -384,7 +386,11 @@ impl Painter<'_, '_> {
                 }
             }
             ControlKind::Text => {
-                let text = expand(&control.text, data);
+                let mut text = expand(&control.text, data);
+                // Shown as its name when the control names a file of them.
+                if let Some(name) = self.names.get(&control.names).and_then(|t| t.get(&text)) {
+                    text = name.clone();
+                }
                 let [r, g, b] = control.color;
                 let font = crate::fonts::font(control.size * self.place.scale);
                 // Wrapped within its width when it has one (an NPC's words).
