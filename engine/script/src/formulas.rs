@@ -45,7 +45,16 @@ impl Formulas {
                 None => ast,
             });
         }
-        Ok(merged.map(|ast| Self { engine, ast }))
+        // The project's tables sit beside its scripts.
+        let tables = scripts.parent().map(|p| p.join("tables"));
+        Ok(merged.map(|ast| Self { engine, ast }.with_tables(tables)))
+    }
+
+    /// Formulas that read the tables in `dir` (`lookup`, `has_row`), as scripts do.
+    pub fn with_tables(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        let tables = std::rc::Rc::new(std::cell::RefCell::new(crate::tables::Tables::new(dir)));
+        crate::api::data(&mut self.engine, &tables);
+        self
     }
 
     /// Formulas from `source`.

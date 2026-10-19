@@ -11,9 +11,20 @@ use crate::sim::Sim;
 use c3_script::{Conversation, Dynamic, NpcInfo};
 
 impl Sim {
-    /// Player `id` came into the game (not just onto another map): `on_login()`.
+    /// Player `id` came into the game (not just onto another map): `on_login()`. One at full
+    /// life and mana stays full when the script raises them (a new character's first points).
     pub fn logged_in(&mut self, id: EntityId) {
+        let full = (self.players.get(&id))
+            .map(|p| (p.life >= p.stats.max_life, p.mana >= p.stats.max_mana));
         self.script_event(id, "on_login", Vec::new());
+        if let (Some((life, mana)), Some(p)) = (full, self.players.get_mut(&id)) {
+            if life && p.is_alive() {
+                p.life = p.stats.max_life;
+            }
+            if mana {
+                p.mana = p.stats.max_mana;
+            }
+        }
     }
 
     /// Runs `function(args...)` of the events script for player `id`, if the project has it.

@@ -463,7 +463,7 @@ fn seed() -> u64 {
     nanos | 1
 }
 
-fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {
+pub(crate) fn data(engine: &mut Engine, tables: &Rc<RefCell<Tables>>) {
     let t = tables.clone();
     engine.register_fn("lookup", move |table: &str, key: i64, column: &str| {
         t.borrow_mut().lookup(table, key, column)

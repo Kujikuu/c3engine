@@ -28,9 +28,55 @@ const MANA: &str =
 /// dexterity) against the target's dodge, 10–90; a player hitting a lower monster gets 10 more
 /// per 5 levels.
 const HIT_CHANCE: &str = "min(max(if(attacker.monster == 0, attacker.agility, attacker.dexterity) / 2 - target.dodge + 100, 10), 90) + if(attacker.monster == 0 && target.monster != 0 && attacker.level > target.level, (attacker.level - target.level) / 5 * 10, 0)";
-/// Melee damage (battle §2.4): the roll less the target's defence, at least 1; nothing when it
-/// misses.
-const HIT: &str = "if(attacker.chance < chance, max(attacker.roll - target.defence, 1), 0)";
+/// Melee damage (battle §2.4–2.6), worked out in steps; nothing when it misses.
+const HIT_STEPS: [(&str, &str); 9] = [
+    // The attack: the roll, Dragon gems, and against a monster the level difference.
+    (
+        "pve",
+        "attacker.monster == 0 && target.monster != 0 || attacker.monster != 0 && target.monster == 0",
+    ),
+    (
+        "atk1",
+        "attacker.roll + attacker.socket_gem_attack * attacker.roll / 100",
+    ),
+    (
+        "atk",
+        "if(pve, max(100 + if(attacker.monster == 0, disdain_usr_atk_mst(attacker.level - target.level), disdain_mst_atk(attacker.level - target.level)), 0) * atk1 / 100, atk1)",
+    ),
+    // Superman halves the defence.
+    (
+        "def",
+        "if(attacker.status_superman > 0, target.defence / 2, target.defence)",
+    ),
+    // The least damage: the attacker's attack over the target armour's quality.
+    (
+        "armor",
+        "if(target.monster != 0, target.armor_type, target.worn3) % 10",
+    ),
+    (
+        "least",
+        "max(if(attacker.monster == 0, attacker.strength, (attacker.attack_min + attacker.attack_max) / 2) / if(armor == 6, 100, if(armor == 7, 200, if(armor == 8, 500, if(armor == 9, 1000, 10)))), 1)",
+    ),
+    ("raw", "max(max(atk - def, 0), least)"),
+    // A player target: Tortoise gems take half, rebirths a share, blessing its percent.
+    (
+        "tortoise",
+        "if(target.monster == 0, raw - raw / 2 * min(target.socket_gem_defence, 100) / 100, raw)",
+    ),
+    (
+        "reborn",
+        "if(target.monster != 0, if(target.defence2 > 0, tortoise * target.defence2 / 10000, tortoise), tortoise * if(target.rebirths >= 2, if(attacker.monster != 0 || attacker.rebirths >= 2, 7000, 5000), if(target.rebirths >= 1 && target.profession % 10 >= 3, 7000, 10000)) / 10000)",
+    ),
+];
+const HIT: &str = "if(attacker.chance < chance, max(reborn - if(target.monster == 0, reborn * min(target.worn_bless, 100) / 100, 0), 1), 0)";
+
+/// Experience (battle exp §1–3): the life taken (and on a kill 5% of the monster's), Rainbow
+/// gems' percent more, then the level difference's factor (the XP one under an XP skill).
+const EXP_STEPS: [(&str, &str); 2] = [
+    ("gem", "base + attacker.socket_gem_exp * base / 100"),
+    ("delta", "attacker.level - target.level"),
+];
+const EXP: &str = "max((100 + if(attacker.status_superman > 0 || attacker.status_cyclone > 0, disdain_xp_exp_factor(delta), disdain_exp_factor(delta))) * gem / 100, 0)";
 
 /// TQ's equip check (items §9.1): sex, class and step, attribute points.
 const CAN_WEAR: &str = "(item.req_sex == 0 || item.req_sex == sex) && (item.req_profession == 0 || (item.req_profession % 1000) / 10 == class && profession % 10 >= item.req_profession % 10) && player.strength >= item.req_force && player.agility >= item.req_speed && player.vitality >= item.req_health && player.spirit >= item.req_soul";
@@ -137,9 +183,35 @@ impl Names<'_> {
         self.lets.push((name.to_owned(), value));
     }
 
+    /// Writes `text`; `disdain_<column>(delta)` is that column of the disdain table at the
+    /// level difference (kept within the table's −400..400).
     fn write(&self, w: &mut ExprWriter, text: &str) -> Operand {
-        w.write(text, &mut |w, n, _| self.resolve(w, n))
-            .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"))
+        w.write(
+            text,
+            &mut |w, n, args| match (n.strip_prefix("disdain_"), args) {
+                (Some(column), [delta]) => {
+                    let clamped = w
+                        .write("max(min(d, 400), -400)", &mut |_, n, _| {
+                            (n == "d").then(|| delta.clone())
+                        })
+                        .ok()?;
+                    let lookup = w.node(
+                        "table.lookup",
+                        &[
+                            ("table", self::text(crate::rules::DISDAIN_TABLE)),
+                            ("column", self::text(column)),
+                        ],
+                    );
+                    w.feed(&clamped, lookup, "key");
+                    Some(Operand::Pin {
+                        node: lookup,
+                        pin: "value".into(),
+                    })
+                }
+                _ => self.resolve(w, n),
+            },
+        )
+        .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"))
     }
 }
 
@@ -208,6 +280,9 @@ fn hit(g: &mut Graph, top: f32) {
         None,
         |w, names| {
             names.define(w, "chance", HIT_CHANCE);
+            for (name, text) in HIT_STEPS {
+                names.define(w, name, text);
+            }
             names.write(w, HIT)
         },
     );
@@ -221,7 +296,13 @@ fn exp(g: &mut Graph, top: f32) {
         "formula.hit_exp",
         &["attacker", "target", "damage"],
         None,
-        |w, names| names.write(w, "damage"),
+        |w, names| {
+            names.define(w, "base", "damage");
+            for (name, text) in EXP_STEPS {
+                names.define(w, name, text);
+            }
+            names.write(w, EXP)
+        },
     );
     formula(
         g,
@@ -229,7 +310,13 @@ fn exp(g: &mut Graph, top: f32) {
         "formula.kill_exp",
         &["attacker", "target"],
         None,
-        |w, names| names.write(w, "target.life * 5 / 100"),
+        |w, names| {
+            names.define(w, "base", "target.life * 5 / 100");
+            for (name, text) in EXP_STEPS {
+                names.define(w, name, text);
+            }
+            names.write(w, EXP)
+        },
     );
 }
 
@@ -1119,7 +1206,27 @@ mod tests {
     fn the_rules_blueprint_compiles_and_runs() {
         let bp = rules_blueprint();
         let script = c3_script::blueprint::compile("conquer_rules", &bp).expect("compiles");
-        let formulas = c3_script::Formulas::compile(&script).expect("Rhai reads it");
+        // The disdain table's row for 5 levels above a monster: ×1.8 attack, −70% experience.
+        let tables = std::env::temp_dir().join(format!("c3-conquer-rules-{}", std::process::id()));
+        std::fs::create_dir_all(&tables).unwrap();
+        let mut disdain = c3_data::Table::new(
+            crate::rules::DISDAIN_TABLE,
+            std::iter::once("key")
+                .chain(crate::rules::DISDAIN_COLUMNS.iter().map(|(c, _)| *c))
+                .map(|c| c3_data::Column::new(c, c3_data::ColumnKind::Int))
+                .collect(),
+        );
+        let mut row = vec![c3_data::Value::Int(0); disdain.columns.len()];
+        row[0] = c3_data::Value::Int(5);
+        row[1] = c3_data::Value::Int(80);
+        row[5] = c3_data::Value::Int(-70);
+        row[6] = c3_data::Value::Int(-70);
+        disdain.rows.push(row);
+        let file = tables.join(format!("{}.table.ron", crate::rules::DISDAIN_TABLE));
+        c3_data::save_table(&disdain, &file).unwrap();
+        let formulas = c3_script::Formulas::compile(&script)
+            .expect("Rhai reads it")
+            .with_tables(Some(tables.clone()));
         // A level-1 Trojan with 5 strength, 2 agility, 3 vitality: TQ's 114 life.
         let mut player = c3_script::rhai::Map::new();
         for (k, v) in [
@@ -1152,6 +1259,16 @@ mod tests {
         ] {
             target.insert(k.into(), v.into());
         }
-        assert_eq!(formulas.int("hit", (attacker, target)).unwrap(), 26);
+        // (30 × 1.8) − 4 defence.
+        let hit = formulas
+            .int("hit", (attacker.clone(), target.clone()))
+            .unwrap();
+        assert_eq!(hit, 50);
+        // 100 life taken, 70% less for the level difference.
+        let exp = formulas
+            .int("hit_exp", (attacker, target, 100_i64))
+            .unwrap();
+        assert_eq!(exp, 30);
+        let _ = std::fs::remove_dir_all(tables);
     }
 }
