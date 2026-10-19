@@ -197,6 +197,9 @@ pub struct Control {
     pub rows: u32,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
+    /// A binding: the dialog shows while it is set (not 0), as the game opens it (a shop:
+    /// `hero.shop`), in place of the engine's own window.
+    pub when: String,
     /// The screen a dialog belongs to (`login`, `servers`, `characters`, `create`,
     /// `loading`); empty: the game's.
     pub screen: String,
@@ -251,6 +254,7 @@ impl Control {
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
             open: text("open"),
+            when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
             fixed: section.int("fixed").is_some_and(|f| f != 0),
@@ -305,6 +309,11 @@ impl Gui {
     pub fn is_open(&self, dialog: &Control) -> bool {
         dialog.screen == self.screen
             && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))
+    }
+
+    /// Whether a dialog shows while `binding` is set (the game's window is then this UI's).
+    pub fn shows_while(&self, binding: &str) -> bool {
+        self.dialogs().any(|d| d.when == binding)
     }
 
     /// Opens dialog `id`, closing the opened dialogs it would cover (as TQ's side panels

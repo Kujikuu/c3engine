@@ -660,6 +660,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
         dialog's role page shows name, level, PK, attributes and points (screenshot)
   - [ ] Status: the profession's name, spouse, guild and rank, the details view, adding
         points, the weapon skill and equipment pages' contents
+  - [x] Dialogs the game opens (`when=<binding>`, in place of the engine's window): an
+        NPC's shop (152) with its wares (`shop.items`, a click buys) and the bag beside it;
+        bag clicks use, wear or sell (screenshot: shop and bag); GM `/shop NPC`
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,

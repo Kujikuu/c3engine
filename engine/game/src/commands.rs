@@ -6,7 +6,7 @@ use crate::{EntityId, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -122,6 +122,17 @@ impl Sim {
                 p.life = p.stats.max_life;
                 p.mana = p.stats.max_mana;
                 Ok("Healed.".into())
+            }
+            "shop" => {
+                let npc = u32::try_from(arg(0)?).map_err(|_| format!("Usage: {HELP}"))?;
+                if self.rules.shop(npc).is_empty() {
+                    return Err(format!("NPC {npc} sells nothing."));
+                }
+                let p = self.players.get_mut(&id).expect("checked above");
+                p.shop = Some(npc);
+                self.events
+                    .push(crate::Event::ShopOpened { player: id, npc });
+                Ok(format!("NPC {npc}'s shop is open."))
             }
             "goto" => {
                 let cell = (arg(0)? as i32, arg(1)? as i32);

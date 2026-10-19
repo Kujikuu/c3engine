@@ -32,6 +32,8 @@ impl GuiData for HeroData<'_> {
             "hero.dodge" => p.stats.dodge.into(),
             "hero.dexterity" => p.stats.dexterity.into(),
             "hero.pk" => p.pk.into(),
+            // The NPC whose shop is open (0: none).
+            "hero.shop" => p.shop.unwrap_or(0).into(),
             "hero.profession" => p.profession.into(),
             // Any of the hero's attributes (`hero.attr.strength`), 0 when it has none.
             _ => {
@@ -52,6 +54,10 @@ impl GuiData for HeroData<'_> {
         match key {
             "hero.bag" => self.player.bag.iter().map(|i| i.kind).collect(),
             "hero.equipment" => self.player.equipment.iter().map(|i| i.kind).collect(),
+            // What the open shop sells.
+            "shop.items" => (self.player.shop)
+                .map(|npc| self.view.sim.rules().shop(npc).to_vec())
+                .unwrap_or_default(),
             _ => Vec::new(),
         }
     }

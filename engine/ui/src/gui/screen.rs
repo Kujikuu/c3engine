@@ -78,7 +78,11 @@ impl Gui {
         textures: &mut dyn Textures,
     ) -> Vec<GuiEvent> {
         let mut events = Vec::new();
-        for dialog in self.dialogs().filter(|d| self.is_open(d)) {
+        let shown = |d: &Control| {
+            let set = !d.when.is_empty() && data.number(&d.when).is_some_and(|v| v != 0.0);
+            d.screen == self.screen && set
+        };
+        for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
             let place = self.place(dialog, area);
             let r = self.rect(dialog);
             let size = Vec2::new(r.w.max(0) as f32, r.h.max(0) as f32) * place.scale;

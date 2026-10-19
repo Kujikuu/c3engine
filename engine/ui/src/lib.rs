@@ -23,9 +23,33 @@ mod shop;
 pub mod style;
 
 use c3_core::input::{Action, Device};
-use c3_game::{EntityId, Event, Sim};
+use c3_game::{EntityId, Event, Player, Sim};
 use c3_scene::CellPos;
 use egui::{Pos2, Rect, TextureId};
+
+/// What a click on slot `index` of grid `list` asks: a shop's ware bought; a bag item sold
+/// to the open shop, else used or worn.
+fn grid_click(
+    data: &dyn gui::GuiData,
+    player: &Player,
+    list: &str,
+    index: usize,
+) -> Option<UiAction> {
+    match (list, player.shop) {
+        ("shop.items", Some(npc)) => {
+            let kind = *data.items(list).get(index)?;
+            Some(UiAction::Buy { npc, kind })
+        }
+        ("hero.bag", shop) => {
+            let item = player.bag.get(index)?.id;
+            Some(match shop {
+                Some(npc) => UiAction::Sell { npc, item },
+                None => UiAction::Use(item),
+            })
+        }
+        _ => None,
+    }
+}
 
 /// What the player asked the game for.
 #[derive(Debug, Clone, PartialEq)]
@@ -187,6 +211,7 @@ impl GameUi {
             "menu" => self.toggle_menu(),
             "chat" => self.open_chat(),
             "sound" => actions.push(UiAction::ToggleSound),
+            "close_shop" => actions.push(UiAction::CloseShop),
             "run" => actions.push(UiAction::ToggleRun),
             other => {
                 let id = |prefix: &str| other.strip_prefix(prefix).and_then(|i| i.parse().ok());
@@ -292,7 +317,10 @@ impl GameUi {
             match event {
                 Event::Warning(text) => self.log.push(LogLine::Error(text.clone())),
                 Event::ScriptLog(text) => self.log.push(LogLine::Info(format!("Script: {text}"))),
-                Event::ShopOpened { player, .. } if *player == hero => self.bag_open = true,
+                // A game UI shows its own bag beside a shop (its dialogs' `when`).
+                Event::ShopOpened { player, .. } if *player == hero && self.gui.is_none() => {
+                    self.bag_open = true
+                }
                 _ => self.chat.event(event, sim, hero),
             }
         }
@@ -323,7 +351,12 @@ impl GameUi {
                 let data = gui_data::HeroData { view, player };
                 let events = gui.show(ui.ctx(), view.rect, &data, icons);
                 for event in events {
-                    self.gui_event(event, &mut actions);
+                    match event {
+                        gui::GuiEvent::Item { list, index } => {
+                            actions.extend(grid_click(&data, player, &list, index));
+                        }
+                        other => self.gui_event(other, &mut actions),
+                    }
                 }
             }
             None => {
@@ -342,7 +375,11 @@ impl GameUi {
         };
         self.chat.show(ui, view.rect, lift, &mut actions);
         let shop = player.shop;
-        if let Some(npc) = shop {
+        let gui_shop = self
+            .gui
+            .as_ref()
+            .is_some_and(|g| g.shows_while("hero.shop"));
+        if let Some(npc) = shop.filter(|_| !gui_shop) {
             shop::window(ui, view, npc, icons, &mut actions);
         } else if self.quests_open {
             quests::window(ui, view, &mut self.quests_open);
