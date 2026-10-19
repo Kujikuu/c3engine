@@ -263,11 +263,9 @@ impl Sim {
         }
         let mut exp = self.rules.hit_exp(&attacker, &defender, damage);
         if dead {
-            let kill = self.rules.kill_exp(&attacker, &defender);
-            exp += kill;
             let at = self.monsters[&target].cell;
+            exp += self.kill_exp(id, &attacker, &defender, at);
             self.kill_monster(target, Some(id));
-            self.share_kill_exp(id, &defender, at, kill);
         }
         self.gain_exp(id, exp);
         self.wear_items(id, |t| t.bonus.attack_max > 0);

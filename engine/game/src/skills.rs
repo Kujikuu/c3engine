@@ -262,11 +262,9 @@ impl Sim {
         self.rouse(target, id);
         let mut exp = self.rules.hit_exp(&attacker, &defender, damage);
         if dead {
-            let kill = self.rules.kill_exp(&attacker, &defender);
-            exp += kill;
             let at = self.monsters[&target].cell;
+            exp += self.kill_exp(id, &attacker, &defender, at);
             self.kill_monster(target, Some(id));
-            self.share_kill_exp(id, &defender, at, kill);
         }
         self.gain_exp(id, exp);
         damage

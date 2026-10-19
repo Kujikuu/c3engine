@@ -298,7 +298,8 @@ pub trait Rules: std::any::Any {
     /// Experience player `attacker` earns for dealing `damage` to a monster.
     fn hit_exp(&self, attacker: &Fighter, target: &Fighter, damage: u32) -> u64;
 
-    /// Extra experience for the killing blow.
+    /// Extra experience for the killing blow; the attacker's `team_newbie` fact is 1 when a
+    /// teammate far under the target is near (after the team's share is worked out).
     fn kill_exp(&self, attacker: &Fighter, target: &Fighter) -> u64;
 
     /// Experience teammate `member` near a kill gets of its `kill` experience; `newbie`: a

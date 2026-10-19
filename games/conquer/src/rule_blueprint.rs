@@ -494,7 +494,12 @@ fn exp(g: &mut Graph, top: f32) {
         &["attacker", "target"],
         None,
         |w, names| {
-            names.define(w, "base", "target.life * 5 / 100");
+            // Doubled with a newbie teammate near; ×10 at 0.5% in lucky time (battle exp §1).
+            names.define(
+                w,
+                "base",
+                "target.life * 5 / 100 * if(attacker.team_newbie > 0, 2, 1) * if(attacker.lucky_time > 0 && random(0, 999) < 5, 10, 1)",
+            );
             for (name, text) in EXP_STEPS {
                 names.define(w, name, text);
             }

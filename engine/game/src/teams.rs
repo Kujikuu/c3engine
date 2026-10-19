@@ -361,6 +361,54 @@ impl Sim {
     /// Experience for `killer`'s kill of `target` at `at`: its living teammates near the kill
     /// get their share by the rules' `team_exp`, told whether a teammate far under the target
     /// is near (a newbie) and whether each is the killer's spouse.
+    /// The killing blow's experience for `killer` (as `attacker`) on `target` at `at`, after
+    /// its teammates near have had their share of it: the rules' `kill_exp`, told by the
+    /// attacker's `team_newbie` fact (1) when a newbie teammate is near.
+    pub(crate) fn kill_exp(
+        &mut self,
+        killer: EntityId,
+        attacker: &crate::Fighter,
+        target: &crate::Fighter,
+        at: CellPos,
+    ) -> u64 {
+        let kill = self.rules.kill_exp(attacker, target);
+        self.share_kill_exp(killer, target, at, kill);
+        if !self.newbie_near(killer, target, at) {
+            return kill;
+        }
+        let mut helped = attacker.clone();
+        helped.facts.insert("team_newbie".into(), 1);
+        self.rules.kill_exp(&helped, target)
+    }
+
+    /// `killer`'s living teammates (itself too) within the share range of cell `at`.
+    fn team_near(&self, killer: EntityId, at: CellPos) -> Vec<EntityId> {
+        let range = match self.settings.team_exp_range {
+            0 => self.settings.view_range,
+            r => i32::try_from(r).unwrap_or(i32::MAX),
+        };
+        (self.team_members(killer).into_iter())
+            .filter(|m| {
+                self.players
+                    .get(m)
+                    .is_some_and(|p| p.is_alive() && distance(p.cell, at) <= range)
+            })
+            .collect()
+    }
+
+    /// TQ's newbie near a kill of `target` at `at`: `killer`'s team of two or more has one
+    /// there 20 levels under the target.
+    pub(crate) fn newbie_near(
+        &self,
+        killer: EntityId,
+        target: &crate::Fighter,
+        at: CellPos,
+    ) -> bool {
+        self.team_members(killer).len() >= 2
+            && (self.team_near(killer, at).iter())
+                .any(|m| self.players[m].level + NEWBIE_LEVELS < target.level)
+    }
+
     pub(crate) fn share_kill_exp(
         &mut self,
         killer: EntityId,
@@ -368,21 +416,8 @@ impl Sim {
         at: CellPos,
         kill: u64,
     ) {
-        let range = match self.settings.team_exp_range {
-            0 => self.settings.view_range,
-            r => i32::try_from(r).unwrap_or(i32::MAX),
-        };
-        let team = self.team_members(killer);
-        let near: Vec<EntityId> = (team.iter().copied())
-            .filter(|m| {
-                self.players
-                    .get(m)
-                    .is_some_and(|p| p.is_alive() && distance(p.cell, at) <= range)
-            })
-            .collect();
-        // TQ's newbie: a team of two or more with one near the kill 20 levels under it.
-        let newbie = team.len() >= 2
-            && (near.iter()).any(|m| self.players[m].level + NEWBIE_LEVELS < target.level);
+        let near = self.team_near(killer, at);
+        let newbie = self.newbie_near(killer, target, at);
         let killer_name = self
             .players
             .get(&killer)
