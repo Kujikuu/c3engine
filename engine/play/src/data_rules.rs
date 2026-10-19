@@ -973,6 +973,28 @@ impl Rules for DataRules {
         .map_or(u64::from(target.level) * 10, |e| e.max(0) as u64)
     }
 
+    fn team_exp(
+        &self,
+        member: &Fighter,
+        target: &Fighter,
+        kill: u64,
+        newbie: bool,
+        spouse: bool,
+    ) -> u64 {
+        let kill_n = i64::try_from(kill).unwrap_or(i64::MAX);
+        self.formula("team_exp", |f| {
+            let args = (
+                fighter_map(member),
+                fighter_map(target),
+                kill_n,
+                i64::from(newbie),
+                i64::from(spouse),
+            );
+            f.int("team_exp", args)
+        })
+        .map_or(kill / 2, |e| e.max(0) as u64)
+    }
+
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop> {
         if let Some(drops) =
             self.formula("drops", |f| drops_from(f, kind, self.monsters.get(&kind)))

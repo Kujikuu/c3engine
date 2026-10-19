@@ -667,7 +667,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Wearing in a chosen slot (`Input::Wear`, items' `alt_slot`, `worn_at` kept in
         saves): one-handed weapons in the left hand, from the client's use-in-slot
   - [ ] Training goals' cut, what gives lucky time and its countdown
-  - [ ] Team experience sharing by TQ's rule, Moon gems' magic experience
+  - [x] Team experience sharing by TQ's rule (rules `team_exp`: within 32 cells of the kill, newbie, spouse, healer and Rainbow factors)
+  - [ ] Moon gems' magic experience
   - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
   - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones

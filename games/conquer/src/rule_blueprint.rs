@@ -108,6 +108,25 @@ const EXP_DISDAIN: &str = "max((100 + if(attacker.status_superman > 0 || attacke
 /// timed percent (action 1048).
 const EXP: &str = "if(attacker.cursed > 0, 0, if(attacker.exp_until > attacker.clock, attacker.exp_percent, 100) * max(if(attacker.rebirths == 2, 1, 0), if(attacker.level >= 120, b120 / 2, b120) / if(attacker.rebirths == 2, 3, 1)) / 100)";
 
+/// A teammate's share of a kill (battle §4): see [`exp`].
+const TEAM_EXP_STEPS: [(&str, &str); 5] = [
+    ("d", "target.level - member.level"),
+    (
+        "lifted",
+        "max(if(d < -10, kill * 130 / 100, if(d < -5, kill * 120 / 100, kill)), 1)",
+    ),
+    (
+        "healer",
+        "if(member.profession >= 133 && member.profession <= 139, lifted * 25 / 10, lifted)",
+    ),
+    (
+        "helped",
+        "if(newbie != 0, healer * 2, healer) * if(spouse != 0, 2, 1)",
+    ),
+    ("gem", "helped + helped * member.socket_gem_exp / 100"),
+];
+const TEAM_EXP: &str = "if(member.cursed > 0, 0, if(member.level + 20 > target.level, gem, member.level * if(spouse != 0, 36, 30)))";
+
 /// TQ's equip check (items §9.1): sex, class and step, attribute points.
 const CAN_WEAR: &str = "(item.req_sex == 0 || item.req_sex == sex) && (item.req_profession == 0 || (item.req_profession % 1000) / 10 == class && profession % 10 >= item.req_profession % 10) && player.strength >= item.req_force && player.agility >= item.req_speed && player.vitality >= item.req_health && player.spirit >= item.req_soul";
 
@@ -123,7 +142,7 @@ pub fn rules_blueprint() -> Blueprint {
     player_stats(&mut bp.events, next_lane(600.0));
     hit(&mut bp.events, next_lane(500.0));
     skill_hit(&mut bp.events, next_lane(700.0));
-    exp(&mut bp.events, next_lane(300.0));
+    exp(&mut bp.events, next_lane(450.0));
     can_wear(&mut bp.events, next_lane(500.0));
     level_up(&mut bp.events, next_lane(300.0));
     death(&mut bp.events, next_lane(700.0));
@@ -448,6 +467,23 @@ fn exp(g: &mut Graph, top: f32) {
                 names.define(w, name, text);
             }
             names.write(w, EXP)
+        },
+    );
+    // A teammate's share (battle §4, AwardMemberExp): the kill's experience, a fifth or a
+    // third more 5 or 10 levels over the monster; ×2.5 for a Taoist healer, ×2 with a newbie
+    // near, ×2 for the killer's spouse, its Rainbow gems' percent. One 20 levels under the
+    // monster gets 30 a level (36 for a spouse). None while cursed.
+    formula(
+        g,
+        top + 300.0,
+        "formula.team_exp",
+        &["member", "target", "kill", "newbie", "spouse"],
+        None,
+        |w, names| {
+            for (name, text) in TEAM_EXP_STEPS {
+                names.define(w, name, text);
+            }
+            names.write(w, TEAM_EXP)
         },
     );
     formula(

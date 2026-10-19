@@ -301,6 +301,20 @@ pub trait Rules: std::any::Any {
     /// Extra experience for the killing blow.
     fn kill_exp(&self, attacker: &Fighter, target: &Fighter) -> u64;
 
+    /// Experience teammate `member` near a kill gets of its `kill` experience; `newbie`: a
+    /// teammate far under the target is near, `spouse`: the member is the killer's spouse.
+    fn team_exp(
+        &self,
+        member: &Fighter,
+        target: &Fighter,
+        kill: u64,
+        newbie: bool,
+        spouse: bool,
+    ) -> u64 {
+        let _ = (member, target, newbie, spouse);
+        kill / 2
+    }
+
     /// What a monster of `kind` drops.
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop>;
 

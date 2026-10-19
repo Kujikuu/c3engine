@@ -793,6 +793,18 @@ pub const NODES: &[NodeDef] = &[
         &[("attacker", Record), ("target", Record)],
     ),
     formula(
+        "formula.team_exp",
+        "Experience for a teammate's kill",
+        "team_exp",
+        &[
+            ("member", Record),
+            ("target", Record),
+            ("kill", Number),
+            ("newbie", Number),
+            ("spouse", Number),
+        ],
+    ),
+    formula(
         "formula.skill_hit",
         "Damage of a skill",
         "skill_hit",

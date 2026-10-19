@@ -8,7 +8,10 @@
 
 use crate::event::Event;
 use crate::sim::Sim;
-use crate::{EntityId, distance};
+use crate::{CellPos, EntityId, distance};
+
+/// Levels under a monster that make a teammate near its kill a newbie (TQ's 20).
+const NEWBIE_LEVELS: u32 = 20;
 use serde::{Deserialize, Serialize};
 
 /// Most players in a team, its leader included.
@@ -355,22 +358,43 @@ impl Sim {
             .retain(|_, l| *l != leader || id != leader);
     }
 
-    /// Experience for a kill by `killer`: its teammates near it (within view) get half.
-    pub(crate) fn share_kill_exp(&mut self, killer: EntityId, exp: u64) {
-        let Some(at) = self.players.get(&killer).map(|p| p.cell) else {
-            return;
+    /// Experience for `killer`'s kill of `target` at `at`: its living teammates near the kill
+    /// get their share by the rules' `team_exp`, told whether a teammate far under the target
+    /// is near (a newbie) and whether each is the killer's spouse.
+    pub(crate) fn share_kill_exp(
+        &mut self,
+        killer: EntityId,
+        target: &crate::Fighter,
+        at: CellPos,
+        kill: u64,
+    ) {
+        let range = match self.settings.team_exp_range {
+            0 => self.settings.view_range,
+            r => i32::try_from(r).unwrap_or(i32::MAX),
         };
-        let range = self.settings.view_range;
-        let near: Vec<EntityId> = (self.team_members(killer).into_iter())
-            .filter(|&m| m != killer)
+        let team = self.team_members(killer);
+        let near: Vec<EntityId> = (team.iter().copied())
             .filter(|m| {
                 self.players
                     .get(m)
                     .is_some_and(|p| p.is_alive() && distance(p.cell, at) <= range)
             })
             .collect();
-        for m in near {
-            self.gain_exp(m, exp / 2);
+        // TQ's newbie: a team of two or more with one near the kill 20 levels under it.
+        let newbie = team.len() >= 2
+            && (near.iter()).any(|m| self.players[m].level + NEWBIE_LEVELS < target.level);
+        let killer_name = self
+            .players
+            .get(&killer)
+            .map(|p| p.name.clone())
+            .unwrap_or_default();
+        let spouse_text = self.settings.spouse_text.clone();
+        for m in near.into_iter().filter(|&m| m != killer) {
+            let spouse = !spouse_text.is_empty()
+                && self.players[&m].texts.get(&spouse_text) == Some(&killer_name);
+            let member = self.player_fighter(m);
+            let exp = self.rules.team_exp(&member, target, kill, newbie, spouse);
+            self.gain_exp(m, exp);
         }
     }
 }

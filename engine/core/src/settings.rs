@@ -378,6 +378,14 @@ pub struct GameplaySettings {
     /// Items one storage NPC keeps for a player.
     #[serde(default = "storage_size")]
     pub storage_size: u32,
+    /// Cells from a killed monster within which teammates share its kill experience; 0: the
+    /// view range.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub team_exp_range: u32,
+    /// The player text variable naming its spouse (a spouse shares more of a kill); empty:
+    /// none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub spouse_text: String,
     /// The rank a player joining a guild gets (the game's rank numbers).
     #[serde(default = "guild_member_rank")]
     pub guild_member_rank: u32,
@@ -434,6 +442,8 @@ impl Default for GameplaySettings {
             sockets: Vec::new(),
             storage_size: storage_size(),
             guild_member_rank: guild_member_rank(),
+            team_exp_range: 0,
+            spouse_text: String::new(),
             socket_item_base: 0,
             equipment_slots: Vec::new(),
             qualities: ["Common", "Fine", "Rare", "Epic", "Legendary"]

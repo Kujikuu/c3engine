@@ -170,6 +170,9 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.socket_item_base = 700_000;
     // TQ's rank of a plain guild member.
     s.gameplay.guild_member_rank = 50;
+    // Teammates within 32 cells of a kill share it (battle §4); a spouse is `mate`.
+    s.gameplay.team_exp_range = 32;
+    s.gameplay.spouse_text = crate::npc_logic::MATE.to_owned();
     s.gameplay.new_character = game::new_character();
     s.network.fronts.push(c3_core::settings::FrontSettings {
         kind: FRONT_KIND.into(),
