@@ -193,8 +193,20 @@ pub enum Drop {
     Item(u32),
 }
 
+/// Rules of type `T` among `rules` and the rules they wrap.
+pub fn find_rules<T: Rules>(rules: &dyn Rules) -> Option<&T> {
+    let mut at = Some(rules);
+    while let Some(r) = at {
+        if let Some(found) = (r as &dyn std::any::Any).downcast_ref::<T>() {
+            return Some(found);
+        }
+        at = r.wrapped();
+    }
+    None
+}
+
 /// A game's rules. They are `Any`, so the game's own code (a protocol front, say) can reach
-/// its rules type through a simulation's `rules()`.
+/// its rules type through a simulation's `rules()` (see [`find_rules`]).
 pub trait Rules: std::any::Any {
     fn monster(&self, kind: u32) -> Option<&MonsterType>;
 
@@ -263,6 +275,11 @@ pub trait Rules: std::any::Any {
 
     /// What went wrong answering since the last call (a game's formula failing), for the
     /// simulation's warnings.
+    /// The rules these wrap (a layer over a game's rules, such as a project's formulas).
+    fn wrapped(&self) -> Option<&dyn Rules> {
+        None
+    }
+
     fn take_problems(&self) -> Vec<String> {
         Vec::new()
     }

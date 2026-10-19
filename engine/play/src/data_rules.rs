@@ -636,7 +636,7 @@ impl DataRules {
 }
 
 /// `stats` (and `level`) as a script map.
-fn fighter_map(f: &Fighter) -> Map {
+pub(crate) fn fighter_map(f: &Fighter) -> Map {
     let s = &f.stats;
     let mut map = Map::new();
     for (key, value) in [
@@ -655,7 +655,7 @@ fn fighter_map(f: &Fighter) -> Map {
 }
 
 /// A skill's numbers as a script map.
-fn skill_map(s: &SkillType) -> Map {
+pub(crate) fn skill_map(s: &SkillType) -> Map {
     let mut map = Map::new();
     for (key, value) in [
         ("id", s.id),
@@ -670,8 +670,34 @@ fn skill_map(s: &SkillType) -> Map {
     map
 }
 
-fn uint(v: i64) -> u32 {
+pub(crate) fn uint(v: i64) -> u32 {
     u32::try_from(v.max(0)).unwrap_or(u32::MAX)
+}
+
+/// What the formula `drops(monster)` says monster type `kind` leaves: a list of item types,
+/// and `#{money: n}` for money. The monster goes in as its numbers (`kind`, `level`, …).
+pub(crate) fn drops_from(
+    f: &Formulas,
+    kind: u32,
+    monster: Option<&MonsterType>,
+) -> Result<Vec<Drop>, String> {
+    let mut map = Map::new();
+    map.insert("kind".into(), i64::from(kind).into());
+    if let Some(m) = monster {
+        map.insert("level".into(), i64::from(m.level).into());
+        map.insert("life".into(), i64::from(m.stats.max_life).into());
+    }
+    let list = f.array("drops", (map,))?;
+    Ok(list
+        .into_iter()
+        .filter_map(|v| {
+            if let Ok(item) = v.as_int() {
+                return u32::try_from(item).ok().map(Drop::Item);
+            }
+            let money = map_int(&v.try_cast::<Map>()?, "money");
+            (money > 0).then_some(Drop::Money(money as u64))
+        })
+        .collect())
 }
 
 /// The engine's stats for `level` when the project gives none.
@@ -775,6 +801,11 @@ impl Rules for DataRules {
     }
 
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop> {
+        if let Some(drops) =
+            self.formula("drops", |f| drops_from(f, kind, self.monsters.get(&kind)))
+        {
+            return drops;
+        }
         let Some(loot) = self.loot.get(&kind) else {
             return Vec::new();
         };

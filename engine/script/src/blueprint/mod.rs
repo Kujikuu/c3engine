@@ -354,6 +354,35 @@ mod tests {
         assert!(host.check(&code, None).is_empty(), "{code}");
     }
 
+    /// A drops formula built of nodes: items 7 and 9, and 50 money.
+    #[test]
+    fn drops_formulas_answer_lists() {
+        let bp = Blueprint {
+            events: Graph {
+                nodes: vec![
+                    node(1, "formula.drops", &[]),
+                    node(2, "flow.return", &[]),
+                    node(
+                        3,
+                        "list.items",
+                        &[("a", Literal::Number(7.0)), ("b", Literal::Number(9.0))],
+                    ),
+                    node(4, "list.money", &[("amount", Literal::Number(50.0))]),
+                ],
+                wires: vec![
+                    wire(1, "then", 2, "exec"),
+                    wire(3, "value", 4, "list"),
+                    wire(4, "value", 2, "value"),
+                ],
+            },
+            ..Blueprint::default()
+        };
+        let code = compile("rules", &bp).unwrap();
+        let formulas = crate::Formulas::compile(&code).unwrap();
+        let list = formulas.array("drops", (rhai::Map::new(),)).unwrap();
+        assert_eq!(list.len(), 3, "{code}");
+    }
+
     #[test]
     fn problems_name_their_nodes() {
         let mut bp = bounty();

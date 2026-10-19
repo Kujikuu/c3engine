@@ -69,6 +69,15 @@ impl Formulas {
             .map_err(|kind| format!("{name}() gave {kind}, not a number"))
     }
 
+    /// `name(args)` as a list.
+    pub fn array(&self, name: &str, args: impl FuncArgs) -> Result<rhai::Array, String> {
+        let value = self.call(name, args)?;
+        let kind = value.type_name();
+        value
+            .try_cast::<rhai::Array>()
+            .ok_or_else(|| format!("{name}() gave {kind}, not a list"))
+    }
+
     /// `name(args)` as a map (named numbers).
     pub fn map(&self, name: &str, args: impl FuncArgs) -> Result<Map, String> {
         let value = self.call(name, args)?;

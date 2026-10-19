@@ -206,7 +206,8 @@ const fn formula(
 pub fn returns(function: &str) -> Option<PinType> {
     match function {
         "player_stats" => Some(Record),
-        "level_exp" | "hit" | "kill_exp" | "skill_hit" | "skill_heal" => Some(Number),
+        "level_exp" | "hit" | "hit_exp" | "kill_exp" | "skill_hit" | "skill_heal" => Some(Number),
+        "drops" => Some(List),
         _ => None,
     }
 }
@@ -282,6 +283,18 @@ pub const NODES: &[NodeDef] = &[
         &[("attacker", Record), ("target", Record)],
     ),
     formula(
+        "formula.hit_exp",
+        "Experience for a hit",
+        "hit_exp",
+        &[("level", Number), ("target", Record), ("damage", Number)],
+    ),
+    formula(
+        "formula.drops",
+        "What a monster leaves",
+        "drops",
+        &[("monster", Record)],
+    ),
+    formula(
         "formula.kill_exp",
         "Experience for a kill",
         "kill_exp",
@@ -322,6 +335,31 @@ pub const NODES: &[NodeDef] = &[
         ],
         Record,
         "#{life: {life}, mana: {mana}, attack_min: {attack_min}, attack_max: {attack_max}, defence: {defence}, dodge: {dodge}, dexterity: {dexterity}}",
+    ),
+    // Lists (a drops formula's answer: item types, and money).
+    pure(
+        "list.items",
+        "Drop items",
+        "Formulas",
+        &[("a", Item), ("b", Item), ("c", Item)],
+        List,
+        "[{a}, {b}, {c}].filter(|x| x != 0)",
+    ),
+    pure(
+        "list.money",
+        "Add money",
+        "Formulas",
+        &[("list", List), ("amount", Number)],
+        List,
+        "{list} + [#{money: {amount}}]",
+    ),
+    pure(
+        "list.size",
+        "List size",
+        "Formulas",
+        &[("list", List)],
+        Number,
+        "{list}.len()",
     ),
     // Cells.
     pure(

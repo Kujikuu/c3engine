@@ -509,7 +509,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom
     events; formula events (player stats, level exp, hit, kill exp, skill hit and heal) end
     at a Return
-  - [ ] A drops formula event (drops are table data; the rules ask no formula for them)
+  - [x] A drops formula event: `drops(monster)` answers a list of item types and money
+        (Drop items / Add money nodes); hit experience is a formula event too
 - [x] Graph editor in the Studio: Blueprint-like canvas (search palette, typed wiring,
       reroutes, comments, collapse to function), live debugging in Play (breakpoints, watched
       values, the path that ran lit), find references
@@ -527,8 +528,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     the Armorer's shop) are blueprints, with no hand-written script left; its quest is a
     dialogue graph. Played in the Studio: the same messages, dialogue and purchase as the
     scripts gave. An NPC names a blueprint as it names a script
-  - [ ] Conquer's formulas as formula graphs (its rules are the game module's code;
-        formula events reach data-driven rules only)
+  - [x] Conquer's formulas as formula graphs: a project's formulas (rules.rhai or formula
+        blueprints) now answer over any game's own rules, Conquer's included
 
 ## M11: MCP and AI integration (moved before Conquer; the Studio assistant panel is dropped)
 - [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude

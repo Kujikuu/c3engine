@@ -7,7 +7,6 @@ use crate::rules::{ConquerRules, Points};
 use c3_game::{EntityId, EntityState, Event, Input, Player, Rules, Sim, WorldUpdate};
 use c3_online::Welcome;
 use c3_scene::{CellPos, Npc, path};
-use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 
 /// Players' ids as the client knows them start here.
@@ -82,9 +81,7 @@ fn look_face(p: &Player) -> u32 {
 
 /// The hero's attribute points at `level` under Conquer's rules (none under others).
 fn points(rules: &dyn Rules, level: u32) -> Points {
-    (rules as &dyn Any)
-        .downcast_ref::<ConquerRules>()
-        .map_or([0; 4], |r| r.points_at(level))
+    c3_game::find_rules::<ConquerRules>(rules).map_or([0; 4], |r| r.points_at(level))
 }
 
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {

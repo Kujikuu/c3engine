@@ -31,10 +31,26 @@ fn rules_of(
     tables: Option<&PathBuf>,
 ) -> (Box<dyn c3_game::Rules>, Vec<String>) {
     let (rules, problems) = game.rules(tables.map(PathBuf::as_path));
-    let problems = problems
+    let mut problems: Vec<String> = problems
         .into_iter()
         .map(|p| format!("Game rules: {p}"))
         .collect();
+    // A project's formulas over a game's own rules (the engine's data rules read them).
+    let scripts = tables.and_then(|t| t.parent()).map(|p| p.join("scripts"));
+    let data = (rules.as_ref() as &dyn std::any::Any).is::<crate::data_rules::DataRules>();
+    let rules: Box<dyn c3_game::Rules> = match scripts.filter(|_| !data) {
+        Some(dir) => match c3_script::Formulas::load_dir(&dir) {
+            Ok(Some(formulas)) => {
+                Box::new(crate::formula_rules::FormulaRules::new(rules, formulas))
+            }
+            Ok(None) => rules,
+            Err(e) => {
+                problems.push(format!("Formulas: {e}"));
+                rules
+            }
+        },
+        None => rules,
+    };
     (rules, problems)
 }
 
