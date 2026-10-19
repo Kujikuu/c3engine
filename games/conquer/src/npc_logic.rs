@@ -207,6 +207,8 @@ struct Canvas {
     graph: Graph,
     /// The next free row of each column.
     rows: HashMap<i32, f32>,
+    /// Where the current lane starts.
+    top: f32,
 }
 
 impl Canvas {
@@ -214,13 +216,14 @@ impl Canvas {
         Self {
             graph: Graph::default(),
             rows: HashMap::new(),
+            top: 0.0,
         }
     }
 
     /// Adds node `def` with `values` in column `column`; its id.
     fn node(&mut self, def: &str, values: &[(&str, Literal)], column: i32) -> u32 {
         let id = self.graph.next_id();
-        let row = self.rows.entry(column).or_insert(0.0);
+        let row = self.rows.entry(column).or_insert(self.top);
         let pos = [column as f32 * 280.0, *row];
         *row += 140.0;
         self.graph.nodes.push(GraphNode {
@@ -232,6 +235,15 @@ impl Canvas {
                 .collect(),
         });
         id
+    }
+
+    /// Starts a new lane below everything placed so far (each event reads left to right).
+    fn lane(&mut self) {
+        let bottom = self.rows.values().copied().fold(0.0, f32::max);
+        for row in self.rows.values_mut() {
+            *row = bottom + 80.0;
+        }
+        self.top = bottom + 80.0;
     }
 
     fn wire(&mut self, from: (u32, &str), to: (u32, &str)) {
@@ -396,6 +408,7 @@ impl<'a> Builder<'a> {
             self.missing.insert(id);
             return;
         };
+        events.lane();
         let start = events.node("event.custom", &[("name", txt(&format!("task_{id}")))], 0);
         let (pass, fail) = self.task_check(events, &task, (start, "then"), 1);
         self.chain(events, pass, task.next, 3);

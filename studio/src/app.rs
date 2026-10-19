@@ -412,6 +412,10 @@ impl Studio {
         if let Some(name) = flag("--script") {
             s.load_script(&name);
         }
+        if let Some(name) = flag("--blueprint") {
+            s.open_blueprint(&name);
+            s.show_panel(Panel::Blueprints);
+        }
         if let Some(name) = flag("--dialogue") {
             s.load_dialogue(&name);
             if let Some(node) = flag("--node").and_then(|n| n.parse().ok()) {
