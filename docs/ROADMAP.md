@@ -492,7 +492,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     their node
   - [x] A cell pin type: cells as values ([x, y]), made, read, measured, walked to,
         teleported and spawned at
-  - [ ] Macros (inline sub-graphs; functions stand in for them today)
+  - [x] Macros: a function marked macro is written out at each call (its nodes named
+        apart per call); it may not wait or give back a value
 - [x] Node library over the whole gameplay core: players, monsters, NPCs, items, skills,
       statuses, quests, money, teams, maps, portals, spawns, chat, dialogue pages, UI windows,
       effects and sounds, random, math, tables (read rows by key)

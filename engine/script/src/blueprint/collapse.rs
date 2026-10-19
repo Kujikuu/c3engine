@@ -160,6 +160,7 @@ pub fn collapse(
             .map(|(i, (s, t))| (input_name(i, s), *t))
             .collect(),
         output: None,
+        inline: false,
         graph: body,
     };
     // The call in their place.

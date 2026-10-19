@@ -83,6 +83,7 @@ pub fn compile(name: &str, blueprint: &Blueprint) -> Result<String, Vec<Problem>
         problems: Vec::new(),
         waits: Vec::new(),
         walks: Vec::new(),
+        inlining: Vec::new(),
     };
     let mut out =
         format!("// Made from blueprint \"{name}\"; edit the blueprint, not this file.\n");
@@ -103,6 +104,8 @@ struct Compiler<'a> {
     waits: Vec<(String, String)>,
     /// Walks met so far: their tags and the functions going on after them.
     walks: Vec<(String, String)>,
+    /// Macros being written out (one inside itself is a problem).
+    inlining: Vec<String>,
 }
 
 /// One function body being written.
@@ -119,6 +122,10 @@ struct Body<'a> {
     rest: Vec<(String, u32)>,
     /// What a Return gives back here (a formula's or a function's answer).
     returns: Option<PinType>,
+    /// Starts the names of node outputs (a macro written out inside a call: `m<call>_`).
+    prefix: String,
+    /// In a macro written out: what its inputs' variables start with.
+    alias: Option<String>,
 }
 
 impl<'a> Body<'a> {
@@ -132,7 +139,14 @@ impl<'a> Body<'a> {
             path: Vec::new(),
             rest: Vec::new(),
             returns: None,
+            prefix: String::new(),
+            alias: None,
         }
+    }
+
+    /// The variable holding output `pin` of node `node`.
+    fn var(&self, node: u32, pin: &str) -> String {
+        format!("n{}{node}_{}", self.prefix, ident(pin))
     }
 
     fn line(&mut self, text: &str) {
@@ -272,7 +286,7 @@ impl<'a> Compiler<'a> {
 
     fn functions(&mut self, out: &mut String) {
         let blueprint = self.blueprint;
-        for f in &blueprint.functions {
+        for f in blueprint.functions.iter().filter(|f| !f.inline) {
             let which = GraphRef::Function(f.name.clone());
             let entries: Vec<&GraphNode> = (f.graph.nodes.iter())
                 .filter(|n| n.def == "flow.entry")
@@ -374,7 +388,7 @@ impl<'a> Compiler<'a> {
                 let code = self.fill(body, node, def);
                 match def.outputs.first() {
                     Some((out, _)) => {
-                        let var = format!("n{id}_{}", ident(out));
+                        let var = body.var(id, out);
                         body.line(&format!("let {var} = {code};"));
                         body.line(&format!(
                             "__watch({}, {id}, {}, {var});",
@@ -406,7 +420,8 @@ impl<'a> Compiler<'a> {
             }
             DefKind::ForEach => {
                 let list = self.input(body, node, "list", PinType::List);
-                body.line(&format!("for n{id}_item in {list} {{"));
+                let item = body.var(id, "item");
+                body.line(&format!("for {item} in {list} {{"));
                 body.known.insert((id, "item".to_owned()));
                 body.depth += 1;
                 self.chain(body, id, "body");
@@ -457,14 +472,17 @@ impl<'a> Compiler<'a> {
                 self.chain(body, id, "then");
             }
             DefKind::Call => {
-                if let Some(f) = self.function(body, node) {
+                if let Some(f) = self.function(body, node).filter(|f| f.inline) {
+                    self.write_out(body, node, f);
+                } else if let Some(f) = self.function(body, node) {
                     let args: Vec<String> = (f.inputs.iter())
                         .map(|(pin, ty)| self.input(body, node, pin, *ty))
                         .collect();
                     let call = format!("f_{}({})", ident(&f.name), args.join(", "));
                     match f.output {
                         Some(_) => {
-                            body.line(&format!("let n{id}_value = {call};"));
+                            let var = body.var(id, "value");
+                            body.line(&format!("let {var} = {call};"));
                             body.known.insert((id, "value".to_owned()));
                         }
                         None => body.line(&format!("{call};")),
@@ -495,6 +513,55 @@ impl<'a> Compiler<'a> {
             | DefKind::Comment => {}
         }
         body.path.pop();
+    }
+
+    /// Writes macro `f` out in place of call node `call`: its inputs as variables, then
+    /// its nodes, named apart from the caller's.
+    fn write_out(&mut self, body: &mut Body, call: &GraphNode, f: &'a super::model::Function) {
+        let which = body.which.clone();
+        if self.inlining.contains(&f.name) {
+            self.problem(
+                &which,
+                Some(call.id),
+                format!("Macro {} calls itself", f.name),
+            );
+            return;
+        }
+        if f.output.is_some() {
+            self.problem(
+                &which,
+                Some(call.id),
+                "A macro gives nothing back; make it a function",
+            );
+        }
+        let Some(entry) = f.graph.nodes.iter().find(|n| n.def == "flow.entry") else {
+            self.problem(
+                &which,
+                Some(call.id),
+                format!("Macro {} has no start node", f.name),
+            );
+            return;
+        };
+        let prefix = format!("{}m{}_", body.prefix, call.id);
+        for (pin, ty) in &f.inputs {
+            let value = self.input(body, call, pin, *ty);
+            body.line(&format!("let {prefix}{} = {value};", ident(pin)));
+        }
+        let mut inner = Body::new(&f.graph, GraphRef::Function(f.name.clone()), body.depth);
+        // The macro's inputs read the variables just written.
+        inner.alias = Some(prefix.clone());
+        inner.prefix = prefix;
+        self.inlining.push(f.name.clone());
+        self.chain(&mut inner, entry.id, "then");
+        self.inlining.pop();
+        if !inner.rest.is_empty() {
+            self.problem(
+                &which,
+                Some(call.id),
+                "Macros can't wait or walk (only events can)",
+            );
+        }
+        body.code.push_str(&inner.code);
     }
 
     /// `def`'s code with its inputs filled in.
@@ -567,10 +634,13 @@ impl<'a> Compiler<'a> {
                 },
                 None => default_of(ty).to_owned(),
             },
+            DefKind::FunctionEntry if body.alias.is_some() => {
+                format!("{}{}", body.alias.clone().unwrap_or_default(), ident(&out))
+            }
             DefKind::Event { .. } | DefKind::FunctionEntry => format!("p_{}", ident(&out)),
             _ => {
                 if body.known.contains(&(from, out.clone())) {
-                    format!("n{from}_{}", ident(&out))
+                    body.var(from, &out)
                 } else {
                     self.problem(
                         &which,

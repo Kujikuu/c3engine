@@ -1127,8 +1127,16 @@ fn side_panel(
                             .push((format!("in{}", f.inputs.len() + 1), PinType::Number));
                         touch.click();
                     }
+                    if ui
+                        .checkbox(&mut f.inline, "macro")
+                        .on_hover_text("Written out where it is called (gives nothing back)")
+                        .changed()
+                    {
+                        f.output = f.output.filter(|_| !f.inline);
+                        touch.click();
+                    }
                     let mut answers = f.output.is_some();
-                    if ui.checkbox(&mut answers, "answers").changed() {
+                    if !f.inline && ui.checkbox(&mut answers, "answers").changed() {
                         f.output = answers.then_some(PinType::Number);
                         touch.click();
                     }
@@ -1167,6 +1175,7 @@ fn side_panel(
                 name: name.clone(),
                 inputs: Vec::new(),
                 output: None,
+                inline: false,
                 graph: Graph {
                     nodes: vec![entry],
                     wires: Vec::new(),

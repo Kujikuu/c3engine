@@ -165,6 +165,9 @@ pub struct Function {
     /// What it gives back, if anything (a pure function when it has no exec pins).
     #[serde(default)]
     pub output: Option<PinType>,
+    /// A macro: its nodes are written out where it is called (it gives nothing back).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inline: bool,
     pub graph: Graph,
 }
 

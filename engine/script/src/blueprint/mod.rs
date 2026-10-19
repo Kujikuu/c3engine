@@ -341,6 +341,19 @@ mod tests {
         assert!(collapse(&mut bp, &GraphRef::Events, &[3], "test").is_err());
     }
 
+    /// A macro is written out at each call, its nodes named apart per call.
+    #[test]
+    fn macros_are_written_out_where_called() {
+        let mut bp = bounty();
+        collapse(&mut bp, &GraphRef::Events, &[4, 6, 7, 8], "reward").unwrap();
+        bp.functions[0].inline = true;
+        let code = compile("bounty", &bp).unwrap();
+        assert!(!code.contains("fn f_reward"), "{code}");
+        assert!(code.contains("give_money(10);"), "{code}");
+        let host = crate::ScriptHost::new(std::env::temp_dir(), None);
+        assert!(host.check(&code, None).is_empty(), "{code}");
+    }
+
     #[test]
     fn problems_name_their_nodes() {
         let mut bp = bounty();
