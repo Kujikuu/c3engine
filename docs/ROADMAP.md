@@ -603,9 +603,15 @@ run on the server and the local session alike, and are edited through c3-edit wi
     points with name colours and guards hunting by name, ghosts and revive points, death's
     costs and jail, skills costing an attribute (XP skills) with the XP bar, upgrades by
     using one item on another (Meteor, DragonBall)
-  - [ ] TQ's full damage and experience formulas (level difference tables `cq_disdain`, gems,
-        weapon proficiency, magic damage and defence, archery, critical lucky hits)
-  - [ ] `+N` composing, gems and sockets, enchanting and blessing
+  - [x] TQ's damage and experience formulas: melee, archery and magic damage with the level
+        difference table (`cq_disdain`), Dragon/Phoenix/Tortoise/Rainbow gems, magic defence,
+        Superman, the armour floor, rebirth defence, blessing; battle experience
+  - [ ] Weapon proficiency (its damage bonus and experience, Violet gems), critical lucky
+        hits and lucky time, team experience sharing, Moon gems' magic experience
+  - [x] `+N` composing, setting and removing gems, enchanting (life), sockets' gems counted
+        while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
+  - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones
+        (Msg 1028)
   - [ ] Profession promotions and rebirth end to end (NPC chains converted and played)
 - [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
       with its cursors and sounds
