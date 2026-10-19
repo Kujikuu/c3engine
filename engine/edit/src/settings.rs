@@ -175,6 +175,7 @@ fn to_json(settings: &ProjectSettings) -> Value {
         "gameplay": {
             "start_cell": null, "currencies": [], "equipment_slots": [], "attribute": [],
             "item_attributes": [],
+            "sockets": [],
             "new_character": {"skills": []}
         },
         "maps": [],

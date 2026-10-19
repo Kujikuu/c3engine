@@ -23,6 +23,7 @@ pub const DATA_TABLES: &[&str] = &[
     "cq_goods",
     "cq_rebirth",
     "cq_point_allot",
+    "cq_disdain",
 ];
 
 /// `extra` key holding the game map id a row belongs to.

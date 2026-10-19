@@ -6,7 +6,7 @@
 
 use super::library::{DefKind, NodeDef, node_def, returns};
 use super::model::{Blueprint, Graph, GraphNode, Literal, PinType, VariableScope};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
 /// Which graph of a blueprint.
@@ -126,6 +126,9 @@ struct Body<'a> {
     prefix: String,
     /// In a macro written out: what its inputs' variables start with.
     alias: Option<String>,
+    /// Values of pure nodes several inputs read, worked out once before the statement being
+    /// written (each statement reads them afresh): (prefix, node) → its variable.
+    shared: BTreeMap<(String, u32), String>,
 }
 
 impl<'a> Body<'a> {
@@ -141,6 +144,7 @@ impl<'a> Body<'a> {
             returns: None,
             prefix: String::new(),
             alias: None,
+            shared: BTreeMap::new(),
         }
     }
 
@@ -149,7 +153,14 @@ impl<'a> Body<'a> {
         format!("n{}{node}_{}", self.prefix, ident(pin))
     }
 
+    /// Writes a statement; the next one reads shared values afresh.
     fn line(&mut self, text: &str) {
+        self.shared.clear();
+        self.let_line(text);
+    }
+
+    /// Writes a line that keeps the shared values (one of them being worked out).
+    fn let_line(&mut self, text: &str) {
         let _ = writeln!(self.code, "{}{text}", "    ".repeat(self.depth));
     }
 }
@@ -611,10 +622,26 @@ impl<'a> Compiler<'a> {
                     self.problem(&which, Some(from), "The data wires loop back here");
                     return default_of(ty).to_owned();
                 }
+                // Read by several inputs: worked out once, before the statement.
+                let readers = (body.graph.wires.iter())
+                    .filter(|w| w.from.node == from && w.from.pin == out)
+                    .count();
+                let key = (body.prefix.clone(), from);
+                if readers > 1
+                    && let Some(var) = body.shared.get(&key)
+                {
+                    return var.clone();
+                }
                 body.path.push(from);
                 let code = self.fill(body, source, def);
                 body.path.pop();
-                code
+                if readers < 2 {
+                    return code;
+                }
+                let var = format!("s{}{from}", body.prefix);
+                body.let_line(&format!("let {var} = {code};"));
+                body.shared.insert(key, var.clone());
+                var
             }
             DefKind::Reroute => {
                 if body.path.contains(&from) {

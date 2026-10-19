@@ -368,6 +368,21 @@ impl Sim {
                 if let Some(slot) = slot {
                     facts.insert(format!("worn{slot}_{name}"), i64::from(value));
                 }
+                // A socketed item's numbers count while this one is worn.
+                let socketed = (self.settings.sockets.contains(name) && value > 0)
+                    .then(|| u32::try_from(value).ok())
+                    .flatten()
+                    .and_then(|v| {
+                        self.rules
+                            .item(self.settings.socket_item_base.saturating_add(v))
+                    });
+                for (fact, &v) in socketed.iter().flat_map(|s| &s.facts) {
+                    *facts.entry(format!("socket_{fact}")).or_default() += v;
+                }
+            }
+            // The numbers of what it wears add up.
+            for (fact, &v) in &t.facts {
+                *facts.entry(format!("gear_{fact}")).or_default() += v;
             }
         }
         crate::statuses::add_status_facts(&mut facts, &p.statuses, &*self.rules);

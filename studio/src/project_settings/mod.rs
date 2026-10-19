@@ -1267,6 +1267,28 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
                     "gameplay.item_attributes",
                     &g.item_attributes,
                 );
+                f.names(
+                    ui,
+                    (
+                        "Sockets",
+                        "Item attributes that hold another item (a gem): what it gives counts \
+                         while the item is worn",
+                        "e.g. gem1, gem2",
+                    ),
+                    "gameplay.sockets",
+                    &g.sockets,
+                );
+                f.whole(
+                    ui,
+                    (
+                        "Socketed item base",
+                        "The socketed item's type is this plus the attribute's value",
+                    ),
+                    "gameplay.socket_item_base",
+                    g.socket_item_base.into(),
+                    0..=i64::from(u32::MAX),
+                    "",
+                );
             });
             if g.item_attributes.len() > ITEM_ATTRIBUTES {
                 ui.colored_label(

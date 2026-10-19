@@ -361,6 +361,13 @@ pub struct GameplaySettings {
     /// Names of the numbers items keep (up to 8: plus level, gems, blessing...), in order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub item_attributes: Vec<String>,
+    /// Item attributes that hold another item (a gem in a socket): the item type is
+    /// `socket_item_base` + the value. What it gives counts while the item is worn (fighters'
+    /// `socket_<name>` facts).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sockets: Vec<String>,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub socket_item_base: u32,
     /// The equipment slots items are worn in; empty: the game's own.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub equipment_slots: Vec<EquipmentSlot>,
@@ -382,6 +389,10 @@ pub struct GameplaySettings {
     pub gm_everyone: bool,
     /// Accounts that may use game-master commands.
     pub gm_accounts: Vec<String>,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 impl Default for GameplaySettings {
@@ -406,6 +417,8 @@ impl Default for GameplaySettings {
             pk: PkSettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
+            sockets: Vec::new(),
+            socket_item_base: 0,
             equipment_slots: Vec::new(),
             qualities: ["Common", "Fine", "Rare", "Epic", "Legendary"]
                 .map(String::from)

@@ -61,8 +61,10 @@ pub struct Fighter {
     /// Named numbers formulas read beside the stats: `monster` (its type; 0 for a player) and
     /// a monster type's numbers, `status_<name>` (a number of the statuses it bears, summed),
     /// and for players `profession`, every attribute, `worn_<name>` (an item attribute summed
-    /// over what it wears), `worn<slot>` (the item type worn there) and `worn<slot>_<name>`
-    /// (that item's attribute). Broken items count for nothing.
+    /// over what it wears), `worn<slot>` (the item type worn there), `worn<slot>_<name>`
+    /// (that item's attribute), `gear_<name>` (an item type number summed over what it
+    /// wears) and `socket_<name>` (the same over the items in its sockets). Broken items
+    /// count for nothing.
     pub facts: std::collections::BTreeMap<String, i64>,
 }
 

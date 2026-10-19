@@ -14,6 +14,32 @@ pub const MONSTER_TABLE: &str = "cq_monstertype";
 pub const POINTS_TABLE: &str = "points";
 /// The engine table of rebirths (key: profession × 100000 + new profession × 10 + rule).
 pub const REBIRTHS_TABLE: &str = "rebirths";
+/// The engine table of TQ's level-difference factors (key: level difference, −400..400).
+pub const DISDAIN_TABLE: &str = "disdain";
+/// `cq_disdain`'s columns (battle §2.6, exp §2) kept in the disdain table.
+pub const DISDAIN_COLUMNS: [(&str, &str); 18] = [
+    (
+        "usr_atk_mst",
+        "A player's attack on a monster, percent more",
+    ),
+    ("mst_atk", "A monster's attack on a player, percent more"),
+    ("max_atk", "Most damage to a monster, percent of its life"),
+    ("max_xp_atk", "The same under an XP skill"),
+    ("exp_factor", "Experience, percent more"),
+    ("xp_exp_factor", "The same under an XP skill"),
+    ("usr_atk_usr_min", "PvP floor (both under level 110)"),
+    ("usr_atk_usr_max", "PvP cap (both under level 110)"),
+    ("usr_atk_usr_overadj", "Percent kept above the cap"),
+    ("usr_atk_usrx_min", "PvP floor (target 110 or more)"),
+    ("usr_atk_usrx_max", "PvP cap (target 110 or more)"),
+    ("usr_atk_usrx_overadj", "Percent kept above the cap"),
+    ("usrx_atk_usr_min", "PvP floor (attacker 110 or more)"),
+    ("usrx_atk_usr_max", "PvP cap (attacker 110 or more)"),
+    ("usrx_atk_usr_overadj", "Percent kept above the cap"),
+    ("usrx_atk_usrx_min", "PvP floor (both 110 or more)"),
+    ("usrx_atk_usrx_max", "PvP cap (both 110 or more)"),
+    ("usrx_atk_usrx_overadj", "Percent kept above the cap"),
+];
 
 /// `attack_user` bit: attacks players on sight (`ATKUSER_ACTIVE`).
 const ACTIVE: i64 = 0x02;
@@ -165,13 +191,14 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
         }
     };
     out.extend([skills, statuses]);
-    let makers: [(&str, &TableMaker); 6] = [
+    let makers: [(&str, &TableMaker); 7] = [
         (MONSTER_TABLE, &|t| monsters(t, &magic_types)),
         (crate::server_data::ITEM_TABLE, &items),
         ("cq_levexp", &levels),
         ("cq_goods", &shops),
         ("cq_point_allot", &points),
         ("cq_rebirth", &rebirths),
+        ("cq_disdain", &disdain),
     ];
     for (name, make) in makers {
         match find(name) {
@@ -186,7 +213,11 @@ pub fn engine_tables(tables: &[Table]) -> (Vec<Table>, Vec<String>) {
 /// puts on, and each magic level's id → its type (monsters name magic levels).
 fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
     let mut skills = Out::new(c3_play::data_rules::SKILLS, &[]);
-    let mut statuses = Out::new(c3_play::data_rules::STATUSES, &[]);
+    let extra = [
+        ("superman", ColumnKind::Int, "1: TQ's Superman (XP)"),
+        ("cyclone", ColumnKind::Int, "1: TQ's Cyclone (XP)"),
+    ];
+    let mut statuses = Out::new(c3_play::data_rules::STATUSES, &extra);
     let magic_types = rows(t).map(|r| (r.int("id"), r.int("type"))).collect();
     for r in rows(t).filter(|r| r.int("level") == 0) {
         let id = r.int("type");
@@ -252,12 +283,15 @@ fn status(out: &mut Out, id: i64, name: &str, r: &TqRow) -> Option<i64> {
         STATUS_CYCLONE => ("speed_percent", change + 100),
         _ => return None,
     };
+    let flag = r.int("status");
     out.row(&[
         ("id", int(id)),
         ("name", text(name)),
         ("duration_ms", int(r.int("step_secs") * 1000)),
         ("tick_ms", int(1000)),
         (column, int(change)),
+        ("superman", int(i64::from(flag == STATUS_SUPERMAN))),
+        ("cyclone", int(i64::from(flag == STATUS_CYCLONE))),
     ]);
     Some(id)
 }
@@ -273,6 +307,32 @@ fn monsters(t: &Table, magic_types: &BTreeMap<i64, i64>) -> Table {
             "defence2",
             ColumnKind::Int,
             "Damage it takes, in ten-thousandths (10000: all)",
+        ),
+        (
+            "armor_type",
+            ColumnKind::Int,
+            "The armour it wears (the minimum damage)",
+        ),
+        ("magic_def", ColumnKind::Int, "Magic defence, percent"),
+        (
+            "anti_monster",
+            ColumnKind::Int,
+            "Its kind items may be made against",
+        ),
+        (
+            "extra_battlelev",
+            ColumnKind::Int,
+            "Battle power a player needs against it",
+        ),
+        (
+            "extra_exp",
+            ColumnKind::Int,
+            "Experience percent per battle power over that (left 0: the dump's 7000 is wrong)",
+        ),
+        (
+            "extra_damage",
+            ColumnKind::Int,
+            "Its hits' least damage, in millionths of life",
         ),
     ];
     let mut out = Out::new(c3_play::data_rules::MONSTERS, &extra);
@@ -322,6 +382,13 @@ fn monsters(t: &Table, magic_types: &BTreeMap<i64, i64>) -> Table {
             ("hunts", text(hunts(attack_user))),
             ("attack_user", int(attack_user)),
             ("defence2", int(r.int("defence2"))),
+            ("armor_type", int(r.int("armor_type"))),
+            ("magic_def", int(r.int("magic_def"))),
+            ("anti_monster", int(r.int("anti_monster"))),
+            ("extra_battlelev", int(r.int("extra_battlelev"))),
+            // Battle exp §2: every row's 7000 would give 70% per battle power point.
+            ("extra_exp", int(0)),
+            ("extra_damage", int(r.int("extra_damage"))),
         ]);
     }
     out.table
@@ -337,6 +404,55 @@ fn hunts(attack_user: i64) -> String {
         .collect();
     names.join(", ")
 }
+
+/// What a gem gives in a socket, by its kind (`type / 10 % 10` of 7000xx) and grade (the last
+/// digit: 1 normal, 2 refined, 3 super): its items-table column and the three values
+/// (battle §1 gem tables, items §4.1; Moon's from the 5065 client's gem texts).
+const GEMS: [(i64, &str, &str, [i64; 3]); 8] = [
+    (
+        0,
+        "gem_magic",
+        "Magic damage, percent (Phoenix)",
+        [5, 10, 15],
+    ),
+    (
+        1,
+        "gem_attack",
+        "Physical attack, percent (Dragon)",
+        [5, 10, 15],
+    ),
+    (
+        2,
+        "gem_dexterity",
+        "Added to the dexterity sum (Fury)",
+        [5, 10, 15],
+    ),
+    (3, "gem_exp", "Experience, percent (Rainbow)", [10, 15, 25]),
+    (
+        4,
+        "gem_durability",
+        "Most durability, percent (Kylin)",
+        [50, 100, 200],
+    ),
+    (
+        5,
+        "gem_skill_exp",
+        "Weapon skill experience, percent (Violet)",
+        [30, 50, 100],
+    ),
+    (
+        6,
+        "gem_magic_exp",
+        "Magic skill experience, percent (Moon)",
+        [15, 30, 50],
+    ),
+    (
+        7,
+        "gem_defence",
+        "Damage taken, percent of half (Tortoise)",
+        [4, 8, 12],
+    ),
+];
 
 /// TQ's item columns kept as the game's facts (requirements and weapon numbers).
 const ITEM_FACTS: [(&str, &str); 11] = [
@@ -359,6 +475,10 @@ const ITEM_FACTS: [(&str, &str); 11] = [
 fn items(t: &Table) -> Table {
     let extra: Vec<(&str, ColumnKind, &str)> = (ITEM_FACTS.iter())
         .map(|(column, doc)| (*column, ColumnKind::Int, *doc))
+        .chain(
+            GEMS.iter()
+                .map(|(_, column, doc, _)| (*column, ColumnKind::Int, *doc)),
+        )
         .collect();
     let mut out = Out::new(c3_play::data_rules::ITEMS, &extra);
     for r in rows(t) {
@@ -394,6 +514,13 @@ fn items(t: &Table) -> Table {
             ("currency", text(currency)),
             ("requires_level", int(r.int("req_level"))),
         ];
+        // A gem's number in its column.
+        let gem = (id / 100 == 7000 && (1..=3).contains(&(id % 10)))
+            .then(|| GEMS.iter().find(|(kind, ..)| *kind == id / 10 % 10))
+            .flatten();
+        if let Some((_, column, _, grades)) = gem {
+            values.push((*column, int(grades[(id % 10 - 1) as usize])));
+        }
         values.extend(
             ITEM_FACTS
                 .iter()
@@ -431,6 +558,31 @@ fn shops(t: &Table) -> Table {
         ]);
     }
     out.table
+}
+
+/// TQ's level-difference factors (`cq_disdain`, type 0: the only one the data has), keyed
+/// by the level difference.
+fn disdain(t: &Table) -> Table {
+    let column = |name: &str, doc: &str| Column {
+        doc: doc.into(),
+        ..Column::new(name, ColumnKind::Int)
+    };
+    let columns = std::iter::once(column("key", "Level difference (attacker − target)"))
+        .chain(DISDAIN_COLUMNS.iter().map(|(name, doc)| column(name, doc)))
+        .collect();
+    let mut out = Table::new(DISDAIN_TABLE, columns);
+    out.doc = "Level-difference factors of damage and experience (TQ's cq_disdain)".into();
+    let mut rows: Vec<Vec<Value>> = rows(t)
+        .filter(|r| r.int("type") == 0)
+        .map(|r| {
+            std::iter::once(int(r.int("delta_lev")))
+                .chain(DISDAIN_COLUMNS.iter().map(|(name, _)| int(r.int(name))))
+                .collect()
+        })
+        .collect();
+    rows.sort_by_key(|r| r[0].as_int());
+    out.rows = rows;
+    out
 }
 
 /// Who may be reborn as what (`cq_rebirth`), keyed profession × 100000 + new profession × 10
