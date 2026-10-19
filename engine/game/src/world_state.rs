@@ -1,0 +1,202 @@
+//! What every map shares and the server keeps: guilds, the guilds owning maps, and world
+//! variables. Each map holds a copy and records its changes as [`WorldChange`]s; the host
+//! applies them to its own copy, keeps it, and hands every map the result.
+
+use crate::sim::Sim;
+use c3_script::{GuildView, WorldChange};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+/// Most allies and enemies a guild has.
+pub const GUILD_RELATIONS: usize = 5;
+
+/// A guild: its members by name with their rank, its fund, and its friends and foes.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Guild {
+    pub name: String,
+    pub leader: String,
+    pub fund: i64,
+    /// The guild it belongs to (a branch's main guild); 0: none.
+    #[serde(default)]
+    pub master: u32,
+    #[serde(default)]
+    pub allies: Vec<u32>,
+    #[serde(default)]
+    pub enemies: Vec<u32>,
+    /// Members by name, and their rank (the game's numbers).
+    pub members: BTreeMap<String, i64>,
+}
+
+/// The state all maps share.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct WorldState {
+    #[serde(default)]
+    pub guilds: BTreeMap<u32, Guild>,
+    /// The guild owning each game map that has one.
+    #[serde(default)]
+    pub map_owners: BTreeMap<u32, u32>,
+    #[serde(default)]
+    pub flags: BTreeMap<String, i64>,
+}
+
+impl WorldState {
+    /// Makes `change`; a change that no longer fits (a guild gone) does nothing.
+    pub fn apply(&mut self, change: &WorldChange) {
+        match change {
+            WorldChange::Flag { name, value } => {
+                self.flags.insert(name.clone(), *value);
+            }
+            WorldChange::CreateGuild {
+                id,
+                name,
+                leader,
+                rank,
+                fund,
+                master,
+            } => {
+                let Ok(id) = u32::try_from(*id) else {
+                    return;
+                };
+                self.leave_guilds(leader);
+                self.guilds.insert(
+                    id,
+                    Guild {
+                        name: name.clone(),
+                        leader: leader.clone(),
+                        fund: *fund,
+                        master: u32::try_from(*master).unwrap_or(0),
+                        members: BTreeMap::from([(leader.clone(), *rank)]),
+                        ..Guild::default()
+                    },
+                );
+            }
+            WorldChange::DestroyGuild(id) => {
+                let Ok(id) = u32::try_from(*id) else {
+                    return;
+                };
+                self.guilds.remove(&id);
+                self.map_owners.retain(|_, g| *g != id);
+                for g in self.guilds.values_mut() {
+                    g.allies.retain(|a| *a != id);
+                    g.enemies.retain(|e| *e != id);
+                }
+            }
+            WorldChange::GuildFund { guild, amount } => {
+                if let Some(g) = self.guild_mut(*guild) {
+                    g.fund = g.fund.saturating_add(*amount).max(0);
+                }
+            }
+            WorldChange::Member { guild, name, rank } => {
+                if *rank > 0 {
+                    self.leave_guilds(name);
+                }
+                let Some(g) = self.guild_mut(*guild) else {
+                    return;
+                };
+                if *rank > 0 {
+                    g.members.insert(name.clone(), *rank);
+                } else {
+                    g.members.remove(name);
+                }
+            }
+            WorldChange::Relation {
+                guild,
+                other,
+                ally,
+                on,
+            } => {
+                let (Ok(a), Ok(b)) = (u32::try_from(*guild), u32::try_from(*other)) else {
+                    return;
+                };
+                if a == b || !self.guilds.contains_key(&a) || !self.guilds.contains_key(&b) {
+                    return;
+                }
+                // Alliances are both ways; enmity is one guild's.
+                let sides: &[(u32, u32)] = if *ally { &[(a, b), (b, a)] } else { &[(a, b)] };
+                for &(from, to) in sides {
+                    let g = self.guilds.get_mut(&from).expect("checked above");
+                    let list = if *ally { &mut g.allies } else { &mut g.enemies };
+                    list.retain(|x| *x != to);
+                    if *on && list.len() < GUILD_RELATIONS {
+                        list.push(to);
+                    }
+                }
+            }
+            WorldChange::MapOwner { map, guild } => {
+                let Ok(map) = u32::try_from(*map) else {
+                    return;
+                };
+                match u32::try_from(*guild) {
+                    Ok(g) if g > 0 => {
+                        self.map_owners.insert(map, g);
+                    }
+                    _ => {
+                        self.map_owners.remove(&map);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The guild player `name` is in, and its rank there.
+    pub fn guild_of(&self, name: &str) -> Option<(u32, i64)> {
+        (self.guilds.iter()).find_map(|(id, g)| g.members.get(name).map(|r| (*id, *r)))
+    }
+
+    /// The guilds as scripts see them.
+    pub fn guild_views(&self) -> BTreeMap<i64, GuildView> {
+        (self.guilds.iter())
+            .map(|(id, g)| {
+                let view = GuildView {
+                    name: g.name.clone(),
+                    leader: g.leader.clone(),
+                    fund: g.fund,
+                    master: g.master.into(),
+                    allies: g.allies.iter().map(|&a| a.into()).collect(),
+                    enemies: g.enemies.iter().map(|&e| e.into()).collect(),
+                    members: g.members.clone(),
+                };
+                (i64::from(*id), view)
+            })
+            .collect()
+    }
+
+    fn guild_mut(&mut self, id: i64) -> Option<&mut Guild> {
+        self.guilds.get_mut(&u32::try_from(id).ok()?)
+    }
+
+    /// Takes player `name` out of every guild.
+    fn leave_guilds(&mut self, name: &str) {
+        for g in self.guilds.values_mut() {
+            g.members.remove(name);
+        }
+    }
+}
+
+impl Sim {
+    /// The shared state as this map holds it.
+    pub fn world_state(&self) -> &WorldState {
+        &self.world
+    }
+
+    /// The host's shared state; this map's changes not yet taken stay made.
+    pub fn set_world_state(&mut self, world: WorldState) {
+        self.world = world;
+        for change in &self.world_changes {
+            self.world.apply(change);
+        }
+        self.world_flags = self.world.flags.clone();
+    }
+
+    /// The changes this map made to the shared state since the last call, for the host.
+    pub fn take_world_changes(&mut self) -> Vec<WorldChange> {
+        std::mem::take(&mut self.world_changes)
+    }
+
+    /// Makes `change` here and keeps it for the host.
+    pub(crate) fn change_world(&mut self, change: WorldChange) {
+        self.world.apply(&change);
+        self.world_flags = self.world.flags.clone();
+        self.world_changes.push(change);
+    }
+}

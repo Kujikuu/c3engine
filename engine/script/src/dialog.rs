@@ -56,6 +56,9 @@ pub struct PlayerState {
     pub exp: i64,
     /// Fights between players on its map bring no crime or PK points.
     pub map_pk_free: bool,
+    /// The guilds by id, and the guild owning each game map that has one.
+    pub guilds: BTreeMap<i64, GuildView>,
+    pub map_owners: BTreeMap<i64, i64>,
     /// The living monsters on the player's map, by their type's name.
     pub monsters: BTreeMap<String, i64>,
     /// What the player typed in the answer's text box (empty: none).
@@ -113,6 +116,61 @@ pub struct DialogOption {
     /// (`accept()` in `next`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input: Option<u32>,
+}
+
+/// A guild as scripts see it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GuildView {
+    pub name: String,
+    pub leader: String,
+    pub fund: i64,
+    /// The guild it belongs to (0: none).
+    pub master: i64,
+    pub allies: Vec<i64>,
+    pub enemies: Vec<i64>,
+    /// Members by name and their rank.
+    pub members: BTreeMap<String, i64>,
+}
+
+/// A change to what every map shares (guilds, map owners, world variables).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum WorldChange {
+    Flag {
+        name: String,
+        value: i64,
+    },
+    /// Guild `id` made, `leader` its first member at `rank`.
+    CreateGuild {
+        id: i64,
+        name: String,
+        leader: String,
+        rank: i64,
+        fund: i64,
+        master: i64,
+    },
+    DestroyGuild(i64),
+    GuildFund {
+        guild: i64,
+        amount: i64,
+    },
+    /// Player `name` in guild `guild` at `rank` (0: out of it).
+    Member {
+        guild: i64,
+        name: String,
+        rank: i64,
+    },
+    /// Guild `other` made (`on`) or no longer an ally (both ways) or an enemy of `guild`.
+    Relation {
+        guild: i64,
+        other: i64,
+        ally: bool,
+        on: bool,
+    },
+    /// Game map `map` owned by guild `guild` (0: nobody).
+    MapOwner {
+        map: i64,
+        guild: i64,
+    },
 }
 
 /// One of the player's items as scripts see it.
@@ -226,6 +284,8 @@ pub enum Effect {
     AddStatus(i64),
     /// Play effect `name` on the player.
     PlayEffect(String),
+    /// A change to what every map shares.
+    World(WorldChange),
     /// A cue for the player's client alone, by a name its front knows (a game's own client
     /// messages), with two numbers.
     ClientCue {

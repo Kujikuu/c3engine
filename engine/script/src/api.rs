@@ -1,11 +1,14 @@
 //! The functions scripts call: dialogue, the player, the world and the game's tables.
 //! They act on the [`Call`] being run; outside a call they fail with a clear error.
 
-use crate::dialog::{DialogOption, DialogPage, Effect, NpcInfo, PlayerState};
+use crate::dialog::{
+    DialogOption, DialogPage, Effect, GuildView, NpcInfo, PlayerState, WorldChange,
+};
 use crate::quest::{self, DONE, NOT_TAKEN, Quest, TAKEN};
 use crate::tables::Tables;
 use rhai::{Dynamic, Engine, EvalAltResult};
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 /// The dialogue step being run: who it is for and what it has built so far.
@@ -384,6 +387,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
     });
     attributes(engine, shared);
     held_items(engine, shared);
+    guilds(engine, shared);
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -899,6 +903,235 @@ fn attributes(engine: &mut Engine, shared: &Shared) {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs() as i64)
     });
+}
+
+/// The player's guild and the others: reading them, and changes for every map.
+fn guilds(engine: &mut Engine, shared: &Shared) {
+    // The player's guild and rank there (0: none).
+    let membership = |c: &Call| {
+        (c.player.guilds.iter())
+            .find_map(|(id, g)| g.members.get(&c.player.name).map(|r| (*id, *r)))
+            .unwrap_or((0, 0))
+    };
+    let s = shared.clone();
+    engine.register_fn("guild_id", move || with(&s, |c| membership(c).0));
+    let s = shared.clone();
+    engine.register_fn("guild_rank", move || with(&s, |c| membership(c).1));
+    let read = |s: Shared, f: fn(&GuildView) -> i64| {
+        move |id: i64| with(&s, |c| c.player.guilds.get(&id).map_or(0, f))
+    };
+    engine.register_fn("guild_fund", read(shared.clone(), |g| g.fund));
+    engine.register_fn("guild_master", read(shared.clone(), |g| g.master));
+    engine.register_fn(
+        "guild_members",
+        read(shared.clone(), |g| g.members.len() as i64),
+    );
+    let s = shared.clone();
+    engine.register_fn("guild_name", move |id: i64| {
+        with(&s, |c| {
+            c.player
+                .guilds
+                .get(&id)
+                .map(|g| g.name.clone())
+                .unwrap_or_default()
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("guild_named", move |name: &str| {
+        with(&s, |c| {
+            (c.player.guilds.iter())
+                .find(|(_, g)| g.name.eq_ignore_ascii_case(name))
+                .map_or(0, |(id, _)| *id)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("next_guild", move |after: i64| {
+        with(&s, |c| {
+            (c.player.guilds.iter())
+                .find(|(id, g)| **id > after && !g.members.is_empty())
+                .map_or(0, |(id, _)| *id)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("map_owner", move |map: i64| {
+        with(&s, |c| c.player.map_owners.get(&map).copied().unwrap_or(0))
+    });
+    let s = shared.clone();
+    engine.register_fn(
+        "guild_relation",
+        move |guild: i64, other: i64, ally: bool| {
+            with(&s, |c| {
+                (c.player.guilds.get(&guild))
+                    .is_some_and(|g| if ally { &g.allies } else { &g.enemies }.contains(&other))
+            })
+        },
+    );
+    // Changes: made here at once, and for every map.
+    let change = |c: &mut Call, change: WorldChange| {
+        apply_guild_change(&mut c.player, &change);
+        c.effects.push(Effect::World(change));
+    };
+    let s = shared.clone();
+    engine.register_fn("create_guild", move |name: &str, fund: i64| {
+        with(&s, |c| {
+            let taken = c
+                .player
+                .guilds
+                .values()
+                .any(|g| g.name.eq_ignore_ascii_case(name));
+            let len = name.chars().count();
+            if membership(c).0 != 0 || taken || !(2..16).contains(&len) {
+                return false;
+            }
+            let id = c.player.guilds.keys().max().copied().unwrap_or(0) + 1;
+            let leader = c.player.name.clone();
+            let create = WorldChange::CreateGuild {
+                id,
+                name: name.to_owned(),
+                leader,
+                rank: GUILD_LEADER,
+                fund: fund.max(0),
+                master: 0,
+            };
+            change(c, create);
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("destroy_guild", move || {
+        with(&s, |c| {
+            let (id, rank) = membership(c);
+            let has_branch = c.player.guilds.values().any(|g| g.master == id);
+            if id == 0 || rank != GUILD_LEADER || has_branch {
+                return false;
+            }
+            change(c, WorldChange::DestroyGuild(id));
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("add_guild_fund", move |guild: i64, amount: i64| {
+        with(&s, |c| {
+            if !c.player.guilds.contains_key(&guild) {
+                return false;
+            }
+            change(c, WorldChange::GuildFund { guild, amount });
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_guild_rank", move |name: &str, rank: i64| {
+        with(&s, |c| {
+            let id = membership(c).0;
+            let member = (c.player.guilds.get(&id)).is_some_and(|g| g.members.contains_key(name));
+            if !member {
+                return false;
+            }
+            let name = name.to_owned();
+            change(
+                c,
+                WorldChange::Member {
+                    guild: id,
+                    name,
+                    rank,
+                },
+            );
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("join_guild", move |guild: i64, rank: i64| {
+        with(&s, |c| {
+            if !c.player.guilds.contains_key(&guild) || rank <= 0 {
+                return false;
+            }
+            let name = c.player.name.clone();
+            change(c, WorldChange::Member { guild, name, rank });
+            true
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn(
+        "set_guild_relation",
+        move |other: i64, ally: bool, on: bool| {
+            with(&s, |c| {
+                let guild = membership(c).0;
+                if guild == 0 || guild == other || !c.player.guilds.contains_key(&other) {
+                    return false;
+                }
+                change(
+                    c,
+                    WorldChange::Relation {
+                        guild,
+                        other,
+                        ally,
+                        on,
+                    },
+                );
+                true
+            })
+        },
+    );
+    let s = shared.clone();
+    engine.register_fn("set_map_owner", move |map: i64, guild: i64| {
+        with(&s, |c| change(c, WorldChange::MapOwner { map, guild }))
+    });
+}
+
+/// A guild's leader's rank.
+pub const GUILD_LEADER: i64 = 100;
+
+/// `change` as the player's own view of the guilds sees it at once.
+fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
+    match change {
+        WorldChange::CreateGuild {
+            id,
+            name,
+            leader,
+            rank,
+            fund,
+            master,
+        } => {
+            for g in p.guilds.values_mut() {
+                g.members.remove(leader);
+            }
+            let view = GuildView {
+                name: name.clone(),
+                leader: leader.clone(),
+                fund: *fund,
+                master: *master,
+                members: BTreeMap::from([(leader.clone(), *rank)]),
+                ..GuildView::default()
+            };
+            p.guilds.insert(*id, view);
+        }
+        WorldChange::DestroyGuild(id) => {
+            p.guilds.remove(id);
+        }
+        WorldChange::GuildFund { guild, amount } => {
+            if let Some(g) = p.guilds.get_mut(guild) {
+                g.fund = (g.fund + amount).max(0);
+            }
+        }
+        WorldChange::Member { guild, name, rank } => {
+            if *rank > 0 {
+                for g in p.guilds.values_mut() {
+                    g.members.remove(name);
+                }
+            }
+            if let Some(g) = p.guilds.get_mut(guild) {
+                if *rank > 0 {
+                    g.members.insert(name.clone(), *rank);
+                } else {
+                    g.members.remove(name);
+                }
+            }
+        }
+        WorldChange::MapOwner { map, guild } => {
+            p.map_owners.insert(*map, *guild);
+        }
+        WorldChange::Relation { .. } | WorldChange::Flag { .. } => {}
+    }
 }
 
 /// The player's own items by their ids: their type, numbers and durability.

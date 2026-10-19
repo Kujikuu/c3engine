@@ -54,6 +54,9 @@ pub struct Sim {
     pub(crate) regions: Vec<c3_scene::Region>,
     /// Script variables of the whole world (`world_flag`); unset reads as 0.
     pub(crate) world_flags: BTreeMap<String, i64>,
+    /// What every map shares, as this map holds it, and its changes not yet taken.
+    pub(crate) world: crate::WorldState,
+    pub(crate) world_changes: Vec<c3_script::WorldChange>,
     /// Team invitations: the invited player → the inviting leader.
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
     /// Players on the host's other maps, for teams across maps.
@@ -106,6 +109,8 @@ impl Sim {
             quests: Vec::new(),
             regions: Vec::new(),
             world_flags: BTreeMap::new(),
+            world: crate::WorldState::default(),
+            world_changes: Vec::new(),
             team_invites: BTreeMap::new(),
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),

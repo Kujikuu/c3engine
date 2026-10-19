@@ -234,6 +234,7 @@ impl Sim {
                 }
             }
             Effect::PlayEffect(effect) => self.events.push(Event::Effect { entity: id, effect }),
+            Effect::World(change) => self.change_world(change),
             Effect::ClientCue { name, args } => self.events.push(Event::ClientCue {
                 player: id,
                 name,
@@ -448,6 +449,10 @@ impl Sim {
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
             accept: String::new(),
+            guilds: self.world.guild_views(),
+            map_owners: (self.world.map_owners.iter())
+                .map(|(&m, &g)| (i64::from(m), i64::from(g)))
+                .collect(),
             monsters: {
                 let mut counts = BTreeMap::new();
                 for m in self.monsters.values().filter(|m| m.is_alive()) {
@@ -536,7 +541,14 @@ impl Sim {
                 }
             }
         }
-        self.world_flags = after.world.clone();
+        // World variables changed here, for every map.
+        let changed: Vec<(String, i64)> = (after.world.iter())
+            .filter(|(k, v)| self.world_flags.get(*k) != Some(v))
+            .map(|(k, &v)| (k.clone(), v))
+            .collect();
+        for (name, value) in changed {
+            self.change_world(c3_script::WorldChange::Flag { name, value });
+        }
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };

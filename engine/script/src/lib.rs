@@ -35,7 +35,9 @@ pub mod quest;
 mod tables;
 
 pub use conversation::{Conversation, Step};
-pub use dialog::{DialogOption, DialogPage, Effect, HeldItem, NpcInfo, PlayerState, Reply};
+pub use dialog::{
+    DialogOption, DialogPage, Effect, GuildView, HeldItem, NpcInfo, PlayerState, Reply, WorldChange,
+};
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
     Action, Case, Choice, Condition, DIALOGUE_SUFFIX, DialogueGraph, GENERATED_DIR, GraphProblem,
@@ -78,6 +80,21 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "guild_id() / guild_rank() / guild_name(id) / guild_fund(id) / guild_master(id) / \
+         guild_members(id) / guild_named(name) / next_guild(after) / map_owner(map) / \
+         guild_relation(guild, other, ally)",
+        "The player's guild and rank (0: none); a guild's name, fund, main guild, member \
+         count; a guild by name; the guild after `after` (0: none left); a map's owning guild; \
+         whether `other` is an ally (or enemy) of `guild`",
+    ),
+    (
+        "create_guild(name, fund) / destroy_guild() / add_guild_fund(id, n) / \
+         set_guild_rank(member, rank) / join_guild(id, rank) / \
+         set_guild_relation(other, ally, on) / set_map_owner(map, guild)",
+        "Guild changes every map shares (rank 100 leads; rank 0 leaves); whether they could be \
+         made",
+    ),
     (
         "room_cue(name, a, b)",
         "client_cue for everyone who sees the player",

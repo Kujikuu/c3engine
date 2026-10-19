@@ -1499,3 +1499,34 @@ fn an_event_without_a_page_leaves_the_conversation_open() {
     );
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn guilds_and_world_variables_reach_every_map() {
+    let dir = std::env::temp_dir().join(format!("c3-game-guilds-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_login() {\n\
+             if create_guild(\"Dragons\", 5000) { set_world_flag(\"guilds\", 1); }\n\
+             add_guild_fund(guild_id(), 250);\n\
+         }\n",
+    )
+    .unwrap();
+    let mut here = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    here.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let hero = here.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    here.logged_in(hero);
+    // The host takes this map's changes and hands the result to another map.
+    let mut host = crate::WorldState::default();
+    for change in here.take_world_changes() {
+        host.apply(&change);
+    }
+    let mut there = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    there.set_world_state(host.clone());
+    let (id, rank) = there.world_state().guild_of("Hero").expect("a member");
+    assert_eq!(rank, 100, "its leader");
+    let guild = &there.world_state().guilds[&id];
+    assert_eq!((guild.name.as_str(), guild.fund), ("Dragons", 5250));
+    assert_eq!(there.world_state().flags["guilds"], 1);
+    let _ = std::fs::remove_dir_all(dir);
+}

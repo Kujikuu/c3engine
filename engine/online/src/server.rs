@@ -90,13 +90,20 @@ pub struct GameServer {
     next_player: u32,
     since_save_ms: u64,
     log: Vec<String>,
+    /// What every map shares (guilds, map owners, world variables), kept beside the accounts.
+    world: c3_game::WorldState,
 }
+
+/// The file the shared world state is kept in, in the accounts folder (accounts can't start
+/// with `_`).
+const WORLD_FILE: &str = "_world.ron";
 
 impl GameServer {
     /// Serves `maps` (at least one) to the clients of `fronts`.
     pub fn new(fronts: Vec<Box<dyn Front>>, maps: Vec<MapWorld>, config: ServerConfig) -> Self {
         assert!(!maps.is_empty(), "a server needs a map");
         assert!(!fronts.is_empty(), "a server needs a front");
+        let world = Self::load_world(&config.accounts);
         Self {
             fronts,
             maps,
@@ -106,6 +113,43 @@ impl GameServer {
             next_player: PLAYER_IDS,
             since_save_ms: 0,
             log: Vec::new(),
+            world,
+        }
+    }
+
+    /// The shared world state saved in `dir` (none yet: an empty one).
+    fn load_world(dir: &std::path::Path) -> c3_game::WorldState {
+        std::fs::read_to_string(dir.join(WORLD_FILE))
+            .ok()
+            .and_then(|text| ron::from_str(&text).ok())
+            .unwrap_or_default()
+    }
+
+    /// Keeps the shared world state.
+    fn save_world(&mut self) {
+        let file = self.config.accounts.join(WORLD_FILE);
+        let text = ron::ser::to_string_pretty(&self.world, ron::ser::PrettyConfig::default());
+        let saved = text
+            .map_err(|e| e.to_string())
+            .and_then(|t| std::fs::write(&file, t).map_err(|e| e.to_string()));
+        if let Err(e) = saved {
+            self.log.push(format!("Couldn't save the world state: {e}"));
+        }
+    }
+
+    /// Makes the maps' changes to the shared state and hands every map the result.
+    fn share_world(&mut self) {
+        let changes: Vec<_> = (self.maps.iter_mut())
+            .flat_map(|m| m.sim.take_world_changes())
+            .collect();
+        if changes.is_empty() && self.maps.iter().all(|m| m.sim.world_state() == &self.world) {
+            return;
+        }
+        for change in &changes {
+            self.world.apply(change);
+        }
+        for map in &mut self.maps {
+            map.sim.set_world_state(self.world.clone());
         }
     }
 
@@ -163,6 +207,7 @@ impl GameServer {
         }
         self.carry_team_ops();
         self.carry_npc_moves();
+        self.share_world();
         for (from, hero, map, cell) in travels {
             self.travel(from, hero, map, cell);
         }
@@ -463,6 +508,7 @@ impl GameServer {
     }
 
     fn save_all(&mut self) {
+        self.save_world();
         let online: Vec<Client> = self.online.keys().copied().collect();
         for client in online {
             if let Some(p) = self.online.remove(&client) {
