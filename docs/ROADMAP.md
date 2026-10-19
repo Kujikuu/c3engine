@@ -658,7 +658,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         compose (2036) and enchant
   - [ ] Skill levels and experience (the engine keeps skills without them) and weapon
         skills as MsgWeaponSkill 1025
-  - [ ] Items and money dropped on the ground and picked up (MsgMapItem 1101)
+  - [x] Items and money dropped on the ground (MsgItem 3 and 12; a dropped item keeps its
+        plus and gems) and picked up (MsgMapItem 1101)
   - [ ] Teams (MsgTeam 1023), guilds (MsgSyndicate 1107 and names), friends (1019)
   - [ ] Each of the above checked with the real Conquer.exe
 

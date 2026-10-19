@@ -18,6 +18,9 @@ pub enum Input {
     SetRunning(bool),
     Attack(EntityId),
     PickUp(EntityId),
+    /// Drop bag item `0`, or this much money, where the player stands.
+    Drop(u32),
+    DropMoney(u64),
     /// Walk up to NPC `id` and talk.
     Talk(u32),
     /// Pick answer `n` of the dialogue.
@@ -113,6 +116,12 @@ impl Sim {
             Input::SetRunning(on) => self.set_running(id, on),
             Input::Attack(target) => self.attack(id, target),
             Input::PickUp(item) => self.pick_up(id, item),
+            Input::Drop(item) => self.drop_item(id, item),
+            Input::DropMoney(amount) => {
+                if self.living(id).is_some() {
+                    self.drop_money_of(id, i64::try_from(amount).unwrap_or(i64::MAX));
+                }
+            }
             Input::Talk(npc) => self.talk(id, npc),
             Input::Answer(n) => self.answer(id, n, None),
             Input::AnswerText { index, text } => self.answer(id, index, Some(text)),

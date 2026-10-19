@@ -822,10 +822,22 @@ impl Sim {
         let Some(ground) = self.items.get(&item) else {
             return;
         };
-        let (money, kind) = (ground.money, ground.kind);
-        if let Some(kind) = kind
-            && !self.give_item(id, kind)
-        {
+        let (money, kind, dropped) = (ground.money, ground.kind, ground.item);
+        let bag_size = self.bag_size();
+        let taken = match (dropped, kind) {
+            // A dropped item comes back as it was.
+            (Some(item), _) => {
+                let p = self.players.get_mut(&id).expect("picking up");
+                let room = p.bag.len() < bag_size;
+                if room {
+                    p.bag.push(item);
+                }
+                room
+            }
+            (None, Some(kind)) => self.give_item(id, kind),
+            (None, None) => true,
+        };
+        if !taken {
             return;
         }
         let ground = self.items.remove(&item).expect("checked above");

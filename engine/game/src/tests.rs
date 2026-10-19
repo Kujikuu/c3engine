@@ -1676,3 +1676,29 @@ fn two_players_trade_an_item_for_money() {
     assert_eq!(news.first(), Some(&crate::TradeNews::Opened));
     assert_eq!(news.last(), Some(&crate::TradeNews::Done));
 }
+
+#[test]
+fn dropped_items_and_money_come_back_as_they_were() {
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let mut save = crate::PlayerSave::new("Hero", (5, 5));
+    save.money = 500;
+    save.bag = vec![ARMOR.into()];
+    let hero = sim.add_saved_player(&save);
+    sim.players.get_mut(&hero).unwrap().bag[0].attrs[0] = 7;
+    let armor = sim.player(hero).unwrap().bag[0];
+    sim.drop_item(hero, armor.id);
+    sim.input(hero, crate::Input::DropMoney(120));
+    let p = sim.player(hero).unwrap();
+    assert!(p.bag.is_empty());
+    assert_eq!((p.money, sim.ground_items().count()), (380, 2));
+
+    for item in sim.ground_items().map(|i| i.id).collect::<Vec<_>>() {
+        sim.pick_up(hero, item);
+        assert!(run_until(&mut sim, 10_000, |s| s
+            .ground_item(item)
+            .is_none()));
+    }
+    let p = sim.player(hero).unwrap();
+    assert_eq!(p.money, 500);
+    assert_eq!(p.bag, vec![armor], "the very item, its attributes kept");
+}

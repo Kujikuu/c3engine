@@ -281,5 +281,8 @@ pub struct GroundItem {
     pub money: u64,
     /// The item type, when it is not money.
     pub kind: Option<u32>,
+    /// The very item a player dropped (its plus, gems and the rest kept).
+    #[serde(default)]
+    pub(crate) item: Option<Item>,
     pub(crate) expires_ms: u64,
 }

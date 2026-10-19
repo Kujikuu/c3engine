@@ -1030,6 +1030,8 @@ impl ConquerClient {
                 }),
                 item::USE => inputs.push(Input::Use(item_id)),
                 item::UNEQUIP => inputs.push(Input::Unequip(item_id)),
+                item::DROP => inputs.push(Input::Drop(item_id)),
+                item::DROP_MONEY if item_id >= 100 => inputs.push(Input::DropMoney(item_id.into())),
                 item::BUY => inputs.push(Input::Buy {
                     npc: item_id,
                     kind: data,

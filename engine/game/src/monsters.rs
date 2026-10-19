@@ -343,32 +343,65 @@ impl Sim {
         let chance = u32::try_from(percent.clamp(0, 100)).unwrap_or(0);
         for item in bag {
             if self.rng.chance(chance, 100) {
-                self.players
-                    .get_mut(&id)
-                    .expect("checked")
-                    .bag
-                    .retain(|i| i.id != item.id);
-                self.drop_at(cell, Drop::Item(item.kind));
+                self.drop_bag_item(id, cell, item.id);
             }
         }
     }
 
+    /// Player `id` drops bag item `item` where it stands.
+    pub fn drop_item(&mut self, id: EntityId, item: u32) {
+        let Some(p) = self.living(id) else {
+            return;
+        };
+        let cell = p.cell;
+        self.drop_bag_item(id, cell, item);
+    }
+
+    /// Takes bag item `item` from player `id` and lays it, as it is, near `cell`.
+    fn drop_bag_item(&mut self, id: EntityId, cell: CellPos, item: u32) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let Some(at) = p.bag.iter().position(|i| i.id == item) else {
+            return;
+        };
+        let Some(spot) = self.free_spot_near(cell) else {
+            return;
+        };
+        let item = self.players.get_mut(&id).expect("found").bag.remove(at);
+        self.lay(spot, 0, Some(item.kind), Some(item));
+    }
+
     /// Lays `drop` on the free cell nearest `cell`.
     pub(crate) fn drop_at(&mut self, cell: CellPos, drop: Drop) {
-        let free = |s: &Sim, c: CellPos| {
-            s.walkable(c) && !s.index.near(c, 0).any(|(e, _)| s.items.contains_key(&e))
-        };
-        let Some(spot) = (0..=2).find_map(|r| {
-            (-r..=r)
-                .flat_map(|dy| (-r..=r).map(move |dx| (cell.0 + dx, cell.1 + dy)))
-                .find(|&c| free(self, c))
-        }) else {
+        let Some(spot) = self.free_spot_near(cell) else {
             return;
         };
         let (money, kind) = match drop {
             Drop::Money(m) => (m, None),
             Drop::Item(k) => (0, Some(k)),
         };
+        self.lay(spot, money, kind, None);
+    }
+
+    /// The walkable cell nearest `cell` (within 2) with nothing lying on it.
+    fn free_spot_near(&self, cell: CellPos) -> Option<CellPos> {
+        let free = |c: CellPos| {
+            self.walkable(c)
+                && !self
+                    .index
+                    .near(c, 0)
+                    .any(|(e, _)| self.items.contains_key(&e))
+        };
+        (0..=2).find_map(|r| {
+            (-r..=r)
+                .flat_map(|dy| (-r..=r).map(move |dx| (cell.0 + dx, cell.1 + dy)))
+                .find(|&c| free(c))
+        })
+    }
+
+    /// A ground item at `spot`.
+    fn lay(&mut self, spot: CellPos, money: u64, kind: Option<u32>, item: Option<crate::Item>) {
         let id = self.new_entity();
         self.items.insert(
             id,
@@ -377,6 +410,7 @@ impl Sim {
                 cell: spot,
                 money,
                 kind,
+                item,
                 expires_ms: self.now_ms + ms(self.settings.item_life_seconds),
             },
         );

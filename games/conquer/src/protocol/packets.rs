@@ -156,6 +156,9 @@ pub mod item {
     pub const BUY: u16 = 1;
     pub const SELL: u16 = 2;
     pub const REMOVE: u16 = 3;
+    /// From the client: drop bag item `id`; drop `id` money (at least 100).
+    pub const DROP: u16 = 3;
+    pub const DROP_MONEY: u16 = 12;
     pub const USE: u16 = 4;
     pub const EQUIP: u16 = 5;
     pub const UNEQUIP: u16 = 6;
