@@ -223,8 +223,10 @@ impl GameModule for ConquerModule {
         Some("TQ SQL dump")
     }
 
-    fn import_server_data(&self, dump: &str) -> Option<c3_play::server_data::ServerData> {
-        Some(crate::import::import_server_data(&self.content, dump))
+    fn import_server_data(&self, dump: &[u8]) -> Option<c3_play::server_data::ServerData> {
+        // TQ's dumps keep their text (names, dialogue) in GBK.
+        let (sql, _, _) = encoding_rs::GBK.decode(dump);
+        Some(crate::import::import_server_data(&self.content, &sql))
     }
 
     fn save_map(

@@ -467,7 +467,7 @@ mod tests {
         let Ok(bytes) = std::fs::read(dump) else {
             return;
         };
-        let sql = String::from_utf8_lossy(&bytes);
+        let sql = encoding_rs::GBK.decode(&bytes).0;
         let tq = c3_data::sql::import_tables(&sql, crate::server_data::DATA_TABLES);
         let (tables, problems) = engine_tables(&tq);
         assert!(problems.is_empty(), "{problems:?}");

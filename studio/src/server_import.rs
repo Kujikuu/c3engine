@@ -40,7 +40,7 @@ impl Studio {
             return;
         };
         let dump = match std::fs::read(file) {
-            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+            Ok(bytes) => bytes,
             Err(e) => {
                 self.error = Some(format!("Can't read {}: {e}", file.display()));
                 return;

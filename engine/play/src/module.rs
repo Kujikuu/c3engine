@@ -163,9 +163,9 @@ pub trait GameModule {
     fn server_data_kind(&self) -> Option<&str> {
         None
     }
-    /// The project data in `dump`, the game's own server data (Conquer: TQ's SQL dump); `None`
-    /// when the game has no server data to import.
-    fn import_server_data(&self, dump: &str) -> Option<crate::server_data::ServerData> {
+    /// The project data in `dump`, the game's own server data as its file holds it (Conquer:
+    /// TQ's SQL dump, its text in GBK); `None` when the game has no server data to import.
+    fn import_server_data(&self, dump: &[u8]) -> Option<crate::server_data::ServerData> {
         let _ = dump;
         None
     }

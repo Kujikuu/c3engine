@@ -277,7 +277,7 @@ INSERT INTO `cq_map` VALUES ('1005', 'Arena', 'x', '1005', '0009', '0', '0000', 
         let (Ok(bytes), Ok(content)) = (std::fs::read(dump), Content::open(client)) else {
             return;
         };
-        let import = import_server_data(&content, &String::from_utf8_lossy(&bytes));
+        let import = import_server_data(&content, &encoding_rs::GBK.decode(&bytes).0);
         let twin = import
             .maps
             .iter()

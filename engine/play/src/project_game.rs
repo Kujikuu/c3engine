@@ -120,7 +120,7 @@ impl GameModule for ProjectGame {
         self.game.server_data_kind()
     }
 
-    fn import_server_data(&self, dump: &str) -> Option<crate::server_data::ServerData> {
+    fn import_server_data(&self, dump: &[u8]) -> Option<crate::server_data::ServerData> {
         self.game.import_server_data(dump)
     }
 

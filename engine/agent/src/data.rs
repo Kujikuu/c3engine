@@ -165,7 +165,7 @@ fn import_server_data(ws: &mut dyn Workspace, args: &Value) -> Result<Value, Str
     let bytes = std::fs::read(&file).map_err(|e| format!("can't read {file}: {e}"))?;
     let data = (ws
         .game()
-        .import_server_data(&String::from_utf8_lossy(&bytes)))
+        .import_server_data(&bytes))
     .ok_or_else(|| format!("{} has no server data to import", ws.game().name()))?;
     let project = ws.project().clone();
     let listed = ws.settings()?.settings().maps.clone();

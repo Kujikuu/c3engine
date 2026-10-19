@@ -1660,7 +1660,7 @@ mod tests {
         let Ok(bytes) = std::fs::read(dump) else {
             return;
         };
-        let sql = String::from_utf8_lossy(&bytes);
+        let sql = encoding_rs::GBK.decode(&bytes).0;
         let logic = NpcLogic::from_sql(&sql);
         let population = crate::server_data::ServerPopulation::from_sql(&sql);
         let npcs: BTreeMap<u32, Vec<u32>> = (population.maps.values())

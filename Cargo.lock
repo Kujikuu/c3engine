@@ -2377,6 +2377,7 @@ dependencies = [
  "c3-script",
  "c3-ui",
  "egui 0.37.0",
+ "encoding_rs",
  "getrandom 0.3.4",
  "glam",
  "num-bigint",

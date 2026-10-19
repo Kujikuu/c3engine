@@ -25,3 +25,4 @@ glam = "0.34.1"
 blowfish = { version = "0.9", features = ["bcrypt"] }
 getrandom = "0.3"
 num-bigint = "0.4"
+encoding_rs = "0.8.42"
