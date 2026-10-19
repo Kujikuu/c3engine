@@ -34,6 +34,11 @@ pub enum Input {
     CloseShop,
     /// Use or wear bag item `id`.
     Use(u32),
+    /// Use bag item `item` on item `target` (bag or worn): a gem, an upgrade stone.
+    UseOn {
+        item: u32,
+        target: u32,
+    },
     /// Take off worn item `id`.
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
@@ -72,6 +77,7 @@ impl Sim {
             Input::Revive => self.revive(id),
             Input::Ghost => self.become_ghost(id),
             Input::Use(item) => self.use_item(id, item),
+            Input::UseOn { item, target } => self.use_item_on(id, item, target),
             Input::Unequip(item) => self.unequip(id, item),
             Input::Say(line) if line.starts_with('/') => {
                 let (ok, text) = match self.command(id, &line) {

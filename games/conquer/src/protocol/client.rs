@@ -115,6 +115,43 @@ fn status(p: &Player) -> u32 {
         }
 }
 
+/// Item `i` as MsgItemInfo: its durability in hundredths (or how many are stacked), and its
+/// numbers by the settings' item attribute names (Conquer's: plus, gems, bless...).
+fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> {
+    let t = sim.rules().item(i.kind);
+    let names = &sim.settings().item_attributes;
+    let attr = |name: &str| {
+        (names.iter().position(|n| n == name))
+            .and_then(|at| i.attrs.get(at))
+            .copied()
+            .unwrap_or(0)
+    };
+    let byte = |name: &str| u8::try_from(attr(name).clamp(0, 255)).unwrap_or(0);
+    let stacked = t.is_some_and(|t| t.stack > 1);
+    let (amount, limit) = match t {
+        Some(t) if stacked => (i.count, t.stack),
+        Some(t) => (i.durability * 100, t.durability * 100),
+        None => (1, 1),
+    };
+    let short = |v: u32| u16::try_from(v).unwrap_or(u16::MAX);
+    pk::item_info(&pk::ItemInfo {
+        id: i.id,
+        kind: i.kind,
+        amount: short(amount),
+        limit: short(limit),
+        action,
+        ident: byte("ident"),
+        position,
+        data: u32::try_from(attr("data").max(0)).unwrap_or(0),
+        gem1: byte("gem1"),
+        gem2: byte("gem2"),
+        plus: byte("plus"),
+        bless: byte("bless"),
+        enchant: byte("enchant"),
+        color: u16::try_from(attr("color").clamp(0, i32::from(u16::MAX))).unwrap_or(0),
+    })
+}
+
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
     rules.item(kind).and_then(|t| t.slot).unwrap_or(0)
 }
@@ -261,11 +298,10 @@ impl ConquerClient {
                 name: &p.name,
             }),
         ];
-        out.extend(p.bag.iter().map(|i| pk::item_info(i.id, i.kind, 0)));
+        out.extend(p.bag.iter().map(|i| item_info(i, 0, pk::ITEM_ADD, sim)));
         out.extend(
-            p.equipment
-                .iter()
-                .map(|i| pk::item_info(i.id, i.kind, slot_of(sim.rules(), i.kind))),
+            (p.equipment.iter())
+                .map(|i| item_info(i, slot_of(sim.rules(), i.kind), pk::ITEM_ADD, sim)),
         );
         self.points = points(p);
         self.me = Some(p.clone());
@@ -289,11 +325,10 @@ impl ConquerClient {
             .flat_map(|old| old.bag.iter().chain(&old.equipment))
             .map(|i| pk::item_action(i.id, 0, item::REMOVE))
             .collect();
-        out.extend(p.bag.iter().map(|i| pk::item_info(i.id, i.kind, 0)));
+        out.extend(p.bag.iter().map(|i| item_info(i, 0, pk::ITEM_ADD, sim)));
         out.extend(
-            p.equipment
-                .iter()
-                .map(|i| pk::item_info(i.id, i.kind, slot_of(sim.rules(), i.kind))),
+            (p.equipment.iter())
+                .map(|i| item_info(i, slot_of(sim.rules(), i.kind), pk::ITEM_ADD, sim)),
         );
         self.hero = Some(welcome.hero);
         self.map_id = map_id;
@@ -369,7 +404,8 @@ impl ConquerClient {
     }
 
     /// What changed on the hero, as attribute and item packets.
-    fn hero_changes(&self, old: &Player, new: &Player, rules: &dyn Rules) -> Vec<Vec<u8>> {
+    fn hero_changes(&self, old: &Player, new: &Player, sim: &Sim) -> Vec<Vec<u8>> {
+        let rules = sim.rules();
         let id = self.hero_id();
         let changed: Vec<(u32, u64)> = Self::stats(new, points(new))
             .into_iter()
@@ -397,8 +433,17 @@ impl ConquerClient {
                 out.push(if has(&old.bag, i.id) {
                     pk::item_action(i.id, slot, item::EQUIP)
                 } else {
-                    pk::item_info(i.id, i.kind, slot as u8)
+                    item_info(i, slot as u8, pk::ITEM_ADD, sim)
                 });
+            }
+        }
+        // Items that changed where they are (an upgrade, a gem, wear).
+        let before = |id: u32| old.bag.iter().chain(&old.equipment).find(|i| i.id == id);
+        for i in new.bag.iter().chain(&new.equipment) {
+            if before(i.id).is_some_and(|o| o != i) {
+                let worn = new.equipment.iter().any(|e| e.id == i.id);
+                let slot = if worn { slot_of(rules, i.kind) } else { 0 };
+                out.push(item_info(i, slot, pk::ITEM_UPDATE, sim));
             }
         }
         for i in &new.bag {
@@ -406,7 +451,7 @@ impl ConquerClient {
                 out.push(if has(&old.equipment, i.id) {
                     pk::item_action(i.id, slot_of(rules, i.kind).into(), item::UNEQUIP)
                 } else {
-                    pk::item_info(i.id, i.kind, 0)
+                    item_info(i, 0, pk::ITEM_ADD, sim)
                 });
             }
         }
@@ -427,7 +472,7 @@ impl ConquerClient {
             if Some(id) == hero {
                 if let EntityState::Player(p) = state {
                     if let (true, Some(old)) = (self.entered, &self.me) {
-                        out.extend(self.hero_changes(old, p, sim.rules()));
+                        out.extend(self.hero_changes(old, p, sim));
                     }
                     self.points = points(p);
                     self.me = Some((**p).clone());
@@ -705,6 +750,11 @@ impl ConquerClient {
                 item::SELL => inputs.push(Input::Sell {
                     npc: item_id,
                     item: data,
+                }),
+                // A DragonBall or Meteor (data) used on an item (id): items spec §2.3, §3.3.
+                item::IMPROVE | item::UPLEV => inputs.push(Input::UseOn {
+                    item: data,
+                    target: item_id,
                 }),
                 _ => {}
             },

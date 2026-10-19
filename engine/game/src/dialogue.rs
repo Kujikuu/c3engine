@@ -324,6 +324,21 @@ impl Sim {
                 .record
                 .map(|r| (i64::from(r.map), (i64::from(r.cell.0), i64::from(r.cell.1)))),
             bag_space: self.bag_size().saturating_sub(p.bag.len()) as i64,
+            held: (p.bag.iter().map(|i| (i, false)))
+                .chain(p.equipment.iter().map(|i| (i, true)))
+                .map(|(item, worn)| {
+                    let names = self.settings.item_attributes.iter();
+                    let held = c3_script::HeldItem {
+                        kind: item.kind.into(),
+                        durability: item.durability.into(),
+                        worn,
+                        attrs: (names.zip(item.attrs))
+                            .map(|(name, value)| (name.clone(), i64::from(value)))
+                            .collect(),
+                    };
+                    (i64::from(item.id), held)
+                })
+                .collect(),
             mana: p.mana.into(),
             max_mana: p.stats.max_mana.into(),
             killed_by_monster: p.killed_by_monster.into(),
@@ -370,6 +385,21 @@ impl Sim {
             }
         }
         p.skills.retain(|s| after.skills.contains(&i64::from(*s)));
+        // Changes to the player's own items (an upgrade's new type, numbers, durability).
+        for item in p.bag.iter_mut().chain(p.equipment.iter_mut()) {
+            let Some(held) = after.held.get(&i64::from(item.id)) else {
+                continue;
+            };
+            if let Ok(kind) = u32::try_from(held.kind) {
+                item.kind = kind;
+            }
+            item.durability = u32::try_from(held.durability.max(0)).unwrap_or(u32::MAX);
+            for (i, name) in names.iter().enumerate().take(item.attrs.len()) {
+                if let Some(&v) = held.attrs.get(name) {
+                    item.attrs[i] = v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+                }
+            }
+        }
         self.world_flags = after.world.clone();
         let Some(p) = self.players.get_mut(&id) else {
             return;

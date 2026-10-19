@@ -35,7 +35,7 @@ pub mod quest;
 mod tables;
 
 pub use conversation::{Conversation, Step};
-pub use dialog::{DialogOption, DialogPage, Effect, NpcInfo, PlayerState, Reply};
+pub use dialog::{DialogOption, DialogPage, Effect, HeldItem, NpcInfo, PlayerState, Reply};
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
     Action, Case, Choice, Condition, DIALOGUE_SUFFIX, DialogueGraph, GENERATED_DIR, GraphProblem,
@@ -78,6 +78,18 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "item_type_of(id) / set_item_type(id, type)",
+        "The type of the player's item `id` (bag or worn; 0: none); changes it (an upgrade)",
+    ),
+    (
+        "item_attr(id, name) / set_item_attr(id, name, v)",
+        "A number of the player's item `id` (the settings' item attributes)",
+    ),
+    (
+        "item_durability(id) / set_item_durability(id, v) / item_worn(id)",
+        "The durability of the player's item `id`, and whether it is worn",
+    ),
     ("exp()", "The player's experience toward its next level"),
     (
         "map_pk_free()",

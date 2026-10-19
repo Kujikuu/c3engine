@@ -265,6 +265,24 @@ impl Sim {
         self.script_event(id, "on_use", vec![i64::from(kind).into()]);
     }
 
+    /// Uses bag item `item` on item `target`: the game's `on_use_on(item's type, target)`
+    /// says what happens (an upgrade).
+    pub fn use_item_on(&mut self, id: EntityId, item: u32, target: u32) {
+        let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
+            return;
+        };
+        let Some(used) = p.bag.iter().find(|i| i.id == item).map(|i| i.kind) else {
+            return;
+        };
+        let held = p.bag.iter().chain(&p.equipment).any(|i| i.id == target);
+        if !held || item == target {
+            return;
+        }
+        let args = vec![i64::from(used).into(), i64::from(target).into()];
+        self.script_event(id, "on_use_on", args);
+        self.events.push(Event::Dressed { player: id });
+    }
+
     /// Dresses the player in a new item of `kind` (starting gear); false if it isn't worn.
     pub fn equip(&mut self, id: EntityId, kind: u32) -> bool {
         if self.rules.item(kind).and_then(|t| t.slot).is_none() || !self.players.contains_key(&id) {

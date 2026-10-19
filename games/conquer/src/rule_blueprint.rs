@@ -52,6 +52,7 @@ pub fn rules_blueprint() -> Blueprint {
     death(&mut bp.events, next_lane(700.0));
     revive(&mut bp.events, next_lane(200.0));
     xp_bar(&mut bp.events, next_lane(500.0));
+    upgrades(&mut bp.events, next_lane(900.0));
     bp.functions.push(allot());
     bp
 }
@@ -135,7 +136,7 @@ impl Names<'_> {
     }
 
     fn write(&self, w: &mut ExprWriter, text: &str) -> Operand {
-        w.write(text, &mut |w, n| self.resolve(w, n))
+        w.write(text, &mut |w, n, _| self.resolve(w, n))
             .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"))
     }
 }
@@ -242,8 +243,10 @@ fn can_wear(g: &mut Graph, top: f32) {
             // Conquer's male bodies are 3 and 4: TQ's sex 1; female 2.
             names.define(w, "sex", "if(body > 2, 1, 2)");
             let ok = names.write(w, CAN_WEAR);
-            w.write("if(ok, 1, 0)", &mut |_, n| (n == "ok").then(|| ok.clone()))
-                .expect("a plain formula")
+            w.write("if(ok, 1, 0)", &mut |_, n, _| {
+                (n == "ok").then(|| ok.clone())
+            })
+            .expect("a plain formula")
         },
     );
 }
@@ -263,7 +266,7 @@ fn level_up(g: &mut Graph, top: f32) {
     let fresh = w
         .write(
             "level == 1 && strength + agility + vitality + spirit == 0",
-            &mut |w, n| player_value(w, &names, n),
+            &mut |w, n, _| player_value(w, &names, n),
         )
         .expect("a plain formula");
     let branch = w.node("flow.branch", &[]);
@@ -364,7 +367,7 @@ fn chain(g: &mut Graph, from: (u32, &'static str), nodes: &[u32]) -> (u32, &'sta
 /// A Branch on `text` (a player's values by name) from `from`; its two ways out.
 fn branch_on(w: &mut ExprWriter, names: &Names, text: &str) -> u32 {
     let cond = w
-        .write(text, &mut |w, n| player_value(w, names, n))
+        .write(text, &mut |w, n, _| player_value(w, names, n))
         .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"));
     let branch = w.node("flow.branch", &[]);
     w.feed(&cond, branch, "condition");
@@ -374,7 +377,7 @@ fn branch_on(w: &mut ExprWriter, names: &Names, text: &str) -> u32 {
 /// An action node `def` whose input `pin` is `text` worked out (a player's values by name).
 fn action_of(w: &mut ExprWriter, names: &Names, def: &str, pin: &str, text: &str) -> u32 {
     let value = w
-        .write(text, &mut |w, n| player_value(w, names, n))
+        .write(text, &mut |w, n, _| player_value(w, names, n))
         .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"));
     let node = w.node(def, &[]);
     w.feed(&value, node, pin);
@@ -468,6 +471,177 @@ fn death(g: &mut Graph, top: f32) {
     chain(g, (evil, "true"), &[pk_record, pk_go]);
 }
 
+/// TQ's upgrade stones.
+const METEOR: i64 = 1_088_001;
+const METEOR_TEAR: i64 = 1_088_002;
+const DRAGON_BALL: i64 = 1_088_000;
+
+/// A Meteor's next level for `t` (items §2.1: the next type +10 that exists; three tried).
+const NEXT_LEVEL: &str =
+    "if(exists(t + 10), t + 10, if(exists(t + 20), t + 20, if(exists(t + 30), t + 30, 0)))";
+/// Helmets, armour and shields go by their last level digit, others by two (items §2.2).
+const HAS: &str = "t / 10000 == 11 || t / 10000 == 13 || t / 10000 == 14 || t / 100000 == 9";
+/// The Meteor's chance (items §2.2): by level, less for better qualities, 1–100, a
+/// MeteorTear 30% more.
+const METEOR_CHANCE: &str = "min(max(if(has, if(lv == 5, 50, if(lv == 6, 40, if(lv == 7, 30, if(lv == 8 || lv == 9, 20, 500)))), if(lv >= 11 && lv <= 22, 95 - (lv - 11) * 5, 500)) * if(q == 6, 90, if(q == 7, 70, if(q == 8, 30, if(q == 9, 10, 100)))) / 100, 1), 100) * if(used == 1088002, 130, 100) / 100";
+/// A DragonBall's next quality (items §3.1): 3, 4 and 5 become 6, then 7, 8, 9.
+const NEXT_QUALITY: &str = "if(q < 5, t / 10 * 10 + 5, t) + 1";
+/// Its chance (items §3.2): by quality, less above level 70.
+const QUALITY_CHANCE: &str = "max(if(q == 6, 50, if(q == 7, 33, if(q == 8, 20, 100))) * if(need > 70, 100 - (need - 70), 100) / 100, 1)";
+
+/// Upgrade stones used on an item (items §2.3, §3.3): a Meteor (or MeteorTear) raises its
+/// level, a DragonBall its quality; the stone is spent, then the chance rolled.
+fn upgrades(g: &mut Graph, top: f32) {
+    let event = node(g, "event.use_on", [0.0, top], &[]);
+    let used = Operand::Pin {
+        node: event,
+        pin: "used".into(),
+    };
+    let target = Operand::Pin {
+        node: event,
+        pin: "target".into(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let t = {
+        let kind = w.node("held.type", &[]);
+        w.feed(&target, kind, "item");
+        Operand::Pin {
+            node: kind,
+            pin: "value".into(),
+        }
+    };
+    let mut lets: Vec<(String, Operand)> = vec![("used".into(), used.clone()), ("t".into(), t)];
+    let write = |w: &mut ExprWriter, lets: &mut Vec<(String, Operand)>, name: &str, text: &str| {
+        let value = w
+            .write(text, &mut |w, n, args| upgrade_name(w, lets, n, args))
+            .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"));
+        if !name.is_empty() {
+            lets.push((name.to_owned(), value.clone()));
+        }
+        value
+    };
+    write(&mut w, &mut lets, "q", "t % 10");
+    let is_meteor = write(
+        &mut w,
+        &mut lets,
+        "",
+        &format!("used == {METEOR} || used == {METEOR_TEAR}"),
+    );
+    let is_ball = write(&mut w, &mut lets, "", &format!("used == {DRAGON_BALL}"));
+    write(&mut w, &mut lets, "next", NEXT_LEVEL);
+    write(&mut w, &mut lets, "has", HAS);
+    write(
+        &mut w,
+        &mut lets,
+        "lv",
+        "if(has, t % 100 / 10, t % 1000 / 10)",
+    );
+    write(&mut w, &mut lets, "chance", METEOR_CHANCE);
+    let meteor_ok = write(&mut w, &mut lets, "", "next != 0 && q >= 3");
+    let meteor_roll = write(&mut w, &mut lets, "", "random(0, 99) < chance");
+    write(&mut w, &mut lets, "next_q", NEXT_QUALITY);
+    write(&mut w, &mut lets, "need", "required(t)");
+    write(&mut w, &mut lets, "q_chance", QUALITY_CHANCE);
+    let ball_ok = write(&mut w, &mut lets, "", "q >= 3 && q <= 8 && exists(next_q)");
+    let ball_roll = write(&mut w, &mut lets, "", "random(0, 99) < q_chance");
+    let get = |name: &str| {
+        lets.iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.clone())
+            .expect("written above")
+    };
+    let (next, next_q) = (get("next"), get("next_q"));
+
+    let branch = |w: &mut ExprWriter, cond: &Operand| {
+        let b = w.node("flow.branch", &[]);
+        w.feed(cond, b, "condition");
+        b
+    };
+    let say = |w: &mut ExprWriter, line: &str| w.node("player.message", &[("text", text(line))]);
+    // Spends the stone, rolls, and on success changes the item's type to `to`.
+    let attempt = |w: &mut ExprWriter, roll: &Operand, to: &Operand, done: &str| {
+        let take = w.node("item.take", &[("count", Literal::Number(1.0))]);
+        w.feed(&used, take, "item");
+        let lucky = w.node("flow.branch", &[]);
+        w.feed(roll, lucky, "condition");
+        let set = w.node("held.set_type", &[]);
+        w.feed(&target, set, "item");
+        w.feed(to, set, "type");
+        let won = w.node("player.message", &[("text", text(done))]);
+        let lost = w.node(
+            "player.message",
+            &[("text", text("The upgrade failed; the stone is gone."))],
+        );
+        (take, lucky, set, won, lost)
+    };
+    let meteor = branch(&mut w, &is_meteor);
+    let meteor_can = branch(&mut w, &meteor_ok);
+    let (m_take, m_lucky, m_set, m_won, m_lost) =
+        attempt(&mut w, &meteor_roll, &next, "Your equipment's level rose!");
+    let m_no = say(
+        &mut w,
+        "That can't be raised with a Meteor (quality too low, or the highest level).",
+    );
+    let ball = branch(&mut w, &is_ball);
+    let ball_can = branch(&mut w, &ball_ok);
+    let (b_take, b_lucky, b_set, b_won, b_lost) = attempt(
+        &mut w,
+        &ball_roll,
+        &next_q,
+        "Your equipment's quality rose!",
+    );
+    let b_no = say(&mut w, "That can't be improved with a DragonBall.");
+
+    wire(g, (event, "then"), (meteor, "exec"));
+    wire(g, (meteor, "true"), (meteor_can, "exec"));
+    chain(g, (meteor_can, "true"), &[m_take]);
+    wire(g, (m_take, "then"), (m_lucky, "exec"));
+    chain(g, (m_lucky, "true"), &[m_set, m_won]);
+    wire(g, (m_lucky, "false"), (m_lost, "exec"));
+    wire(g, (meteor_can, "false"), (m_no, "exec"));
+    wire(g, (meteor, "false"), (ball, "exec"));
+    wire(g, (ball, "true"), (ball_can, "exec"));
+    chain(g, (ball_can, "true"), &[b_take]);
+    wire(g, (b_take, "then"), (b_lucky, "exec"));
+    chain(g, (b_lucky, "true"), &[b_set, b_won]);
+    wire(g, (b_lucky, "false"), (b_lost, "exec"));
+    wire(g, (ball_can, "false"), (b_no, "exec"));
+}
+
+/// Names the upgrade formulas use: values worked out before, `exists(type)` (the items table
+/// has it) and `required(type)` (its level).
+fn upgrade_name(
+    w: &mut ExprWriter,
+    lets: &[(String, Operand)],
+    name: &str,
+    args: &[Operand],
+) -> Option<Operand> {
+    if let Some((_, v)) = lets.iter().find(|(n, _)| n == name) {
+        return Some(v.clone());
+    }
+    let items = text(c3_play::data_rules::ITEMS);
+    let node = match (name, args) {
+        ("exists", [kind]) => {
+            let n = w.node("table.has_row", &[("table", items)]);
+            w.feed(kind, n, "key");
+            n
+        }
+        ("required", [kind]) => {
+            let n = w.node(
+                "table.lookup",
+                &[("table", items), ("column", text("requires_level"))],
+            );
+            w.feed(kind, n, "key");
+            n
+        }
+        _ => return None,
+    };
+    Some(Operand::Pin {
+        node,
+        pin: "value".into(),
+    })
+}
+
 /// Coming back to life fills the stamina (battle spec S9).
 fn revive(g: &mut Graph, top: f32) {
     let event = node(g, "event.revive", [0.0, top], &[]);
@@ -530,7 +704,7 @@ fn allot() -> Function {
         lets: Vec::new(),
     };
     let key = w
-        .write(&format!("({CLASS}) * 1000 + level"), &mut |w, n| {
+        .write(&format!("({CLASS}) * 1000 + level"), &mut |w, n, _| {
             player_value(w, &names, n)
         })
         .expect("a plain formula");

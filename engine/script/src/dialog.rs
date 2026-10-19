@@ -46,6 +46,8 @@ pub struct PlayerState {
     pub record: Option<(i64, (i64, i64))>,
     /// Free places in the bag.
     pub bag_space: i64,
+    /// Every item the player has (bag and worn), by its id.
+    pub held: BTreeMap<i64, HeldItem>,
     pub mana: i64,
     pub max_mana: i64,
     /// The type of the monster that last killed the player (0: none, or a player).
@@ -101,6 +103,16 @@ pub struct DialogOption {
     pub label: String,
     /// Script function run when picked; `None` closes the dialogue.
     pub next: Option<String>,
+}
+
+/// One of the player's items as scripts see it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HeldItem {
+    pub kind: i64,
+    pub durability: i64,
+    pub worn: bool,
+    /// The game's numbers for it, by the settings' item attribute names.
+    pub attrs: BTreeMap<String, i64>,
 }
 
 /// What the NPC says and the answers offered.

@@ -83,6 +83,10 @@ pub mod item {
     pub const USE: u16 = 4;
     pub const EQUIP: u16 = 5;
     pub const UNEQUIP: u16 = 6;
+    /// A DragonBall (data) on an item (id): its quality.
+    pub const IMPROVE: u16 = 19;
+    /// A Meteor (data) on an item (id): its level.
+    pub const UPLEV: u16 = 20;
     pub const PING: u16 = 27;
 }
 
@@ -181,17 +185,56 @@ pub fn user_info(h: &HeroInfo) -> Vec<u8> {
 }
 
 /// An item in the hero's bag (`position` 0) or worn (its slot).
-pub fn item_info(id: u32, kind: u32, position: u8) -> Vec<u8> {
+/// MsgItemInfo actions: a new item, and one that changed.
+pub const ITEM_ADD: u8 = 1;
+pub const ITEM_UPDATE: u8 = 3;
+
+/// One item as MsgItemInfo (1008) shows it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ItemInfo {
+    pub id: u32,
+    pub kind: u32,
+    /// Durability (in hundredths) or how many are stacked, and its most.
+    pub amount: u16,
+    pub limit: u16,
+    pub action: u8,
+    pub ident: u8,
+    /// 0 the bag, else the equipment slot.
+    pub position: u8,
+    pub data: u32,
+    pub gem1: u8,
+    pub gem2: u8,
+    /// The `+` level (`magic3`).
+    pub plus: u8,
+    pub bless: u8,
+    pub enchant: u8,
+    pub color: u16,
+}
+
+pub fn item_info(i: &ItemInfo) -> Vec<u8> {
     packet(ITEM_INFO, |w| {
-        w.u32(id)
-            .u32(kind)
-            .u16(100)
-            .u16(100)
-            .u8(1)
+        w.u32(i.id)
+            .u32(i.kind)
+            .u16(i.amount)
+            .u16(i.limit)
+            .u8(i.action)
+            .u8(i.ident)
+            .u8(i.position)
             .u8(0)
-            .u8(position)
-            .u8(0);
-        w.zeros(44 - 20);
+            .u32(i.data)
+            .u8(i.gem1)
+            .u8(i.gem2)
+            .u8(0)
+            .u8(0)
+            .u8(i.plus)
+            .u8(i.bless)
+            .u8(i.enchant)
+            .u8(0)
+            .u32(0)
+            .u16(0)
+            .u16(0)
+            .u16(i.color)
+            .u16(0);
     })
 }
 
@@ -480,7 +523,7 @@ mod tests {
     #[test]
     fn sizes_match_the_layouts() {
         assert_eq!(login_reply(1, 2, "127.0.0.1", 5816).len(), 32);
-        assert_eq!(item_info(1, 2, 0).len(), 44);
+        assert_eq!(item_info(&ItemInfo::default()).len(), 44);
         assert_eq!(item_action(1, 2, 3).len(), 24);
         assert_eq!(action(1, 74, 1002, (5, 6), 0).len(), 24);
         assert_eq!(walk(1, 2, false).len(), 12);

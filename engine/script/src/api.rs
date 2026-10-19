@@ -289,6 +289,7 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     attributes(engine, shared);
+    held_items(engine, shared);
     let s = shared.clone();
     engine.register_fn("picture", move |id: i64| {
         with(&s, |c| c.page.picture = Some(id))
@@ -625,5 +626,58 @@ fn attributes(engine: &mut Engine, shared: &Shared) {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs() as i64)
+    });
+}
+
+/// The player's own items by their ids: their type, numbers and durability.
+fn held_items(engine: &mut Engine, shared: &Shared) {
+    let s = shared.clone();
+    engine.register_fn("item_type_of", move |id: i64| {
+        with(&s, |c| c.player.held.get(&id).map_or(0, |i| i.kind))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_item_type", move |id: i64, kind: i64| {
+        with(&s, |c| match c.player.held.get_mut(&id) {
+            Some(item) if kind > 0 => {
+                item.kind = kind;
+                true
+            }
+            _ => false,
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("item_attr", move |id: i64, name: &str| {
+        with(&s, |c| {
+            (c.player.held.get(&id))
+                .and_then(|i| i.attrs.get(name))
+                .copied()
+                .unwrap_or(0)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("set_item_attr", move |id: i64, name: &str, value: i64| {
+        with(&s, |c| match c.player.held.get_mut(&id) {
+            Some(item) if item.attrs.contains_key(name) => {
+                item.attrs.insert(name.to_owned(), value);
+                true
+            }
+            _ => false,
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("item_durability", move |id: i64| {
+        with(&s, |c| c.player.held.get(&id).map_or(0, |i| i.durability))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_item_durability", move |id: i64, value: i64| {
+        with(&s, |c| {
+            if let Some(item) = c.player.held.get_mut(&id) {
+                item.durability = value.max(0);
+            }
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("item_worn", move |id: i64| {
+        with(&s, |c| c.player.held.get(&id).is_some_and(|i| i.worn))
     });
 }

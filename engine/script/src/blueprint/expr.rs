@@ -14,6 +14,10 @@ pub enum Operand {
     Pin { node: u32, pin: String },
 }
 
+/// Answers a name a formula uses (`args` empty), or a function the writer doesn't know
+/// (with its values): what it gives, or `None` when there is none.
+pub type Resolve<'r> = dyn FnMut(&mut ExprWriter, &str, &[Operand]) -> Option<Operand> + 'r;
+
 /// Writes formulas into `graph`, placing nodes from `origin` to the right.
 pub struct ExprWriter<'a> {
     pub graph: &'a mut Graph,
@@ -124,11 +128,7 @@ impl<'a> ExprWriter<'a> {
     }
 
     /// Writes `text` as nodes, `name` answering each name it uses; what it gives.
-    pub fn write(
-        &mut self,
-        text: &str,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    pub fn write(&mut self, text: &str, name: &mut Resolve<'_>) -> Result<Operand, String> {
         let tokens = tokens(text)?;
         let mut reader = Reader {
             tokens: &tokens,
@@ -234,11 +234,7 @@ impl<'a> ExprWriter<'a> {
         }
     }
 
-    fn or(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn or(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         let mut value = self.and(r, name)?;
         while r.eat_op(&["||"]).is_some() {
             let rhs = self.and(r, name)?;
@@ -247,11 +243,7 @@ impl<'a> ExprWriter<'a> {
         Ok(value)
     }
 
-    fn and(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn and(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         let mut value = self.compare(r, name)?;
         while r.eat_op(&["&&"]).is_some() {
             let rhs = self.compare(r, name)?;
@@ -260,11 +252,7 @@ impl<'a> ExprWriter<'a> {
         Ok(value)
     }
 
-    fn compare(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn compare(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         let value = self.sum(r, name)?;
         match r.eat_op(&["<", ">", "<=", ">=", "==", "!="]) {
             Some(op) => {
@@ -275,11 +263,7 @@ impl<'a> ExprWriter<'a> {
         }
     }
 
-    fn sum(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn sum(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         let mut value = self.term(r, name)?;
         while let Some(op) = r.eat_op(&["+", "-"]) {
             let rhs = self.term(r, name)?;
@@ -288,11 +272,7 @@ impl<'a> ExprWriter<'a> {
         Ok(value)
     }
 
-    fn term(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn term(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         let mut value = self.unary(r, name)?;
         while let Some(op) = r.eat_op(&["*", "/", "%"]) {
             let rhs = self.unary(r, name)?;
@@ -301,11 +281,7 @@ impl<'a> ExprWriter<'a> {
         Ok(value)
     }
 
-    fn unary(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn unary(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         match r.eat_op(&["!", "-"]) {
             Some("!") => {
                 let v = self.unary(r, name)?;
@@ -319,11 +295,7 @@ impl<'a> ExprWriter<'a> {
         }
     }
 
-    fn primary(
-        &mut self,
-        r: &mut Reader,
-        name: &mut dyn FnMut(&mut Self, &str) -> Option<Operand>,
-    ) -> Result<Operand, String> {
+    fn primary(&mut self, r: &mut Reader, name: &mut Resolve<'_>) -> Result<Operand, String> {
         match r.next() {
             Some(Token::Number(n)) => Ok(Operand::Number(n)),
             Some(Token::Open) => {
@@ -348,10 +320,13 @@ impl<'a> ExprWriter<'a> {
                 } else {
                     r.next();
                 }
-                self.call(&id, args)
+                match self.call(&id, args.clone()) {
+                    Ok(value) => Ok(value),
+                    Err(e) => name(self, &id, &args).ok_or(e),
+                }
             }
             Some(Token::Name(id)) => {
-                name(self, &id).ok_or_else(|| format!("nothing is called \"{id}\""))
+                name(self, &id, &[]).ok_or_else(|| format!("nothing is called \"{id}\""))
             }
             other => Err(format!("a value was expected, not {other:?}")),
         }
@@ -396,7 +371,7 @@ mod tests {
         };
         bp.events.nodes.push(event);
         let mut w = ExprWriter::new(&mut bp.events, [200.0, 0.0]);
-        let mut names = |_: &mut ExprWriter, n: &str| {
+        let mut names = |_: &mut ExprWriter, n: &str, _: &[Operand]| {
             (n == "level").then(|| Operand::Pin {
                 node: 1,
                 pin: "level".into(),
