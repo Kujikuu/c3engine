@@ -47,6 +47,8 @@ pub struct Sim {
     pub(crate) regions: Vec<c3_scene::Region>,
     /// Script variables of the whole world (`world_flag`); unset reads as 0.
     pub(crate) world_flags: BTreeMap<String, i64>,
+    /// Team invitations: the invited player → the inviting leader.
+    pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
 }
 
 impl Sim {
@@ -88,6 +90,7 @@ impl Sim {
             quests: Vec::new(),
             regions: Vec::new(),
             world_flags: BTreeMap::new(),
+            team_invites: BTreeMap::new(),
         };
         sim.fill_spawns();
         sim

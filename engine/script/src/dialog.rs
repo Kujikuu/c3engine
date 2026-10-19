@@ -27,6 +27,9 @@ pub struct PlayerState {
     pub cell: (i64, i64),
     pub life: i64,
     pub max_life: i64,
+    /// How many are in the player's team (0: none) and its leader's name.
+    pub team_size: i64,
+    pub team_leader: String,
 }
 
 impl PlayerState {
@@ -156,6 +159,8 @@ pub enum Effect {
         cell: (i64, i64),
         tag: String,
     },
+    /// Tell the player's team.
+    TeamMessage(String),
 }
 
 /// The result of running a dialogue step.

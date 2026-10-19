@@ -195,6 +195,11 @@ impl Sim {
 
     /// Takes player `id` out of the world (logged out).
     pub fn remove_player(&mut self, id: EntityId) {
+        // Teams live on one map: leaving it leaves the team.
+        if let Some(leader) = self.players.get(&id).and_then(|p| p.team) {
+            self.leave_team(id, leader);
+        }
+        self.team_invites.remove(&id);
         if let Some(p) = self.players.remove(&id) {
             self.index.remove(id, p.cell);
             self.events.push(Event::Vanished(id));

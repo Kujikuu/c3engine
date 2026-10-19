@@ -500,7 +500,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - Done 2026-10-19: every script function is a node, and the script API grew for it (experience,
     life, statuses, world variables, random, effects, sounds, announcements, opening game
     UI dialogs, spawning monsters, walking)
-  - [ ] Team nodes (the engine has no team system yet)
+  - [x] Team nodes, on a new team system: /team create, invite, join, leave, kick (up to 5);
+        teammates near a kill share its experience; the team shows down the left; scripts and
+        nodes see the team (in a team, size, leader) and tell it
+  - [ ] Teams across maps (a team lives on one map; travelling leaves it)
 - [x] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
       talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
   - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom

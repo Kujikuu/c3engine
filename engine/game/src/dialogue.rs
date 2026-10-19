@@ -221,6 +221,11 @@ impl Sim {
                     )));
                 }
             }
+            Effect::TeamMessage(text) => {
+                if let Some(leader) = self.players.get(&id).and_then(|p| p.team) {
+                    self.tell_team(leader, &text);
+                }
+            }
             Effect::WalkTo { cell, tag } => {
                 self.walk(id, (cell.0 as i32, cell.1 as i32));
                 if let Some(p) = self.players.get_mut(&id) {
@@ -269,6 +274,11 @@ impl Sim {
             cell: (i64::from(p.cell.0), i64::from(p.cell.1)),
             life: p.life.into(),
             max_life: p.stats.max_life.into(),
+            team_size: self.team_members(id).len() as i64,
+            team_leader: (p.team)
+                .and_then(|l| self.players.get(&l))
+                .map(|l| l.name.clone())
+                .unwrap_or_default(),
         }
     }
 

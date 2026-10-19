@@ -11,6 +11,11 @@ pub const HELP: &str = "/money N · /item TYPE [COUNT] · /skill ID · /status I
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
     pub fn command(&mut self, id: EntityId, line: &str) -> Result<String, String> {
+        // Everyone runs their team.
+        let all: Vec<&str> = line.trim_start_matches('/').split_whitespace().collect();
+        if all.first().is_some_and(|w| w.eq_ignore_ascii_case("team")) {
+            return self.team_command(id, &all[1..]);
+        }
         let mut words = line.trim_start_matches('/').split_whitespace();
         let name = words.next().unwrap_or_default().to_lowercase();
         let args: Vec<i64> = words

@@ -177,6 +177,10 @@ pub const API: &[(&str, &str)] = &[
     ),
     ("announce(text)", "Tells every player on the map"),
     (
+        "in_team() / team_size() / team_leader() / team_message(text)",
+        "The player's team: whether in one, how many, its leader, telling it",
+    ),
+    (
         "open_window(id)",
         "Opens the game UI's dialog id for the player",
     ),

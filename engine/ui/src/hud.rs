@@ -657,3 +657,39 @@ fn drop_labels(painter: &egui::Painter, view: &GameView) {
         painter.galley(pos, galley, color);
     }
 }
+
+/// The hero's team, down the left under the status row: each member's name and life (the
+/// leader first, marked with a star).
+pub(crate) fn team_list(ui: &mut egui::Ui, view: &GameView, p: &Player) {
+    let Some(leader) = p.team else { return };
+    let mut members: Vec<&Player> = (view.sim.players())
+        .filter(|m| m.team == Some(leader))
+        .collect();
+    members.sort_by_key(|m| m.id != leader);
+    let painter = ui.painter_at(view.rect);
+    let top = if view.hint.is_empty() { 40.0 } else { 70.0 };
+    let mut at = view.rect.left_top() + egui::vec2(10.0, top);
+    for m in members {
+        let star = if m.id == leader {
+            icons::STAR
+        } else {
+            icons::USER
+        };
+        let rect = Rect::from_min_size(at, egui::vec2(150.0, 30.0));
+        painter.rect_filled(rect, 4.0, style::backing(1.0));
+        painter.text(
+            at + egui::vec2(6.0, 3.0),
+            egui::Align2::LEFT_TOP,
+            format!("{star}  {}", m.name),
+            fonts::font(12.0),
+            if m.id == p.id {
+                style::GOLD
+            } else {
+                style::TEXT
+            },
+        );
+        let bar = Rect::from_min_size(at + egui::vec2(6.0, 20.0), egui::vec2(138.0, 5.0));
+        meter(&painter, bar, m.life, m.stats.max_life, style::LIFE);
+        at.y = rect.bottom() + 4.0;
+    }
+}

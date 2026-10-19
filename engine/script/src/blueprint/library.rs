@@ -649,6 +649,32 @@ pub const NODES: &[NodeDef] = &[
         &[],
         "set_world_flag({name}, {value});",
     ),
+    // Teams.
+    pure("team.in", "In a team", "Teams", &[], Bool, "in_team()"),
+    pure(
+        "team.size",
+        "Team size",
+        "Teams",
+        &[],
+        Number,
+        "team_size()",
+    ),
+    pure(
+        "team.leader",
+        "Team leader",
+        "Teams",
+        &[],
+        Text,
+        "team_leader()",
+    ),
+    action(
+        "team.message",
+        "Tell the team",
+        "Teams",
+        &[("text", Text)],
+        &[],
+        "team_message({text});",
+    ),
     // Effects, sounds and the game UI.
     action(
         "fx.effect",

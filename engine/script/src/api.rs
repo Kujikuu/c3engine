@@ -280,6 +280,15 @@ fn more(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("play_effect", text(shared, Effect::PlayEffect));
     engine.register_fn("play_sound", text(shared, Effect::PlaySound));
     engine.register_fn("announce", text(shared, Effect::Announce));
+    engine.register_fn("team_message", text(shared, Effect::TeamMessage));
+    let s = shared.clone();
+    engine.register_fn("team_size", move || with(&s, |c| c.player.team_size));
+    let s = shared.clone();
+    engine.register_fn("in_team", move || with(&s, |c| c.player.team_size > 0));
+    let s = shared.clone();
+    engine.register_fn("team_leader", move || {
+        with(&s, |c| c.player.team_leader.clone())
+    });
     let s = shared.clone();
     engine.register_fn("spawn_monster", move |kind: i64, x: i64, y: i64| {
         with(&s, |c| c.effects.push(Effect::Spawn { kind, cell: (x, y) }))

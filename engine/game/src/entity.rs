@@ -110,6 +110,9 @@ pub struct Player {
     pub bag: Vec<Item>,
     /// What it wears, one item per slot.
     pub equipment: Vec<Item>,
+    /// The team it is in: its leader's id (its own when it leads).
+    #[serde(default)]
+    pub team: Option<EntityId>,
     /// What a script's walk is called, to tell it (`on_arrive`) when the player gets there.
     #[serde(skip)]
     pub arrive_tag: Option<String>,

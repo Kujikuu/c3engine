@@ -64,6 +64,7 @@ impl Sim {
                 equipment: Vec::new(),
                 look: Default::default(),
                 arrive_tag: None,
+                team: None,
                 running: false,
                 task: Task::Idle,
                 dialogue: None,

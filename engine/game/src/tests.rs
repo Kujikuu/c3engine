@@ -1220,3 +1220,52 @@ fn scripts_heal_share_world_variables_spawn_open_windows_and_walk() {
     assert!(sim.player(hero).unwrap().flags["level"] > 1, "on_level_up");
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn teams_form_by_chat_share_kill_experience_and_scripts_see_them() {
+    let dir = std::env::temp_dir().join(format!("c3-game-teams-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_kill(m) { set_flag(\"team\", team_size()); team_message(\"Got one!\"); }\n",
+    )
+    .unwrap();
+    let mut sim = Sim::new(
+        Grid::new(30, 30),
+        vec![],
+        vec![spawn(1, SLIME, (6, 5), (6, 5), 1)],
+        rules(),
+        3,
+    );
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let ann = sim.add_saved_player(&crate::PlayerSave::new("Ann", (5, 5)));
+    let bob = sim.add_saved_player(&crate::PlayerSave::new("Bob", (5, 6)));
+    let say = |sim: &mut Sim, who, line: &str| {
+        sim.input(who, Input::Say(line.into()));
+        sim.take_events()
+            .into_iter()
+            .find_map(|e| match e {
+                Event::CommandReply { text, .. } => Some(text),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+    assert!(say(&mut sim, bob, "/team join Ann").contains("haven't invited"));
+    say(&mut sim, ann, "/team create");
+    say(&mut sim, ann, "/team invite Bob");
+    assert_eq!(say(&mut sim, bob, "/team join Ann"), "You joined the team.");
+    assert_eq!(sim.team_members(bob), [ann, bob]);
+    assert!(say(&mut sim, bob, "/team").contains("Ann, Bob"));
+    let slime = sim.monsters().next().unwrap().id;
+    sim.attack(ann, slime);
+    sim.advance(10_000);
+    assert!(sim.player(bob).unwrap().exp > 0, "Bob shares the kill");
+    assert_eq!(sim.player(ann).unwrap().flags["team"], 2);
+    say(&mut sim, ann, "/team leave");
+    assert_eq!(
+        sim.player(bob).unwrap().team,
+        None,
+        "the leader leaving ends the team"
+    );
+    std::fs::remove_dir_all(dir).ok();
+}
