@@ -81,6 +81,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "npc_look(npc) / set_npc_look(npc, look) / die() / player_uid() / clear_attrs(prefix)",
+        "An NPC's look here and a new one for everyone; the player dies; a number for the \
+         player that lasts; the player's attributes starting with `prefix` gone",
+    ),
+    (
         "team_here() / team_holding(item) / team_give(item) / team_take(item) / team_say(text)",
         "The player's living teammates on its map, how many of them hold an item type; each of \
          them given or relieved of one, or told something",

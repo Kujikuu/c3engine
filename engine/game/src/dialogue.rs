@@ -257,6 +257,23 @@ impl Sim {
                     }
                 }
             }
+            Effect::NpcLook { npc, look } => {
+                let (Ok(npc), Ok(look)) = (u32::try_from(npc), u32::try_from(look)) else {
+                    return;
+                };
+                if let Some(n) = self.npcs.iter_mut().find(|n| n.id == npc) {
+                    n.look = look;
+                    let n = n.clone();
+                    // Shown again with its new look.
+                    self.events.push(Event::NpcArrived(n));
+                }
+            }
+            Effect::Die => {
+                if let Some(p) = self.players.get_mut(&id) {
+                    p.life = 0;
+                }
+                self.kill_player(id, None);
+            }
             Effect::TeamSay(text) => {
                 for member in self.teammates_here(id) {
                     self.events.push(Event::Notice {
@@ -470,6 +487,9 @@ impl Sim {
             map_pk_free: self.pk_free,
             accept: String::new(),
             team_here: self.teammates_here(id).len() as i64,
+            npc_looks: (self.npcs.iter())
+                .map(|n| (i64::from(n.id), i64::from(n.look)))
+                .collect(),
             team_items: {
                 let mut held = BTreeMap::new();
                 for member in self.teammates_here(id) {

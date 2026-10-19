@@ -444,6 +444,37 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("npc_look", move |npc: i64| {
+        with(&s, |c| c.player.npc_looks.get(&npc).copied().unwrap_or(0))
+    });
+    let s = shared.clone();
+    engine.register_fn("set_npc_look", move |npc: i64, look: i64| {
+        with(&s, |c| {
+            c.player.npc_looks.insert(npc, look);
+            c.effects.push(Effect::NpcLook { npc, look })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("die", move || with(&s, |c| c.effects.push(Effect::Die)));
+    // A number for the player that lasts (its name's), for scripts to keep.
+    let s = shared.clone();
+    engine.register_fn("player_uid", move || {
+        with(&s, |c| {
+            let hash = (c.player.name.bytes()).fold(2_166_136_261u32, |h, b| {
+                (h ^ u32::from(b)).wrapping_mul(16_777_619)
+            });
+            i64::from(hash & 0x7FFF_FFFF)
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("clear_attrs", move |prefix: &str| {
+        with(&s, |c| {
+            c.player
+                .attributes
+                .retain(|name, _| !name.starts_with(prefix))
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("team_here", move || with(&s, |c| c.player.team_here));
     let s = shared.clone();
     engine.register_fn("team_holding", move |item: i64| {

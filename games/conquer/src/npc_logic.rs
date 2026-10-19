@@ -1242,6 +1242,30 @@ impl<'a> Builder<'a> {
                     fail: Some((fail, "then")),
                 }
             }
+            // Weapon skills forgotten.
+            1043 => Self::plain(
+                g,
+                "player.clear_attrs",
+                &[("prefix", txt("weapon_"))],
+                column,
+            ),
+            // A return point, then death (1070).
+            1070 => match (int(0), int(1), int(2)) {
+                (Some(map), Some(x), Some(y)) => {
+                    let values = [("map", num(map)), ("x", num(x)), ("y", num(y))];
+                    let record = g.node("player.set_record", &values, column);
+                    let die = g.node("player.die", &[], column);
+                    g.exec((record, "then"), die);
+                    Emitted {
+                        entry: Some(record),
+                        ok: Some((die, "then")),
+                        fail: None,
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Points reset (rebirths only): Conquer's rules blueprint answers the signal.
+            1047 => Self::plain(g, "flow.raise", &[("name", txt("reset_points"))], column),
             // Full mana (TQ's `life` is the heal of 1002 already converted).
             1002 if a.param.eq_ignore_ascii_case("mana") => {
                 Self::plain(g, "player.add_mana", &[("amount", num(1_000_000))], column)
@@ -1508,9 +1532,33 @@ impl<'a> Builder<'a> {
         ) else {
             return self.not_converted(g, a, column);
         };
+        if field == "lookface" {
+            let id = match tokens.get(3).and_then(|t| t.parse::<i64>().ok()) {
+                Some(id) if id != 0 => g.node("math.add", &[("a", num(id)), ("b", num(0))], column),
+                _ => g.node("npc.id", &[], column),
+            };
+            return match op {
+                "=" => {
+                    let set = g.node("npc.set_look", &[("look", num(value))], column);
+                    g.data(id, set, "npc");
+                    Emitted {
+                        entry: Some(set),
+                        ok: Some((set, "then")),
+                        fail: None,
+                    }
+                }
+                "==" => {
+                    let look = g.node("npc.look", &[], column);
+                    g.data(id, look, "npc");
+                    let cmp = self.compare_node(g, look, "==", value, column);
+                    Self::branch(g, cmp, column)
+                }
+                _ => self.not_converted(g, a, column),
+            };
+        }
         if !matches!(
             field.as_str(),
-            "data0" | "data1" | "data2" | "data3" | "ownerid" | "ownertype"
+            "data0" | "data1" | "data2" | "data3" | "ownerid" | "ownertype" | "life"
         ) {
             return self.not_converted(g, a, column);
         }
@@ -1716,6 +1764,19 @@ impl<'a> Builder<'a> {
             "%user_map_y" => return node(g, "player.y", &[]),
             "%iter_value" => return node(g, "player.flag", &[("name", txt("iterator"))]),
             "%syn_id" => return node(g, "guild.id", &[]),
+            "%user_id" => return node(g, "player.uid", &[]),
+            // The NPC's life, kept as world variable `npc<id>.life` (201 sets it).
+            "%npc_life" => return self.number(g, "%data_life", column),
+            "%data_life" => {
+                let npc = g.node("npc.id", &[], column);
+                let prefix = g.node("text.number", &[("text", txt("npc"))], column);
+                g.data(npc, prefix, "number");
+                let name = g.node("text.join", &[("b", txt(".life"))], column);
+                g.data(prefix, name, "a");
+                let value = g.node("world.flag", &[], column);
+                g.data(name, value, "name");
+                return Some(Number::Node(value));
+            }
             "%data0" | "%data1" | "%data2" | "%data3" => {
                 let npc = g.node("npc.id", &[], column);
                 let prefix = g.node("text.number", &[("text", txt("npc"))], column);

@@ -216,6 +216,39 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    pure(
+        "npc.look",
+        "NPC look",
+        "World",
+        &[("npc", Number)],
+        Number,
+        "npc_look({npc})",
+    ),
+    action(
+        "npc.set_look",
+        "Change NPC look",
+        "World",
+        &[("npc", Number), ("look", Number)],
+        &[],
+        "set_npc_look({npc}, {look});",
+    ),
+    action("player.die", "Die", "Player", &[], &[], "die();"),
+    pure(
+        "player.uid",
+        "Lasting number",
+        "Player",
+        &[],
+        Number,
+        "player_uid()",
+    ),
+    action(
+        "player.clear_attrs",
+        "Forget attributes",
+        "Player",
+        &[("prefix", Text)],
+        &[],
+        "clear_attrs({prefix});",
+    ),
     // Events: the hooks the game calls.
     event("event.login", "On login", "on_login", &[]),
     event(

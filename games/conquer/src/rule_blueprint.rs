@@ -135,6 +135,7 @@ pub fn rules_blueprint() -> Blueprint {
     upequipment(&mut bp.events, next_lane(1600.0));
     combine(&mut bp.events, next_lane(2400.0));
     lottery(&mut bp.events, next_lane(700.0));
+    reset_points(&mut bp.events, next_lane(500.0));
     bp.functions.push(allot());
     bp
 }
@@ -950,6 +951,53 @@ fn upgrade_name(
         node,
         pin: "value".into(),
     })
+}
+
+/// Points reset (action 1047, rebirths only): the class's starting strength, agility,
+/// vitality and spirit, and every point above them (less 10) to spend again.
+fn reset_points(g: &mut Graph, top: f32) {
+    let signal = node(
+        g,
+        "event.signal",
+        [0.0, top],
+        &[("name", text("reset_points"))],
+    );
+    let mut names = Names {
+        pins: Vec::new(),
+        default_record: None,
+        lets: Vec::new(),
+    };
+    let mut w = ExprWriter::new(g, [260.0, top]);
+    let reborn = branch_on(&mut w, &names, "rebirths > 0");
+    // The player's values by name, and `class`.
+    let write = |w: &mut ExprWriter, names: &Names, text: &str| {
+        w.write(text, &mut |w, n, _| player_value(w, names, n))
+            .unwrap_or_else(|e| panic!("Conquer's formula \"{text}\": {e}"))
+    };
+    let class = write(&mut w, &names, CLASS);
+    names.lets.push(("class".into(), class));
+    let free = write(
+        &mut w,
+        &names,
+        "max(strength + agility + vitality + spirit + attribute_points - 10, 0)",
+    );
+    let set = |w: &mut ExprWriter, name: &str, value: &Operand| {
+        let n = w.node("player.set_attr", &[("name", text(name))]);
+        w.feed(value, n, "value");
+        n
+    };
+    let mut steps = vec![set(&mut w, "attribute_points", &free)];
+    for (attr, formula) in [
+        ("strength", "if(class == 4, 2, if(class >= 10, 0, 5))"),
+        ("agility", "if(class == 4, 7, 2)"),
+        ("vitality", "if(class == 4, 1, 3)"),
+        ("spirit", "if(class >= 10, 5, 0)"),
+    ] {
+        let v = write(&mut w, &names, formula);
+        steps.push(set(&mut w, attr, &v));
+    }
+    wire(g, (signal, "then"), (reborn, "exec"));
+    chain(g, (reborn, "true"), &steps);
 }
 
 /// A lottery draw (action 1508), the `lottery` signal with the draw's number: a prize drawn
