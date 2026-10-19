@@ -581,12 +581,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
     worn), money, CPs, experience, life, mana, attributes, PK, profession, weapon skills,
     skills, teleport and return points, variables, statistics and timestamps, hair, sex, NPC
     numbers. The rest become comments, counted in the report:
-  - [ ] Moving NPCs (301, 259 actions): NPCs moving within and between maps, seen by clients
-  - [ ] Rebirth (1040, 200)
-  - [ ] Durability tests and the rest of equipment tests and numbers (510, 517, 516)
-  - [ ] Statistics snapshots (528, 529), level/experience sums (1084, 1086), map populations
-        (302), map effects (312, 1072), message actions (1075), lottery (1508), typed answers
-        (103), NPC upgrades (509), guild, event and trap actions (7xx, 20xx, 21xx)
+  - [x] Moving NPCs (301, 259 actions): NPCs moving within and between maps, seen by clients
+  - [x] Rebirth (1040, 200): the `rebirth` signal the rules blueprint answers
+  - [x] Durability tests and the rest of equipment tests and numbers (510, 517, 516)
+  - [x] Statistics tokens (528, 529), item overrides (501: gems, ident, bless, enchant,
+        colour), level/experience sums (1084, 1086, `exp += %iter_var_data`), NPC upgrades
+        (509: the `upequipment` signal; Meteors, DragonBalls, down-levels, durability)
+  - [ ] Map populations (302: players on another map need the server's count)
+  - [ ] Map effects (312, 1072), message actions (1075: MsgAction 1000/1001, meaning unknown
+        in 5065), lottery (1508), typed answers (103)
+  - [ ] NPC looks and life (201 `lookface`, `life`), guild checks (`%syn_id`, 1001
+        `rank`/`rankshow`), warehouse money (1001 `storage_money`), business status
+  - [ ] Guild, event and trap actions (7xx, 20xx, 21xx)
 - [ ] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
       skills, PK and name colours, ghost and revive, item upgrades
   - Done so far (2026-10-19): the import writes the engine's rule tables from TQ's (items with
