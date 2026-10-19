@@ -649,6 +649,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
         equipment levels), both play-tested through the MCP
 - [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
       with its cursors and sounds
+  - [x] Every 5065 dialog GUI.ini places drafted from the client's source
+        (`scripts/conquer_controls.py`: 86 dialogs, 780 controls with their kinds, skins,
+        backgrounds and grids; close buttons close); the main bar opens Status, Friend,
+        Action, Team, PK and Guild; `c3-client --dialog N` opens one (screenshots: warehouse,
+        team, actions)
+  - [ ] 146 drafted controls without a skin section (built at run time in the client)
+  - [ ] Data and actions per dialog: status (child pages 131's role, weapon, mission), the
+        warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
+        skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,
+        trade, NPC talk) rather than buttons
+  - [ ] Where dialogs open (several now overlap on the left), the minimap window, sounds of
+        clicks and windows
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)

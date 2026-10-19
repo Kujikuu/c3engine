@@ -1,11 +1,12 @@
 """Drafts Conquer's game UI controls file from the 5065 client's source.
 
-What TQ's client says in code about each dialog -- its background (`GetDataAni(.., "DialogN")`),
-each control's kind (the member's class), skin section (`member.Init(x, y, "Section")`, or a
-name `sprintf` built just before) and grid size -- becomes `[dialog-control]` sections in the
-engine's controls-file form. Dialogs the hand-written part of `games/conquer/ui/controls.ini`
-already has are left alone; the drafted ones go after the GENERATED marker, replacing the last
-draft. Only dialogs the client's GUI.ini places are drafted.
+What TQ's client says in code about each dialog class -- its background
+(`GetDataAni(.., "DialogN")`), each control's kind (the member's class), skin section
+(`member.Init(x, y, "Section")`, or a name `sprintf` built just before) and grid size --
+becomes `[dialog-control]` sections in the engine's controls-file form. Dialogs the
+hand-written part of `games/conquer/ui/controls.ini` already has are left alone; the drafted
+ones go after the GENERATED marker, replacing the last draft. Only dialogs the client's
+GUI.ini places are drafted.
 
     python scripts/conquer_controls.py <cosource dir> <GUI.ini> games/conquer/ui/controls.ini
 """
@@ -53,7 +54,28 @@ def constants(cosource):
     return found
 
 
-def sections(cpp, consts):
+def classes(header):
+    """Each class of a header: its name and its text up to the next class."""
+    starts = [(m.start(), m[1]) for m in re.finditer(r"\bclass\s+(C\w+)\s*:", header)]
+    for i, (at, name) in enumerate(starts):
+        end = starts[i + 1][0] if i + 1 < len(starts) else len(header)
+        yield name, header[at:end]
+
+
+def bodies(sources):
+    """Each class's member functions' text, gathered over every source file."""
+    out = {}
+    # A definition starts a line (calls inside bodies are indented).
+    pattern = r"\n(?=[A-Za-z_][\w \t\*&]*?\b(C\w+)::~?\w+\s*\()"
+    for source in sources:
+        parts = re.split(pattern, source)
+        # re.split puts each part's class name (the lookahead's group) before it.
+        for name, part in zip(parts[1::2], parts[2::2]):
+            out[name] = out.get(name, "") + "\n" + part
+    return out
+
+
+def sections(code, consts):
     """Each member's skin section and Init arguments: `m.Init(x, y, "Section")`, or a name
     `sprintf` built just before (`sprintf(strName, "ButtonA%d", _ACTION_COOL)`)."""
     out = {}
@@ -62,7 +84,7 @@ def sections(cpp, consts):
         r'sprintf\s*\(\s*\w+\s*,\s*"([^"]*)"\s*,\s*(\w+)\s*\)'
         r"|(m_\w+)\s*\.\s*Init\s*\(([^;]*?)\)\s*[;)|&]"
     )
-    for fmt, arg, member, args in re.findall(pattern, cpp):
+    for fmt, arg, member, args in re.findall(pattern, code):
         if fmt:
             value = consts.get(arg, int(arg) if arg.lstrip("-").isdigit() else None)
             has_number = value is not None and "%d" in fmt
@@ -79,15 +101,15 @@ def members(header):
     return {m[1]: m[0] for m in re.findall(r"\b(CMy\w+)\s+(m_\w+)\s*;", header)}
 
 
-def dialog(cpp, header, ids, consts):
-    """One dialog's IDD number, background and controls, or None."""
+def dialog(code, header, ids, consts):
+    """One dialog class's IDD number, background and controls, or None."""
     idd = re.search(r"enum\s*\{\s*IDD\s*=\s*(\w+)", header)
     if not idd or idd[1] not in ids:
         return None
     kinds = members(header)
-    bound = re.findall(r"DDX_Control\(\s*pDX\s*,\s*(\w+)\s*,\s*(m_\w+)\s*\)", cpp)
-    inits = sections(cpp, consts)
-    background = re.search(r'GetDataAni\s*\([^;]*?"(Dialog\w*)"', cpp)
+    bound = re.findall(r"DDX_Control\(\s*pDX\s*,\s*(\w+)\s*,\s*(m_\w+)\s*\)", code)
+    inits = sections(code, consts)
+    background = re.search(r'GetDataAni\s*\([^;]*?"(Dialog\w*)"', code)
     controls = []
     for control, member in bound:
         kind = KINDS.get(kinds.get(member, ""))
@@ -105,32 +127,36 @@ def dialog(cpp, header, ids, consts):
     return ids[idd[1]], background[1] if background else None, controls
 
 
+def lines_of(name, number, background, controls):
+    """One dialog's lines of the controls file."""
+    out = [f"\n// {name} (dialog {number}).", f"[0-{number}]\ntype=dialog"]
+    if background:
+        out.append(f"ani={background}")
+    for control, member, entry in controls:
+        out.append(f"\n[{number}-{control}]")
+        if "Close" in member and entry["type"] == "button":
+            entry["action"] = f"toggle:{number}"
+        out.extend(f"{k}={v}" for k, v in entry.items())
+    return out
+
+
 def draft(cosource, gui_ini, have):
     src = Path(cosource) / "MyShell"
     ids = defines(src / "resource.h")
     consts = constants(cosource)
     placed = {int(n) for n in re.findall(r"^\[0-(\d+)\]", read(gui_ini), re.M)}
+    code = bodies(read(cpp) for cpp in sorted(src.glob("*.cpp")))
     out = []
-    for cpp in sorted(src.glob("Dlg*.cpp")):
-        h = cpp.with_suffix(".h")
-        if not h.exists():
-            continue
-        found = dialog(read(cpp), read(h), ids, consts)
-        if not found:
-            continue
-        number, background, controls = found
-        if number not in placed or number in have:
-            continue
-        have.add(number)
-        out.append(f"\n// {cpp.stem} (dialog {number}).")
-        out.append(f"[0-{number}]\ntype=dialog")
-        if background:
-            out.append(f"ani={background}")
-        for control, member, entry in controls:
-            out.append(f"\n[{number}-{control}]")
-            if "Close" in member and entry["type"] == "button":
-                entry["action"] = f"toggle:{number}"
-            out.extend(f"{k}={v}" for k, v in entry.items())
+    for h in sorted(src.glob("Dlg*.h")):
+        for name, header in classes(read(h)):
+            found = dialog(code.get(name, ""), header, ids, consts)
+            if not found:
+                continue
+            number, background, controls = found
+            if number not in placed or number in have:
+                continue
+            have.add(number)
+            out.extend(lines_of(name, number, background, controls))
     return out
 
 
@@ -143,7 +169,7 @@ def main():
     lines = draft(cosource, gui_ini, have)
     body = hand + "\n\n" + MARKER + "\n" + "\n".join(lines) + "\n"
     Path(controls).write_text(body.replace("\n", newline), encoding="utf-8", newline="")
-    print(f"drafted {sum(1 for line in lines if line.startswith('[0-'))} dialogs")
+    print(f"drafted {sum(1 for line in lines if line.startswith(chr(10) + '// '))} dialogs")
 
 
 if __name__ == "__main__":
