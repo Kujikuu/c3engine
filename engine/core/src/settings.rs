@@ -375,6 +375,9 @@ pub struct GameplaySettings {
     /// item gives.
     pub qualities: Vec<String>,
     pub quality_bonus_percent: u32,
+    /// Items one storage NPC keeps for a player.
+    #[serde(default = "storage_size")]
+    pub storage_size: u32,
     /// Chance (percent) that a worn item with durability loses a point when its wearer hits
     /// (weapons) or is hit (armour).
     pub wear_percent: u32,
@@ -389,6 +392,10 @@ pub struct GameplaySettings {
     pub gm_everyone: bool,
     /// Accounts that may use game-master commands.
     pub gm_accounts: Vec<String>,
+}
+
+fn storage_size() -> u32 {
+    20
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -418,6 +425,7 @@ impl Default for GameplaySettings {
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),
+            storage_size: storage_size(),
             socket_item_base: 0,
             equipment_slots: Vec::new(),
             qualities: ["Common", "Fine", "Rare", "Epic", "Legendary"]

@@ -375,6 +375,16 @@ impl Sim {
                     self.remove_status(id, status);
                 }
             }
+            Effect::OpenStorage => {
+                if npc != 0 {
+                    self.events.push(Event::StorageOpened { player: id, npc });
+                }
+            }
+            Effect::SavedMoney(n) => {
+                if let Some(p) = self.players.get_mut(&id) {
+                    p.saved_money = p.saved_money.saturating_add_signed(n);
+                }
+            }
             Effect::WorldTimer { name, secs } => {
                 let at = self.now_ms + u64::try_from(secs.max(0)).unwrap_or(0) * 1000;
                 self.world_timers.push((at, name));
@@ -612,6 +622,7 @@ impl Sim {
             exp: i64::try_from(p.exp).unwrap_or(i64::MAX),
             map_pk_free: self.pk_free,
             accept: String::new(),
+            saved_money: i64::try_from(p.saved_money).unwrap_or(i64::MAX),
             used_item: match self.using {
                 Some((who, item)) if who == id => i64::from(item),
                 _ => 0,

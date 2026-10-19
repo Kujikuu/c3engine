@@ -217,6 +217,30 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     action(
+        "npc.open_storage",
+        "Open the storage",
+        "Dialogue",
+        &[],
+        &[],
+        "open_storage();",
+    ),
+    pure(
+        "player.saved_money",
+        "Money in storage",
+        "Player",
+        &[],
+        Number,
+        "saved_money()",
+    ),
+    action(
+        "player.add_saved_money",
+        "Change money in storage",
+        "Player",
+        &[("amount", Number)],
+        &[("done", Bool)],
+        "add_saved_money({amount})",
+    ),
+    action(
         "status.add_for",
         "Add a status for a while",
         "Statuses",

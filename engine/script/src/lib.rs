@@ -81,6 +81,11 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "open_storage() / saved_money() / add_saved_money(n)",
+        "The NPC opens its storage for the player; the money kept in storage, added to (or, \
+         below 0, taken from: false when there isn't so much)",
+    ),
+    (
         "add_status_for(status, secs) / remove_status(status)",
         "A status on the player for `secs` (0: its own time); a status taken off",
     ),

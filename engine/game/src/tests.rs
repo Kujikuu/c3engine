@@ -1614,3 +1614,33 @@ fn stepping_on_a_trap_sets_it_off() {
     assert!(sim.traps().is_empty(), "erased by its event");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn storage_keeps_items_and_money_across_saves() {
+    let keeper = Npc {
+        id: 8,
+        name: "Warehouseman".into(),
+        cell: (6, 5),
+        ..shopkeeper()
+    };
+    let mut sim = Sim::new(Grid::new(30, 30), vec![keeper], vec![], rules(), 9);
+    let mut save = crate::PlayerSave::new("Hero", (5, 5));
+    save.money = 500;
+    save.bag = vec![ARMOR.into()];
+    let hero = sim.add_saved_player(&save);
+    let sword = sim.player(hero).unwrap().bag[0].id;
+    sim.store(hero, 8, sword);
+    sim.move_money(hero, 8, 200, true);
+    let p = sim.player(hero).unwrap();
+    assert!(p.bag.is_empty() && p.storage[&8].len() == 1);
+    assert_eq!((p.money, p.saved_money), (300, 200));
+    // Kept in the save, and back.
+    let kept = sim.save_player(hero).unwrap();
+    let mut other = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let again = other.add_saved_player(&kept);
+    let p = other.player(again).unwrap();
+    assert_eq!((p.storage[&8].len(), p.saved_money), (1, 200));
+    let sword = sim.player(hero).unwrap().storage[&8][0].id;
+    sim.retrieve(hero, 8, sword);
+    assert_eq!(sim.player(hero).unwrap().bag.len(), 1);
+}

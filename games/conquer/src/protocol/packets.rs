@@ -24,6 +24,13 @@ pub const NAME: u16 = 1015;
 /// MsgName types: an effect on a map cell, on a role.
 pub const NAME_MAP_EFFECT: u8 = 9;
 pub const NAME_ROLE_EFFECT: u8 = 10;
+/// A storage NPC's warehouse: listed, an item stored, taken out (packets spec 1102).
+pub const PACKAGE: u16 = 1102;
+/// MsgPackage actions and the warehouse kind.
+pub const PACKAGE_QUERY: u8 = 0;
+pub const PACKAGE_CHECK_IN: u8 = 1;
+pub const PACKAGE_CHECK_OUT: u8 = 2;
+pub const PACKAGE_STORAGE: u8 = 10;
 /// Setting a gem in a socket or taking it out (items spec §6.1).
 pub const GEM_EMBED: u16 = 1027;
 /// Composing +N: the main item, two minors and the gems (items spec §7.1).
@@ -78,6 +85,8 @@ pub mod attr {
     pub const LOOK_FACE: u32 = 12;
     pub const STATUS: u32 = 26;
     pub const XP: u32 = 28;
+    /// The money kept in storage.
+    pub const SAVED_MONEY: u32 = 10;
 }
 
 /// MsgInteract kinds.
@@ -95,6 +104,10 @@ pub mod item {
     pub const USE: u16 = 4;
     pub const EQUIP: u16 = 5;
     pub const UNEQUIP: u16 = 6;
+    /// The money kept at a storage NPC (id): asked, put in, taken out (data the amount).
+    pub const SAVED_MONEY: u16 = 9;
+    pub const SAVE_MONEY: u16 = 10;
+    pub const DRAW_MONEY: u16 = 11;
     /// A DragonBall (data) on an item (id): its quality.
     pub const IMPROVE: u16 = 19;
     /// A Meteor (data) on an item (id): its level.
@@ -282,6 +295,39 @@ pub fn item_info(i: &ItemInfo) -> Vec<u8> {
             .u16(0)
             .u16(i.color)
             .u16(0);
+    })
+}
+
+/// One stored item of a warehouse list (24 bytes).
+pub struct Stored {
+    pub id: u32,
+    pub kind: u32,
+    pub ident: u8,
+    pub gem1: u8,
+    pub gem2: u8,
+    pub plus: u8,
+    pub bless: u8,
+    pub enchant: u16,
+    pub color: u8,
+}
+
+/// A storage NPC's warehouse list.
+pub fn package(npc: u32, items: &[Stored]) -> Vec<u8> {
+    packet(PACKAGE, |w| {
+        w.u32(npc).u8(PACKAGE_QUERY).u8(PACKAGE_STORAGE).u16(0);
+        w.u32(items.len().min(50) as u32);
+        for i in items.iter().take(50) {
+            w.u32(i.id).u32(i.kind);
+            w.u8(i.ident)
+                .u8(i.gem1)
+                .u8(i.gem2)
+                .u8(0)
+                .u8(0)
+                .u8(i.plus)
+                .u8(i.bless)
+                .u8(0);
+            w.u16(i.enchant).u16(0).u16(0).u8(0).u8(i.color);
+        }
     })
 }
 
@@ -487,6 +533,13 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// A storage NPC's warehouse: listed, an item stored or taken out.
+    Package {
+        npc: u32,
+        action: u8,
+        kind: u8,
+        item: u32,
+    },
     /// The client's ping (MsgItem 27), answered by sending it back unchanged.
     Ping(Vec<u8>),
     /// A packet the front doesn't use.
@@ -537,6 +590,18 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             match r.u16()? {
                 item::PING => Request::Ping(bytes.to_vec()),
                 action => Request::Item { action, id, data },
+            }
+        }
+        PACKAGE => {
+            let npc = r.u32()?;
+            let action = r.u8()?;
+            let kind = r.u8()?;
+            r.skip(2)?;
+            Request::Package {
+                npc,
+                action,
+                kind,
+                item: r.u32()?,
             }
         }
         GEM_EMBED => {

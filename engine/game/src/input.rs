@@ -57,6 +57,26 @@ pub enum Input {
         item: u32,
         slot: u8,
     },
+    /// Bag item `item` stored with storage NPC `npc`; taken back out (`Retrieve`).
+    Store {
+        npc: u32,
+        item: u32,
+    },
+    /// See storage NPC `npc`'s storage (its items and the money kept).
+    OpenStorage(u32),
+    Retrieve {
+        npc: u32,
+        item: u32,
+    },
+    /// Money put into the storage, or taken from it, at storage NPC `npc`.
+    SaveMoney {
+        npc: u32,
+        amount: u64,
+    },
+    DrawMoney {
+        npc: u32,
+        amount: u64,
+    },
     /// Take off worn item `id`.
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
@@ -99,6 +119,11 @@ impl Sim {
             Input::Wear { item, slot } => self.wear_in(id, item, slot),
             Input::UseOn { item, target } => self.use_item_on(id, item, target),
             Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
+            Input::Store { npc, item } => self.store(id, npc, item),
+            Input::OpenStorage(npc) => self.open_storage(id, npc),
+            Input::Retrieve { npc, item } => self.retrieve(id, npc, item),
+            Input::SaveMoney { npc, amount } => self.move_money(id, npc, amount, true),
+            Input::DrawMoney { npc, amount } => self.move_money(id, npc, amount, false),
             Input::Unequip(item) => self.unequip(id, item),
             Input::Say(line) if line.starts_with('/') => {
                 let (ok, text) = match self.command(id, &line) {

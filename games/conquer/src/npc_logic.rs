@@ -1685,6 +1685,8 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // The NPC's storage opened for the player.
+            1054 => Self::plain(g, "npc.open_storage", &[], column),
             // The trap set off, gone.
             2102 => Self::plain(g, "world.erase_trap", &[], column),
             // A chain run later, with no player (the map group's timer).
@@ -3093,6 +3095,18 @@ impl<'a> Builder<'a> {
                     column,
                 );
                 let cmp = self.compare_node(g, cps, op, v, column);
+                Self::branch(g, cmp, column)
+            }
+            ("storage_money", "+=") => Self::checked(
+                g,
+                "player.add_saved_money",
+                &[("amount", num(v))],
+                "done",
+                column,
+            ),
+            ("storage_money", "==" | "<") => {
+                let saved = g.node("player.saved_money", &[], column);
+                let cmp = self.compare_node(g, saved, op, v, column);
                 Self::branch(g, cmp, column)
             }
             ("look", "set") => Self::plain(

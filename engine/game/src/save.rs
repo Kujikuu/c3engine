@@ -52,6 +52,15 @@ pub struct PlayerSave {
     /// Where it comes back to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub record: Option<c3_scene::PortalTarget>,
+    /// Items kept with storage NPCs (by NPC id), and the money kept.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub storage: BTreeMap<u32, Vec<SavedItem>>,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub saved_money: u64,
+}
+
+fn is_zero_u64(n: &u64) -> bool {
+    *n == 0
 }
 
 fn is_default_look(look: &crate::PlayerLook) -> bool {
@@ -168,6 +177,8 @@ impl PlayerSave {
             pk: 0,
             attributes: BTreeMap::new(),
             record: None,
+            storage: BTreeMap::new(),
+            saved_money: 0,
         }
     }
 }
@@ -186,7 +197,12 @@ impl Sim {
         self.insert_player(id, save.name.clone(), save.cell, save.level.max(1));
         let bag: Vec<Item> = save.bag.iter().map(|&s| self.saved_item(s)).collect();
         let worn: Vec<Item> = save.equipment.iter().map(|&s| self.saved_item(s)).collect();
+        let storage: BTreeMap<u32, Vec<Item>> = (save.storage.iter())
+            .map(|(&npc, items)| (npc, items.iter().map(|&s| self.saved_item(s)).collect()))
+            .collect();
         let p = self.players.get_mut(&id).expect("just added");
+        p.storage = storage;
+        p.saved_money = save.saved_money;
         p.exp = save.exp;
         p.money = save.money;
         p.wallet = save.wallet.clone();
@@ -238,6 +254,11 @@ impl Sim {
             pk: p.pk,
             attributes: p.attributes.clone(),
             record: p.record,
+            storage: (p.storage.iter())
+                .filter(|(_, items)| !items.is_empty())
+                .map(|(&npc, items)| (npc, items.iter().map(|i| self.stored_item(i)).collect()))
+                .collect(),
+            saved_money: p.saved_money,
         })
     }
 

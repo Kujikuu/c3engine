@@ -63,6 +63,8 @@ pub struct PlayerState {
     /// The player's living teammates on its map, and how many of them hold each item type.
     pub team_here: i64,
     pub team_items: BTreeMap<i64, i64>,
+    /// The money the player keeps in storage.
+    pub saved_money: i64,
     /// The guilds by id, and the guild owning each game map that has one.
     pub guilds: BTreeMap<i64, GuildView>,
     pub map_owners: BTreeMap<i64, i64>,
@@ -367,6 +369,10 @@ pub enum Effect {
         secs: i64,
     },
     RemoveStatus(i64),
+    /// The NPC the player talks to opens its storage for it.
+    OpenStorage,
+    /// Money added to (or, below 0, taken from) what the player keeps in storage.
+    SavedMoney(i64),
     /// World event `name` (no player) runs after `secs`.
     WorldTimer {
         name: String,

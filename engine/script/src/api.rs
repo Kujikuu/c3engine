@@ -541,6 +541,24 @@ fn more(engine: &mut Engine, shared: &Shared) {
     });
     engine.register_fn("remove_status", effect(shared, Effect::RemoveStatus));
     let s = shared.clone();
+    engine.register_fn("open_storage", move || {
+        with(&s, |c| c.effects.push(Effect::OpenStorage))
+    });
+    let s = shared.clone();
+    engine.register_fn("saved_money", move || with(&s, |c| c.player.saved_money));
+    let s = shared.clone();
+    engine.register_fn("add_saved_money", move |n: i64| {
+        with(&s, |c| {
+            let after = c.player.saved_money + n;
+            if !(0..=1_000_000_000).contains(&after) {
+                return false;
+            }
+            c.player.saved_money = after;
+            c.effects.push(Effect::SavedMoney(n));
+            true
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("world_timer", move |name: &str, secs: i64| {
         with(&s, |c| {
             c.effects.push(Effect::WorldTimer {

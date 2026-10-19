@@ -171,6 +171,15 @@ pub enum Event {
         cell: CellPos,
         effect: String,
     },
+    /// Player `player`'s storage at NPC `npc` opened, or changed (its items or the money).
+    StorageOpened {
+        player: EntityId,
+        npc: u32,
+    },
+    StorageChanged {
+        player: EntityId,
+        npc: u32,
+    },
     /// A trap was placed on this map, or (by id) went away.
     TrapPlaced(c3_scene::Trap),
     TrapGone(u32),

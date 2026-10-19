@@ -132,6 +132,11 @@ pub struct Player {
     /// Other currencies, by name (see the settings' `currencies`).
     #[serde(default)]
     pub wallet: BTreeMap<String, u64>,
+    /// Items kept with storage NPCs (by NPC id), and the money kept (any of them).
+    #[serde(default)]
+    pub storage: BTreeMap<u32, Vec<Item>>,
+    #[serde(default)]
+    pub saved_money: u64,
     /// Skills it knows, in the order of its skill bar.
     #[serde(default)]
     pub skills: Vec<u32>,

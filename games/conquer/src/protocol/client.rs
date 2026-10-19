@@ -123,6 +123,29 @@ fn status(p: &Player, rules: &dyn Rules) -> u32 {
         }
 }
 
+/// Stored item `i` as a warehouse list's entry.
+fn stored(i: &c3_game::Item, sim: &Sim) -> pk::Stored {
+    let names = &sim.settings().item_attributes;
+    let attr = |name: &str| {
+        (names.iter().position(|n| n == name))
+            .and_then(|at| i.attrs.get(at))
+            .copied()
+            .unwrap_or(0)
+    };
+    let byte = |name: &str| u8::try_from(attr(name).clamp(0, 255)).unwrap_or(0);
+    pk::Stored {
+        id: i.id,
+        kind: i.kind,
+        ident: byte("ident"),
+        gem1: byte("gem1"),
+        gem2: byte("gem2"),
+        plus: byte("plus"),
+        bless: byte("bless"),
+        enchant: u16::try_from(attr("enchant").clamp(0, 0xFFFF)).unwrap_or(0),
+        color: byte("color"),
+    }
+}
+
 /// Item `i` as MsgItemInfo: its durability in hundredths (or how many are stacked), and its
 /// numbers by the settings' item attribute names (Conquer's: plus, gems, bless...).
 fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> {
@@ -540,7 +563,7 @@ impl ConquerClient {
         }
         if self.entered {
             for event in &update.events {
-                out.extend(self.event(event, ids));
+                out.extend(self.event(event, ids, sim));
             }
         }
         out
@@ -574,7 +597,7 @@ impl ConquerClient {
     }
 
     /// What one event looks like to the client.
-    fn event(&mut self, event: &Event, ids: &mut Ids) -> Vec<Vec<u8>> {
+    fn event(&mut self, event: &Event, ids: &mut Ids, sim: &Sim) -> Vec<Vec<u8>> {
         let hero = self.hero;
         match event {
             // An NPC moved (gone from where it stood, shown where it stands), left or came.
@@ -740,6 +763,27 @@ impl ConquerClient {
                     _ => Vec::new(),
                 }
             }
+            // The warehouse as it is now, and the money kept.
+            Event::StorageOpened { player, npc } | Event::StorageChanged { player, npc }
+                if Some(*player) == hero =>
+            {
+                let Some(p) = sim.player(*player) else {
+                    return Vec::new();
+                };
+                let kept: Vec<pk::Stored> = (p.storage.get(npc).into_iter().flatten())
+                    .map(|i| stored(i, sim))
+                    .collect();
+                let money = [(attr::MONEY, p.money), (attr::SAVED_MONEY, p.saved_money)];
+                vec![
+                    pk::package(*npc, &kept),
+                    pk::item_action(
+                        *npc,
+                        u32::try_from(p.saved_money).unwrap_or(u32::MAX),
+                        item::SAVED_MONEY,
+                    ),
+                    pk::attributes(self.hero_id(), &money),
+                ]
+            }
             Event::CellEffect { cell, effect } => {
                 let (x, y) = cell16(*cell);
                 vec![pk::name(
@@ -875,6 +919,15 @@ impl ConquerClient {
                     item: data,
                     target: item_id,
                 }),
+                item::SAVED_MONEY => inputs.push(Input::OpenStorage(item_id)),
+                item::SAVE_MONEY => inputs.push(Input::SaveMoney {
+                    npc: item_id,
+                    amount: data.into(),
+                }),
+                item::DRAW_MONEY => inputs.push(Input::DrawMoney {
+                    npc: item_id,
+                    amount: data.into(),
+                }),
                 item::ENCHANT => inputs.push(Input::Combine {
                     kind: pk::combine::ENCHANT,
                     items: vec![item_id, data],
@@ -882,6 +935,16 @@ impl ConquerClient {
                 }),
                 _ => {}
             },
+            Request::Package {
+                npc,
+                action: a,
+                kind: pk::PACKAGE_STORAGE,
+                item,
+            } => inputs.push(match a {
+                pk::PACKAGE_CHECK_IN => Input::Store { npc, item },
+                pk::PACKAGE_CHECK_OUT => Input::Retrieve { npc, item },
+                _ => Input::OpenStorage(npc),
+            }),
             Request::GemEmbed {
                 item: target,
                 gem,

@@ -26,6 +26,7 @@ mod script_events;
 mod sim;
 mod skills;
 mod statuses;
+mod storage;
 mod teams;
 mod world_state;
 pub use teams::{Mate, TEAM_SIZE, TeamOp};

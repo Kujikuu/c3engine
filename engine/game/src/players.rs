@@ -84,6 +84,8 @@ impl Sim {
                 revive_at_ms: None,
                 ghost: false,
                 transform: None,
+                storage: std::collections::BTreeMap::new(),
+                saved_money: 0,
                 killed_by_monster: 0,
             },
         );
