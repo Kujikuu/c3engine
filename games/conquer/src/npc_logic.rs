@@ -1182,12 +1182,43 @@ impl<'a> Builder<'a> {
         ) else {
             return self.not_converted(g, a, column);
         };
+        let op = match op {
+            "<=" | ">=" => op,
+            _ => "==",
+        };
+        let worn = g.node("item.worn", &[("slot", num(slot))], column);
         let (modulo, divide) = match what.as_str() {
             "level" => (1000, 10),
             "quality" => (10, 1),
+            "durability" | "max_dur" => {
+                // The type's full durability (gems' bonus left out, as TQ's max_dur does).
+                let full = g.node(
+                    "table.lookup",
+                    &[
+                        ("table", txt(c3_play::data_rules::ITEMS)),
+                        ("column", txt("durability")),
+                    ],
+                    column,
+                );
+                g.data(worn, full, "key");
+                let value = match what.as_str() {
+                    "durability" => {
+                        let id = g.node("item.worn_id", &[("slot", num(slot))], column);
+                        let now = g.node("held.durability", &[], column);
+                        g.data(id, now, "item");
+                        now
+                    }
+                    _ => full,
+                };
+                // -1: against the full durability.
+                let cmp = match n {
+                    -1 => self.compare_nodes(g, value, op, full, column),
+                    n => self.compare_node(g, value, op, n, column),
+                };
+                return self.worn_and(g, worn, cmp, column);
+            }
             _ => return self.not_converted(g, a, column),
         };
-        let worn = g.node("item.worn", &[("slot", num(slot))], column);
         let rem = g.node("math.remainder", &[("b", num(modulo))], column);
         g.data(worn, rem, "a");
         let value = match divide {
@@ -1198,12 +1229,12 @@ impl<'a> Builder<'a> {
                 div
             }
         };
-        let op = match op {
-            "<=" | ">=" => op,
-            _ => "==",
-        };
         let cmp = self.compare_node(g, value, op, n, column);
-        // An empty slot fails.
+        self.worn_and(g, worn, cmp, column)
+    }
+
+    /// A Branch on `cmp` that fails when nothing is worn (`worn` is the worn type).
+    fn worn_and(&mut self, g: &mut Canvas, worn: u32, cmp: u32, column: i32) -> Emitted {
         let none = self.compare_node(g, worn, "==", 0, column);
         let worn_at_all = g.node("logic.not", &[], column);
         g.data(none, worn_at_all, "a");
@@ -1372,6 +1403,7 @@ impl<'a> Builder<'a> {
         let (def, negate) = match op {
             ">=" => ("logic.less", true),
             ">" => ("logic.greater", false),
+            "<=" => ("logic.greater", true),
             _ => ("logic.equal", false),
         };
         let cmp = g.node(def, &[], column);
