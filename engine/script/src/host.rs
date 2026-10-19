@@ -92,8 +92,16 @@ impl ScriptHost {
     }
 
     /// The file of script `name` (`npc/guard` → `scripts/npc/guard.rhai`).
+    /// The file of script `name`: the hand-written one, else the blueprint of that name's
+    /// (`graphs/<name>`), so NPCs and events name blueprints as they name scripts.
     pub fn script_file(&self, name: &str) -> PathBuf {
-        self.dir.join(format!("{name}{SCRIPT_SUFFIX}"))
+        let written = self.dir.join(format!("{name}{SCRIPT_SUFFIX}"));
+        let graph =
+            (self.dir.join(crate::blueprint::GRAPHS_DIR)).join(format!("{name}{SCRIPT_SUFFIX}"));
+        if !written.is_file() && graph.is_file() {
+            return graph;
+        }
+        written
     }
 
     /// Forgets loaded tables (after they were saved), so scripts read them anew.
@@ -146,8 +154,13 @@ impl ScriptHost {
             &self.dir.join(crate::blueprint::GRAPHS_DIR),
             crate::SCRIPT_SUFFIX,
         );
+        // A blueprint called `events` already runs as the events script.
         std::iter::once(EVENTS_SCRIPT.to_owned())
-            .chain(graphs.iter().map(|g| crate::blueprint::graph_script(g)))
+            .chain(
+                (graphs.iter())
+                    .filter(|g| g.as_str() != EVENTS_SCRIPT)
+                    .map(|g| crate::blueprint::graph_script(g)),
+            )
             .collect()
     }
 

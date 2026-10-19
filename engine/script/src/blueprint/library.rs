@@ -720,6 +720,14 @@ pub const NODES: &[NodeDef] = &[
         "option({label}, {next});",
     ),
     action(
+        "dialogue.close_option",
+        "Answer (closes)",
+        "Dialogue",
+        &[("label", Text)],
+        &[],
+        "option({label});",
+    ),
+    action(
         "dialogue.shop",
         "Open shop",
         "Dialogue",

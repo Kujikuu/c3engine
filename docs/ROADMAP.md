@@ -516,7 +516,14 @@ run on the server and the local session alike, and are edited through c3-edit wi
     every change
   - [ ] Breakpoints on the very first events of a Play (login runs before the panel hands
         its breakpoints to the new game)
-- [ ] Prove it: the Conquer project's NPCs, quests, formulas and events made only with graphs
+- [x] Prove it: the Conquer project's NPCs, quests, formulas and events made only with graphs
+  - Done 2026-10-19: the Conquer test project's events (welcome, map arrival, kill count,
+    the timed gift) and NPCs (the Shopkeeper's lines, answers, purchase and loyalty reward;
+    the Armorer's shop) are blueprints, with no hand-written script left; its quest is a
+    dialogue graph. Played in the Studio: the same messages, dialogue and purchase as the
+    scripts gave. An NPC names a blueprint as it names a script
+  - [ ] Conquer's formulas as formula graphs (its rules are the game module's code;
+        formula events reach data-driven rules only)
 
 ## M11: MCP and AI integration (moved before Conquer; the Studio assistant panel is dropped)
 - [ ] MCP server (`apps/mcp`): exposes c3-edit commands and queries to external agents (Claude
