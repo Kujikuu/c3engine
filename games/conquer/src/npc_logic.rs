@@ -557,7 +557,12 @@ impl<'a> Builder<'a> {
                 break;
             }
         }
-        // Timers run their chains: on a timer named `a<id>`, call function `a<id>`.
+        self.timer_lane(&mut events);
+        self.blueprint.events = events.graph;
+    }
+
+    /// Timers run their chains: on a timer named `a<id>`, call function `a<id>`.
+    fn timer_lane(&mut self, events: &mut Canvas) {
         if !self.timers.is_empty() {
             events.lane();
             let timer = events.node("event.timer", &[], 0);
@@ -574,7 +579,6 @@ impl<'a> Builder<'a> {
                 from = (branch, "false");
             }
         }
-        self.blueprint.events = events.graph;
     }
 
     /// A blueprint of trigger events, each running its chain.
@@ -608,6 +612,7 @@ impl<'a> Builder<'a> {
                 break;
             }
         }
+        self.timer_lane(&mut events);
         self.blueprint.events = events.graph;
     }
 
@@ -1249,7 +1254,7 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             // Two of the player's numbers (or numbers) compared: ==, <, <=.
-            2003 => match (tokens.first(), tokens.get(1).copied(), tokens.get(2)) {
+            2003 | 2004 => match (tokens.first(), tokens.get(1).copied(), tokens.get(2)) {
                 (Some(x), Some(op @ ("==" | "<" | "<=")), Some(y)) => {
                     match (self.number(g, x, column), self.number(g, y, column)) {
                         (Some(x), Some(y)) => {
@@ -1531,6 +1536,89 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // Fireworks with words over the player (the first 8 bytes), for everyone around.
+            315 => {
+                let words: String = a.param.chars().take(8).collect();
+                let values = [
+                    ("name", txt("msg_name")),
+                    ("a", num(1)),
+                    ("text", txt(&words)),
+                ];
+                Self::plain(g, "player.room_cue_text", &values, column)
+            }
+            // An effect on the player (and its team); `del` takes it off (MsgName 24).
+            1027 => match (
+                tokens.first().map(|t| t.to_ascii_lowercase()),
+                tokens.get(1),
+            ) {
+                (Some(target), Some(effect))
+                    if target == "self" || target == "team" || target == "couple" =>
+                {
+                    let gone = tokens.get(2).is_some_and(|t| t.eq_ignore_ascii_case("del"));
+                    let me = if gone {
+                        let values = [
+                            ("name", txt("msg_name")),
+                            ("a", num(24)),
+                            ("text", txt(effect)),
+                        ];
+                        g.node("player.room_cue_text", &values, column)
+                    } else {
+                        g.node("fx.effect", &[("effect", txt(effect))], column)
+                    };
+                    let last = if target == "team" && !gone {
+                        let team = g.node("team.effect", &[("effect", txt(effect))], column);
+                        g.exec((me, "then"), team);
+                        team
+                    } else {
+                        me
+                    };
+                    Emitted {
+                        entry: Some(me),
+                        ok: Some((last, "then")),
+                        fail: None,
+                    }
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // Each player on a map (the first `count`; -1 all) runs a chain at once.
+            2013 => match (
+                int(0),
+                tokens.get(1).and_then(|t| t.parse::<u32>().ok()),
+                int(2),
+            ) {
+                (Some(map), Some(chain), Some(count)) if chain != 0 => {
+                    if self.functions.insert(chain) {
+                        self.to_make.push(chain);
+                    }
+                    self.timers.insert(chain);
+                    let values = [
+                        ("map", num(map)),
+                        ("name", txt(&format!("a{chain}"))),
+                        ("count", num(if count < 0 { 0 } else { count.max(1) })),
+                    ];
+                    Self::plain(g, "world.map_timer", &values, column)
+                }
+                _ => self.not_converted(g, a, column),
+            },
+            // This map's NPCs of a kind removed.
+            2011 => match int(1) {
+                Some(kind) => Self::plain(g, "world.erase_npcs", &[("kind", num(kind))], column),
+                None => self.not_converted(g, a, column),
+            },
+            // The item being used, spent.
+            498 => {
+                let used = g.node("item.used", &[], column);
+                let erase = g.node("held.erase", &[], column);
+                g.data(used, erase, "item");
+                let branch = g.node("flow.branch", &[], column);
+                g.wire((erase, "erased"), (branch, "condition"));
+                g.exec((erase, "then"), branch);
+                Emitted {
+                    entry: Some(erase),
+                    ok: Some((branch, "true")),
+                    fail: Some((branch, "false")),
+                }
+            }
             // A monster's loot where it fell: an item, or money (at least `percent` of it).
             801 => match (
                 tokens.first().map(|t| t.to_ascii_lowercase()),

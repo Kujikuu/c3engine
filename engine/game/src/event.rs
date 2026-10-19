@@ -159,6 +159,13 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// The same with a text.
+    RoomCueText {
+        player: EntityId,
+        name: String,
+        a: i64,
+        text: String,
+    },
     /// Effect `effect` plays once on `cell` (everyone on the map sees it).
     CellEffect {
         cell: CellPos,

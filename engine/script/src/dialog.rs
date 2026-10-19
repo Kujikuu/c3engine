@@ -318,6 +318,23 @@ pub enum Effect {
     },
     /// The player dies (no one's kill).
     Die,
+    /// A room cue with a text (`room_cue_text`).
+    RoomCueText {
+        name: String,
+        a: i64,
+        text: String,
+    },
+    /// Effect `effect` played on each of the player's teammates on its map.
+    TeamEffect(String),
+    /// Timer `name` started at once for the first `count` players on game map `map` (all:
+    /// a count below 1), each running its `on_timer`.
+    MapTimer {
+        map: i64,
+        name: String,
+        count: i64,
+    },
+    /// The NPCs of kind `kind` on this map gone.
+    EraseNpcs(i64),
     /// An item of type `item` (or `money`) lies where the monster being killed fell (where
     /// the player stands, out of a kill).
     Loot {

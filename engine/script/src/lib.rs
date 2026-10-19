@@ -81,6 +81,12 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "room_cue_text(name, a, text) / team_effect(effect) / map_timer(map, name, count) / \
+         erase_npcs(kind)",
+        "A room cue with a text; an effect on each teammate here; timer `name` at once for \
+         the first `count` players on a map (all: below 1); this map's NPCs of a kind gone",
+    ),
+    (
         "loot_item(type) / loot_money(n)",
         "An item of `type` (or money) lies where the monster being killed fell (`killed_<type>` \
          events), else where the player stands",

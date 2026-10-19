@@ -452,6 +452,36 @@ fn more(engine: &mut Engine, shared: &Shared) {
         with(&s, |c| c.effects.push(Effect::Loot { item: 0, money }))
     });
     let s = shared.clone();
+    engine.register_fn("room_cue_text", move |name: &str, a: i64, text: &str| {
+        with(&s, |c| {
+            c.effects.push(Effect::RoomCueText {
+                name: name.to_owned(),
+                a,
+                text: text.to_owned(),
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("team_effect", move |effect: &str| {
+        with(&s, |c| {
+            c.effects.push(Effect::TeamEffect(effect.to_owned()))
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("map_timer", move |map: i64, name: &str, count: i64| {
+        with(&s, |c| {
+            c.effects.push(Effect::MapTimer {
+                map,
+                name: name.to_owned(),
+                count,
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("erase_npcs", move |kind: i64| {
+        with(&s, |c| c.effects.push(Effect::EraseNpcs(kind)))
+    });
+    let s = shared.clone();
     engine.register_fn("used_item", move || with(&s, |c| c.player.used_item));
     let s = shared.clone();
     engine.register_fn("npc_look", move |npc: i64| {

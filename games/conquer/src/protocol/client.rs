@@ -679,6 +679,17 @@ impl ConquerClient {
                     _ => Vec::new(),
                 }
             }
+            Event::RoomCueText {
+                player,
+                name,
+                a,
+                text,
+            } => match (name.as_str(), self.client_id(*player, ids)) {
+                (pk::cue::NAME, Some(_)) => {
+                    vec![pk::name(u8::try_from(*a).unwrap_or(0), 0, text)]
+                }
+                _ => Vec::new(),
+            },
             Event::RoomCue { player, name, args } => {
                 let Some(id) = self.client_id(*player, ids) else {
                     return Vec::new();

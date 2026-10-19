@@ -279,6 +279,46 @@ impl Sim {
                     _ => {}
                 }
             }
+            Effect::RoomCueText { name, a, text } => self.events.push(Event::RoomCueText {
+                player: id,
+                name,
+                a,
+                text,
+            }),
+            Effect::TeamEffect(effect) => {
+                for member in self.teammates_here(id) {
+                    let effect = effect.clone();
+                    self.events.push(Event::Effect {
+                        entity: member,
+                        effect,
+                    });
+                }
+            }
+            Effect::MapTimer { map, name, count } => {
+                if !u32::try_from(map).is_ok_and(|m| self.is_this_map(m)) {
+                    return;
+                }
+                let mut here: Vec<EntityId> = self.players.keys().copied().collect();
+                here.sort();
+                let take = if count < 1 {
+                    here.len()
+                } else {
+                    count as usize
+                };
+                for player in here.into_iter().take(take) {
+                    self.start_timer(player, name.clone(), 0.0);
+                }
+            }
+            Effect::EraseNpcs(kind) => {
+                let gone: Vec<u32> = (self.npcs.iter())
+                    .filter(|n| i64::from(n.kind) == kind)
+                    .map(|n| n.id)
+                    .collect();
+                for npc in gone {
+                    self.npcs.retain(|n| n.id != npc);
+                    self.events.push(Event::NpcMoved { npc, cell: None });
+                }
+            }
             Effect::Die => {
                 if let Some(p) = self.players.get_mut(&id) {
                     p.life = 0;

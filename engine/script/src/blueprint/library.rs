@@ -217,6 +217,38 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     action(
+        "player.room_cue_text",
+        "Cue the clients around (text)",
+        "Player",
+        &[("name", Text), ("a", Number), ("text", Text)],
+        &[],
+        "room_cue_text({name}, {a}, {text});",
+    ),
+    action(
+        "team.effect",
+        "Effect on the team",
+        "Team",
+        &[("effect", Text)],
+        &[],
+        "team_effect({effect});",
+    ),
+    action(
+        "world.map_timer",
+        "Start a timer for a map's players",
+        "World",
+        &[("map", Map), ("name", Text), ("count", Number)],
+        &[],
+        "map_timer({map}, {name}, {count});",
+    ),
+    action(
+        "world.erase_npcs",
+        "Remove NPCs of a kind",
+        "World",
+        &[("kind", Number)],
+        &[],
+        "erase_npcs({kind});",
+    ),
+    action(
         "world.loot_item",
         "Leave an item",
         "World",
