@@ -229,6 +229,8 @@ pub struct GameUi {
     gui_state: gui_data::GuiState,
     /// Whether the hero is in a team (as last drawn).
     in_team: bool,
+    /// The control just clicked played its own sound.
+    own_sound: bool,
 }
 
 impl GameUi {
@@ -249,9 +251,16 @@ impl GameUi {
     /// (`page:<page id>`).
     fn gui_event(&mut self, event: gui::GuiEvent, actions: &mut Vec<UiAction>) {
         let action = match event {
+            gui::GuiEvent::Sound(path) => {
+                actions.push(UiAction::PlaySound(path));
+                self.own_sound = true;
+                return;
+            }
             gui::GuiEvent::Action(action) => {
+                // The UI's click, unless the control played its own.
                 if let Some(gui) = &self.gui
                     && !gui.sounds.click.is_empty()
+                    && !std::mem::take(&mut self.own_sound)
                 {
                     actions.push(UiAction::PlaySound(gui.sounds.click.clone()));
                 }

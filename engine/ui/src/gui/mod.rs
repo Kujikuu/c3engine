@@ -195,6 +195,8 @@ pub struct Control {
     pub size: f32,
     /// What a click asks the game for.
     pub action: String,
+    /// A sound (an asset path) a click plays in place of the UI's click.
+    pub sound: String,
     /// A grid's columns and rows.
     pub cols: u32,
     pub rows: u32,
@@ -256,6 +258,7 @@ impl Control {
             color,
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
+            sound: text("sound"),
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
             open: text("open"),

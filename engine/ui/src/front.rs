@@ -285,6 +285,8 @@ impl FrontEnd {
                 _ => {}
             },
             GuiEvent::Action(action) => self.act(&action, actions),
+            // The front end plays no sounds yet.
+            GuiEvent::Sound(_) => {}
         }
     }
 

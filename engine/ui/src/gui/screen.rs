@@ -47,6 +47,8 @@ pub trait GuiData {
 pub enum GuiEvent {
     /// A control with `action=` was clicked.
     Action(String),
+    /// The clicked control's own sound (played in place of the UI's click).
+    Sound(String),
     /// Slot `index` of grid list `list` (or row `index` of a list control) was clicked.
     Item { list: String, index: usize },
     /// Edit `field` now reads `text`.
@@ -181,6 +183,14 @@ impl Gui {
     }
 }
 
+/// A click on `control`: its own sound, then its action.
+fn clicked(control: &Control, events: &mut Vec<GuiEvent>) {
+    if !control.sound.is_empty() {
+        events.push(GuiEvent::Sound(control.sound.clone()));
+    }
+    events.push(GuiEvent::Action(control.action.clone()));
+}
+
 /// Whether one of `control`'s `when` bindings (`|` between them) is set (not 0).
 fn set(control: &Control, data: &dyn GuiData) -> bool {
     (control.when.split('|').filter(|w| !w.is_empty()))
@@ -305,7 +315,7 @@ impl Painter<'_, '_> {
             let rect = Rect::from_min_size(self.screen(at.x, at.y), drawn * self.place.scale);
             let id = (self.ui.scope_id()).with(("gui image", control.parent, control.id));
             if self.ui.interact(rect, id, egui::Sense::click()).clicked() {
-                events.push(GuiEvent::Action(control.action.clone()));
+                clicked(control, events);
             }
         }
     }
@@ -357,7 +367,7 @@ impl Painter<'_, '_> {
                     self.draw(texture, origin, None, None);
                 }
                 if response.clicked() && !control.action.is_empty() {
-                    events.push(GuiEvent::Action(control.action.clone()));
+                    clicked(control, events);
                 }
             }
             ControlKind::Progress => {
