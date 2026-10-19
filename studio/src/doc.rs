@@ -35,6 +35,11 @@ impl MapDoc {
         self.edit.scene()
     }
 
+    /// The scene's document, for commands from elsewhere (an agent's).
+    pub fn scene_doc(&mut self) -> &mut SceneDoc {
+        &mut self.edit
+    }
+
     /// The ground layer, when it changed since the last save.
     pub fn changed_ground(&self) -> Option<&c3_scene::TileLayer> {
         self.scene()
@@ -138,24 +143,5 @@ impl MapDoc {
     pub fn mark_saved(&mut self) {
         self.saved_ground = self.scene().ground.clone();
         self.edit.mark_saved();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn backup_written_once_and_save_is_atomic() {
-        let dir = std::env::temp_dir().join(format!("c3studio-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let file = dir.join("x.DMap");
-        std::fs::write(&file, b"original").unwrap();
-        crate::tq_plugin::write_map_file(&file, b"v1", true).unwrap();
-        crate::tq_plugin::write_map_file(&file, b"v2", true).unwrap();
-        crate::tq_plugin::write_map_file(&dir.join("y.DMap"), b"new", false).unwrap();
-        assert!(!dir.join("y.DMap.bak").exists());
-        assert_eq!(std::fs::read(&file).unwrap(), b"v2");
-        assert_eq!(std::fs::read(dir.join("x.DMap.bak")).unwrap(), b"original");
-        assert!(!dir.join("x.DMap.tmp").exists());
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

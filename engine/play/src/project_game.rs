@@ -116,6 +116,16 @@ impl GameModule for ProjectGame {
         self.game.load_map(project, key)
     }
 
+    fn save_map(
+        &self,
+        project: &Project,
+        key: &str,
+        scene: &Scene,
+        ground: Option<&c3_scene::TileLayer>,
+    ) -> Result<(), String> {
+        self.game.save_map(project, key, scene, ground)
+    }
+
     fn map_ids(&self, key: &str) -> Vec<u32> {
         self.game.map_ids(key)
     }

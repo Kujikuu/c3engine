@@ -115,6 +115,20 @@ pub trait GameModule {
     }
     /// Loads map `key` of `project`, with the population the project keeps for it.
     fn load_map(&self, project: &Project, key: &str) -> Result<Scene, String>;
+    /// Writes `scene` as map `key` of `project`; `ground` is its ground layer when that
+    /// changed (a game's own map files keep their ground apart). The project's own scenes
+    /// save as such; a game saves its own map files.
+    fn save_map(
+        &self,
+        project: &Project,
+        key: &str,
+        scene: &Scene,
+        ground: Option<&c3_scene::TileLayer>,
+    ) -> Result<(), String> {
+        let _ = ground;
+        save_project_scene(project, key, scene)
+            .unwrap_or_else(|| Err(format!("the project has no map \"{key}\"")))
+    }
     /// The game's ids of map `key` (script teleports, music regions, protocols).
     fn map_ids(&self, key: &str) -> Vec<u32> {
         let _ = key;
@@ -203,6 +217,18 @@ pub trait GameModule {
     fn native(&self) -> Option<&crate::native::NativeAssets> {
         None
     }
+}
+
+/// Writes `scene` as map `key` of `project` when that is one of the project's own scenes.
+pub fn save_project_scene(
+    project: &Project,
+    key: &str,
+    scene: &Scene,
+) -> Option<Result<(), String>> {
+    project.map_names().iter().any(|n| n == key).then(|| {
+        c3_scene::native::save_scene(scene, &project.map_file(key))
+            .map_err(|e| format!("map {key}: {e}"))
+    })
 }
 
 /// Map `key` of `project` when it is one of the project's own scenes.

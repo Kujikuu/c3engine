@@ -11,7 +11,7 @@ use c3_assets::{Image, model::Model};
 use c3_formats_tq::{c3::C3File, ini::PathTable, model_io, scene_io, texture, vfs::ClientFs};
 use c3_play::GameModule;
 use c3_render::SceneAssets;
-use c3_scene::{Population, Scene, TileLayer};
+use c3_scene::{Population, TileLayer};
 use game_conquer::server_data::{self, ServerPopulation};
 use game_conquer::{ConquerModule, Content};
 use std::path::{Path, PathBuf};
@@ -262,34 +262,6 @@ impl Client {
         }
         (files, self.fs().packed_count())
     }
-
-    /// Writes `scene` to the DMap at `path` (atomic). With `backup`, the original is first
-    /// kept as `<file>.bak` (once), for content that isn't the project's own copy.
-    pub fn save_map(&self, scene: &Scene, path: &str, backup: bool) -> Result<PathBuf, String> {
-        let file = self.root.join(Path::new(path));
-        write_map_file(&file, &scene_io::export_dmap(scene).to_bytes(), backup)?;
-        Ok(file)
-    }
-
-    /// Writes a classic map's ground back to its PUL (atomic; `backup` as for the map).
-    pub fn save_ground(&self, ground: &TileLayer, backup: bool) -> Result<(), String> {
-        let file = self.root.join(Path::new(&ground.source.replace('\\', "/")));
-        write_map_file(&file, &scene_io::export_puzzle(ground).to_bytes(), backup)
-    }
-}
-
-pub fn write_map_file(file: &Path, bytes: &[u8], backup: bool) -> Result<(), String> {
-    let mut bak = file.as_os_str().to_owned();
-    bak.push(".bak");
-    let bak = PathBuf::from(bak);
-    if backup && file.exists() && !bak.exists() {
-        std::fs::copy(file, &bak).map_err(|e| format!("Backup failed: {e}"))?;
-    }
-    let mut tmp = file.as_os_str().to_owned();
-    tmp.push(".tmp");
-    let tmp = PathBuf::from(tmp);
-    std::fs::write(&tmp, bytes).map_err(|e| format!("Save failed: {e}"))?;
-    std::fs::rename(&tmp, file).map_err(|e| format!("Save failed: {e}"))
 }
 
 impl SceneAssets for Client {
