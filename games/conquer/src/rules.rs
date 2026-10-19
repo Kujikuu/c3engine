@@ -670,7 +670,7 @@ fn disdain(t: &Table) -> Table {
 pub const MAGIC_LEVELS_TABLE: &str = "magic_levels";
 
 /// Each magic level (`cq_magictype`), keyed type × 100 + level: the experience it needs to
-/// go up (0 or −1: it doesn't) and the player level needed.
+/// go up (0 or −1: it doesn't), the player level needed, and the level's power.
 fn magic_levels(t: &Table) -> Table {
     let column = |name: &str, doc: &str| Column {
         doc: doc.into(),
@@ -685,6 +685,10 @@ fn magic_levels(t: &Table) -> Table {
                 "Experience to go up a level (0 or −1: it doesn't)",
             ),
             column("need_level", "The player level needed to go up"),
+            column(
+                "power",
+                "The level's power (30000 + percent: a physical skill)",
+            ),
         ],
     );
     out.doc = "Magic levels: what each needs to go up (TQ's cq_magictype)".into();
@@ -694,6 +698,7 @@ fn magic_levels(t: &Table) -> Table {
                 int(r.int("type") * 100 + r.int("level")),
                 int(r.int("need_exp")),
                 int(r.int("need_level")),
+                int(r.int("power")),
             ]
         })
         .collect();

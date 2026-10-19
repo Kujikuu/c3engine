@@ -660,7 +660,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Skill levels and experience: casts raise `magic_exp_<type>` by what they did, the
         `magic_levels` table (cq_magictype) says when a level goes up (play-tested through
         the MCP: Thunder 1950 + a hit → level 1), MsgMagicInfo carries both
-  - [ ] A skill's power, range and cost by its level (casts use level 0's)
+  - [x] A skill's damage by the caster's level of it (the magic levels table's power;
+        play-tested: Thunder 29 at level 0, 33 at level 3)
+  - [ ] A skill's range, area, mana cost and healing by its level (level 0's today)
   - [x] Items and money dropped on the ground (MsgItem 3 and 12; a dropped item keeps its
         plus and gems) and picked up (MsgMapItem 1101)
   - [x] Teams: MsgTeam 1023 (create, invite, accept, leave, dismiss, kick) and the member
