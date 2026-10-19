@@ -21,6 +21,8 @@ pub struct GameSetup {
     pub settings: GameplaySettings,
     /// Players may attack each other on the map.
     pub pk: bool,
+    /// Their fights bring no crime and no PK points.
+    pub pk_free: bool,
     /// Blueprint nodes a debugger stops after (from the first event on).
     pub breakpoints: std::collections::BTreeSet<c3_script::debug::NodeKey>,
 }
@@ -92,6 +94,7 @@ pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, 
     sim.set_quests(quests(setup.tables.as_ref(), &mut problems));
     sim.set_map_ids(setup.map_ids.clone());
     sim.set_pk(setup.pk);
+    sim.set_pk_free(setup.pk_free);
     sim.set_portals(&scene.portals);
     sim.set_regions(scene.regions.clone());
     if let Some(dir) = &setup.scripts {

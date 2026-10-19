@@ -14,6 +14,9 @@ use std::collections::BTreeMap;
 
 /// `cq_map.type` bits meaning players may not fight (no PvP, no attack at all).
 const NO_PVP: u32 = 0x8 | 0x10;
+/// `cq_map.type` bits of maps where fights bring no crime or PK points (PK field, guild map,
+/// prison).
+const PK_FREE: u32 = 0x1 | 0x80 | 0x100;
 
 /// One `cq_map` row's fields the engine uses.
 struct MapRow {
@@ -84,6 +87,7 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
             id: row.id,
             name: row.name.clone(),
             pk: row.kind & NO_PVP == 0,
+            pk_free: row.kind & PK_FREE != 0,
             ..MapEntry::default()
         });
         ids.push(row.id);

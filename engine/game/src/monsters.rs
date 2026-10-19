@@ -119,6 +119,17 @@ impl Sim {
         let (cell, home, kind) = (m.cell, m.home, m.kind);
         let view = self.rules.monster(kind).map_or(0, |t| t.view_range) as i32;
         let aggressive = self.rules.monster(kind).is_some_and(|t| t.aggressive);
+        let hunts = self.rules.monster(kind).map_or(0, |t| t.hunts);
+        // Guards and their like go for players whose name is one they hunt.
+        let hunted = |p: &crate::Player| {
+            let bit = match p.mark {
+                crate::NameMark::Good => crate::HUNTS_GOOD,
+                crate::NameMark::Criminal => crate::HUNTS_CRIMINALS,
+                crate::NameMark::Red => crate::HUNTS_RED,
+                crate::NameMark::Black => crate::HUNTS_BLACK,
+            };
+            aggressive || hunts & bit != 0
+        };
         let boss = self.is_boss(id);
         // Drop a target that died, left or led it too far from home (bosses follow anywhere).
         let target = m.target.filter(|t| {
@@ -130,13 +141,15 @@ impl Sim {
             })
         });
         let target = target.or_else(|| {
-            if !aggressive {
+            if !aggressive && hunts == 0 {
                 return None;
             }
             self.index
                 .near(cell, view)
                 .filter(|(e, c)| {
-                    self.players.get(e).is_some_and(|p| p.is_alive())
+                    self.players
+                        .get(e)
+                        .is_some_and(|p| p.is_alive() && hunted(p))
                         && self.may_fight(cell, *c, false)
                 })
                 .min_by_key(|(_, c)| distance(*c, cell))

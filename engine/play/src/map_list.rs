@@ -17,6 +17,8 @@ pub struct MapInfo {
     /// A sound asset; empty for none.
     pub music: String,
     pub pk: bool,
+    /// Fights between players bring no crime and no PK points.
+    pub pk_free: bool,
 }
 
 impl MapInfo {
@@ -89,6 +91,7 @@ impl MapList {
                 },
                 music: m.music.clone(),
                 pk: m.pk,
+                pk_free: m.pk_free,
             })
             .collect();
         let mut next = maps.iter().map(MapInfo::id).max().unwrap_or(0) + 1;
@@ -114,6 +117,7 @@ impl MapList {
                 ids,
                 music: String::new(),
                 pk: false,
+                pk_free: false,
             });
         }
         Self { maps }

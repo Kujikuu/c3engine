@@ -58,6 +58,7 @@ pub mod attr {
     pub const VITALITY: u32 = 15;
     pub const STRENGTH: u32 = 16;
     pub const AGILITY: u32 = 17;
+    pub const PK: u32 = 6;
     pub const STATUS: u32 = 26;
 }
 
@@ -81,6 +82,11 @@ pub mod item {
 
 /// Status flag of a dead role.
 pub const STATUS_DEAD: u32 = 0x20;
+/// Status bits of a player's name (battle spec S3, S6): a criminal's blue, PK points' red and
+/// black.
+pub const STATUS_CRIME: u32 = 0x1;
+pub const STATUS_RED: u32 = 0x4000;
+pub const STATUS_BLACK: u32 = 0x8000;
 /// MsgTaskDialog actions and the closing link.
 pub const DIALOG_TEXT: u8 = 1;
 pub const DIALOG_LINK: u8 = 2;

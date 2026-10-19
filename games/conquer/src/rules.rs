@@ -308,11 +308,23 @@ fn monsters(t: &Table, magic_types: &BTreeMap<i64, i64>) -> Table {
             ),
             ("skill", int(skill)),
             ("skill_percent", int(r.int("magic_hitrate").min(100))),
+            ("hunts", text(hunts(attack_user))),
             ("attack_user", int(attack_user)),
             ("defence2", int(r.int("defence2"))),
         ]);
     }
     out.table
+}
+
+/// Whom a monster with TQ's `attack_user` bits hunts by their name (battle §4.3): guards
+/// criminals, police black names, evil killers players of good name.
+fn hunts(attack_user: i64) -> String {
+    let kinds = [(0x8, "criminal"), (0x10, "black"), (0x800, "good")];
+    let names: Vec<&str> = (kinds.iter())
+        .filter(|(bit, _)| attack_user & bit != 0)
+        .map(|(_, name)| *name)
+        .collect();
+    names.join(", ")
 }
 
 /// TQ's item columns kept as the game's facts (requirements and weapon numbers).

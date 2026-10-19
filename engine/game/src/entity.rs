@@ -84,6 +84,24 @@ pub struct PlayerLook {
     pub hair: u32,
 }
 
+/// How a player's name shows: good, a criminal's (blue), or red or black for PK points (a
+/// criminal with PK points shows the points' colour).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NameMark {
+    #[default]
+    Good,
+    Criminal,
+    Red,
+    Black,
+}
+
+impl NameMark {
+    /// Whether attacking or killing it is fair (no crime, no PK points).
+    pub fn is_evil(self) -> bool {
+        self != Self::Good
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub id: EntityId,
@@ -139,6 +157,15 @@ pub struct Player {
     /// PK points: what killing other players has earned (game-defined).
     #[serde(default)]
     pub pk: i32,
+    /// Its name as others see it (crime and PK points), kept up to date by the simulation.
+    #[serde(default)]
+    pub mark: NameMark,
+    /// Until when (game ms) it is a criminal.
+    #[serde(skip)]
+    pub(crate) crime_until: u64,
+    /// When (game ms) it next loses a PK point.
+    #[serde(skip)]
+    pub(crate) next_decay_ms: u64,
     /// The game's numbers (the settings' `attributes`) that differ from their default.
     #[serde(default)]
     pub attributes: BTreeMap<String, i64>,

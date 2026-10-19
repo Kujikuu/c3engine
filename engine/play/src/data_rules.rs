@@ -167,6 +167,10 @@ pub fn table_templates() -> Vec<Table> {
             doc: "Hit, it calls the idle monsters of its kind around".into(),
             ..Column::new("assist", ColumnKind::Bool)
         },
+        text(
+            "hunts",
+            "Players it attacks by their name: criminal, red, black, good (guards: criminal)",
+        ),
         int(
             "flee_percent",
             "Below this percent of its life it runs; 0: never",
@@ -436,6 +440,19 @@ fn rows(table: &Table) -> impl Iterator<Item = Row<'_>> {
 }
 
 /// `1:30, 2:5` → items 1 (30 %) and 2 (5 %); what can't be read is reported.
+/// Who a monster hunts: `criminal`, `red`, `black` and `good`, separated by commas.
+fn parse_hunts(text: &str) -> u8 {
+    (text.split(','))
+        .map(|w| match w.trim().to_ascii_lowercase().as_str() {
+            "criminal" | "criminals" | "blue" => c3_game::HUNTS_CRIMINALS,
+            "red" => c3_game::HUNTS_RED,
+            "black" => c3_game::HUNTS_BLACK,
+            "good" => c3_game::HUNTS_GOOD,
+            _ => 0,
+        })
+        .fold(0, |all, bit| all | bit)
+}
+
 fn parse_drops(text: &str) -> Result<Vec<(u32, u32)>, String> {
     text.split(',')
         .map(str::trim)
@@ -539,6 +556,7 @@ impl DataRules {
                 stats,
                 view_range: row.uint("view_range"),
                 aggressive: row.flag("aggressive"),
+                hunts: parse_hunts(row.text("hunts")),
                 assist: row.flag("assist"),
                 flee_percent: row.uint("flee_percent").min(100),
                 boss: row.flag("boss"),

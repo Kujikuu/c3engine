@@ -913,6 +913,30 @@ fn players_fight_players_only_on_pk_maps() {
 }
 
 #[test]
+fn killing_players_of_good_name_brings_crime_and_pk_points() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    sim.set_pk(true);
+    let a = sim.add_player("A", (5, 5), 1);
+    let b = sim.add_player("B", (6, 5), 1);
+    sim.attack(a, b);
+    sim.advance(60_000);
+    let killer = sim.player(a).unwrap();
+    assert_eq!((killer.pk, killer.mark), (10, crate::NameMark::Criminal));
+    // Two more kills: a red name.
+    for _ in 0..2 {
+        sim.attack(a, b);
+        sim.advance(60_000);
+    }
+    assert_eq!(sim.player(a).unwrap().mark, crate::NameMark::Red);
+    // Killing a red name is fair; points wear off.
+    sim.attack(b, a);
+    sim.advance(120_000);
+    assert_eq!(sim.player(b).unwrap().pk, 0, "no points for killing a red name");
+    sim.advance(360_000 * 2);
+    assert!(sim.player(a).unwrap().pk < 30);
+}
+
+#[test]
 fn monsters_assist_flee_cast_and_bosses_hold_on() {
     let mut r = test_rules();
     let pack = MonsterType {

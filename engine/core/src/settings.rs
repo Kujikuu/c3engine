@@ -145,6 +145,9 @@ pub struct MapEntry {
     /// Players may attack each other here.
     #[serde(default, skip_serializing_if = "is_false")]
     pub pk: bool,
+    /// Fights between players here bring no crime and no PK points (arenas).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pk_free: bool,
     /// The light over this map (night, a cave); none: the project's (Graphics > Light).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<[u8; 3]>,
@@ -335,6 +338,8 @@ pub struct GameplaySettings {
     /// Other currencies beside the money (gems, honour), by name; items may be priced in them.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub currencies: Vec<String>,
+    /// Crime and PK points: who gets a bad name for fighting other players.
+    pub pk: PkSettings,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -381,6 +386,7 @@ impl Default for GameplaySettings {
             bag_size: 40,
             currency: "Gold".into(),
             currencies: Vec::new(),
+            pk: PkSettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             equipment_slots: Vec::new(),
@@ -413,6 +419,40 @@ pub struct AttributeDef {
     /// Highest value; more is cut off. `None`: no limit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max: Option<i64>,
+}
+
+/// Crime and PK points (TQ's blue, red and black names): attacking a player of good name
+/// makes the attacker a criminal for a while; killing one earns PK points, which wear off;
+/// enough of them make a red, then a black name. Maps marked free-PK bring neither.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PkSettings {
+    /// Seconds an attacker of a player of good name stays a criminal (0: never).
+    pub crime_seconds: f64,
+    /// Seconds a criminal who kills stays one.
+    pub crime_kill_seconds: f64,
+    /// PK points for killing a player of good name.
+    pub kill_points: i32,
+    /// PK points from which a name is red, and black.
+    pub red_at: i32,
+    pub black_at: i32,
+    /// Every this many seconds a player loses a PK point (0: never).
+    pub decay_seconds: f64,
+}
+
+impl Default for PkSettings {
+    /// TQ's: 15 s of crime (120 after a kill), 10 points a kill, red at 30, black at 100, a
+    /// point off every 6 minutes.
+    fn default() -> Self {
+        Self {
+            crime_seconds: 15.0,
+            crime_kill_seconds: 120.0,
+            kill_points: 10,
+            red_at: 30,
+            black_at: 100,
+            decay_seconds: 360.0,
+        }
+    }
 }
 
 /// Most numbers an item keeps beside its type, count, durability and quality.

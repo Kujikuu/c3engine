@@ -31,14 +31,14 @@ pub use teams::{Mate, TEAM_SIZE, TeamOp};
 
 pub use c3_core::settings::GameplaySettings;
 pub use commands::HELP as COMMAND_HELP;
-pub use entity::{GroundItem, Item, Monster, Player, PlayerLook, Task};
+pub use entity::{GroundItem, Item, Monster, NameMark, Player, PlayerLook, Task};
 pub use event::Event;
 pub use input::{Input, MAX_CHAT};
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{
-    Drop, Fighter, ItemType, Loot, MonsterType, Rules, SkillKind, SkillTarget, SkillType, Stats,
-    StatsFor, StatusType, find_rules,
+    Drop, Fighter, HUNTS_BLACK, HUNTS_CRIMINALS, HUNTS_GOOD, HUNTS_RED, ItemType, Loot,
+    MonsterType, Rules, SkillKind, SkillTarget, SkillType, Stats, StatsFor, StatusType, find_rules,
 };
 pub use save::{PlayerSave, SavedItem};
 pub use sim::Sim;

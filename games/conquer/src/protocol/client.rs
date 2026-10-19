@@ -89,6 +89,17 @@ fn points(p: &Player) -> Points {
     })
 }
 
+/// A player's status bits: dead, and its name's colour.
+fn status(p: &Player) -> u32 {
+    let dead = if p.is_alive() { 0 } else { pk::STATUS_DEAD };
+    dead | match p.mark {
+        c3_game::NameMark::Good => 0,
+        c3_game::NameMark::Criminal => pk::STATUS_CRIME,
+        c3_game::NameMark::Red => pk::STATUS_RED,
+        c3_game::NameMark::Black => pk::STATUS_BLACK,
+    }
+}
+
 fn slot_of(rules: &dyn Rules, kind: u32) -> u8 {
     rules.item(kind).and_then(|t| t.slot).unwrap_or(0)
 }
@@ -102,7 +113,7 @@ fn spawn(state: &EntityState, ids: &mut Ids, rules: &dyn Rules) -> Vec<u8> {
             pk::spawn(&Spawn {
                 id,
                 look: look_face(p),
-                status: if p.is_alive() { 0 } else { pk::STATUS_DEAD },
+                status: status(p),
                 gear: [look.armet, look.armor, look.r_weapon, look.l_weapon],
                 life: p.life.min(u16::MAX.into()) as u16,
                 level: p.level as u16,
@@ -354,6 +365,11 @@ impl ConquerClient {
         if !changed.is_empty() {
             out.push(pk::attributes(id, &changed));
         }
+        if status(old) != status(new) || old.pk != new.pk {
+            let pk_points = u64::try_from(new.pk.max(0)).unwrap_or(0);
+            let values = [(attr::STATUS, status(new).into()), (attr::PK, pk_points)];
+            out.push(pk::attributes(id, &values));
+        }
         let has = |list: &[c3_game::Item], item: u32| list.iter().any(|i| i.id == item);
         for i in &new.equipment {
             let slot = slot_of(rules, i.kind).into();
@@ -399,6 +415,15 @@ impl ConquerClient {
                 continue;
             }
             let packet = spawn(state, ids, sim.rules());
+            // Another player's name colour changed: its status.
+            if let (Some((EntityState::Player(old), _)), EntityState::Player(p)) =
+                (self.seen.get(&id), state)
+                && status(old) != status(p)
+                && self.entered
+                && let Some(client) = self.client_id(id, ids)
+            {
+                out.push(pk::attributes(client, &[(attr::STATUS, status(p).into())]));
+            }
             let fresh = self
                 .seen
                 .get(&id)

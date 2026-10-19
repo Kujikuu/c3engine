@@ -64,6 +64,15 @@ pub struct Fighter {
     pub facts: std::collections::BTreeMap<String, i64>,
 }
 
+/// [`MonsterType::hunts`]: criminals (blue names).
+pub const HUNTS_CRIMINALS: u8 = 1;
+/// Players with a red name.
+pub const HUNTS_RED: u8 = 2;
+/// Players with a black name.
+pub const HUNTS_BLACK: u8 = 4;
+/// Players of good name.
+pub const HUNTS_GOOD: u8 = 8;
+
 /// A kind of monster.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MonsterType {
@@ -77,6 +86,9 @@ pub struct MonsterType {
     pub view_range: u32,
     /// Attacks players on sight (otherwise only when attacked).
     pub aggressive: bool,
+    /// Players it attacks on sight by their name (guards: criminals), as [`HUNTS_CRIMINALS`]
+    /// and the others; 0: none.
+    pub hunts: u8,
     /// Hit, it calls the idle monsters of its kind around to join in.
     pub assist: bool,
     /// Below this percent of its life it runs from its foe; 0: never.

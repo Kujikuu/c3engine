@@ -40,6 +40,8 @@ pub struct Sim {
     pub(crate) map_ids: Vec<u32>,
     /// Players may attack each other here.
     pub(crate) pk: bool,
+    /// Fights between players here bring no crime and no PK points.
+    pub(crate) pk_free: bool,
     /// Portals that lead somewhere: their cells and destinations.
     pub(crate) portals: Vec<(CellPos, c3_scene::PortalTarget)>,
     pub(crate) quests: Vec<c3_script::Quest>,
@@ -90,6 +92,7 @@ impl Sim {
             scripts: None,
             map_ids: Vec::new(),
             pk: false,
+            pk_free: false,
             portals: Vec::new(),
             quests: Vec::new(),
             regions: Vec::new(),
@@ -165,6 +168,7 @@ impl Sim {
         for id in ids {
             self.tick_monster(id);
         }
+        self.tick_marks();
         self.tick_regions();
         self.tick_spawns();
         self.expire_items();

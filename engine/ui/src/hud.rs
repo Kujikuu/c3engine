@@ -608,11 +608,12 @@ fn player_names(painter: &egui::Painter, view: &GameView) {
         if !view.rect.contains(at) {
             continue;
         }
-        // Killers of players are marked red.
-        let color = if p.pk_kills > 0 {
-            style::BAD
-        } else {
-            Color32::WHITE
+        // Criminals blue; PK points red, then black (drawn dark on a light backing).
+        let (color, backing) = match p.mark {
+            c3_game::NameMark::Good => (Color32::WHITE, style::backing(0.9)),
+            c3_game::NameMark::Criminal => (Color32::from_rgb(110, 170, 255), style::backing(0.9)),
+            c3_game::NameMark::Red => (style::BAD, style::backing(0.9)),
+            c3_game::NameMark::Black => (Color32::from_gray(20), Color32::from_white_alpha(170)),
         };
         let galley = painter.layout_no_wrap(p.name.clone(), fonts::font(12.0), color);
         let pos = at + egui::vec2(-galley.size().x / 2.0, -galley.size().y - 4.0);
@@ -622,9 +623,9 @@ fn player_names(painter: &egui::Painter, view: &GameView) {
                 galley.size() + egui::vec2(8.0, 2.0),
             ),
             3.0,
-            style::backing(0.9),
+            backing,
         );
-        painter.galley(pos, galley, Color32::WHITE);
+        painter.galley(pos, galley, color);
     }
 }
 

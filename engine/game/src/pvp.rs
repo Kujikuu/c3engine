@@ -17,6 +17,82 @@ impl Sim {
         self.pk
     }
 
+    /// Makes fights between players here bring no crime and no PK points (or not).
+    pub fn set_pk_free(&mut self, free: bool) {
+        self.pk_free = free;
+    }
+
+    /// Player `id`'s name mark now.
+    fn mark_of(&self, id: EntityId) -> crate::NameMark {
+        let Some(p) = self.players.get(&id) else {
+            return crate::NameMark::Good;
+        };
+        let pk = &self.settings.pk;
+        if p.pk >= pk.black_at {
+            crate::NameMark::Black
+        } else if p.pk >= pk.red_at {
+            crate::NameMark::Red
+        } else if p.crime_until > self.now_ms {
+            crate::NameMark::Criminal
+        } else {
+            crate::NameMark::Good
+        }
+    }
+
+    /// Keeps every player's name mark up to date and wears PK points off.
+    pub(crate) fn tick_marks(&mut self) {
+        let now = self.now_ms;
+        let decay = (self.settings.pk.decay_seconds * 1000.0) as u64;
+        let ids: Vec<EntityId> = self.players.keys().copied().collect();
+        for id in ids {
+            let p = self.players.get_mut(&id).expect("listed");
+            if decay > 0 {
+                if p.next_decay_ms == 0 {
+                    p.next_decay_ms = now + decay;
+                } else if now >= p.next_decay_ms {
+                    p.next_decay_ms = now + decay;
+                    if p.pk > 0 {
+                        p.pk -= 1;
+                    }
+                }
+            }
+            let mark = self.mark_of(id);
+            let p = self.players.get_mut(&id).expect("listed");
+            if p.mark != mark {
+                p.mark = mark;
+                self.events.push(Event::Dressed { player: id });
+            }
+        }
+    }
+
+    /// Player `id` attacked player `target`: attacking a player of good name (on a map that
+    /// isn't free-PK) makes it a criminal for a while.
+    fn commit_crime(&mut self, id: EntityId, target: EntityId, seconds: f64) {
+        if self.pk_free || self.mark_of(target).is_evil() || seconds <= 0.0 {
+            return;
+        }
+        let until = self.now_ms + (seconds * 1000.0) as u64;
+        if let Some(p) = self.players.get_mut(&id) {
+            p.crime_until = p.crime_until.max(until);
+        }
+    }
+
+    /// Player `killer` killed player `victim` (of the mark it had): a victim of good name
+    /// earns the killer PK points, and a criminal killer stays one longer.
+    fn count_pk_kill(&mut self, killer: EntityId, victim_mark: crate::NameMark) {
+        if self.pk_free || victim_mark.is_evil() {
+            return;
+        }
+        let pk = self.settings.pk.clone();
+        let now = self.now_ms;
+        if let Some(p) = self.players.get_mut(&killer) {
+            p.pk = (p.pk + pk.kill_points).min(30_000);
+            if p.crime_until > now {
+                p.crime_until = now + (pk.crime_kill_seconds * 1000.0) as u64;
+            }
+        }
+    }
+
     /// Where `target` stands, if `attacker` may fight it: a living monster, or on a PK map
     /// another living player.
     /// Neither may stand in a safe zone, nor two players in a no-PK zone.
@@ -42,6 +118,9 @@ impl Sim {
 
     /// `damage` from player `id` to player `target`; a kill counts against the killer.
     pub(crate) fn hurt_player(&mut self, id: EntityId, target: EntityId, damage: u32) {
+        let victim_mark = self.mark_of(target);
+        let crime = self.settings.pk.crime_seconds;
+        self.commit_crime(id, target, crime);
         let Some(p) = self.players.get_mut(&target) else {
             return;
         };
@@ -58,6 +137,7 @@ impl Sim {
             if let Some(killer) = self.players.get_mut(&id) {
                 killer.pk_kills += 1;
             }
+            self.count_pk_kill(id, victim_mark);
         } else {
             self.wear_items(target, |t| t.bonus.attack_max == 0);
         }

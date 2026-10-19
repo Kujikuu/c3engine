@@ -36,6 +36,12 @@ pub fn pk_map(settings: &ProjectSettings, map_ids: &[u32]) -> bool {
         .any(|m| m.pk && map_ids.contains(&m.id))
 }
 
+/// Whether fights between players on the map answering to `map_ids` bring no crime and no
+/// PK points (the map list's `pk_free`).
+pub fn pk_free_map(settings: &ProjectSettings, map_ids: &[u32]) -> bool {
+    (settings.maps.iter()).any(|m| m.pk_free && map_ids.contains(&m.id))
+}
+
 /// The scene light of the map answering to `map_ids`: its own (the map list's `light`), or
 /// the project's.
 pub fn map_light(settings: &ProjectSettings, map_ids: &[u32]) -> c3_render::Light {

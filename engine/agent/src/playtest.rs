@@ -68,6 +68,7 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
         scripts: Some(project.scripts_dir()),
         tables: Some(project.tables_dir()),
         pk: c3_play::settings::pk_map(&settings, &map_ids),
+        pk_free: c3_play::settings::pk_free_map(&settings, &map_ids),
         map_ids,
         seed: 1,
         settings: gameplay,

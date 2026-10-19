@@ -96,8 +96,9 @@ struct Worlds {
     tables: Option<PathBuf>,
     rules: Arc<dyn GameRules>,
     settings: c3_core::settings::GameplaySettings,
-    /// The ids of the maps where players may attack each other.
+    /// The ids of the maps where players may attack each other, and where that is free.
     pk_maps: Vec<u32>,
+    pk_free_maps: Vec<u32>,
     seed: u64,
 }
 
@@ -111,6 +112,7 @@ impl Worlds {
             seed: self.seed,
             settings: self.settings.clone(),
             pk: m.map_ids.iter().any(|id| self.pk_maps.contains(id)),
+            pk_free: m.map_ids.iter().any(|id| self.pk_free_maps.contains(id)),
             breakpoints: Default::default(),
         };
         let (sim, problems) = game::new_sim(&m.scene, &setup, &*self.rules);
@@ -168,6 +170,10 @@ impl ServerHandle {
                     settings: settings.gameplay.clone(),
                     pk_maps: (settings.maps.iter())
                         .filter(|m| m.pk)
+                        .map(|m| m.id)
+                        .collect(),
+                    pk_free_maps: (settings.maps.iter())
+                        .filter(|m| m.pk_free)
                         .map(|m| m.id)
                         .collect(),
                     seed: game::time_seed(),

@@ -1179,6 +1179,64 @@ fn section_fields(ui: &mut egui::Ui, section: Section, s: &ProjectSettings, f: &
             heading(ui, "Equipment slots");
             let game_slots = f.game.map(|g| g.slot_names()).unwrap_or_default();
             f.equipment_slots(ui, &g.equipment_slots, &game_slots);
+            heading(ui, "Crime and PK points");
+            grid(ui, "pk", |ui| {
+                let pk = &g.pk;
+                f.number(
+                    ui,
+                    (
+                        "Crime",
+                        "How long attacking a player of good name makes a criminal (blue name)",
+                    ),
+                    "gameplay.pk.crime_seconds",
+                    pk.crime_seconds,
+                    0.0..=3600.0,
+                    " s",
+                );
+                f.number(
+                    ui,
+                    (
+                        "Crime after a kill",
+                        "How long a criminal who kills stays one",
+                    ),
+                    "gameplay.pk.crime_kill_seconds",
+                    pk.crime_kill_seconds,
+                    0.0..=3600.0,
+                    " s",
+                );
+                f.whole(
+                    ui,
+                    ("PK points a kill", "For killing a player of good name"),
+                    "gameplay.pk.kill_points",
+                    i64::from(pk.kill_points),
+                    0..=1000,
+                    "",
+                );
+                f.whole(
+                    ui,
+                    ("Red name from", "PK points that make a name red"),
+                    "gameplay.pk.red_at",
+                    i64::from(pk.red_at),
+                    1..=30000,
+                    " points",
+                );
+                f.whole(
+                    ui,
+                    ("Black name from", "PK points that make a name black"),
+                    "gameplay.pk.black_at",
+                    i64::from(pk.black_at),
+                    1..=30000,
+                    " points",
+                );
+                f.number(
+                    ui,
+                    ("A point wears off every", "0: PK points stay"),
+                    "gameplay.pk.decay_seconds",
+                    pk.decay_seconds,
+                    0.0..=36000.0,
+                    " s",
+                );
+            });
             heading(ui, "Player attributes");
             f.attributes(ui, &g.attributes);
             heading(ui, "Item attributes");
@@ -1534,12 +1592,12 @@ impl Fields<'_> {
             );
         }
         egui::Grid::new("maps")
-            .num_columns(7)
+            .num_columns(8)
             .spacing([10.0, 6.0])
             .striped(true)
             .show(ui, |ui| {
                 if !list.is_empty() {
-                    for title in ["Map", "Id", "Name", "Music", "PvP", "Light", ""] {
+                    for title in ["Map", "Id", "Name", "Music", "PvP", "Free PK", "Light", ""] {
                         ui.label(RichText::new(title).color(theme::TEXT_DIM).small());
                     }
                     ui.end_row();
@@ -1584,6 +1642,13 @@ impl Fields<'_> {
                     changed |= ui
                         .checkbox(&mut entry.pk, "")
                         .on_hover_text("Players may attack each other here")
+                        .changed();
+                    changed |= ui
+                        .checkbox(&mut entry.pk_free, "")
+                        .on_hover_text(
+                            "Fights between players here bring no crime and no PK points \
+                             (arenas, guild wars)",
+                        )
                         .changed();
                     changed |= map_light_field(ui, &mut entry.light);
                     if ui
