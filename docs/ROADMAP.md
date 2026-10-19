@@ -679,11 +679,14 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Trading in CDlgTrade (137) while a trade is open: the partner's name, money, items
         and word, the hero's offer (a bag click offers an item), money, agree, close; asks
         to trade told in chat (layout screenshot; trade state unit-tested)
-  - [ ] Trade: asking and accepting from the UI (no way to start a trade from it yet),
+  - [ ] Trade: an ask accepted by asking back (the ask is told in chat); checked live,
         checked live with two clients
   - [x] The team (CDlgGroup 141): its members' names in the five places (a local game asks
         its simulation), make or leave a team, break it up (screenshot)
-  - [ ] Team: inviting and kicking from the dialog (they need a player picked), the
+  - [x] Picking a player: a `pick:<what>` action arms it, the next click on a player trades
+        with, invites, kicks or asks to join (the main bar's Trade, the team's invite and
+        kick)
+  - [ ] Team: the
         members' faces, the auto-join and pick-up options
   - [x] The guild (CDlgKnightage 133): its name, leader, the hero's rank, members, fund and
         member list bound from the shared world state, Quit leaves (layout screenshot)

@@ -227,16 +227,34 @@ pub struct GameUi {
     /// The game UI's state: the storage NPC whose warehouse is open, what is typed in its
     /// fields.
     gui_state: gui_data::GuiState,
-    /// Whether the hero is in a team (as last drawn).
+    /// Whether the hero is in a team, and leads it (as last drawn).
     in_team: bool,
+    leads_team: bool,
     /// The control just clicked played its own sound.
     own_sound: bool,
+    /// What the next click on a player does (`trade`, `team_invite`, ...), armed by a
+    /// `pick:<what>` action.
+    pick: Option<String>,
 }
 
 impl GameUi {
     /// Draws `gui` (the game's UI from data) in place of the engine's bar.
     pub fn set_gui(&mut self, gui: Option<gui::Gui>) {
         self.gui = gui;
+    }
+
+    /// What a click on `player` asks, when a `pick:` action armed it (taken: once).
+    pub fn take_pick(&mut self, player: EntityId) -> Option<UiAction> {
+        use c3_game::{GuildAction as G, Input, TeamAction as T};
+        let input = match self.pick.take()?.as_str() {
+            "trade" => Input::TradeAsk(player),
+            "team_invite" => Input::Team(T::Invite(player)),
+            "team_join" => Input::Team(T::Apply(player)),
+            "team_kick" => Input::Team(T::Kick(player)),
+            "guild_invite" => Input::Guild(G::Invite(player)),
+            _ => return None,
+        };
+        Some(UiAction::Game(input))
     }
 
     /// Opens dialog `id` of the game's UI from data.
@@ -299,6 +317,11 @@ impl GameUi {
                 self.gui_state.fields.remove("storage.amount");
             }
             "close_storage" => self.gui_state.storage = None,
+            _ if action.starts_with("pick:") => {
+                let what = action.trim_start_matches("pick:");
+                self.system(format!("Click a player ({what})."), style::GOLD);
+                self.pick = Some(what.to_owned());
+            }
             _ if action.starts_with("guild_tab:") => {
                 self.gui_state.guild_tab = action.trim_start_matches("guild_tab:").to_owned();
             }
@@ -338,8 +361,9 @@ impl GameUi {
                     }));
                 }
             }
-            // The team dialog's first button: make a team, or leave the one the hero is in
-            // (a leader invites players by clicking them).
+            // The team dialog's first button (CDlgGroup::OnGroupBtn1): make a team; a leader
+            // invites the player clicked next; a member leaves.
+            "team_main" if self.leads_team => self.run_action("pick:team_invite", actions),
             "team_main" => {
                 let action = if self.in_team {
                     c3_game::TeamAction::Leave
@@ -521,6 +545,7 @@ impl GameUi {
         radar::show(ui, view);
         quests::npc_marks(&ui.painter_at(view.rect), view);
         self.in_team = player.team.is_some();
+        self.leads_team = player.team == Some(player.id);
         match &self.gui {
             Some(gui) => {
                 let data = gui_data::HeroData {

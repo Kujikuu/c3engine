@@ -768,6 +768,12 @@ impl Session {
     /// A click on world point `point`: talk to an NPC, attack a monster, pick up a drop, or
     /// walk there.
     pub fn click(&mut self, point: Vec2) {
+        // A player clicked while the UI waits for one (trade, a team invite).
+        if let Some(player) = self.view.player_at(&self.sim, &self.world, point)
+            && let Some(action) = self.ui.take_pick(player)
+        {
+            return self.act(action);
+        }
         if let Some(npc) = self.world.npc_at(point).map(|n| n.id) {
             self.input(Input::Talk(npc));
         } else if let Some(monster) = self.monster_at(point) {

@@ -264,16 +264,32 @@ impl SimView {
         let players = (sim.players())
             .filter(|p| sim.pk() && self.actor(p.id) != Some(0) && p.is_alive())
             .map(|p| p.id);
-        monsters
-            .chain(players)
-            .filter_map(|id| {
-                let feet = self.feet(world, id)?;
-                let d = point - feet;
-                let hit = d.x.abs() <= PICK_HALF_WIDTH && (-PICK_HEIGHT..=16.0).contains(&d.y);
-                hit.then(|| (id, (point - (feet - Vec2::Y * PICK_HEIGHT / 2.0)).length()))
-            })
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(id, _)| id)
+        self.nearest_at(world, point, monsters.chain(players))
+    }
+
+    /// The living player other than the hero drawn under `point`.
+    pub fn player_at(&self, sim: &Sim, world: &World, point: Vec2) -> Option<EntityId> {
+        let players = (sim.players())
+            .filter(|p| self.actor(p.id) != Some(0) && p.is_alive())
+            .map(|p| p.id);
+        self.nearest_at(world, point, players)
+    }
+
+    /// Of `ids`, the one drawn under `point` nearest its middle.
+    fn nearest_at(
+        &self,
+        world: &World,
+        point: Vec2,
+        ids: impl Iterator<Item = EntityId>,
+    ) -> Option<EntityId> {
+        ids.filter_map(|id| {
+            let feet = self.feet(world, id)?;
+            let d = point - feet;
+            let hit = d.x.abs() <= PICK_HALF_WIDTH && (-PICK_HEIGHT..=16.0).contains(&d.y);
+            hit.then(|| (id, (point - (feet - Vec2::Y * PICK_HEIGHT / 2.0)).length()))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(id, _)| id)
     }
 
     /// The ground item on the cell under `point`, or on a cell next to it.
