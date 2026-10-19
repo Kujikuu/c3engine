@@ -214,6 +214,7 @@ pub fn table_templates() -> Vec<Table> {
             Value::Int(20),
             Value::Text("1:25".into()),
             Value::Bool(true),
+            Value::Text(String::new()),
             Value::Int(0),
             Value::Bool(false),
             Value::Int(0),
