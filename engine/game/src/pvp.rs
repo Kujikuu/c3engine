@@ -33,8 +33,8 @@ impl Sim {
 
     /// Player `id` hits player `target` (on a PK map).
     pub(crate) fn player_hits_player(&mut self, id: EntityId, target: EntityId) {
-        let attacker = self.players[&id].fighter();
-        let defender = self.players[&target].fighter();
+        let attacker = self.player_fighter(id);
+        let defender = self.player_fighter(target);
         let damage = self.rules.hit(&attacker, &defender, &mut self.rng);
         self.hurt_player(id, target, damage);
         self.wear_items(id, |t| t.bonus.attack_max > 0);

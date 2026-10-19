@@ -166,13 +166,6 @@ impl Player {
         self.revive_at_ms.is_none()
     }
 
-    pub fn fighter(&self) -> Fighter {
-        Fighter {
-            level: self.level,
-            stats: self.stats,
-        }
-    }
-
     pub(crate) fn step_ms(&self) -> u64 {
         let ms = u64::from(self.stats.step_ms.max(1));
         if self.running { ms / 2 } else { ms }
@@ -212,6 +205,7 @@ impl Monster {
         Fighter {
             level: self.level,
             stats: self.stats,
+            facts: [("monster".to_owned(), i64::from(self.kind))].into(),
         }
     }
 }

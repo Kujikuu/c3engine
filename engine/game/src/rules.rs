@@ -54,10 +54,14 @@ impl Stats {
 }
 
 /// One side of a hit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Fighter {
     pub level: u32,
     pub stats: Stats,
+    /// Named numbers formulas read beside the stats: `monster` (its type; 0 for a player),
+    /// and for players `profession`, every attribute, `worn_<name>` (an item attribute summed
+    /// over what it wears) and `worn<slot>` (the item type worn there).
+    pub facts: std::collections::BTreeMap<String, i64>,
 }
 
 /// A kind of monster.

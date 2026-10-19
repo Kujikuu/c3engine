@@ -200,10 +200,10 @@ impl Sim {
     }
 
     fn skill_hits(&mut self, id: EntityId, t: &SkillType, target: EntityId) {
-        let attacker = self.players[&id].fighter();
+        let attacker = self.player_fighter(id);
         let level = attacker.level;
-        if let Some(p) = self.players.get(&target) {
-            let defender = p.fighter();
+        if self.players.contains_key(&target) {
+            let defender = self.player_fighter(target);
             let damage = self.rules.skill_hit(&attacker, &defender, t, &mut self.rng);
             return self.hurt_player(id, target, damage);
         }
@@ -232,7 +232,7 @@ impl Sim {
     }
 
     fn heal(&mut self, id: EntityId, t: &SkillType, target: EntityId) {
-        let healer = self.players[&id].fighter();
+        let healer = self.player_fighter(id);
         let amount = self.rules.skill_heal(&healer, t);
         let Some(p) = self.players.get_mut(&target) else {
             return;

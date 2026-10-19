@@ -195,6 +195,7 @@ mod tests {
         let target = Fighter {
             level: 3,
             stats: Stats::default(),
+            ..Default::default()
         };
         assert_eq!(rules.kill_exp(1, &target), 999);
         // What the formulas leave out is the game's.

@@ -303,6 +303,33 @@ impl Sim {
             .collect()
     }
 
+    /// Player `id` as one side of a fight (see [`crate::Fighter::facts`]).
+    pub(crate) fn player_fighter(&self, id: EntityId) -> crate::Fighter {
+        let Some(p) = self.players.get(&id) else {
+            return crate::Fighter::default();
+        };
+        let mut facts = self.attributes_of(p);
+        facts.insert("monster".into(), 0);
+        facts.insert("profession".into(), i64::from(p.profession));
+        for (i, name) in self.settings.item_attributes.iter().enumerate() {
+            let sum: i64 = (p.equipment.iter())
+                .filter_map(|item| item.attrs.get(i))
+                .map(|&v| i64::from(v))
+                .sum();
+            facts.insert(format!("worn_{name}"), sum);
+        }
+        for item in &p.equipment {
+            if let Some(slot) = self.rules.item(item.kind).and_then(|t| t.slot) {
+                facts.insert(format!("worn{slot}"), i64::from(item.kind));
+            }
+        }
+        crate::Fighter {
+            level: p.level,
+            stats: p.stats,
+            facts,
+        }
+    }
+
     /// Recomputes the player's stats from its level and what it wears (broken items give
     /// nothing; each quality step adds its share).
     pub(crate) fn refresh_stats(&mut self, id: EntityId) {

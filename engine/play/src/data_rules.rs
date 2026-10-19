@@ -666,6 +666,9 @@ pub(crate) fn fighter_map(f: &Fighter) -> Map {
     ] {
         map.insert(key.into(), i64::from(value).into());
     }
+    for (key, &value) in &f.facts {
+        map.insert(key.as_str().into(), value.into());
+    }
     map
 }
 
@@ -966,6 +969,7 @@ mod tests {
         let f = Fighter {
             level: 1,
             stats: default_stats(1),
+            ..Default::default()
         };
         assert_eq!(rules.hit(&f, &f, &mut Rng::new(1)), 7);
         assert_eq!(rules.kill_exp(1, &f), 10, "a failing formula falls back");
@@ -990,10 +994,12 @@ mod tests {
             Fighter {
                 level: 5,
                 stats: default_stats(5),
+                ..Default::default()
             },
             Fighter {
                 level: 1,
                 stats: default_stats(1),
+                ..Default::default()
             },
         );
         let mut rng = Rng::new(9);

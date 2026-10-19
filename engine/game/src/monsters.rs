@@ -224,7 +224,7 @@ impl Sim {
     // ---- combat ----
 
     pub(crate) fn player_hits(&mut self, id: EntityId, target: EntityId) {
-        let attacker = self.players[&id].fighter();
+        let attacker = self.player_fighter(id);
         let level = attacker.level;
         let m = self.monsters.get_mut(&target).expect("hitting a monster");
         let defender = m.fighter();
@@ -253,7 +253,7 @@ impl Sim {
 
     fn monster_hits(&mut self, id: EntityId, target: EntityId) {
         let attacker = self.monsters[&id].fighter();
-        let defender = self.players[&target].fighter();
+        let defender = self.player_fighter(target);
         let damage = self.rules.hit(&attacker, &defender, &mut self.rng);
         self.monster_hurts(id, target, damage);
     }

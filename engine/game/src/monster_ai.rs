@@ -102,10 +102,10 @@ impl Sim {
                     });
                 }
                 SkillKind::Damage => {
-                    let Some(p) = self.players.get(&victim) else {
+                    if !self.players.contains_key(&victim) {
                         continue;
-                    };
-                    let defender = p.fighter();
+                    }
+                    let defender = self.player_fighter(victim);
                     let damage = self.rules.skill_hit(&caster, &defender, t, &mut self.rng);
                     self.monster_hurts(id, victim, damage);
                 }
