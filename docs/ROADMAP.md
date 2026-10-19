@@ -687,8 +687,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         members' faces, the auto-join and pick-up options
   - [x] The guild (CDlgKnightage 133): its name, leader, the hero's rank, members, fund and
         member list bound from the shared world state, Quit leaves (layout screenshot)
-  - [ ] Guild: shown with a guild (no way to make one locally to look), its tabs (allies,
-        enemies, bulletin), donating, joining
+  - [x] Guild tabs: Status, Allies and Enemies switch the list (members, allied and enemy
+        guilds' names)
+  - [ ] Guild: shown with a guild (no way to make one locally to look), the bulletin,
+        donating, joining
   - [x] Windows the game opens by number (1046 → `ui.open`; MsgAction 126 to the Conquer
         client; `window=N` on a dialog); composing in CDlgItemCompose (275, window 1): a
         workbench (`work.N` slots filled by bag clicks, `combine:<kind>`) (screenshot)

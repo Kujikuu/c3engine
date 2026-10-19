@@ -299,6 +299,9 @@ impl GameUi {
                 self.gui_state.fields.remove("storage.amount");
             }
             "close_storage" => self.gui_state.storage = None,
+            _ if action.starts_with("guild_tab:") => {
+                self.gui_state.guild_tab = action.trim_start_matches("guild_tab:").to_owned();
+            }
             "trade_money" => {
                 let amount = (self.gui_state.fields.remove("trade.amount"))
                     .and_then(|t| t.trim().parse().ok())

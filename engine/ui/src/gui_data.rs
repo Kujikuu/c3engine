@@ -14,6 +14,8 @@ pub(crate) struct GuiState {
     pub trade: Option<TradeView>,
     /// Bag items put on a workbench (compose, gems), in its slots' order.
     pub work: Vec<u32>,
+    /// What the guild list shows: `members` (also when empty), `allies`, `enemies`.
+    pub guild_tab: String,
 }
 
 /// The most items a workbench holds.
@@ -209,14 +211,25 @@ impl GuiData for HeroData<'_> {
                 let names = self.player.mates.iter().map(|m| m.name.clone());
                 (names.collect(), None)
             }
-            // The hero's guild's members.
+            // The hero's guild's members, or its allies or enemies (the guild tab picked).
             "guild.member_names" => {
                 let world = self.view.sim.world_state();
                 let guild = world
                     .guild_of(&self.player.name)
                     .and_then(|(id, _)| world.guilds.get(&id));
-                let names = guild.into_iter().flat_map(|g| g.members.keys().cloned());
-                (names.collect(), None)
+                let Some(g) = guild else {
+                    return (Vec::new(), None);
+                };
+                let named = |ids: &[u32]| -> Vec<String> {
+                    let names = ids.iter().filter_map(|id| world.guilds.get(id));
+                    names.map(|o| o.name.clone()).collect()
+                };
+                let rows = match self.state.guild_tab.as_str() {
+                    "allies" => named(&g.allies),
+                    "enemies" => named(&g.enemies),
+                    _ => g.members.keys().cloned().collect(),
+                };
+                (rows, None)
             }
             // The answers the NPC offers.
             "dialogue.answers" => {
