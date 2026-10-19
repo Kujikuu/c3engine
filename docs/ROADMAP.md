@@ -593,9 +593,22 @@ run on the server and the local session alike, and are edited through c3-edit wi
         `Input::AnswerText`, MsgDialog's edit line), `%accept`, NPC data set from it (201)
   - [x] Client-only messages (1075 MsgAction 1000/1001, 1072 map item action 13) sent to
         the Conquer client as TQ sends them (`client_cue`)
-  - [ ] NPC looks and life (201 `lookface`, `life`), guild checks (`%syn_id`, 1001
-        `rank`/`rankshow`), warehouse money (1001 `storage_money`), business status
-  - [ ] Guild, event and trap actions (7xx, 20xx, 21xx)
+  - [x] Guilds on a shared world state the server keeps (`_world.ron`): founding,
+        disbanding, donations, ranks, leaders, enemies and allies, fund checks and gifts,
+        finding guilds (701-707, 711-721), `%syn_id`, `%map_owner_id`, 1001 `rank`/`rankshow`,
+        NPC owners (201); world variables reach every map
+  - [x] Events (2003 compares, 2006 spawns, 2008 monster counts), team actions (1101-1107),
+        NPC removal (205), task mask bits, sounds, heaven's blessing, the lock key, the timed
+        experience percent, weapon sockets, typed answers, worked-out cells (1003/1004)
+  - [ ] NPC looks and life (201 `lookface`, `life`, `%npc_life`), `%user_id` (a lasting
+        player id)
+  - [ ] PK bounties (2201-2205) and the wanted list (3001-3012)
+  - [ ] Player homes (306 on `%user_home_id`, 1033-1035, 2007 item boxes)
+  - [ ] Marriage (1024, 1025, 1102 `mate`), magic levels (1020 `check type lev`),
+        unlearning weapon skills (1043), resetting points (1047), the dying record (1070)
+  - [ ] Sub-guilds (708, 709), walking a guild's members (722)
+  - [ ] The warehouse (1054, 1001 `storage_money`), business status (1001 `business`),
+        cards and account transfers (1078/1079, 1088-1091, 1023), `%emoney_card` (1061)
 - [ ] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
       skills, PK and name colours, ghost and revive, item upgrades
   - Done so far (2026-10-19): the import writes the engine's rule tables from TQ's (items with
