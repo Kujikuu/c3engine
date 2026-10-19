@@ -1297,6 +1297,8 @@ impl<'a> Builder<'a> {
                 }
                 _ => self.not_converted(g, a, column),
             },
+            // Guilds (TQ's syndicates, 701-722).
+            701..=722 => self.guild_action(g, a, &tokens, column),
             // A lottery draw: Conquer's rules blueprint answers the signal.
             1508 => match int(0) {
                 Some(draw) => {
@@ -1635,6 +1637,13 @@ impl<'a> Builder<'a> {
             "%user_map_x" => return node(g, "player.x", &[]),
             "%user_map_y" => return node(g, "player.y", &[]),
             "%iter_value" => return node(g, "player.flag", &[("name", txt("iterator"))]),
+            "%syn_id" => return node(g, "guild.id", &[]),
+            "%map_owner_id" => {
+                let map = g.node("player.map", &[], column);
+                let owner = g.node("guild.map_owner", &[], column);
+                g.data(map, owner, "map");
+                return Some(Number::Node(owner));
+            }
             // Nobody has a home in this port.
             "%user_home_id" => return Some(Number::Literal(0)),
             _ => {}
@@ -1650,6 +1659,238 @@ impl<'a> Builder<'a> {
             Number::Node(id) => id,
             // A literal as a sum with nothing.
             Number::Literal(v) => g.node("math.add", &[("a", num(v)), ("b", num(0))], column),
+        }
+    }
+
+    /// 701-722: guilds. The guild a step names by `%iter_value` is the player's iterator.
+    fn guild_action(
+        &mut self,
+        g: &mut Canvas,
+        a: &Action,
+        tokens: &[&str],
+        column: i32,
+    ) -> Emitted {
+        let int = |i: usize| tokens.get(i).and_then(|t| t.parse::<i64>().ok());
+        // An action node whose bool output decides the way on.
+        let checked = |g: &mut Canvas, node: u32, out: &str| {
+            let branch = g.node("flow.branch", &[], column);
+            g.wire((node, out), (branch, "condition"));
+            g.exec((node, "then"), branch);
+            Emitted {
+                entry: Some(node),
+                ok: Some((branch, "true")),
+                fail: Some((branch, "false")),
+            }
+        };
+        match a.kind {
+            // Founding: the level and money it takes, the fund it starts with; its name typed.
+            701 => {
+                let (Some(level), Some(cost), Some(fund)) = (int(0), int(1), int(2)) else {
+                    return self.not_converted(g, a, column);
+                };
+                let lv = g.node("player.level", &[], column);
+                let low = self.compare_node(g, lv, "<", level, column);
+                let enough = g.node("logic.not", &[], column);
+                g.data(low, enough, "a");
+                let branch = g.node("flow.branch", &[], column);
+                g.data(enough, branch, "condition");
+                let pay = g.node("player.take_money", &[("amount", num(cost))], column);
+                g.exec((branch, "true"), pay);
+                let paid = g.node("flow.branch", &[], column);
+                g.wire((pay, "taken"), (paid, "condition"));
+                g.exec((pay, "then"), paid);
+                let name = g.node("dialogue.accept", &[], column);
+                let create = g.node("guild.create", &[("fund", num(fund))], column);
+                g.data(name, create, "name");
+                g.exec((paid, "true"), create);
+                let made = g.node("flow.branch", &[], column);
+                g.wire((create, "made"), (made, "condition"));
+                g.exec((create, "then"), made);
+                // TQ's refusals happen before paying; a refused name gives the money back.
+                let refund = g.node("player.give_money", &[("amount", num(cost))], column);
+                g.exec((made, "false"), refund);
+                let fail = g.node("flow.reroute_exec", &[], column);
+                g.exec((branch, "false"), fail);
+                g.exec((paid, "false"), fail);
+                g.exec((refund, "then"), fail);
+                Emitted {
+                    entry: Some(branch),
+                    ok: Some((made, "true")),
+                    fail: Some((fail, "then")),
+                }
+            }
+            702 => {
+                let n = g.node("guild.destroy", &[], column);
+                checked(g, n, "done")
+            }
+            // A donation of the money typed.
+            703 => {
+                let typed = g.node("dialogue.accept_number", &[], column);
+                let pay = g.node("player.take_money", &[], column);
+                g.data(typed, pay, "amount");
+                let paid = g.node("flow.branch", &[], column);
+                g.wire((pay, "taken"), (paid, "condition"));
+                g.exec((pay, "then"), paid);
+                let guild = g.node("guild.id", &[], column);
+                let add = g.node("guild.add_fund", &[], column);
+                g.data(guild, add, "guild");
+                g.data(typed, add, "amount");
+                g.exec((paid, "true"), add);
+                Emitted {
+                    entry: Some(pay),
+                    ok: Some((add, "then")),
+                    fail: Some((paid, "false")),
+                }
+            }
+            // A member named by what was typed: the new leader (the old one a member, 50),
+            // a deputy (90), back to member (50).
+            704..=706 => {
+                let rank = g.node("guild.rank", &[], column);
+                let leads = self.compare_node(g, rank, "==", 100, column);
+                let branch = g.node("flow.branch", &[], column);
+                g.data(leads, branch, "condition");
+                let typed = g.node("dialogue.accept", &[], column);
+                let new_rank = match a.kind {
+                    704 => 100,
+                    705 => 90,
+                    _ => 50,
+                };
+                let set = g.node("guild.set_rank", &[("rank", num(new_rank))], column);
+                g.data(typed, set, "member");
+                g.exec((branch, "true"), set);
+                let done = g.node("flow.branch", &[], column);
+                g.wire((set, "done"), (done, "condition"));
+                g.exec((set, "then"), done);
+                let ok = if a.kind == 704 {
+                    let me = g.node("player.name", &[], column);
+                    let step_down = g.node("guild.set_rank", &[("rank", num(50))], column);
+                    g.data(me, step_down, "member");
+                    g.exec((done, "true"), step_down);
+                    (step_down, "then")
+                } else {
+                    (done, "true")
+                };
+                let fail = g.node("flow.reroute_exec", &[], column);
+                g.exec((branch, "false"), fail);
+                g.exec((done, "false"), fail);
+                Emitted {
+                    entry: Some(branch),
+                    ok: Some(ok),
+                    fail: Some((fail, "then")),
+                }
+            }
+            // The fund typed, given to the guild the iterator names.
+            707 => {
+                let typed = g.node("dialogue.accept_number", &[], column);
+                let other = g.node("player.flag", &[("name", txt("iterator"))], column);
+                let mine = g.node("guild.id", &[], column);
+                let take = g.node("math.subtract", &[("a", num(0))], column);
+                g.data(typed, take, "b");
+                let out = g.node("guild.add_fund", &[], column);
+                g.data(mine, out, "guild");
+                g.data(take, out, "amount");
+                let into = g.node("guild.add_fund", &[], column);
+                g.data(other, into, "guild");
+                g.data(typed, into, "amount");
+                g.exec((out, "then"), into);
+                Emitted {
+                    entry: Some(out),
+                    ok: Some((into, "then")),
+                    fail: None,
+                }
+            }
+            // Enemies and allies by the name typed.
+            711..=714 => {
+                let typed = g.node("dialogue.accept", &[], column);
+                let other = g.node("guild.named", &[], column);
+                g.data(typed, other, "name");
+                let ally = Literal::Bool(matches!(a.kind, 713 | 714));
+                let on = Literal::Bool(matches!(a.kind, 711 | 713));
+                let n = g.node("guild.relation", &[("ally", ally), ("on", on)], column);
+                g.data(other, n, "other");
+                checked(g, n, "done")
+            }
+            // A member named by what was typed, out of the guild.
+            715 => {
+                let typed = g.node("dialogue.accept", &[], column);
+                let n = g.node("guild.set_rank", &[("rank", num(0))], column);
+                g.data(typed, n, "member");
+                checked(g, n, "done")
+            }
+            // The fund: added to or compared; the main guild compared.
+            717 => {
+                let (Some(field), Some(op)) = (
+                    tokens.first().map(|t| t.to_ascii_lowercase()),
+                    tokens.get(1),
+                ) else {
+                    return self.not_converted(g, a, column);
+                };
+                let Some(value) = tokens.get(2).and_then(|t| self.number(g, t, column)) else {
+                    return self.not_converted(g, a, column);
+                };
+                let guild = match tokens.get(3) {
+                    Some(t) => match self.number(g, t, column) {
+                        Some(n) => self.number_node(g, n, column),
+                        None => return self.not_converted(g, a, column),
+                    },
+                    None => g.node("guild.id", &[], column),
+                };
+                let value = self.number_node(g, value, column);
+                match (field.as_str(), *op) {
+                    ("money", "+=") => {
+                        let n = g.node("guild.add_fund", &[], column);
+                        g.data(guild, n, "guild");
+                        g.data(value, n, "amount");
+                        checked(g, n, "done")
+                    }
+                    ("money", "<") => {
+                        let fund = g.node("guild.fund", &[], column);
+                        g.data(guild, fund, "guild");
+                        let less = g.node("logic.less", &[], column);
+                        g.data(fund, less, "a");
+                        g.data(value, less, "b");
+                        Self::branch(g, less, column)
+                    }
+                    ("fealty", "==") => {
+                        let master = g.node("guild.master", &[], column);
+                        g.data(guild, master, "guild");
+                        let cmp = self.compare_nodes(g, master, "==", value, column);
+                        Self::branch(g, cmp, column)
+                    }
+                    _ => self.not_converted(g, a, column),
+                }
+            }
+            // The next guild after the iterator's (720) or the one typed (721) into it.
+            720 | 721 => {
+                let found = match a.kind {
+                    720 => {
+                        let after = g.node("player.flag", &[("name", txt("iterator"))], column);
+                        let next = g.node("guild.next", &[], column);
+                        g.data(after, next, "after");
+                        next
+                    }
+                    _ => {
+                        let typed = g.node("dialogue.accept", &[], column);
+                        let named = g.node("guild.named", &[], column);
+                        g.data(typed, named, "name");
+                        named
+                    }
+                };
+                let keep = g.node("player.set_flag", &[("name", txt("iterator"))], column);
+                g.data(found, keep, "value");
+                let some = self.compare_node(g, found, "==", 0, column);
+                let any = g.node("logic.not", &[], column);
+                g.data(some, any, "a");
+                let branch = g.node("flow.branch", &[], column);
+                g.data(any, branch, "condition");
+                g.exec((keep, "then"), branch);
+                Emitted {
+                    entry: Some(keep),
+                    ok: Some((branch, "true")),
+                    fail: Some((branch, "false")),
+                }
+            }
+            _ => self.not_converted(g, a, column),
         }
     }
 
@@ -2155,6 +2396,7 @@ impl<'a> Builder<'a> {
             "profession" => Some("player.profession"),
             "pk" => Some("player.pk"),
             "look" => Some("player.body"),
+            "rank" | "rankshow" => Some("guild.rank"),
             _ => None,
         };
         // TQ's names of numbers kept as Conquer's attributes.
