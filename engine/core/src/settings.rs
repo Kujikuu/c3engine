@@ -771,9 +771,11 @@ pub struct UiSettings {
     pub sound_close: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub sound_click: String,
-    /// The sound of the hero selling an item; none when empty.
+    /// The sounds of the hero selling an item and changing what it wears; none when empty.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub sound_sell: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sound_equip: String,
 }
 
 impl UiSettings {

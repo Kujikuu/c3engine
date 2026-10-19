@@ -705,8 +705,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         DlgOpen, DlgClose and BtnClick (not heard in a test yet)
   - [x] A control's own sound (`sound=`, played in place of the click)
   - [x] The sound of selling ([ui] sound_sell; Conquer's Sell.wav)
-  - [ ] The minimap window; the client's Dlg_Ok and Equip sounds (equipping has no engine
-        event yet; Dlg_Ok.wav isn't in
+  - [x] The sound of dressing ([ui] sound_equip on `Dressed`; Conquer's equip.wav)
+  - [ ] The minimap window; Unequip.wav apart from equipping; Dlg_Ok (Dlg_Ok.wav isn't in
         its sound folder); sounds on the login screens
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
