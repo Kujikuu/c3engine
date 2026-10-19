@@ -90,7 +90,7 @@ def sections(code, consts):
             has_number = value is not None and "%d" in fmt
             built = fmt.replace("%d", str(value)) if has_number else None
             continue
-        named = re.search(r'"(\w+)"', args)
+        named = re.search(r'"([\w-]+)"', args)
         if member not in out:
             out[member] = (named[1] if named else built, args)
     return out

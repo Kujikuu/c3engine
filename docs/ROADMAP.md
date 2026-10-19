@@ -656,7 +656,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         backgrounds and grids; close buttons close); the main bar opens Status, Friend,
         Action, Team, PK and Guild; `c3-client --dialog N` opens one (screenshots: warehouse,
         team, actions)
-  - [ ] 146 drafted controls without a skin section (built at run time in the client)
+  - [ ] 9 drafted buttons without a skin section, and 89 images the client fills at run time
+        (dice, equipment, XP skills, NPC faces lists) without bindings
   - [x] Dialog pages (a dialog inside a dialog, `page:<id>` tabs) and bindings for any
         attribute (`hero.attr.<name>`), attack, defence, dodge, PK, profession; the status
         dialog's role page shows name, level, PK, attributes and points (screenshot)
