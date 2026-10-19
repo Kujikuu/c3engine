@@ -872,7 +872,13 @@ impl Sim {
         if revive_point.is_some() {
             p.record = revive_point;
         }
+        let victim = (p.name.clone(), i64::from(p.level));
         self.events.push(Event::Died { id, killer });
+        // A player's kill: the killer's own event (the victim's name and level).
+        if let Some(by) = killer.filter(|k| self.players.contains_key(k)) {
+            let args = vec![victim.0.into(), victim.1.into()];
+            self.script_event(by, "on_kill_player", args);
+        }
         let killer = killer.map_or(0, |k| i64::from(k.0));
         self.script_event(id, "on_death", vec![killer.into()]);
     }

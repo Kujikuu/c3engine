@@ -60,7 +60,7 @@ fn number(values: &[SqlValue], i: usize) -> i64 {
 /// entry taken on and the one being raised.
 const WANTED_NAME: &str = "wanted_name";
 const WANTED_BOUNTY: &str = "wanted_bounty";
-const WANTED_ORDER: &str = "wanted_order";
+pub(crate) const WANTED_ORDER: &str = "wanted_order";
 const WANTED_MODIFY: &str = "wanted_modify";
 
 impl NpcLogic {

@@ -216,6 +216,12 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    event(
+        "event.kill_player",
+        "On killing a player",
+        "on_kill_player",
+        &[("victim", Text), ("level", Number)],
+    ),
     pure(
         "wanted.at",
         "Wanted entry at",

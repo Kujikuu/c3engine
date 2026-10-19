@@ -130,6 +130,7 @@ pub fn rules_blueprint() -> Blueprint {
     revive(&mut bp.events, next_lane(200.0));
     xp_bar(&mut bp.events, next_lane(500.0));
     weapon_skills(&mut bp.events, next_lane(1800.0));
+    wanted_hunt(&mut bp.events, next_lane(500.0));
     magic_skills(&mut bp.events, next_lane(900.0));
     upgrades(&mut bp.events, next_lane(900.0));
     rebirth(&mut bp.events, next_lane(1200.0));
@@ -614,6 +615,59 @@ fn weapon_skill(g: &mut Graph, top: f32, event: u32, from: (u32, &'static str), 
     wire(g, (grows, "true"), (up, "exec"));
     chain(g, (up, "true"), &[level_up, reset, said]);
     wire(g, (up, "false"), (keep, "exec"));
+}
+
+/// A wanted target killed (pk bonus spec §4.3): the hunter who took the entry on is paid 70%
+/// of its bounty, and the entry and the hunter's order end.
+fn wanted_hunt(g: &mut Graph, top: f32) {
+    let order_flag = crate::npc_logic::WANTED_ORDER;
+    let event = node(g, "event.kill_player", [0.0, top], &[]);
+    let order = node(
+        g,
+        "player.flag",
+        [260.0, top],
+        &[("name", text(order_flag))],
+    );
+    let target = node(g, "wanted.target", [520.0, top], &[]);
+    wire(g, (order, "value"), (target, "id"));
+    let same = node(g, "text.equal", [780.0, top], &[]);
+    wire(g, (target, "value"), (same, "a"));
+    wire(g, (event, "victim"), (same, "b"));
+    let branch = node(g, "flow.branch", [1040.0, top], &[]);
+    wire(g, (same, "value"), (branch, "condition"));
+    wire(g, (event, "then"), (branch, "exec"));
+    let bounty = node(g, "wanted.bounty", [520.0, top + 160.0], &[]);
+    wire(g, (order, "value"), (bounty, "id"));
+    let share = node(
+        g,
+        "math.multiply",
+        [780.0, top + 160.0],
+        &[("b", Literal::Number(70.0))],
+    );
+    wire(g, (bounty, "value"), (share, "a"));
+    let paid = node(
+        g,
+        "math.divide",
+        [1040.0, top + 160.0],
+        &[("b", Literal::Number(100.0))],
+    );
+    wire(g, (share, "value"), (paid, "a"));
+    let give = node(g, "player.give_money", [1300.0, top], &[]);
+    wire(g, (paid, "value"), (give, "amount"));
+    let remove = node(
+        g,
+        "wanted.set_bounty",
+        [1560.0, top],
+        &[("bounty", Literal::Number(0.0))],
+    );
+    wire(g, (order, "value"), (remove, "id"));
+    let clear = node(
+        g,
+        "player.set_flag",
+        [1820.0, top],
+        &[("name", text(order_flag)), ("value", Literal::Number(0.0))],
+    );
+    chain(g, (branch, "true"), &[give, remove, clear]);
 }
 
 /// Skills learn from casts (battle M.7): what a cast did goes into the skill's experience

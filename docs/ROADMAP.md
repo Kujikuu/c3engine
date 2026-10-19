@@ -614,6 +614,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] The wanted list (3001-3008) on the shared world state (`wanted.*` nodes) and text
         variables kept with the player (`text_var`); play-tested: Sunfer takes a 200,000
         bounty on a name typed
+  - [x] A wanted target's killer who took the entry on is paid 70% (`on_kill_player`, the
+        rules blueprint's lane; not run in a two-player test yet)
   - [ ] PK bounties (2201-2205), the police wanted list (3010-3012), the wanted order's
         name sent to the client (3005's MsgName 8), TQ's refusal lines
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
