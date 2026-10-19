@@ -38,6 +38,23 @@ impl PinType {
             )
     }
 
+    /// The type called `name` (as [`Self::name`] gives it).
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Exec,
+            Self::Number,
+            Self::Text,
+            Self::Bool,
+            Self::Entity,
+            Self::Item,
+            Self::Map,
+            Self::List,
+            Self::Record,
+        ]
+        .into_iter()
+        .find(|t| t.name() == name)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Exec => "exec",

@@ -34,6 +34,8 @@ pub(crate) struct BlueprintEditor {
     moving: bool,
     /// What the palette is searching for.
     search: String,
+    /// Nodes Play stops after (not part of the blueprint: no undo).
+    breakpoints: std::collections::BTreeSet<u32>,
 }
 
 /// What the canvas asked for, carried out after it is drawn.
@@ -50,7 +52,20 @@ enum Edit {
         key: String,
         value: Option<Literal>,
     },
+    /// Stop (or no longer stop) Play after this node runs.
+    Breakpoint(u32),
 }
+
+/// What Play reported about this blueprint: how recently each node ran (0 just now, 1 long
+/// ago) and the values outputs took.
+#[derive(Default)]
+struct Live {
+    ran: HashMap<u32, f32>,
+    watches: HashMap<(u32, String), String>,
+}
+
+/// Traces back that count as "just ran" (the lit path fades over them).
+const LIT_TRACES: f32 = 48.0;
 
 impl BlueprintEditor {
     fn new(name: String, blueprint: Blueprint) -> Self {
@@ -64,6 +79,7 @@ impl BlueprintEditor {
             problems: Vec::new(),
             moving: false,
             search: String::new(),
+            breakpoints: Default::default(),
         }
     }
 
@@ -173,6 +189,8 @@ struct Viewer<'a> {
     edits: Vec<Edit>,
     touch: &'a mut Touch,
     search: &'a mut String,
+    live: Live,
+    breakpoints: &'a std::collections::BTreeSet<u32>,
 }
 
 impl Viewer<'_> {
@@ -370,9 +388,9 @@ impl Viewer<'_> {
     }
 }
 
-impl SnarlViewer<u32> for Viewer<'_> {
-    fn title(&mut self, node: &u32) -> String {
-        let Some(n) = self.graph.node(*node) else {
+impl Viewer<'_> {
+    fn plain_title(&self, node: u32) -> String {
+        let Some(n) = self.graph.node(node) else {
             return "?".into();
         };
         let Some(def) = node_def(&n.def) else {
@@ -388,6 +406,35 @@ impl SnarlViewer<u32> for Viewer<'_> {
         }
     }
 
+    /// A node's header: its group's colour, outlined when it has a problem or just ran.
+    fn frame_of(&self, default: egui::Frame, node: NodeId, snarl: &Snarl<u32>) -> egui::Frame {
+        let Some((n, def)) = self.node(snarl, node) else {
+            return default;
+        };
+        let frame = default.fill(category_color(def.category));
+        if self.problems.contains_key(&n.id) {
+            frame.stroke(Stroke::new(2.0, theme::DANGER))
+        } else if let Some(age) = self.live.ran.get(&n.id) {
+            // The path that ran glows, fading as other nodes run after it.
+            let glow = theme::BRAND.gamma_multiply(1.0 - age * 0.8);
+            frame.stroke(Stroke::new(3.0, glow))
+        } else {
+            frame
+        }
+    }
+}
+
+impl SnarlViewer<u32> for Viewer<'_> {
+    fn title(&mut self, node: &u32) -> String {
+        let title = self.plain_title(*node);
+        if self.breakpoints.contains(node) {
+            // A red dot marks where Play stops.
+            format!("\u{25CF} {title}")
+        } else {
+            title
+        }
+    }
+
     fn header_frame(
         &mut self,
         default: egui::Frame,
@@ -396,15 +443,7 @@ impl SnarlViewer<u32> for Viewer<'_> {
         _outputs: &[OutPin],
         snarl: &Snarl<u32>,
     ) -> egui::Frame {
-        let Some((n, def)) = self.node(snarl, node) else {
-            return default;
-        };
-        let frame = default.fill(category_color(def.category));
-        if self.problems.contains_key(&n.id) {
-            frame.stroke(Stroke::new(2.0, theme::DANGER))
-        } else {
-            frame
-        }
+        self.frame_of(default, node, snarl)
     }
 
     fn inputs(&mut self, node: &u32) -> usize {
@@ -473,6 +512,13 @@ impl SnarlViewer<u32> for Viewer<'_> {
         if name != "then" && name != "value" {
             ui.label(RichText::new(&name).small());
         }
+        if let Some(value) = self.live.watches.get(&(n.id, name.clone())) {
+            ui.label(
+                RichText::new(format!("= {value}"))
+                    .small()
+                    .color(theme::BRAND),
+            );
+        }
         Self::pin_info(ty, !pin.remotes.is_empty())
     }
 
@@ -537,6 +583,19 @@ impl SnarlViewer<u32> for Viewer<'_> {
         ui: &mut egui::Ui,
         snarl: &mut Snarl<u32>,
     ) {
+        let id = snarl.get_node(node).copied();
+        if let Some(id) = id {
+            let on = self.breakpoints.contains(&id);
+            let text = if on {
+                "Remove breakpoint"
+            } else {
+                "Breakpoint: pause Play here"
+            };
+            if ui.button(theme::icon_text(icons::CIRCLE, text)).clicked() {
+                self.edits.push(Edit::Breakpoint(id));
+                ui.close();
+            }
+        }
         if ui
             .button(theme::icon_text(icons::TRASH, "Delete"))
             .clicked()
@@ -699,6 +758,7 @@ impl Studio {
             );
             return;
         };
+        let live = self.follow_play(&editor);
         let mut blueprint = editor.doc.value().clone();
         let mut touch = Touch::default();
         let mut label = "Edit the blueprint";
@@ -719,10 +779,53 @@ impl Studio {
                 problems_list(ui, &editor);
             });
         egui::CentralPanel::default().show(ui, |ui| {
-            canvas(ui, &mut editor, &mut blueprint, &mut touch, &mut label);
+            canvas(
+                ui,
+                &mut editor,
+                &mut blueprint,
+                &mut touch,
+                &mut label,
+                live,
+            );
         });
         self.blueprint_editor = Some(editor);
         self.apply_blueprint_edit(blueprint, &touch, label);
+    }
+
+    /// What Play reports about the open blueprint (the path that ran, watched values), with
+    /// its breakpoints handed to Play; a breakpoint reached pauses Play.
+    fn follow_play(&mut self, editor: &BlueprintEditor) -> Live {
+        let Some(log) = self.playing.as_ref().and_then(|p| p.script_debug()) else {
+            return Live::default();
+        };
+        let name = &editor.name;
+        let mut log = log.borrow_mut();
+        log.breakpoints.retain(|(script, _)| script != name);
+        (log.breakpoints).extend(editor.breakpoints.iter().map(|&n| (name.clone(), n)));
+        let now = log.now();
+        let mut live = Live::default();
+        for ((script, node), at) in &log.ran {
+            let age = (now - at) as f32 / LIT_TRACES;
+            if script == name && age < 1.0 {
+                live.ran.insert(*node, age);
+            }
+        }
+        for ((script, node, pin), value) in &log.watches {
+            if script == name {
+                live.watches.insert((*node, pin.clone()), value.clone());
+            }
+        }
+        let hit = log.hit.take();
+        drop(log);
+        if let Some((_, node)) = hit
+            && let Some(playing) = &mut self.playing
+        {
+            playing.paused = true;
+            self.notify(format!(
+                "Breakpoint: blueprint {name}, node {node}; Play paused"
+            ));
+        }
+        live
     }
 
     /// Records `blueprint` (one step per drag or field visit), saves and compiles it.
@@ -1045,6 +1148,7 @@ fn canvas(
     blueprint: &mut Blueprint,
     touch: &mut Touch,
     label: &mut &'static str,
+    live: Live,
 ) {
     if editor.built != Some(editor.revision) {
         editor.rebuild();
@@ -1066,6 +1170,8 @@ fn canvas(
         edits: Vec::new(),
         touch,
         search: &mut editor.search,
+        live,
+        breakpoints: &editor.breakpoints,
     };
     // Near 1:1 even when a graph has few nodes (fitting them would zoom far in).
     let style = SnarlStyle {
@@ -1139,6 +1245,12 @@ fn canvas(
                     };
                 }
                 *label = "Set a value";
+            }
+            Edit::Breakpoint(node) => {
+                if !editor.breakpoints.remove(&node) {
+                    editor.breakpoints.insert(node);
+                }
+                continue;
             }
         }
         touch.changed = true;

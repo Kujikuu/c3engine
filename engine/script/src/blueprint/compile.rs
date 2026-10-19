@@ -364,12 +364,22 @@ impl<'a> Compiler<'a> {
             return;
         }
         body.path.push(id);
+        if def.kind != DefKind::RerouteExec {
+            body.line(&format!("__trace({}, {id});", quote(self.name)));
+        }
         match def.kind {
+            DefKind::RerouteExec => self.chain(body, id, "then"),
             DefKind::Action => {
                 let code = self.fill(body, node, def);
                 match def.outputs.first() {
                     Some((out, _)) => {
-                        body.line(&format!("let n{id}_{} = {code};", ident(out)));
+                        let var = format!("n{id}_{}", ident(out));
+                        body.line(&format!("let {var} = {code};"));
+                        body.line(&format!(
+                            "__watch({}, {id}, {}, {var});",
+                            quote(self.name),
+                            quote(out)
+                        ));
                         body.known.insert((id, (*out).to_owned()));
                     }
                     None => body.line(&code),
@@ -471,7 +481,9 @@ impl<'a> Compiler<'a> {
             DefKind::Event { .. }
             | DefKind::Pure
             | DefKind::GetVariable
-            | DefKind::FunctionEntry => {}
+            | DefKind::FunctionEntry
+            | DefKind::Reroute
+            | DefKind::Comment => {}
         }
         body.path.pop();
     }
@@ -527,6 +539,16 @@ impl<'a> Compiler<'a> {
                 let code = self.fill(body, source, def);
                 body.path.pop();
                 code
+            }
+            DefKind::Reroute => {
+                if body.path.contains(&from) {
+                    self.problem(&which, Some(from), "The data wires loop back here");
+                    return default_of(ty).to_owned();
+                }
+                body.path.push(from);
+                let through = self.input(body, source, "in", ty);
+                body.path.pop();
+                through
             }
             DefKind::GetVariable => match self.variable(body, source) {
                 Some(v) => match v.scope {
@@ -585,6 +607,7 @@ impl<'a> Compiler<'a> {
                     .find(|f| f.name == name)?
                     .output
             }
+            DefKind::Reroute => text_value(node, "type").and_then(PinType::from_name),
             _ => def.output(pin),
         }
     }

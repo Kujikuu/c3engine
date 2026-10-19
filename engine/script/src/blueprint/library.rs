@@ -35,6 +35,12 @@ pub enum DefKind {
     Return,
     /// A function graph's start; its outputs are the function's inputs.
     FunctionEntry,
+    /// A bend in a data wire: `in` to `out`, of the type the node's `type` value names.
+    Reroute,
+    /// A bend in an exec wire.
+    RerouteExec,
+    /// A note on the canvas (its `text` value); it does nothing.
+    Comment,
 }
 
 /// A library node.
@@ -61,11 +67,15 @@ impl NodeDef {
             | DefKind::Wait
             | DefKind::MoveTo
             | DefKind::SetVariable => &["then"],
-            DefKind::Call | DefKind::FunctionEntry => &["then"],
+            DefKind::Call | DefKind::FunctionEntry | DefKind::RerouteExec => &["then"],
             DefKind::Branch => &["true", "false"],
             DefKind::Sequence => &["then 0", "then 1", "then 2", "then 3"],
             DefKind::ForEach => &["body", "done"],
-            DefKind::Pure | DefKind::GetVariable | DefKind::Return => &[],
+            DefKind::Pure
+            | DefKind::GetVariable
+            | DefKind::Return
+            | DefKind::Reroute
+            | DefKind::Comment => &[],
         }
     }
 
@@ -73,7 +83,12 @@ impl NodeDef {
     pub fn runs(&self) -> bool {
         !matches!(
             self.kind,
-            DefKind::Event { .. } | DefKind::Pure | DefKind::GetVariable | DefKind::FunctionEntry
+            DefKind::Event { .. }
+                | DefKind::Pure
+                | DefKind::GetVariable
+                | DefKind::FunctionEntry
+                | DefKind::Reroute
+                | DefKind::Comment
         )
     }
 
@@ -366,6 +381,18 @@ pub const NODES: &[NodeDef] = &[
         &[],
         &[],
     ),
+    flow("flow.reroute", "Reroute", DefKind::Reroute, &[], &[]),
+    flow(
+        "flow.reroute_exec",
+        "Reroute (exec)",
+        DefKind::RerouteExec,
+        &[],
+        &[],
+    ),
+    NodeDef {
+        category: "Notes",
+        ..flow("note.comment", "Comment", DefKind::Comment, &[], &[])
+    },
     // The player.
     pure(
         "player.name",

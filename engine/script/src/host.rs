@@ -58,6 +58,7 @@ pub struct ScriptHost {
     compiled: HashMap<String, Compiled>,
     call: Shared,
     tables: Rc<RefCell<Tables>>,
+    debug: Rc<RefCell<crate::debug::DebugLog>>,
 }
 
 impl ScriptHost {
@@ -67,13 +68,21 @@ impl ScriptHost {
         let call = Shared::default();
         let tables = Rc::new(RefCell::new(Tables::new(tables)));
         api::register(&mut engine, &call, &tables);
+        let debug = Rc::default();
+        crate::debug::register(&mut engine, &debug);
         Self {
             engine,
             dir: dir.into(),
             compiled: HashMap::new(),
             call,
             tables,
+            debug,
         }
+    }
+
+    /// What its blueprints reported while running (for a debugger).
+    pub fn debug(&self) -> Rc<RefCell<crate::debug::DebugLog>> {
+        Rc::clone(&self.debug)
     }
 
     /// The engine, for a game to register its own script functions.
@@ -234,6 +243,7 @@ pub(crate) fn sandboxed_engine() -> Engine {
     engine.set_max_array_size(MAX_COLLECTION);
     engine.set_max_map_size(MAX_COLLECTION);
     engine.disable_symbol("eval");
+    crate::debug::register_quiet(&mut engine);
     engine
 }
 

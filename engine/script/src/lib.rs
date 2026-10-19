@@ -25,6 +25,7 @@
 mod api;
 pub mod blueprint;
 mod conversation;
+pub mod debug;
 mod dialog;
 pub mod formulas;
 mod graph;

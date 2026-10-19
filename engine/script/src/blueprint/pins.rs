@@ -70,6 +70,13 @@ pub fn pins(blueprint: &Blueprint, which: &GraphRef, node: &GraphNode, def: &Nod
                 inputs.push(("value".into(), PinType::Number));
             }
         }
+        DefKind::Reroute => {
+            let ty = named("type")
+                .and_then(PinType::from_name)
+                .unwrap_or(PinType::Number);
+            inputs.push(("in".into(), ty));
+            outputs.push(("out".into(), ty));
+        }
         _ => {
             inputs.extend(owned(def.inputs));
             outputs.extend(owned(def.outputs));

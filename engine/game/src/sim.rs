@@ -94,6 +94,13 @@ impl Sim {
     }
 
     /// Lets NPCs run the scripts of `host`; `map_ids` name this map for script teleports.
+    /// What the scripts' blueprints report while running (for a debugger), when it has scripts.
+    pub fn script_debug(
+        &self,
+    ) -> Option<std::rc::Rc<std::cell::RefCell<c3_script::debug::DebugLog>>> {
+        self.scripts.as_ref().map(c3_script::ScriptHost::debug)
+    }
+
     pub fn set_scripts(&mut self, host: c3_script::ScriptHost, map_ids: Vec<u32>) {
         self.scripts = Some(host);
         self.map_ids = map_ids;

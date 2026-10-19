@@ -56,7 +56,13 @@ fn quests(tables: Option<&PathBuf>, problems: &mut Vec<String>) -> Vec<Quest> {
 /// The simulation of `scene` with the game's rules, the project's quests and scripts; and
 /// what was wrong with the data.
 pub fn new_sim(scene: &Scene, setup: &GameSetup, game: &dyn GameRules) -> (Sim, Vec<String>) {
+    // Blueprints compile first: their scripts are events and formulas the rules read.
+    let built = setup
+        .scripts
+        .as_deref()
+        .map(c3_script::blueprint::build_all);
     let (rules, mut problems) = rules_of(game, setup.tables.as_ref());
+    problems.extend(built.into_iter().flatten());
     let mut sim = Sim::new(
         scene.grid.clone(),
         scene.npcs.clone(),

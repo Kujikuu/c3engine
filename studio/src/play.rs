@@ -68,6 +68,14 @@ pub struct PlaySession {
 }
 
 impl PlaySession {
+    /// The blueprints' debug log of the game played here (a local game: an online one runs
+    /// its scripts on the server).
+    pub fn script_debug(
+        &self,
+    ) -> Option<std::rc::Rc<std::cell::RefCell<c3_script::debug::DebugLog>>> {
+        self.screen.session.sim.script_debug()
+    }
+
     /// Starts playing `doc` as it is now, the hero on the walkable cell nearest `start`.
     pub fn start(
         game: Rc<dyn GameModule>,

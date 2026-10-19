@@ -91,6 +91,21 @@ pub fn build_blueprint(scripts: &Path, name: &str) -> Result<Vec<Problem>> {
     }
 }
 
+/// Compiles every blueprint of `scripts`; what is wrong, one line per problem.
+pub fn build_all(scripts: &Path) -> Vec<String> {
+    let mut problems = Vec::new();
+    for name in blueprint_names(scripts) {
+        match build_blueprint(scripts, &name) {
+            Ok(found) => problems.extend(found.into_iter().map(|p| {
+                let at = p.node.map_or(String::new(), |n| format!(", node {n}"));
+                format!("Blueprint {name}{at}: {}", p.message)
+            })),
+            Err(e) => problems.push(format!("Blueprint {name}: {e}")),
+        }
+    }
+    problems
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
