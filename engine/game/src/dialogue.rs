@@ -110,11 +110,14 @@ impl Sim {
         // Changes made before an error stay.
         self.apply_state(id, &state);
         match step {
+            // An event (no NPC) that opens no page leaves an open conversation alone.
             Ok((next, effects)) => {
-                if let Some(p) = self.players.get_mut(&id) {
-                    p.dialogue = next;
+                if npc != 0 || next.is_some() {
+                    if let Some(p) = self.players.get_mut(&id) {
+                        p.dialogue = next;
+                    }
+                    self.events.push(Event::Dialogue { player: id });
                 }
-                self.events.push(Event::Dialogue { player: id });
                 for effect in effects {
                     self.script_effect(id, npc, effect);
                 }

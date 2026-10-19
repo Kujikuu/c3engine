@@ -40,6 +40,10 @@ pub(crate) fn tools() -> Vec<Tool> {
             "cell": { "type": "array", "items": { "type": "integer" } },
             "level": { "type": "integer" },
             "profession": { "type": "integer", "description": "The game's profession number" },
+            "attributes": {
+                "type": "object",
+                "description": "The player's attributes to start with, by name (strength: 30)",
+            },
             "steps": { "type": "array", "items": {} },
         }),
         &["steps"],
@@ -87,6 +91,11 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
     let mut save = c3_play::settings::new_character(&settings.gameplay, "Tester", cell);
     save.level = level.max(1);
     save.profession = opt_arg::<u32>(args, "profession")?.unwrap_or(0);
+    if let Some(attributes) =
+        opt_arg::<std::collections::BTreeMap<String, i64>>(args, "attributes")?
+    {
+        save.attributes.extend(attributes);
+    }
     let player = sim.add_saved_player(&save);
     sim.logged_in(player);
     let mut log = vec![report(&mut sim, player, json!("enter"))];

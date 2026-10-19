@@ -1462,3 +1462,40 @@ fn teams_reach_players_on_other_maps() {
         "kicked across maps"
     );
 }
+
+#[test]
+fn an_event_without_a_page_leaves_the_conversation_open() {
+    let dir = std::env::temp_dir().join(format!("c3-game-talk-event-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("npc")).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_timer(name) { give_money(1); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("npc/talker.rhai"),
+        "fn talk() { text(\"Hello.\"); option(\"Bye\"); }\n",
+    )
+    .unwrap();
+    let npc = Npc {
+        id: 7,
+        name: "Talker".into(),
+        cell: (6, 5),
+        script: "npc/talker".into(),
+        ..shopkeeper()
+    };
+    let mut sim = Sim::new(Grid::new(30, 30), vec![npc], vec![], rules(), 9);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    sim.input(hero, Input::Talk(7));
+    sim.advance(100);
+    assert!(sim.player(hero).unwrap().dialogue.is_some());
+    sim.start_timer(hero, "gift".into(), 0.0);
+    sim.advance(100);
+    assert_eq!(sim.player(hero).unwrap().money, 1);
+    assert!(
+        sim.player(hero).unwrap().dialogue.is_some(),
+        "still talking"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

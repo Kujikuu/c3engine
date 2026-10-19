@@ -618,7 +618,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         while worn (`Input::Combine`, MsgGemEmbed 1027, compose 2036, item action 28)
   - [ ] Kylin gems' durability, the gem NPC's nearness check, fusing gear into +1 stones
         (Msg 1028)
-  - [ ] Profession promotions and rebirth end to end (NPC chains converted and played)
+  - [x] Profession promotions and rebirth end to end (NPC chains converted and played):
+        WarriorGod promotes a Warrior with TQ's checks, skills and reward; Eternity's whole
+        rebirth conversation reborns a Trojan King as a Warrior (stone, gem, skills, points,
+        equipment levels), both play-tested through the MCP
 - [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
       with its cursors and sounds
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
