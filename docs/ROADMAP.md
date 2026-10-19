@@ -423,7 +423,7 @@ PUL for the classic client).
     most linked map sits in the middle with its neighbours around it; cards drag (kept in
     the project's world.ron), Fit frames the linked maps, double-click opens a map
 
-## M9: Content editors and the game UI
+## M9: Content editors and the game UI [x] (complete 2026-10-19)
 - [x] Table and schema editor: create tables, add, rename and type columns; references between
       tables (an item's monster drop, a shop's goods) as pickers
   - Done 2026-10-18: right-click a column's name to rename, describe, change its type (values
@@ -473,11 +473,10 @@ PUL for the classic client).
     Control.Ani, one character per account entered at once, loading as the client's
     centred line. The menu's Settings page keeps the player's volumes and full screen; the
     radar shows over every game UI (the 5065 minimap window is M12, as decided)
-  - [ ] Conquer's RoleChoose dialog 150 (profession and sex; needs professions)
-  - [ ] The 3D preview of the bodies on the creation screen
-  - [ ] Server.dat groups and server icons on Conquer's login (a list of names today)
+  - [x] The 3D preview of the bodies on the creation screen (a model control, `front.look:N`)
+  - Moved to M12 (Conquer parity): RoleChoose dialog 150, Server.dat groups and icons
 
-## M10: Visual scripting (Unreal Blueprints-style; a whole Conquer game without code)
+## M10: Visual scripting (Unreal Blueprints-style; a whole Conquer game without code) [x] (complete 2026-10-19)
 Decided 2026-10-18: every game rule and behaviour can be made in node graphs; Rhai stays as
 an option, never a requirement. Graphs compile to the same commands and events scripts use,
 run on the server and the local session alike, and are edited through c3-edit with undo.
@@ -504,8 +503,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
         teammates near a kill share its experience; the team shows down the left; scripts and
         nodes see the team (in a team, size, leader) and tell it
   - [x] Teams across maps: a hero keeps its team when travelling (logging out leaves it)
-  - [ ] Team actions between maps (invites, messages, the team list and shared kills reach
-        teammates on the same map only)
+  - Moved to M12: team actions between maps
 - [x] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
       talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
   - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom
@@ -552,6 +550,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
       skills, PK and name colours, ghost and revive, item upgrades
 - [ ] Conquer's GUI as a skin and layouts of M9's game UI (from the 5065 GUI ini and images),
       with its cursors and sounds
+  - [ ] RoleChoose dialog 150 (profession and sex; needs professions)
+  - [ ] Server.dat groups and server icons on the login (a list of names today)
+  - [ ] Team actions between maps (invites, messages, the team list and shared kills reach
+        teammates on the same map only)
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)
