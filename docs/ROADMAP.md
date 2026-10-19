@@ -632,7 +632,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         name kept with the player (`mate`; teammates' names in scripts)
   - [ ] Marrying (the client's proposal), the spouse told of a divorce
   - [x] Walking a guild's members (722, `{member}` in text)
-  - [ ] Sub-guilds (708, 709)
+  - [x] Sub-guilds (708, 709): founded for the first teammate, handed to it
+        (`create_sub_guild`, `change_sub_leader`, a guild's leader changed for every map)
   - [x] Business status (1001 `business`, an attribute); the account's billing (CP cards
         1078/1079, bonus rows 1023, DragonBall transfers 1088-1091, `%emoney_card`,
         `%dragon_type`) as TQ's with no rows; 1061 with worked-out values (`%user_map_x`,

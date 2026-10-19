@@ -1410,6 +1410,83 @@ fn guilds(engine: &mut Engine, shared: &Shared) {
             true
         })
     });
+    // A sub-guild under the player's guild (which it leads), led by its first teammate here:
+    // one of its guild, of `level` at least. The parent pays `money`; the branch starts with
+    // `fund`.
+    let s = shared.clone();
+    engine.register_fn(
+        "create_sub_guild",
+        move |name: &str, level: i64, money: i64, fund: i64| {
+            with(&s, |c| {
+                let (parent, rank) = membership(c);
+                let Some((mate, mate_level)) = first_teammate(c) else {
+                    return false;
+                };
+                let parent_fund = c.player.guilds.get(&parent).map_or(0, |g| g.fund);
+                let mates_guild = (c.player.guilds.iter())
+                    .find(|(_, g)| g.members.contains_key(&mate))
+                    .map(|(id, _)| *id);
+                let taken = (c.player.guilds.values()).any(|g| g.name.eq_ignore_ascii_case(name));
+                let len = name.chars().count();
+                if parent == 0
+                    || rank != GUILD_LEADER
+                    || parent_fund < money
+                    || mates_guild != Some(parent)
+                    || mate_level < level
+                    || taken
+                    || !(2..16).contains(&len)
+                {
+                    return false;
+                }
+                let id = c.player.guilds.keys().max().copied().unwrap_or(0) + 1;
+                let create = WorldChange::CreateGuild {
+                    id,
+                    name: name.to_owned(),
+                    leader: mate,
+                    rank: GUILD_LEADER,
+                    fund: fund.max(0),
+                    master: parent,
+                };
+                change(c, create);
+                change(
+                    c,
+                    WorldChange::GuildFund {
+                        guild: parent,
+                        amount: -money,
+                    },
+                );
+                true
+            })
+        },
+    );
+    // Sub-guild `name` of the player's guild handed to its first teammate here (of `level`
+    // at least).
+    let s = shared.clone();
+    engine.register_fn("change_sub_leader", move |name: &str, level: i64| {
+        with(&s, |c| {
+            let (parent, rank) = membership(c);
+            let Some((mate, mate_level)) = first_teammate(c) else {
+                return false;
+            };
+            let sub = (c.player.guilds.iter())
+                .find(|(_, g)| g.name.eq_ignore_ascii_case(name) && g.master == parent)
+                .map(|(id, _)| *id);
+            let Some(sub) = sub.filter(|_| parent != 0 && rank == GUILD_LEADER) else {
+                return false;
+            };
+            if mate_level < level {
+                return false;
+            }
+            change(
+                c,
+                WorldChange::GuildLeader {
+                    guild: sub,
+                    name: mate,
+                },
+            );
+            true
+        })
+    });
     let s = shared.clone();
     engine.register_fn("destroy_guild", move || {
         with(&s, |c| {
@@ -1491,6 +1568,12 @@ fn guilds(engine: &mut Engine, shared: &Shared) {
     });
 }
 
+/// The player's first teammate here: its name and level.
+fn first_teammate(c: &Call) -> Option<(String, i64)> {
+    let name = c.player.team_names.first()?.clone();
+    Some((name, c.player.team_levels.first().copied().unwrap_or(0)))
+}
+
 /// A guild's leader's rank.
 pub const GUILD_LEADER: i64 = 100;
 
@@ -1547,7 +1630,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Flag { .. }
         | WorldChange::Wanted { .. }
         | WorldChange::Bounty { .. }
-        | WorldChange::Police { .. } => {}
+        | WorldChange::Police { .. }
+        | WorldChange::GuildLeader { .. } => {}
     }
 }
 

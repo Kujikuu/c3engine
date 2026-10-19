@@ -216,6 +216,27 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    action(
+        "guild.create_sub",
+        "Found a sub-guild",
+        "Guild",
+        &[
+            ("name", Text),
+            ("level", Number),
+            ("cost", Number),
+            ("fund", Number),
+        ],
+        &[("made", Bool)],
+        "create_sub_guild({name}, {level}, {cost}, {fund})",
+    ),
+    action(
+        "guild.change_sub_leader",
+        "Hand a sub-guild over",
+        "Guild",
+        &[("name", Text), ("level", Number)],
+        &[("done", Bool)],
+        "change_sub_leader({name}, {level})",
+    ),
     pure(
         "team.all_named",
         "Teammates all named",

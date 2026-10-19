@@ -82,6 +82,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "create_sub_guild(name, level, cost, fund) / change_sub_leader(name, level)",
+        "A sub-guild under the guild the player leads, led by its first teammate here (its guild, of `level`); the parent pays `cost`. A sub-guild handed to that teammate",
+    ),
+    (
         "team_all_named(name)",
         "Whether the player's teammates here (itself left out) are all called `name`",
     ),

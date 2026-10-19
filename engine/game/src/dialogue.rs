@@ -633,6 +633,10 @@ impl Sim {
                 .filter(|m| *m != id)
                 .map(|m| self.players[&m].name.clone())
                 .collect(),
+            team_levels: (self.teammates_here(id).into_iter())
+                .filter(|m| *m != id)
+                .map(|m| i64::from(self.players[&m].level))
+                .collect(),
             npc_looks: (self.npcs.iter())
                 .map(|n| (i64::from(n.id), i64::from(n.look)))
                 .collect(),

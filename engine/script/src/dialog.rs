@@ -64,8 +64,9 @@ pub struct PlayerState {
     pub npc_looks: BTreeMap<i64, i64>,
     /// The player's living teammates on its map, and how many of them hold each item type.
     pub team_here: i64,
-    /// Their names (the player's own left out).
+    /// Their names and levels (the player's own left out).
     pub team_names: Vec<String>,
+    pub team_levels: Vec<i64>,
     pub team_items: BTreeMap<i64, i64>,
     /// The money the player keeps in storage.
     pub saved_money: i64,
@@ -209,6 +210,11 @@ pub enum WorldChange {
         target: String,
         payer: String,
         bounty: i64,
+    },
+    /// Guild `guild` led by its member `name` from now on.
+    GuildLeader {
+        guild: i64,
+        name: String,
     },
     /// Player `name` (of `level`) put on the police wanted list, or taken off (`listed`).
     Police {

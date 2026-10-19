@@ -168,6 +168,21 @@ impl WorldState {
                     self.wanted.insert(id, entry);
                 }
             }
+            WorldChange::GuildLeader { guild, name } => {
+                let Some(g) = self.guild_mut(*guild) else {
+                    return;
+                };
+                // The new leader takes the leader's rank; the old one, the new one's.
+                let rank = g.members.get(&g.leader).copied().unwrap_or(0);
+                let was = g.members.get(name).copied();
+                let old = std::mem::replace(&mut g.leader, name.clone());
+                if old != *name
+                    && let Some(was) = was
+                {
+                    g.members.insert(old, was);
+                }
+                g.members.insert(name.clone(), rank);
+            }
             WorldChange::Police {
                 name,
                 level,

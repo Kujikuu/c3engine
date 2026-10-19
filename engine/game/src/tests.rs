@@ -1832,3 +1832,29 @@ fn bounties_on_killers_are_shared() {
     sim.change_world(WorldChange::Bounty { id: 1, view: None });
     assert!(sim.world_state().bounties.is_empty());
 }
+
+#[test]
+fn a_guild_handed_over_swaps_its_leaders_ranks() {
+    use c3_script::WorldChange;
+    let mut sim = Sim::new(Grid::new(10, 10), vec![], vec![], rules(), 9);
+    sim.change_world(WorldChange::CreateGuild {
+        id: 3,
+        name: "Branch".into(),
+        leader: "Old".into(),
+        rank: 100,
+        fund: 0,
+        master: 1,
+    });
+    sim.change_world(WorldChange::Member {
+        guild: 3,
+        name: "New".into(),
+        rank: 50,
+    });
+    sim.change_world(WorldChange::GuildLeader {
+        guild: 3,
+        name: "New".into(),
+    });
+    let g = &sim.world_state().guilds[&3];
+    assert_eq!(g.leader, "New");
+    assert_eq!((g.members["New"], g.members["Old"]), (100, 50));
+}

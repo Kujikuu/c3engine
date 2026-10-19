@@ -1132,6 +1132,38 @@ impl<'a> Builder<'a> {
                 g.data(me, listed, "name");
                 Self::branch(g, listed, column)
             }
+            // A sub-guild named as typed: founded for the first teammate (708: level, cost,
+            // fund), or handed to it (709: level).
+            708 | 709 => {
+                let name = g.node("dialogue.accept", &[], column);
+                let (def, out, values) = match (a.kind, int(0), int(1), int(2)) {
+                    (708, Some(level), Some(cost), Some(fund)) => (
+                        "guild.create_sub",
+                        "made",
+                        vec![
+                            ("level", num(level)),
+                            ("cost", num(cost)),
+                            ("fund", num(fund)),
+                        ],
+                    ),
+                    (709, Some(level), _, _) => (
+                        "guild.change_sub_leader",
+                        "done",
+                        vec![("level", num(level))],
+                    ),
+                    _ => return self.not_converted(g, a, column),
+                };
+                let node = g.node(def, &values, column);
+                g.data(name, node, "name");
+                let branch = g.node("flow.branch", &[], column);
+                g.wire((node, out), (branch, "condition"));
+                g.exec((node, "then"), branch);
+                Emitted {
+                    entry: Some(node),
+                    ok: Some((branch, "true")),
+                    fail: Some((branch, "false")),
+                }
+            }
             // The next member of the player's guild: the iterator on, whether there is one.
             722 => {
                 let iter = g.node("player.flag", &[("name", txt("iterator"))], column);
