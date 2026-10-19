@@ -24,6 +24,33 @@ pub const NAME: u16 = 1015;
 /// MsgName types: an effect on a map cell, on a role.
 pub const NAME_MAP_EFFECT: u8 = 9;
 pub const NAME_ROLE_EFFECT: u8 = 10;
+/// The hero's guild: id, fund, members, its rank and leader (MsgSyndicateAttributeInfo).
+pub const GUILD_INFO: u16 = 1106;
+/// A guild action about a guild or player (MsgSyndicate).
+pub const GUILD: u16 = 1107;
+pub mod guild {
+    /// The client asks a guild's name.
+    pub const QUERY_NAME: u16 = 6;
+}
+/// MsgName kind naming a guild (`data` its id).
+pub const NAME_GUILD: u8 = 3;
+
+/// The hero's guild (id 0: none).
+pub struct GuildInfo<'a> {
+    pub id: u32,
+    pub fund: u32,
+    pub members: u32,
+    pub rank: u8,
+    pub leader: &'a str,
+}
+
+pub fn guild_info(g: &GuildInfo) -> Vec<u8> {
+    packet(GUILD_INFO, |w| {
+        w.u32(g.id).i32(0).u32(g.fund).u32(g.members).u8(g.rank);
+        w.fixed_str(g.leader, 16).u8(0).u8(0).u8(0);
+    })
+}
+
 /// A team action about a player (packets spec 1023).
 pub const TEAM: u16 = 1023;
 pub mod team {
@@ -476,12 +503,19 @@ pub struct Spawn<'a> {
     pub hair: u16,
     pub dir: u8,
     pub monster: bool,
+    /// A player's guild id, its rank in the top byte.
+    pub guild: u32,
     pub name: &'a str,
 }
 
 pub fn spawn(s: &Spawn) -> Vec<u8> {
     packet(PLAYER, |w| {
-        w.u32(s.id).u32(s.look).u32(s.status).u32(0).u32(0).u32(0);
+        w.u32(s.id)
+            .u32(s.look)
+            .u32(s.status)
+            .u32(0)
+            .u32(s.guild)
+            .u32(0);
         for g in s.gear {
             w.u32(g);
         }
@@ -665,6 +699,11 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// A guild action about a guild or player.
+    Guild {
+        action: u16,
+        id: u32,
+    },
     /// A team action about a player.
     Team {
         action: u16,
@@ -738,6 +777,14 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             match r.u16()? {
                 item::PING => Request::Ping(bytes.to_vec()),
                 action => Request::Item { action, id, data },
+            }
+        }
+        GUILD => {
+            let action = r.u16()?;
+            r.skip(2)?;
+            Request::Guild {
+                action,
+                id: r.u32()?,
             }
         }
         TEAM => {
@@ -876,6 +923,7 @@ mod tests {
             hair: 0,
             dir: 0,
             monster: true,
+            guild: 0,
             name: "Pheasant",
         };
         assert_eq!(spawn(&s).len(), 90 + 1 + 9 + 1);

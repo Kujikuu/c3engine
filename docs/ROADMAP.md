@@ -664,7 +664,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
         list MsgTeamMember 1026 with each member's life
   - [ ] Teams: TQ's apply-to-join (1, 5), closing the team and the money and item
         pick-up locks (8 to 13)
-  - [ ] Guilds (MsgSyndicate 1107 and names), friends (1019)
+  - [x] Guilds shown: each player's guild and rank in MsgPlayer, the hero's guild
+        (MsgSyndicateAttributeInfo 1106), guild names (MsgName 3, asked by MsgSyndicate 6)
+  - [ ] Guild actions from the client (MsgSyndicate join, invite, leave, kick, donate,
+        allies and enemies) and the member list
+  - [ ] Friends (MsgFriend 1019)
   - [ ] Each of the above checked with the real Conquer.exe
 
 ## M13: Any game of the kind (Eudemons-like or the user's own)

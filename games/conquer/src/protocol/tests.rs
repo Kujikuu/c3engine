@@ -297,3 +297,17 @@ fn a_spell_shows_its_hits() {
     assert_eq!(u32_at(&packet, 20), 9);
     assert_eq!(u32_at(&packet, 24), 120);
 }
+
+#[test]
+fn guild_info_is_the_clients_size() {
+    let packet = pk::guild_info(&pk::GuildInfo {
+        id: 12,
+        fund: 5000,
+        members: 3,
+        rank: 100,
+        leader: "Lead",
+    });
+    assert_eq!(packet.len(), 40);
+    assert_eq!(u32_at(&packet, 4), 12);
+    assert_eq!(packet[20], 100);
+}

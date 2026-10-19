@@ -125,6 +125,15 @@ fn status(p: &Player, rules: &dyn Rules) -> u32 {
         }
 }
 
+/// Player `p`'s guild and rank (TQ's rank numbers, as the client shows them).
+fn guild_of(sim: &Sim, p: &Player) -> Option<(u32, u8)> {
+    let (id, rank) = sim.world_state().guild_of(&p.name)?;
+    Some((
+        id & 0x00FF_FFFF,
+        u8::try_from(rank.clamp(0, 255)).unwrap_or(0),
+    ))
+}
+
 /// A learned skill as MsgMagicInfo (skills keep no level or experience yet).
 fn magic_info(skill: u32) -> Vec<u8> {
     pk::magic_info(u16::try_from(skill).unwrap_or(0), 0, 0)
@@ -209,7 +218,8 @@ fn slot_of(rules: &dyn Rules, item: &c3_game::Item) -> u8 {
 }
 
 /// How `state` comes into the client's view.
-fn spawn(state: &EntityState, ids: &mut Ids, rules: &dyn Rules) -> Vec<u8> {
+fn spawn(state: &EntityState, ids: &mut Ids, sim: &Sim) -> Vec<u8> {
+    let rules = sim.rules();
     let id = ids.of(state);
     match state {
         EntityState::Player(p) => {
@@ -225,6 +235,7 @@ fn spawn(state: &EntityState, ids: &mut Ids, rules: &dyn Rules) -> Vec<u8> {
                 hair: look.hair as u16,
                 dir: p.direction,
                 monster: false,
+                guild: guild_of(sim, p).map_or(0, |(g, rank)| g | u32::from(rank) << 24),
                 name: &p.name,
             })
         }
@@ -243,6 +254,7 @@ fn spawn(state: &EntityState, ids: &mut Ids, rules: &dyn Rules) -> Vec<u8> {
                 hair: 0,
                 dir: m.direction,
                 monster: true,
+                guild: 0,
                 name,
             })
         }
@@ -314,6 +326,10 @@ pub struct ConquerClient {
     steps_to: Option<CellPos>,
     /// The hero's team as last shown.
     team: Vec<c3_game::Mate>,
+    /// The hero's guild and rank as last shown (`Some(None)`: shown as none).
+    guild: Option<Option<(u32, u8)>>,
+    /// The guild names the client was told, by id.
+    guild_names: BTreeMap<u32, String>,
 }
 
 impl ConquerClient {
@@ -541,7 +557,10 @@ impl ConquerClient {
                 }
                 continue;
             }
-            let packet = spawn(state, ids, sim.rules());
+            let packet = spawn(state, ids, sim);
+            if let EntityState::Player(p) = state {
+                out.extend(self.name_guild(sim, p));
+            }
             // Another player's name colour changed: its status.
             if let (Some((EntityState::Player(old), _)), EntityState::Player(p)) =
                 (self.seen.get(&id), state)
@@ -576,6 +595,7 @@ impl ConquerClient {
         }
         if self.entered {
             out.extend(self.team_changes(sim));
+            out.extend(self.guild_changes(sim));
             let mut shown = Vec::new();
             for (at, event) in update.events.iter().enumerate() {
                 if shown.contains(&at) {
@@ -591,6 +611,51 @@ impl ConquerClient {
             }
         }
         out
+    }
+
+    /// The name of player `p`'s guild, the first time the client meets it.
+    fn name_guild(&mut self, sim: &Sim, p: &Player) -> Option<Vec<u8>> {
+        let (id, _) = guild_of(sim, p)?;
+        let name = &sim.world_state().guilds.get(&id)?.name;
+        if self.guild_names.get(&id) == Some(name) {
+            return None;
+        }
+        self.guild_names.insert(id, name.clone());
+        Some(pk::name(pk::NAME_GUILD, id, name))
+    }
+
+    /// The hero's guild, when it changed: its details and name.
+    fn guild_changes(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
+        let Some(p) = self.hero.and_then(|h| sim.player(h)) else {
+            return Vec::new();
+        };
+        let now = guild_of(sim, p);
+        if self.guild == Some(now) {
+            return Vec::new();
+        }
+        self.guild = Some(now);
+        let guilds = &sim.world_state().guilds;
+        let Some(((id, rank), g)) = now.and_then(|(id, r)| Some(((id, r), guilds.get(&id)?)))
+        else {
+            return vec![pk::guild_info(&pk::GuildInfo {
+                id: 0,
+                fund: 0,
+                members: 0,
+                rank: 0,
+                leader: "",
+            })];
+        };
+        self.guild_names.insert(id, g.name.clone());
+        vec![
+            pk::name(pk::NAME_GUILD, id, &g.name),
+            pk::guild_info(&pk::GuildInfo {
+                id,
+                fund: u32::try_from(g.fund.max(0)).unwrap_or(u32::MAX),
+                members: u32::try_from(g.members.len()).unwrap_or(u32::MAX),
+                rank,
+                leader: &g.leader,
+            }),
+        ]
     }
 
     /// The hero's team list, when it changed (members, their life); left, an empty team.
@@ -1097,6 +1162,14 @@ impl ConquerClient {
                 }),
                 _ => {}
             },
+            Request::Guild {
+                action: pk::guild::QUERY_NAME,
+                id,
+            } => {
+                if let Some(name) = self.guild_names.get(&id) {
+                    out.push(pk::name(pk::NAME_GUILD, id, name));
+                }
+            }
             Request::Team { action: a, id } => {
                 let other = ids.entity(id);
                 let action = match (a, other) {
