@@ -295,6 +295,17 @@ impl GameUi {
                 actions.push(UiAction::Game(c3_game::Input::TradeMoney(amount)));
             }
             "trade_accept" => actions.push(UiAction::Game(c3_game::Input::TradeAccept)),
+            // The workbench's items worked together (`combine:<kind>`), then cleared.
+            _ if action.starts_with("combine:") => {
+                if let Some(kind) = action.strip_prefix("combine:").and_then(|k| k.parse().ok()) {
+                    let items = std::mem::take(&mut self.gui_state.work);
+                    actions.push(UiAction::Game(c3_game::Input::Combine {
+                        kind,
+                        items,
+                        value: 0,
+                    }));
+                }
+            }
             // The team dialog's first button: make a team, or leave the one the hero is in
             // (a leader invites players by clicking them).
             "team_main" => {
@@ -418,11 +429,13 @@ impl GameUi {
 
     /// Feedback for what the simulation did (`now`: UI time in seconds).
     pub fn events(&mut self, events: &[Event], sim: &Sim, hero: EntityId, now: f64) {
-        // A script opening one of the game UI's dialogs for the hero.
+        // A script opening one of the game UI's dialogs for the hero: the one answering to
+        // that window number, else the dialog of that id.
         for event in events {
             if let Event::OpenWindow { player, dialog } = *event
                 && player == hero
                 && let Some(gui) = &mut self.gui
+                && !gui.open_window(dialog)
             {
                 gui.open(dialog);
             }
@@ -484,12 +497,33 @@ impl GameUi {
                     state: &self.gui_state,
                 };
                 let mut others = Vec::new();
+                let working = gui.open_uses("work.");
+                let mut work = Vec::new();
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
                     match event {
+                        // A bag item onto an open workbench; a slot clicked empties it.
+                        gui::GuiEvent::Item { list, index } if working && list == "hero.bag" => {
+                            work.extend(player.bag.get(index).map(|i| (true, i.id)));
+                        }
+                        gui::GuiEvent::Item { list, .. } if list.starts_with("work.") => {
+                            let n = list.strip_prefix("work.").and_then(|n| n.parse().ok());
+                            work.extend(
+                                n.and_then(|n: usize| data.state.work.get(n))
+                                    .map(|id| (false, *id)),
+                            );
+                        }
                         gui::GuiEvent::Item { list, index } => {
                             actions.extend(grid_click(&data, player, &list, index));
                         }
                         other => others.push(other),
+                    }
+                }
+                let bench = &mut self.gui_state.work;
+                for (put, id) in work {
+                    if !put {
+                        bench.retain(|w| *w != id);
+                    } else if !bench.contains(&id) && bench.len() < gui_data::WORK_SLOTS {
+                        bench.push(id);
                     }
                 }
                 for event in others {

@@ -689,6 +689,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
         member list bound from the shared world state, Quit leaves (layout screenshot)
   - [ ] Guild: shown with a guild (no way to make one locally to look), its tabs (allies,
         enemies, bulletin), donating, joining
+  - [x] Windows the game opens by number (1046 → `ui.open`; MsgAction 126 to the Conquer
+        client; `window=N` on a dialog); composing in CDlgItemCompose (275, window 1): a
+        workbench (`work.N` slots filled by bag clicks, `combine:<kind>`) (screenshot)
+  - [ ] Compose: checked with real items; the oven (windows 2, 3), gem setting (CDlgEmbed)
   - [ ] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,

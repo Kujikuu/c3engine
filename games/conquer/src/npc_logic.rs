@@ -1457,14 +1457,9 @@ impl<'a> Builder<'a> {
                 _ => self.not_converted(g, a, column),
             },
             // The client opens dialog `data` (MsgAction 126).
-            1046 => {
-                let values = [
-                    ("name", txt("msg_action")),
-                    ("a", num(126)),
-                    ("b", num(a.data)),
-                ];
-                Self::plain(g, "player.client_cue", &values, column)
-            }
+            // A client window opened (1 compose, 2-3 the oven, 4 the warehouse): the game UI's
+            // dialog that answers to it, or MsgAction 126 to the Conquer client.
+            1046 => Self::plain(g, "ui.open", &[("dialog", num(a.data))], column),
             // Fireworks over the player, for everyone around (MsgItem 26).
             314 => {
                 let values = [

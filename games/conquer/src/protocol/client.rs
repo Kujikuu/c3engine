@@ -973,6 +973,17 @@ impl ConquerClient {
             | Event::CommandReply { text, .. } => {
                 vec![self.system(text)]
             }
+            // A window the game opens: MsgAction 126 with its number.
+            Event::OpenWindow { player, dialog } if Some(*player) == hero => {
+                let cell = cell16(self.state_cell(*player).unwrap_or_default());
+                vec![pk::action(
+                    self.hero_id(),
+                    action::OPEN_DIALOG,
+                    *dialog,
+                    cell,
+                    0,
+                )]
+            }
             Event::ClientCue { player, name, args } if Some(*player) == hero => {
                 let cell = cell16(self.state_cell(*player).unwrap_or_default());
                 let [a, b] = args.map(|v| u32::try_from(v).unwrap_or(0));

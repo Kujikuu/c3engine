@@ -169,6 +169,8 @@ pub mod action {
     /// The dead hero asks to come back (battle spec S9).
     pub const REVIVE: u16 = 94;
     pub const GET_GUILD: u16 = 97;
+    /// A client window opened by number (1 compose, 4 the warehouse).
+    pub const OPEN_DIALOG: u16 = 126;
     pub const QUERY_PLAYER: u16 = 102;
     pub const LEAVE_MAP: u16 = 132;
     pub const JUMP: u16 = 133;

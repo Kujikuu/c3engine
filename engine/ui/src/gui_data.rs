@@ -12,7 +12,12 @@ pub(crate) struct GuiState {
     pub fields: std::collections::HashMap<String, String>,
     /// The hero's open trade.
     pub trade: Option<TradeView>,
+    /// Bag items put on a workbench (compose, gems), in its slots' order.
+    pub work: Vec<u32>,
 }
+
+/// The most items a workbench holds.
+pub(crate) const WORK_SLOTS: usize = 5;
 
 /// A trade as the hero sees it: the partner's goods, its own, the partner's word.
 #[derive(Debug)]
@@ -173,6 +178,17 @@ impl GuiData for HeroData<'_> {
                 .filter_map(|id| self.player.bag.iter().find(|i| i.id == *id))
                 .map(|i| i.kind)
                 .collect(),
+            // Workbench slot `n`: the item put there.
+            _ if key.starts_with("work.") => {
+                let n: usize = key
+                    .strip_prefix("work.")
+                    .and_then(|n| n.parse().ok())
+                    .unwrap_or(0);
+                (self.state.work.get(n))
+                    .and_then(|id| self.player.bag.iter().find(|i| i.id == *id))
+                    .map(|i| vec![i.kind])
+                    .unwrap_or_default()
+            }
             // What the open warehouse keeps.
             "storage.items" => (self.state.storage)
                 .and_then(|npc| self.player.storage.get(&npc))

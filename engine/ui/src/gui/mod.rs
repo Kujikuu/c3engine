@@ -197,6 +197,8 @@ pub struct Control {
     pub action: String,
     /// A sound (an asset path) a click plays in place of the UI's click.
     pub sound: String,
+    /// The window number the game opens this dialog by (0: none).
+    pub window: u32,
     /// A grid's columns and rows.
     pub cols: u32,
     pub rows: u32,
@@ -259,6 +261,7 @@ impl Control {
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
             sound: text("sound"),
+            window: section.int("window").map_or(0, |w| w.max(0) as u32),
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
             open: text("open"),
@@ -376,6 +379,28 @@ impl Gui {
             self.open.remove(&other);
         }
         self.open.insert(id);
+    }
+
+    /// Whether an open dialog shows a control bound to something starting with `prefix`
+    /// (`work.`: a workbench taking bag items).
+    pub fn open_uses(&self, prefix: &str) -> bool {
+        let open: Vec<u32> = (self.dialogs())
+            .filter(|d| self.is_open(d))
+            .map(|d| d.id)
+            .collect();
+        (self.controls.iter()).any(|c| open.contains(&c.parent) && c.value.starts_with(prefix))
+    }
+
+    /// Opens the dialogs that answer to window number `window`; whether there was one.
+    pub fn open_window(&mut self, window: u32) -> bool {
+        let ids: Vec<u32> = (self.dialogs())
+            .filter(|d| window != 0 && d.window == window)
+            .map(|d| d.id)
+            .collect();
+        for &id in &ids {
+            self.open(id);
+        }
+        !ids.is_empty()
     }
 
     /// Shows page `id` of its dialog, hiding the dialog's other pages.
