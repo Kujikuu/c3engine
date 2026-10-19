@@ -2,7 +2,7 @@
 //! for what flows into input `pin`. Events become the script functions the game calls;
 //! actions run in exec order; pure nodes are expressions, worked out where they are used.
 
-use super::model::PinType::{self, Bool, Entity, Item, List, Map, Number, Text};
+use super::model::PinType::{self, Bool, Entity, Item, List, Map, Number, Record, Text};
 
 /// How a node takes part in a graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,6 +147,7 @@ const fn pure(
             Item => &[("value", Item)],
             Map => &[("value", Map)],
             List => &[("value", List)],
+            Record => &[("value", Record)],
             PinType::Exec => &[],
         },
         code,
@@ -168,6 +169,29 @@ const fn flow(
         inputs,
         outputs,
         code: "",
+    }
+}
+
+/// A formula the game's rules ask for: an event whose graph ends at a Return giving the
+/// answer (see [`returns`]).
+const fn formula(
+    id: &'static str,
+    title: &'static str,
+    function: &'static str,
+    outputs: &'static [(&'static str, PinType)],
+) -> NodeDef {
+    NodeDef {
+        category: "Formulas",
+        ..event(id, title, function, outputs)
+    }
+}
+
+/// What the game's formula `function` gives back, when it is one.
+pub fn returns(function: &str) -> Option<PinType> {
+    match function {
+        "player_stats" => Some(Record),
+        "level_exp" | "hit" | "kill_exp" | "skill_hit" | "skill_heal" => Some(Number),
+        _ => None,
     }
 }
 
@@ -213,9 +237,76 @@ pub const NODES: &[NodeDef] = &[
         "on_level_up",
         &[("level", Number)],
     ),
+    event(
+        "event.leave_map",
+        "On leaving a map",
+        "on_leave",
+        &[("map", Map)],
+    ),
     event("event.talk", "On talking (an NPC)", "talk", &[]),
     // A function of its own name (an answer's `next`, or one the game calls).
     event("event.custom", "Custom event", "", &[]),
+    // The rules' formulas (each ends at a Return giving the answer).
+    formula(
+        "formula.player_stats",
+        "Player stats at a level",
+        "player_stats",
+        &[("level", Number)],
+    ),
+    formula(
+        "formula.level_exp",
+        "Experience to the next level",
+        "level_exp",
+        &[("level", Number)],
+    ),
+    formula(
+        "formula.hit",
+        "Damage of a hit",
+        "hit",
+        &[("attacker", Record), ("target", Record)],
+    ),
+    formula(
+        "formula.kill_exp",
+        "Experience for a kill",
+        "kill_exp",
+        &[("level", Number), ("target", Record)],
+    ),
+    formula(
+        "formula.skill_hit",
+        "Damage of a skill",
+        "skill_hit",
+        &[("attacker", Record), ("target", Record), ("skill", Record)],
+    ),
+    formula(
+        "formula.skill_heal",
+        "Healing of a skill",
+        "skill_heal",
+        &[("healer", Record), ("skill", Record)],
+    ),
+    pure(
+        "record.get",
+        "Read a number",
+        "Formulas",
+        &[("record", Record), ("field", Text)],
+        Number,
+        "{record}[{field}]",
+    ),
+    pure(
+        "record.stats",
+        "Stats",
+        "Formulas",
+        &[
+            ("life", Number),
+            ("mana", Number),
+            ("attack_min", Number),
+            ("attack_max", Number),
+            ("defence", Number),
+            ("dodge", Number),
+            ("dexterity", Number),
+        ],
+        Record,
+        "#{life: {life}, mana: {mana}, attack_min: {attack_min}, attack_max: {attack_max}, defence: {defence}, dodge: {dodge}, dexterity: {dexterity}}",
+    ),
     // Flow.
     flow(
         "flow.branch",

@@ -73,6 +73,8 @@ impl Sim {
             self.place(id, to.cell);
             return;
         }
+        let here = self.map_ids.first().copied().unwrap_or(0);
+        self.script_event(id, "on_leave", vec![i64::from(here).into()]);
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };

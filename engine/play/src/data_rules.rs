@@ -472,11 +472,9 @@ impl DataRules {
                     .push(row.uint("item"));
             }
         }
-        let script = dir
-            .parent()
-            .map(|p| p.join("scripts").join(c3_script::RULES_SCRIPT));
-        if let Some(file) = script {
-            match Formulas::load(&file) {
+        let scripts = dir.parent().map(|p| p.join("scripts"));
+        if let Some(scripts) = scripts {
+            match Formulas::load_dir(&scripts) {
                 Ok(formulas) => rules.formulas = formulas,
                 Err(e) => problems.push(format!("{}: {e}", c3_script::RULES_SCRIPT)),
             }

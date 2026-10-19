@@ -20,6 +20,8 @@ pub enum PinType {
     Map,
     /// A list of values.
     List,
+    /// Named numbers: a fighter's stats (`level`, `attack_min`, ...) or a skill's.
+    Record,
 }
 
 impl PinType {
@@ -46,6 +48,7 @@ impl PinType {
             Self::Item => "item",
             Self::Map => "map",
             Self::List => "list",
+            Self::Record => "record",
         }
     }
 }

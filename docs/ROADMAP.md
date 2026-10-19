@@ -479,14 +479,26 @@ PUL for the classic client).
 Decided 2026-10-18: every game rule and behaviour can be made in node graphs; Rhai stays as
 an option, never a requirement. Graphs compile to the same commands and events scripts use,
 run on the server and the local session alike, and are edited through c3-edit with undo.
-- [ ] Graph runtime: typed pins (number, text, bool, entity, item, map, cell, list), exec
+- [x] Graph runtime: typed pins (number, text, bool, entity, item, map, cell, list), exec
       flow, variables (graph, player, world, saved), functions and macros, events, latent nodes
       (wait, timers, move-to), compiled to a checked form; errors point at the node
-- [ ] Node library over the whole gameplay core: players, monsters, NPCs, items, skills,
+  - Done 2026-10-19 (decided with the user: graphs compile to Rhai): `scripts/blueprints/
+    <name>.c3bp` compiles to `scripts/graphs/<name>.rhai`, run after `events.rhai` (and as
+    formulas). Pins: exec, number, text, bool, entity, item, map, list, record (a cell is
+    its x and y). Variables local, player (saved) and world; functions with inputs and an
+    answer; waits and walks resume from on_timer / on_arrive; type and wiring problems name
+    their node. Macros are functions (the editor's collapse to function)
+- [x] Node library over the whole gameplay core: players, monsters, NPCs, items, skills,
       statuses, quests, money, teams, maps, portals, spawns, chat, dialogue pages, UI windows,
       effects and sounds, random, math, tables (read rows by key)
-- [ ] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
+  - Done 2026-10-19: every script function is a node, and the script API grew for it (experience,
+    life, statuses, world variables, random, effects, sounds, announcements, opening game
+    UI dialogs, spawning monsters, walking). Teams wait for the engine's team system (M12)
+- [x] Event graphs for every hook: login, enter/leave map and region, kill, death, use item,
       talk, dialogue choice, timer, level up, attack/skill formulas (damage, hit, XP, drops)
+  - Done 2026-10-19: new hooks on_leave, on_death, on_level_up; dialogue choices are custom
+    events; formula events (player stats, level exp, hit, kill exp, skill hit and heal) end
+    at a Return. Drops are table data (no drop formula in the rules yet)
 - [ ] Graph editor in the Studio: Blueprint-like canvas (search palette, typed wiring,
       reroutes, comments, collapse to function), live debugging in Play (breakpoints, watched
       values, the path that ran lit), find references

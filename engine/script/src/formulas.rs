@@ -25,6 +25,29 @@ impl Formulas {
         Self::compile(&source).map(Some)
     }
 
+    /// The formulas of a project's `scripts` folder: `rules.rhai` and those its blueprints
+    /// make (`graphs/*.rhai`); `None` when there are none.
+    pub fn load_dir(scripts: &Path) -> Result<Option<Self>, String> {
+        let mut files = vec![scripts.join(RULES_SCRIPT)];
+        let graphs = scripts.join(crate::blueprint::GRAPHS_DIR);
+        files.extend(
+            crate::host::names_with_suffix(&graphs, crate::SCRIPT_SUFFIX)
+                .iter()
+                .map(|name| graphs.join(format!("{name}{}", crate::SCRIPT_SUFFIX))),
+        );
+        let engine = sandboxed_engine();
+        let mut merged: Option<AST> = None;
+        for file in files.iter().filter(|f| f.is_file()) {
+            let source = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
+            let ast = (engine.compile(&source)).map_err(|e| format!("{}: {e}", file.display()))?;
+            merged = Some(match merged {
+                Some(all) => all.merge(&ast),
+                None => ast,
+            });
+        }
+        Ok(merged.map(|ast| Self { engine, ast }))
+    }
+
     /// Formulas from `source`.
     pub fn compile(source: &str) -> Result<Self, String> {
         let engine = sandboxed_engine();

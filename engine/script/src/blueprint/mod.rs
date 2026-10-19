@@ -229,6 +229,38 @@ mod tests {
         assert!(problems.is_empty(), "{problems:?}\n{code}");
     }
 
+    /// A formula graph answers the rules: hit = attacker's attack_max * 2.
+    #[test]
+    fn formula_graphs_answer_the_rules() {
+        let bp = Blueprint {
+            events: Graph {
+                nodes: vec![
+                    node(1, "formula.hit", &[]),
+                    node(2, "flow.return", &[]),
+                    node(3, "math.multiply", &[("b", Literal::Number(2.0))]),
+                    node(
+                        4,
+                        "record.get",
+                        &[("field", Literal::Text("attack_max".into()))],
+                    ),
+                ],
+                wires: vec![
+                    wire(1, "then", 2, "exec"),
+                    wire(1, "attacker", 4, "record"),
+                    wire(4, "value", 3, "a"),
+                    wire(3, "value", 2, "value"),
+                ],
+            },
+            ..Blueprint::default()
+        };
+        let code = compile("rules", &bp).unwrap();
+        let formulas = crate::Formulas::compile(&code).unwrap();
+        let mut me = rhai::Map::new();
+        me.insert("attack_max".into(), 21_i64.into());
+        let damage = formulas.int("hit", (me, rhai::Map::new())).unwrap();
+        assert_eq!(damage, 42, "{code}");
+    }
+
     #[test]
     fn problems_name_their_nodes() {
         let mut bp = bounty();

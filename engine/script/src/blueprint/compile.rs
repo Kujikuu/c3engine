@@ -4,7 +4,7 @@
 //! wait starts a timer and the rest of the chain becomes its own function, run from
 //! `on_timer`. Whatever doesn't fit is a [`Problem`] naming its node.
 
-use super::library::{DefKind, NodeDef, node_def};
+use super::library::{DefKind, NodeDef, node_def, returns};
 use super::model::{Blueprint, Graph, GraphNode, Literal, PinType, VariableScope};
 use std::collections::BTreeSet;
 use std::fmt::Write;
@@ -69,6 +69,7 @@ fn default_of(ty: PinType) -> &'static str {
         PinType::Text => "\"\"",
         PinType::Bool => "false",
         PinType::List => "[]",
+        PinType::Record => "#{}",
         _ => "0",
     }
 }
@@ -115,6 +116,8 @@ struct Body<'a> {
     path: Vec<u32>,
     /// Bodies split off at waits: (function name, the wait node, its graph).
     rest: Vec<(String, u32)>,
+    /// What a Return gives back here (a formula's or a function's answer).
+    returns: Option<PinType>,
 }
 
 impl<'a> Body<'a> {
@@ -127,6 +130,7 @@ impl<'a> Body<'a> {
             known: BTreeSet::new(),
             path: Vec::new(),
             rest: Vec::new(),
+            returns: None,
         }
     }
 
@@ -166,7 +170,7 @@ impl<'a> Compiler<'a> {
                 continue;
             };
             let DefKind::Event { function } = def.kind else {
-                if def.kind == DefKind::FunctionEntry || def.kind == DefKind::Return {
+                if def.kind == DefKind::FunctionEntry {
                     self.problem(
                         &GraphRef::Events,
                         Some(node.id),
@@ -205,6 +209,7 @@ impl<'a> Compiler<'a> {
                 .collect();
             let _ = writeln!(out, "\nfn {function}({}) {{", params.join(", "));
             let mut body = Body::new(graph, GraphRef::Events, 1);
+            body.returns = returns(&function);
             self.locals(&mut body);
             self.chain(&mut body, node.id, "then");
             out.push_str(&body.code);
@@ -453,7 +458,7 @@ impl<'a> Compiler<'a> {
                     GraphRef::Function(name) => (self.blueprint.functions.iter())
                         .find(|f| &f.name == name)
                         .and_then(|f| f.output),
-                    GraphRef::Events => None,
+                    GraphRef::Events => body.returns,
                 };
                 match output {
                     Some(ty) => {
