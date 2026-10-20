@@ -337,6 +337,10 @@ impl Session {
         let view = SimView::attach(&sim, hero, &mut world)?;
         let mut ui = GameUi::default();
         ui.set_gui(game_gui(&*game, &settings.ui));
+        // With the game's own UI, its chat log looks as the game's does.
+        if settings.ui.from_data() {
+            ui.set_chat_look(game.chat_look());
+        }
         ui.system(
             "Welcome! Walk around, fight monsters and talk to NPCs: the line at the top names your controls. /help lists the commands.",
             style::GOLD,

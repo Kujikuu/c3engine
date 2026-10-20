@@ -175,6 +175,10 @@ pub trait GameModule {
         let _ = (address, read);
         None
     }
+    /// How the game shows its chat log; none: the engine's.
+    fn chat_look(&self) -> Option<c3_ui::ChatLook> {
+        None
+    }
     /// The pictures of the glow played under item type `kind`'s icon, in turn a tenth of a
     /// second each (TQ's quality lights); none: no glow.
     fn item_glow(&self, kind: u32) -> Vec<Image> {

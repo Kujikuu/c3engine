@@ -1003,6 +1003,7 @@ dependencies = [
  "c3-game",
  "c3-scene",
  "c3-script",
+ "chrono",
  "egui 0.37.0",
 ]
 

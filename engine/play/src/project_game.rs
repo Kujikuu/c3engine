@@ -149,6 +149,14 @@ impl GameModule for ProjectGame {
             .or_else(|| self.game.read_file(path))
     }
 
+    fn item_glow(&self, kind: u32) -> Vec<Image> {
+        self.game.item_glow(kind)
+    }
+
+    fn chat_look(&self) -> Option<c3_ui::ChatLook> {
+        self.game.chat_look()
+    }
+
     fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
         self.game.item_icon(kind, look)
     }

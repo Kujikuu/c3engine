@@ -2283,11 +2283,15 @@ fn friends_ask_and_take_up_and_killers_become_enemies() {
     let a = sim.add_player("Ann", (5, 5), 1);
     let b = sim.add_player("Bob", (6, 5), 1);
     sim.input(b, Input::Friend(F::Accept(a)));
-    assert!(sim.world_state().friends_of("Ann").is_empty(), "nothing asked yet");
-    sim.input(a, Input::Friend(F::Ask(b)));
-    let asked = sim.take_events().into_iter().any(
-        |e| matches!(e, Event::FriendAsked { player, from } if player == b && from == a),
+    assert!(
+        sim.world_state().friends_of("Ann").is_empty(),
+        "nothing asked yet"
     );
+    sim.input(a, Input::Friend(F::Ask(b)));
+    let asked = sim
+        .take_events()
+        .into_iter()
+        .any(|e| matches!(e, Event::FriendAsked { player, from } if player == b && from == a));
     assert!(asked);
     sim.input(b, Input::Friend(F::Accept(a)));
     assert_eq!(sim.world_state().friends_of("Bob"), ["Ann"]);

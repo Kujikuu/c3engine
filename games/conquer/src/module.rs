@@ -357,6 +357,10 @@ impl GameModule for ConquerModule {
         crate::Content::login_list(address, read)
     }
 
+    fn chat_look(&self) -> Option<c3_ui::ChatLook> {
+        self.content.chat_look()
+    }
+
     fn item_glow(&self, kind: u32) -> Vec<Image> {
         self.content.item_glow(kind)
     }

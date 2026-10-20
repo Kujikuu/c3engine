@@ -18,7 +18,11 @@ impl Sim {
             return;
         };
         // An NPC of a kind that opens a window opens it.
-        let window = self.settings.npc_windows.iter().find(|[kind, _]| *kind == n.kind);
+        let window = self
+            .settings
+            .npc_windows
+            .iter()
+            .find(|[kind, _]| *kind == n.kind);
         if let Some(&[_, dialog]) = window {
             self.events.push(Event::OpenWindow { player: id, dialog });
             return;

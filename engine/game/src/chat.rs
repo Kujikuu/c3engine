@@ -30,6 +30,8 @@ pub struct ChatLine {
     pub from: EntityId,
     pub name: String,
     pub text: String,
+    /// Whom a whisper was said to (empty on other channels).
+    pub hearer: String,
 }
 
 impl Sim {
@@ -42,11 +44,16 @@ impl Sim {
         if text.is_empty() {
             return;
         }
+        let hearer = match channel {
+            ChatChannel::Whisper => to.trim().to_owned(),
+            _ => String::new(),
+        };
         let line = ChatLine {
             channel,
             from: id,
             name: name.clone(),
             text,
+            hearer,
         };
         let hearers: Vec<String> = match channel {
             ChatChannel::Local => {
@@ -56,6 +63,7 @@ impl Sim {
                     text: line.text,
                     channel,
                     to: None,
+                    hearer: String::new(),
                 });
                 return;
             }
@@ -139,6 +147,7 @@ impl Sim {
             text: line.text.clone(),
             channel: line.channel,
             to: Some(to),
+            hearer: line.hearer.clone(),
         });
     }
 

@@ -9,6 +9,7 @@
 
 mod bag;
 mod chat;
+pub use chat::ChatLook;
 mod chat_bar;
 mod dialogue;
 pub mod fonts;
@@ -1025,6 +1026,11 @@ impl GameUi {
         (false, None)
     }
 
+    /// Shows the chat log in a game's look (TQ's CGameMsg), or the engine's.
+    pub fn set_chat_look(&mut self, look: Option<ChatLook>) {
+        self.chat.set_look(look);
+    }
+
     /// A line from the game in the chat log ("Level up!").
     pub fn system(&mut self, text: impl Into<String>, color: egui::Color32) {
         self.chat.push(text.into(), color);
@@ -1134,9 +1140,12 @@ impl GameUi {
         }
         let typing = self.chat.typing;
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();
-        hud::hint_line(ui, view);
+        // The engine's hint line and team list, unless the game draws its own UI.
+        if self.gui.is_none() {
+            hud::hint_line(ui, view);
+            hud::team_list(ui, view, player);
+        }
         hud::status_row(ui, view, player);
-        hud::team_list(ui, view, player);
         if !self.gui_state.radar_hidden {
             // Layout pixels to the screen's, as the game UI is drawn.
             let scale = self.gui.as_ref().map_or(1.0, |g| {

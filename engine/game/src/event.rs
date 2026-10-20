@@ -144,6 +144,9 @@ pub enum Event {
         /// Its channel, and the one player it is for (none: everyone near the speaker).
         channel: crate::ChatChannel,
         to: Option<EntityId>,
+        /// Whom a whisper was said to, by name (empty on other channels).
+        #[serde(default)]
+        hearer: String,
     },
     /// The answer to the player's chat command (`ok`: it worked).
     CommandReply {

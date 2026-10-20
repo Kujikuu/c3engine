@@ -414,6 +414,40 @@ impl Content {
     /// An item type's icon as the client finds it (`CItem::ShowMiniItem`, `GetItemMinIcon`):
     /// helmets, armour and shields by their colour (`color × 1,000,000 + type`, colour 3 when
     /// it has none or that one is missing), others by their type; then `ItemDefault`.
+    /// The chat log as CGameMsg draws it: StrRes's channel prefixes ([Talk] 100012, [Whisper]
+    /// 100008, [Team] 100009, [Guild] 100010, [Friend] 100014, [System] 100006), " speaks to "
+    /// (100017), ": " (100018), "All " (100026), the clock after; yellow (GetChannelColor's
+    /// 0xffff00), 6 lines up from 130 above the bottom, 3 system notes at the top left.
+    pub fn chat_look(&self) -> Option<c3_ui::ChatLook> {
+        let text = String::from_utf8_lossy(&self.fs.read(STR_RES)?).into_owned();
+        let strings: std::collections::HashMap<&str, &str> = (text.lines())
+            .filter_map(|l| l.split_once('='))
+            .map(|(k, v)| (k.trim(), v))
+            .collect();
+        let s = |key: &str| {
+            strings
+                .get(key)
+                .map_or_else(String::new, |v| (*v).to_owned())
+        };
+        Some(c3_ui::ChatLook {
+            talk: s("100012"),
+            whisper: s("100008"),
+            team: s("100009"),
+            guild: s("100010"),
+            friend: s("100014"),
+            system: s("100006"),
+            to: s("100017"),
+            says: s("100018"),
+            everyone: s("100026"),
+            clock: true,
+            color: [255, 255, 0],
+            lines: 6,
+            system_lines: 3,
+            bottom: 130.0,
+            base: [1024.0, 768.0],
+        })
+    }
+
     /// The light played under an item's icon, as CDlgMpcGoods::GetQualityEffect picks it
     /// and CMyGrid draws it from `ani/effect.ani`: by the quality digit of gear (6 refined to
     /// 9 super), gems, DragonBalls and Meteors, and the three exp balls.
@@ -495,6 +529,7 @@ impl c3_render::SceneAssets for Content {
 const MINIMAP_ANI: &str = "ani/MiniMap.Ani";
 const ITEM_ICON_ANI: &str = "ani/ItemMinIcon.Ani";
 const EFFECT_ANI: &str = "ani/effect.ani";
+const STR_RES: &str = "ini/StrRes.ini";
 
 /// CDlgMpcGoods::GetQualityEffect: the light under an item type's icon (effect.ani).
 fn quality_light(kind: u32) -> Option<&'static str> {

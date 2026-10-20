@@ -14,9 +14,45 @@ const KEEP: usize = 100;
 const SHOWN: usize = 7;
 const WIDTH: f32 = 380.0;
 
+/// How a game shows its chat log, as TQ's CGameMsg does: lines of plain shadowed text in one
+/// colour, said lines worded `<prefix><speaker><to><hearer><says><text>` with the clock after,
+/// the newest at the bottom a little above the screen's bottom; the game's own notes in a
+/// system area at the top left that each go after 15 seconds. None: the engine's boxed lines.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ChatLook {
+    /// Before a said line of each channel, and before a system note.
+    pub talk: String,
+    pub whisper: String,
+    pub team: String,
+    pub guild: String,
+    pub friend: String,
+    pub system: String,
+    /// Between the speaker and the hearer; after the hearer; the hearer of a line to all.
+    pub to: String,
+    pub says: String,
+    pub everyone: String,
+    /// The clock (`[hour:minute]`) after each said line.
+    pub clock: bool,
+    pub color: [u8; 3],
+    /// Said lines shown, and system notes.
+    pub lines: usize,
+    pub system_lines: usize,
+    /// How far above the screen's bottom the newest said line ends, in the layout's pixels
+    /// (`base` high).
+    pub bottom: f32,
+    pub base: [f32; 2],
+}
+
+/// How long a system note stays, in seconds.
+const SYSTEM_SECONDS: f64 = 15.0;
+
 #[derive(Default)]
 pub(crate) struct Chat {
     lines: VecDeque<(String, Color32)>,
+    /// The game's look, its system notes (with when they came) and the clock now.
+    look: Option<ChatLook>,
+    notes: VecDeque<(String, f64)>,
+    now: f64,
     input: String,
     pub typing: bool,
     /// Opened this frame (by an Enter that mustn't also send).
@@ -24,7 +60,26 @@ pub(crate) struct Chat {
 }
 
 impl Chat {
+    /// Shows the log in a game's look from now on.
+    pub fn set_look(&mut self, look: Option<ChatLook>) {
+        self.look = look;
+    }
+
+    /// A note of the game's own (not said by anyone): a system note in a game's look.
     pub fn push(&mut self, text: String, color: Color32) {
+        if let Some(look) = &self.look {
+            self.notes
+                .push_back((format!("{}{text}", look.system), self.now));
+            while self.notes.len() > look.system_lines.max(1) {
+                self.notes.pop_front();
+            }
+            return;
+        }
+        self.push_said(text, color);
+    }
+
+    /// A said line, at the bottom of the log.
+    fn push_said(&mut self, text: String, color: Color32) {
         self.lines.push_back((text, color));
         if self.lines.len() > KEEP {
             self.lines.pop_front();
@@ -89,6 +144,35 @@ impl Chat {
                 name,
                 text,
                 channel,
+                hearer,
+                ..
+            } if self.look.is_some() => {
+                let look = self.look.clone().expect("checked");
+                use c3_game::ChatChannel as C;
+                let (prefix, to) = match channel {
+                    C::Local => (&look.talk, &look.everyone),
+                    C::Whisper => (&look.whisper, hearer),
+                    C::Team => (&look.team, &look.everyone),
+                    C::Guild => (&look.guild, &look.everyone),
+                    C::Friend => (&look.friend, &look.everyone),
+                };
+                let clock = match look.clock {
+                    true => {
+                        let now = chrono::Local::now();
+                        use chrono::Timelike;
+                        format!("[{}:{}]", now.hour(), now.minute())
+                    }
+                    false => String::new(),
+                };
+                let [r, g, b] = look.color;
+                let line = format!("{prefix}{name}{}{to}{}{text}{clock}", look.to, look.says);
+                self.push_said(line, Color32::from_rgb(r, g, b));
+                return;
+            }
+            Event::Chat {
+                name,
+                text,
+                channel,
                 ..
             } => {
                 let tag = match channel {
@@ -110,9 +194,42 @@ impl Chat {
         }
     }
 
+    /// The log in a game's look: system notes from the top left (going after 15 s), said
+    /// lines up from `bottom`, shadowed, wrapped to the screen's width.
+    fn show_look(&mut self, ui: &egui::Ui, rect: Rect, look: &ChatLook) {
+        let scale = (rect.width() / look.base[0]).min(rect.height() / look.base[1]);
+        let painter = ui.painter_at(rect);
+        let font = fonts::font(12.0 * scale);
+        let [r, g, b] = look.color;
+        let color = Color32::from_rgb(r, g, b);
+        let height = 14.0 * scale;
+        let wrap = rect.width() - 16.0 * scale;
+        let draw = |text: &str, y: f32| -> f32 {
+            let shadow = painter.layout(text.to_owned(), font.clone(), Color32::BLACK, wrap);
+            let galley = painter.layout(text.to_owned(), font.clone(), color, wrap);
+            let at = egui::pos2(rect.left() + 2.0 * scale, y - galley.size().y);
+            painter.galley(at + egui::vec2(1.0, 1.0), shadow, Color32::BLACK);
+            let tall = galley.size().y;
+            painter.galley(at, galley, color);
+            tall
+        };
+        let now = self.now;
+        self.notes.retain(|(_, at)| now - at < SYSTEM_SECONDS);
+        // The system area: its newest note lowest, ending five lines down.
+        let mut y = rect.top() + height * 5.0;
+        for (text, _) in self.notes.iter().rev() {
+            y -= draw(text, y) + 2.0 * scale;
+        }
+        let mut y = rect.bottom() - look.bottom * scale;
+        for (text, _) in self.lines.iter().rev().take(look.lines) {
+            y -= draw(text, y) + 2.0 * scale;
+        }
+    }
+
     /// Clears the lines shown.
     pub fn clear(&mut self) {
         self.lines.clear();
+        self.notes.clear();
     }
 
     /// Starts typing a line.
@@ -124,11 +241,19 @@ impl Chat {
     /// Draws the log and the line being typed, `lift` above its usual place (clear of the
     /// skill bar).
     pub fn show(&mut self, ui: &mut egui::Ui, rect: Rect, lift: f32, actions: &mut Vec<UiAction>) {
+        self.now = ui.input(|i| i.time);
+        if let Some(look) = self.look.clone() {
+            self.show_look(ui, rect, &look);
+            if !self.typing {
+                return;
+            }
+        }
         let bottom = rect.bottom() - 74.0 - lift;
         let painter = ui.painter_at(rect);
         let font = fonts::font(13.0);
         let mut y = bottom - if self.typing { 28.0 } else { 0.0 };
-        for (text, color) in self.lines.iter().rev().take(SHOWN) {
+        let shown = if self.look.is_some() { 0 } else { SHOWN };
+        for (text, color) in self.lines.iter().rev().take(shown) {
             let galley = painter.layout(text.clone(), font.clone(), *color, WIDTH);
             y -= galley.size().y + 3.0;
             let pos = egui::pos2(rect.left() + 12.0, y);

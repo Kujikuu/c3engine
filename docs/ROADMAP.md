@@ -804,7 +804,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] sliders (`type=slider`)
     - [ ] multi-line edits
   - [ ] UI engine: the dialogs the server opens (window numbers and events) wired for every dialog that has one
-  - [ ] UI engine: the engine's own widgets (skill bar, radar circle, chat log, quest windows) hidden where the game draws its own
+  - [ ] UI engine: the engine's own widgets hidden where the game draws its own
+    - [x] skill bar, radar circle (the game's box), chat log (the game's look), hint line and team list
+    - [ ] status row and quest windows
   - [ ] UI 130 CDlgMain (main bar): 6 of 19 audit mismatches fixed (docs/conquer_ui_audit.md)
     - [x] life and mana orbs at the client's image sizes (36x74, 34x74; `area=`), life as the whole orb (frame 2, 86 wide) for a hero with no mana (DlgMain.cpp 166-172, 726-735)
     - [x] XP orb 1018 (Progress42, 92x92) and stamina 1025 (Progress46, 8x70, under the bezel) bound to the `xp` and `stamina` attributes (attribute defaults now read by `hero.attr.*`)
@@ -842,7 +844,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] Clear 1092 clears every message area (system, GM) and resets banner 295
     - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
     - [ ] clicking the bar focuses the line; 1094 as one image changed by the channel
-    - [ ] the log under the bar is the engine's egui box, not g_objGameMsg's three areas (Message rendering)
+    - [x] the log as g_objGameMsg draws it: said lines `[Talk]Ann speaks to All: hi[h:m]` in yellow, 6 up from 130 above the bottom, shadowed; system notes ([System]) at the top left, 3, gone after 15 s (`GameModule::chat_look`, StrRes prefixes)
+    - [ ] the GM area (2011) mid-left; the log's line count dragged by 5326; Alt for clickable names; blacklist / channel filters
     - [ ] 139 CDlgChat and 274 CDlgTalkAct are still drafts
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 188 CDlgMagic (normal-magic skill strip): 6 of 11 audit mismatches fixed
