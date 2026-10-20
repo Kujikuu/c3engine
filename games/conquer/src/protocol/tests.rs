@@ -301,6 +301,7 @@ fn a_spell_shows_its_hits() {
 #[test]
 fn guild_info_is_the_clients_size() {
     let packet = pk::guild_info(&pk::GuildInfo {
+        contribution: 0,
         id: 12,
         fund: 5000,
         members: 3,

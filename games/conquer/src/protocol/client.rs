@@ -94,6 +94,10 @@ fn pk_mode_code(mode: c3_core::settings::PkMode) -> u32 {
     }
 }
 
+/// What the client was told of the hero's guild: its id, the hero's rank, its fund and member
+/// count, and what the hero gave it.
+type GuildShown = (u32, u8, u32, u32, i32);
+
 fn cell16(c: CellPos) -> (u16, u16) {
     (c.0.max(0) as u16, c.1.max(0) as u16)
 }
@@ -381,7 +385,9 @@ pub struct ConquerClient {
     team: Vec<c3_game::Mate>,
     /// The hero's guild, rank, fund and member count as last shown (`Some(None)`: shown
     /// as none).
-    guild: Option<Option<(u32, u8, u32, u32)>>,
+    guild: Option<Option<GuildShown>>,
+    /// The hero's guild's announcement as last told.
+    notice: Option<String>,
     /// The guild names the client was told, by id.
     guild_names: BTreeMap<u32, String>,
     /// The hero's guild's members (by rank, then level): name, level, online.
@@ -739,34 +745,53 @@ impl ConquerClient {
             .unwrap_or_default();
         let info = guild_of(sim, p).and_then(|(id, rank)| {
             let g = guilds.get(&id)?;
+            let given = g.contributions.get(&p.name).copied().unwrap_or(0);
             Some(pk::GuildInfo {
                 id,
+                contribution: i32::try_from(given).unwrap_or(i32::MAX),
                 fund: u32::try_from(g.fund.max(0)).unwrap_or(u32::MAX),
                 members: u32::try_from(g.members.len()).unwrap_or(u32::MAX),
                 rank,
                 leader: &g.leader,
             })
         });
-        let shown = info.as_ref().map(|i| (i.id, i.rank, i.fund, i.members));
+        // The announcement, told again as it changes.
+        let notice =
+            (info.as_ref()).map_or_else(String::new, |i| guilds[&i.id].announcement.clone());
+        let mut out = Vec::new();
+        if self.notice.as_ref() != Some(&notice) {
+            self.notice = Some(notice.clone());
+            if !notice.is_empty() {
+                out.push(pk::talk(
+                    channel::GUILD_NOTICE,
+                    "SYSTEM",
+                    "ALLUSERS",
+                    &notice,
+                    WHITE,
+                ));
+            }
+        }
+        let shown = (info.as_ref()).map(|i| (i.id, i.rank, i.fund, i.members, i.contribution));
         if self.guild == Some(shown) {
-            return Vec::new();
+            return out;
         }
         self.guild = Some(shown);
         let Some(info) = info else {
-            return vec![pk::guild_info(&pk::GuildInfo {
+            out.push(pk::guild_info(&pk::GuildInfo {
                 id: 0,
+                contribution: 0,
                 fund: 0,
                 members: 0,
                 rank: 0,
                 leader: "",
-            })];
+            }));
+            return out;
         };
         let name = &guilds[&info.id].name;
         self.guild_names.insert(info.id, name.clone());
-        vec![
-            pk::name(pk::NAME_GUILD, info.id, name),
-            pk::guild_info(&info),
-        ]
+        out.push(pk::name(pk::NAME_GUILD, info.id, name));
+        out.push(pk::guild_info(&info));
+        out
     }
 
     /// A page of the guild member list after member `after` (`u32::MAX`: the first page).
@@ -1581,6 +1606,8 @@ impl ConquerClient {
                     _ => None,
                 };
                 inputs.push(match on {
+                    // A leader's guild announcement.
+                    _ if code == channel::GUILD_NOTICE => Input::GuildNotice(words),
                     // Commands and talk go as they are.
                     Some(on) if !words.starts_with('/') => Input::Chat {
                         channel: on,

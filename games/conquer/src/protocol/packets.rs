@@ -59,6 +59,8 @@ pub const NAME_MATE: u8 = 6;
 /// The hero's guild (id 0: none).
 pub struct GuildInfo<'a> {
     pub id: u32,
+    /// What the hero gave it (nProffer).
+    pub contribution: i32,
     pub fund: u32,
     pub members: u32,
     pub rank: u8,
@@ -67,7 +69,11 @@ pub struct GuildInfo<'a> {
 
 pub fn guild_info(g: &GuildInfo) -> Vec<u8> {
     packet(GUILD_INFO, |w| {
-        w.u32(g.id).i32(0).u32(g.fund).u32(g.members).u8(g.rank);
+        w.u32(g.id)
+            .i32(g.contribution)
+            .u32(g.fund)
+            .u32(g.members)
+            .u8(g.rank);
         w.fixed_str(g.leader, 16).u8(0).u8(0).u8(0);
     })
 }
@@ -163,6 +169,8 @@ pub mod channel {
     pub const WHISPER: u16 = 2001;
     pub const TEAM: u16 = 2003;
     pub const GUILD: u16 = 2004;
+    /// A guild's announcement, set by its leader and told to its members (_TXTATR_SYNANNOUNCEG).
+    pub const GUILD_NOTICE: u16 = 2111;
     pub const TALK: u16 = 2007;
     pub const SYSTEM: u16 = 2005;
     pub const ENTRANCE: u16 = 2101;
