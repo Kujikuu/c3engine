@@ -777,8 +777,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         from equipping (`Event::Equipped`, `[ui] sound_unequip`); Dlg_Ok (Dlg_Ok.wav isn't in its sound
         folder, so the client plays nothing); the login screens silent as the client's (DXPlaySound
         defined away; a dialog's `sound=` its controls')
-  - [ ] The native login's Register, Site and Charge buttons (BtnClick, the 10366 / 10367 pages, the
-        CP top-up)
+  - [x] The native login's Register, Site and Charge buttons (BtnClick, the 10366 / 10367 pages, the
+        CP top-up: `url:` actions opening the browser; ini sections read as `<section>.<key>`)
   - Audit 2026-10-20 (docs/conquer_ui_audit.md): every dialog the 5065 client creates, checked against its code; each one below is open until it matches.
   - [x] UI engine: the client's window model
     - [x] dialogs own a part of the screen (`slot=left|middle|right`, from CDlgMain::CloseCurDlg) and clear others as they open (`clears=`); the overlap rule is gone, so HUD strips and child dialogs no longer close each other
@@ -932,7 +932,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] close 1128 and the bag button hide it while a shop, warehouse or trade shows it, until that ends (dismissing a `when`-shown dialog)
     - [x] opened with compose 275, oven 278, enchant 105, improve 211, embed 229, booth 233 and item lock 329; oven, enchant and compose hide it again (`opens=`, `hides=`)
     - [x] the shop's close also hides the status 131
-    - [ ] EmoneyNavigation 1562 opens the [Emoney] URL
+    - [x] EmoneyNavigation 1562 opens the [Emoney] URL (`url:ini/Common.ini:Emoney.URL`)
     - [x] help (CDlgHelp 215)
     - [x] grid gestures: left-click picks up and puts in the equipment, shop, warehouse; right-click uses
     - [ ] dropping on the ground and the hotbar

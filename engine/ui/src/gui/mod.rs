@@ -646,31 +646,45 @@ impl Gui {
     /// Reads the name files the controls name (`names=`), each through `read`.
     pub fn load_names(&mut self, read: impl Fn(&str) -> Option<Vec<u8>>) {
         let tip_files = (self.controls.iter()).filter_map(|c| Some(tip_line(&c.tip)?.0.to_owned()));
-        // Files read as tables by bindings (`table:<file>|<key>`).
+        // Files read as tables by bindings (`table:<file>|<key>`), and pages' addresses
+        // (`url:<file>:<key>`).
         let table_files = (self.controls.iter())
             .flat_map(|c| [&c.text, &c.fill_in, &c.value, &c.when])
             .flat_map(|s| s.match_indices("table:").map(move |(at, _)| &s[at + 6..]))
             .filter_map(|rest| Some(rest.split_once('|')?.0.to_owned()));
+        let url_files = (self.controls.iter())
+            .flat_map(|c| c.action.split(';'))
+            .filter_map(|a| Some(a.strip_prefix("url:")?.rsplit_once(':')?.0.to_owned()));
         let files: BTreeSet<String> = (self.controls.iter())
             .filter(|c| !c.names.is_empty())
             .map(|c| c.names.clone())
             .chain(tip_files)
             .chain(table_files)
+            .chain(url_files)
             .collect();
         for file in files {
             let Some(bytes) = read(&file) else {
                 continue;
             };
-            let table = (String::from_utf8_lossy(&bytes).lines())
-                .filter_map(|line| {
-                    let line = line.trim();
-                    // `key=name` (StrRes.ini) or `key,name`: whichever comes first (a
-                    // StrRes line's text may hold commas).
-                    let at = line.find([',', '='])?;
-                    let (value, name) = (&line[..at], &line[at + 1..]);
-                    Some((value.trim().to_owned(), name.trim().to_owned()))
-                })
-                .collect();
+            // `key=name` (StrRes.ini) or `key,name`: whichever comes first (a StrRes line's
+            // text may hold commas); an ini section's keys also as `<section>.<key>`.
+            let mut table = std::collections::HashMap::new();
+            let mut section = String::new();
+            for line in String::from_utf8_lossy(&bytes).lines() {
+                let line = line.trim();
+                if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+                    section = name.trim().to_owned();
+                    continue;
+                }
+                let Some(at) = line.find([',', '=']) else {
+                    continue;
+                };
+                let (key, name) = (line[..at].trim(), line[at + 1..].trim());
+                if !section.is_empty() {
+                    table.insert(format!("{section}.{key}"), name.to_owned());
+                }
+                table.insert(key.to_owned(), name.to_owned());
+            }
             self.names.insert(file, table);
         }
         // The numbered documents, each under its pattern by its number.

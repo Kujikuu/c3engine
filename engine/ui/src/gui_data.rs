@@ -19,6 +19,8 @@ pub(crate) struct GuiState {
     pub auto_team: crate::auto_team::AutoTeam,
     /// The hero has had mana since it came in.
     pub mana_seen: bool,
+    /// A page to open in the browser (`url:` actions), opened next frame.
+    pub open_url: Option<String>,
     /// The game UI's name files, read as tables (`table:<file>|<key>`).
     pub tables: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
     /// The hero's friends online as last seen (none before the first look).

@@ -765,6 +765,13 @@ impl GameUi {
                     self.gui_state.steps.push((group.to_owned(), step, max));
                 }
             }
+            // A page opened in the browser, its address from a name file
+            // (`url:ini/StrRes.ini:10366`, `url:ini/Common.ini:Emoney.URL`).
+            _ if action.starts_with("url:") => {
+                let (file, key) = action["url:".len()..].rsplit_once(':').unwrap_or_default();
+                let url = (self.gui.as_ref()).and_then(|g| g.names.get(file)?.get(key).cloned());
+                self.gui_state.open_url = url.filter(|u| !u.is_empty());
+            }
             // A line of the game's own told the player: a refusal (`tell:ini/StrRes.ini:10341`)
             // or a note (`note:ini/StrRes.ini:10065`).
             _ if action.starts_with("tell:") || action.starts_with("note:") => {
@@ -2482,6 +2489,9 @@ impl GameUi {
             self.gui_state.radar_restored = true;
         }
         self.gui_state.place_fixed = self.placing.is_some_and(|p| p.cell.is_some());
+        if let Some(url) = self.gui_state.open_url.take() {
+            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+        }
         self.watch_frames(ui.input(|i| i.time));
         self.chat.shown = (self.prefs.chat_lines > 0).then_some(self.prefs.chat_lines as usize);
         self.overlay.show(ui, view);
