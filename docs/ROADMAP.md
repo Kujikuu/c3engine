@@ -1148,9 +1148,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] closing empties the workbench
     - [ ] 1628 only gear at full durability, 1629 only DragonBall / Meteor / MeteorTear
     - [ ] help 1667; double-click to take back
-  - [ ] UI 278 CDlgOven (refine / fuse): draft only, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 105 CDlgEnchant: draft only, 4 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 298 CDlgBrokenRepair5065: draft only, 5 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 278 CDlgOven (refine / fuse): 4 of 6 audit mismatches fixed
+    - [x] opened by MsgAction 126 data 2 / 3 (`window=2,3`, its mode kept for the fuse) with the bag; Dialog54, up to 20 bag items in the 4x5 grid (`work.all`; one clicked comes out), the confirm check, the level while checked (10454), Refine needing the check (else 10452) fusing in the mode and closing
+    - [ ] the probability (10453 from the client's fuse values), the add gates (10447, 10448, 10450, 10451, 10456, 10464), help
+  - [ ] UI 105 CDlgEnchant: 3 of 4 audit mismatches fixed (unreachable in 5065, as in the client)
+    - [x] the equipment and gem slots (bag items put on them), Enchant (combine 4, MsgItem ENCHANT) and close
+    - [ ] the slots' gates (equipment sort 1-8, full durability, enchant < 255; gems only), help
+  - [x] UI 298 CDlgBrokenRepair5065: the shop's Repair (152-1105) turns the next bag item clicked into a repair; a broken one asks first (`gameplay.broken_repair`: Conquer's 5 Meteors; 11053 with Confirm / Cancel, or 11052 with Close)
   - [x] Faces: `PlayerLook::face`, `gameplay.faces` by body and `face_cost` (Conquer: 102 male faces from 1, 90 female from 201, 500 silver, paid even for a wrong face as TQ's MsgAction 142); team faces and the Conquer look face use it
   - [ ] UI 212 CDlgNpcFace (change avatar): 5 of 6 audit mismatches fixed
     - [x] opened by face NPCs; Dialog27, six faces of the hero's body (PlayerFace), the clicked one framed (ImageFocus), Up / Down by six, OK takes it and closes

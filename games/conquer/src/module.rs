@@ -274,6 +274,8 @@ pub fn conquer_settings() -> ProjectSettings {
         bump_cost: 5,
         bump_places: 5,
     };
+    // A broken item takes 5 Meteors to repair (MyShellDlg.cpp OpenBrokenRepairPrompt5065).
+    s.gameplay.broken_repair = Some([1_088_001, 5]);
     // Faces (Common.ini Playerface: 102 male from 1, 90 female from 201; bodies 3-4 male,
     // 1-2 female), 500 silver a change (packets spec MsgAction 142).
     s.gameplay.faces = vec![[3, 4, 1, 102], [1, 2, 201, 290]];

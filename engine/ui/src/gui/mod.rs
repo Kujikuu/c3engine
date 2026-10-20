@@ -235,6 +235,8 @@ pub struct Control {
     pub sound: String,
     /// The window number the game opens this dialog by (0: none).
     pub window: u32,
+    /// More window numbers it answers to (`window=2,3`: TQ's oven modes).
+    pub windows: Vec<u32>,
     /// A grid's columns and rows.
     pub cols: u32,
     pub rows: u32,
@@ -403,6 +405,9 @@ impl Control {
             action: text("action"),
             sound: text("sound"),
             window: section.int("window").map_or(0, |w| w.max(0) as u32),
+            windows: (section.get("window").unwrap_or_default().split(','))
+                .filter_map(|w| w.trim().parse().ok())
+                .collect(),
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
             step: section.int("step").unwrap_or(0).max(0),
@@ -660,7 +665,7 @@ impl Gui {
     /// Opens the dialogs that answer to window number `window`; whether there was one.
     pub fn open_window(&mut self, window: u32) -> bool {
         let ids: Vec<u32> = (self.dialogs())
-            .filter(|d| window != 0 && d.window == window)
+            .filter(|d| window != 0 && (d.window == window || d.windows.contains(&window)))
             .map(|d| d.id)
             .collect();
         for &id in &ids {

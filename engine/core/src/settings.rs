@@ -538,6 +538,10 @@ pub struct GameplaySettings {
     pub faces: Vec<[u32; 4]>,
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub face_cost: u64,
+    /// What repairing a broken item (no durability left) takes from the bag: `[item kind,
+    /// how many]` (TQ's 5 Meteors); none: a broken item repairs as any other.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broken_repair: Option<[u32; 2]>,
     /// NPC kinds that are booth spots: a player there may open a booth (TQ's booth flags).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub booth_spots: Vec<u32>,
@@ -634,6 +638,7 @@ impl Default for GameplaySettings {
             guild_chat_min_fund: 0,
             npc_windows: Vec::new(),
             booth_spots: Vec::new(),
+            broken_repair: None,
             faces: Vec::new(),
             face_cost: 0,
             partner_probation_secs: 0,

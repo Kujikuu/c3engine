@@ -65,6 +65,8 @@ pub(crate) struct GuiState {
     /// The nobility page's Contribute was pressed, and the face window's OK.
     pub donating: bool,
     pub face_changing: bool,
+    /// The shop's repair is on: the next bag item clicked is repaired (TQ's fix cursor).
+    pub repairing: bool,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -115,8 +117,8 @@ const BOARD_PAGE: usize = 8;
 /// The guild members a page lists (CDlgKnightage's MEMBER_PAGE_SIZE).
 const GUILD_PAGE: usize = 10;
 
-/// The most items a workbench holds.
-pub(crate) const WORK_SLOTS: usize = 5;
+/// The most items a workbench holds (TQ's oven: 20).
+pub(crate) const WORK_SLOTS: usize = 20;
 
 /// A trade as the hero sees it: the partner's goods, its own, the partner's word.
 #[derive(Debug)]
@@ -409,6 +411,8 @@ impl HeroData<'_> {
                 .flat_map(|t| &t.mine)
                 .filter_map(in_bag)
                 .collect(),
+            // Every item on the workbench (the oven's grid).
+            "work.all" => (self.state.work.iter()).filter_map(in_bag).collect(),
             _ if key.starts_with("work.") => {
                 let n: usize = key.strip_prefix("work.")?.parse().ok()?;
                 self.state

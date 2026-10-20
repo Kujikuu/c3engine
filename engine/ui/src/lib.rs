@@ -261,6 +261,9 @@ pub(crate) const CHAT_NAME: &str = "chat.name";
 const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
+/// The kind of `Input::Combine` that repairs an item (the games' own, as `combine:5`).
+const REPAIR_KIND: u32 = 5;
+
 /// The words typed for a friend in the leave-word dialog.
 const WORD_TEXT: &str = "word.text";
 /// A message board post as typed.
@@ -568,6 +571,13 @@ impl GameUi {
                     self.system(line, style::BAD);
                 }
             }
+            // A view group flipped between `1` and none (`flip:oven_check`: a check box).
+            _ if action.starts_with("flip:") => {
+                let group = &action["flip:".len()..];
+                if self.gui_state.views.remove(group).is_none() {
+                    self.gui_state.views.insert(group.to_owned(), "1".into());
+                }
+            }
             // An edit given the keyboard (`focus:board.text`).
             _ if action.starts_with("focus:") => {
                 self.gui_state.focus = Some(action["focus:".len()..].to_owned());
@@ -639,7 +649,13 @@ impl GameUi {
                     .unwrap_or_default()
                     .split(':');
                 let kind = parts.next().and_then(|k| k.parse().ok());
-                let value = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+                // `window`: the number the dialog was opened by (the oven's mode).
+                let value = match parts.next() {
+                    Some("window") => (self.gui_state.views.get("window"))
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0),
+                    other => other.and_then(|v| v.parse().ok()).unwrap_or(0),
+                };
                 let work = &self.gui_state.work;
                 let items: Option<Vec<u32>> = match parts.next() {
                     Some(slots) => (slots.split(','))
@@ -876,6 +892,8 @@ impl GameUi {
             "nobility_donate" => self.gui_state.donating = true,
             // The face picked taken (the face NPC's OK).
             "face_change" => self.gui_state.face_changing = true,
+            // The shop's Repair: the next bag item clicked is repaired (ON_NPCBUY_FIX).
+            "repair_mode" => self.gui_state.repairing = true,
             "words_clear" => {
                 self.gui_state.words.clear();
                 self.gui_state.views.remove("word");
@@ -1374,9 +1392,13 @@ impl GameUi {
             if let Event::OpenWindow { player, dialog } = *event
                 && player == hero
                 && let Some(gui) = &mut self.gui
-                && !gui.open_window(dialog)
             {
-                gui.open(dialog);
+                self.gui_state
+                    .views
+                    .insert("window".into(), dialog.to_string());
+                if !gui.open_window(dialog) {
+                    gui.open(dialog);
+                }
             }
         }
         for event in events {
@@ -1542,10 +1564,17 @@ impl GameUi {
                 let mut picked_guild_row = None;
                 let mut picked_contact = None;
                 let mut booth_put = None;
+                let mut repair = None;
                 // What happens to the item held: picked up, put down (or dropped).
                 let mut held = data.state.held.clone();
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
                     match event {
+                        // Repairing: the bag item clicked is repaired instead of picked up.
+                        gui::GuiEvent::Pick { list, index }
+                            if self.gui_state.repairing && list == "hero.bag" =>
+                        {
+                            repair = player.bag.get(index).map(|i| (i.id, i.durability));
+                        }
                         // A booth's wares stay where they are (a slot's buttons act on them).
                         gui::GuiEvent::Pick { list, .. } if list.starts_with("booth.") => {}
                         gui::GuiEvent::Pick { list, index } => held = Some((list, index)),
@@ -1571,8 +1600,12 @@ impl GameUi {
                         gui::GuiEvent::Item { list, index } if working && list == "hero.bag" => {
                             work.extend(player.bag.get(index).map(|i| (true, i.id)));
                         }
-                        gui::GuiEvent::Item { list, .. } if list.starts_with("work.") => {
-                            let n = list.strip_prefix("work.").and_then(|n| n.parse().ok());
+                        // A workbench slot clicked empties it (`work.all`: the item clicked).
+                        gui::GuiEvent::Item { list, index } if list.starts_with("work.") => {
+                            let n = match list.strip_prefix("work.") {
+                                Some("all") => Some(index),
+                                other => other.and_then(|n| n.parse().ok()),
+                            };
                             work.extend(
                                 n.and_then(|n: usize| data.state.work.get(n))
                                     .map(|id| (false, *id)),
@@ -1679,6 +1712,36 @@ impl GameUi {
                     if let Some(mate) = data.picked_member() {
                         let kick = c3_game::TeamAction::Kick(mate.id);
                         actions.push(UiAction::Game(c3_game::Input::Team(kick)));
+                    }
+                }
+                // A broken item asks first what it takes (DlgBrokenRepair5065: 11053, or 11052
+                // without it); any other repairs at once.
+                if let Some((item, durability)) = repair {
+                    self.gui_state.repairing = false;
+                    let fix = c3_game::Input::Combine {
+                        kind: REPAIR_KIND,
+                        items: vec![item],
+                        value: 0,
+                    };
+                    match view
+                        .sim
+                        .settings()
+                        .broken_repair
+                        .filter(|_| durability == 0)
+                    {
+                        Some([kind, need]) => {
+                            let held: u32 = (player.bag.iter())
+                                .filter(|i| i.kind == kind)
+                                .map(|i| i.count.max(1))
+                                .sum();
+                            let prompt = if held >= need {
+                                "broken_repair"
+                            } else {
+                                "broken_repair_none"
+                            };
+                            self.ask(prompt, &need.to_string(), fix);
+                        }
+                        None => actions.push(UiAction::Game(fix)),
                     }
                 }
                 if let Some(item) = booth_put {
