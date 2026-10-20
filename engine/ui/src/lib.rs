@@ -2106,6 +2106,12 @@ impl GameUi {
     /// Closes the topmost window (menu, dialogue, shop, bag, quests); `false` when none was
     /// open. A dialogue or shop closes through the returned action.
     pub fn back(&mut self, sim: &Sim, hero: EntityId) -> (bool, Option<UiAction>) {
+        // A dialog refusing Esc does its own thing first (TQ's trade: 10026).
+        if let Some(action) = self.gui.as_ref().and_then(gui::Gui::esc_refused) {
+            let mut actions = Vec::new();
+            self.run_action(&action, &mut actions);
+            return (true, actions.pop());
+        }
         // Esc lets an item held go.
         if self.gui_state.held.take().is_some() {
             return (true, None);

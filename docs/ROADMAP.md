@@ -781,7 +781,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the generator (scripts/conquer_controls.py) writes the same slots into drafts
     - [x] openers gated as the client gates them: status only over friends/enemy/mentor/business, item lock only over the status, friends, guild and statue (`over=`); shops, depot and workbenches not while trading (`blocked=137`, `!hero.trading`)
     - [x] opening a shop, depot, oven, enchant or compose also shows the bag, and closing them hides it (`opens=` / `hides=`; a dialog its `when` shows takes its part and brings its company)
-    - [ ] Esc with nothing left to close asks to leave (EXIT_CONFIRM); Esc while trading refused (StrRes 10026)
+    - [x] Esc with nothing left to close asks to leave (EXIT_CONFIRM); Esc while trading refused (`esc_refused=`, StrRes 10026, absent from 5065's StrRes)
   - [ ] UI engine: a yes/no prompt (CDlgConfirm 158)
     - [x] one question at a time (`prompt.*` bindings, `prompt_yes`/`prompt_no`, `ask:<kind>:<actions>` for the player's own actions); trade and team asks lapse after 10 s; a second trade ask is turned away (StrRes 10433)
     - [x] trade, team invite/apply, guild invite/apply and marriage asks put to the hero; leaving a guild and taking a chat name off asked first

@@ -312,6 +312,9 @@ pub struct Control {
     pub clears: String,
     /// Esc closes the dialog too, with the right part's (the bag).
     pub esc: bool,
+    /// While it shows, Esc does this instead of closing anything (`esc_refused=tell:...`: a
+    /// trade, TQ's 10026).
+    pub esc_refused: String,
     /// Dialogs opened with it (`opens=153`: the bag beside a workbench) and closed with it
     /// (`hides=153`).
     pub opens: Vec<u32>,
@@ -502,6 +505,7 @@ impl Control {
             slide: text("slide") == "1",
             clears: text("clears"),
             esc: section.int("esc").is_some_and(|e| e != 0),
+            esc_refused: text("esc_refused"),
             opens: ids("opens"),
             hides: ids("hides"),
             commas: section.int("commas").is_some_and(|c| c != 0),
@@ -793,6 +797,13 @@ impl Gui {
     /// Whether the player closed dialog `id` while its `when` shows it.
     pub fn dismissed(&self, id: u32) -> bool {
         self.dismissed.contains(&id)
+    }
+
+    /// What Esc does instead while a dialog that refuses it shows (a trade).
+    pub fn esc_refused(&self) -> Option<String> {
+        (self.dialogs())
+            .find(|d| !d.esc_refused.is_empty() && self.showing(d.id))
+            .map(|d| d.esc_refused.clone())
     }
 
     /// Esc: closes the right part's dialog and those Esc closes with it (the bag), as TQ's
