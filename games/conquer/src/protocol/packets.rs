@@ -62,6 +62,21 @@ pub const BUSINESS: u16 = 2046;
 /// Offline training (Training.dll): MsgTraining's actions both ways, and what it trained.
 /// MsgDice (MsgBetOutside) 1113, both ways (tq_re spec systems/dice.md §2.1).
 pub const DICE: u16 = 1113;
+/// MsgAuraGroup 2045, both ways (the 5065 client's MsgAuraGroup.h): a team's auto-invite
+/// turned on or off (action 0 with 1 / 0).
+pub const AURA_GROUP: u16 = 2045;
+pub const AURA_GROUP_TOGGLE: u16 = 0;
+
+/// A team's auto-invite turned on or off, told a member (it says so, StrRes 11140).
+pub fn aura_group(on: bool, leader: u32) -> Vec<u8> {
+    packet(AURA_GROUP, |w| {
+        w.u16(AURA_GROUP_TOGGLE)
+            .u16(0)
+            .u32(u32::from(on))
+            .u32(leader)
+            .u32(0);
+    })
+}
 pub mod dice {
     /// Client: a chip put on a bet; server: another player's chips.
     pub const CHIP_IN: u8 = 0;
@@ -377,6 +392,8 @@ pub mod team {
     pub const SHARE_MONEY: u16 = 11;
     pub const KEEP_ITEMS: u16 = 12;
     pub const SHARE_ITEMS: u16 = 13;
+    /// An invite or ask to join refused, told the one who asked with who said no.
+    pub const REJECT_AUTO_GROUP: u16 = 14;
 }
 /// A team's members, the list replacing the client's (MsgTeamMember 1026).
 pub const TEAM_MEMBER: u16 = 1026;
@@ -1334,6 +1351,11 @@ pub enum Request {
         action: u16,
         id: u32,
     },
+    /// The team dialog's auto check (MsgAuraGroup): an action and its number.
+    AuraGroup {
+        action: u16,
+        data: u32,
+    },
     /// A trade action with its number (a player, an item, money).
     Trade {
         action: u16,
@@ -1566,6 +1588,14 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
         }
         MENTOR_PRIZE => Request::MentorPrize { action: r.u8()? },
         TRAINING => Request::Training(r.u16()?),
+        AURA_GROUP => {
+            let action = r.u16()?;
+            r.skip(2)?;
+            Request::AuraGroup {
+                action,
+                data: r.u32()?,
+            }
+        }
         DICE => {
             let action = r.u8()?;
             r.skip(3)?;

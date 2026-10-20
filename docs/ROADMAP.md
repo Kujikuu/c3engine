@@ -775,7 +775,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] The minimap's tutor and student marks; Unequip.wav apart from equipping; Dlg_Ok (Dlg_Ok.wav isn't in
         its sound folder); sounds on the login screens
   - Audit 2026-10-20 (docs/conquer_ui_audit.md): every dialog the 5065 client creates, checked against its code; each one below is open until it matches.
-  - [ ] UI engine: the client's window model
+  - [x] UI engine: the client's window model
     - [x] dialogs own a part of the screen (`slot=left|middle|right`, from CDlgMain::CloseCurDlg) and clear others as they open (`clears=`); the overlap rule is gone, so HUD strips and child dialogs no longer close each other
     - [x] Esc closes the right part and the bag (`esc=1`) as CMyShellDlg::CloseCurDlg does, after a question, the menu and an NPC talk
     - [x] the generator (scripts/conquer_controls.py) writes the same slots into drafts
@@ -787,7 +787,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] trade, team invite/apply, guild invite/apply and marriage asks put to the hero; leaving a guild and taking a chat name off asked first
     - [ ] an amount typed in the prompt (modes 5, 9, 10, 11: dropping money, donating, booth prices) and the gem take-out, item drop and important-item asks
     - [x] Enter/Esc answer it
-    - [ ] refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT)
+    - [x] refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT: `TeamAction::Refuse`, `Event::TeamRefused`; prompts carry what No sends; the front's MsgTeam 14 both ways)
     - [ ] the engine's own UI (no game dialog) still turns asks into chat lines
   - [ ] UI engine: items in grids
     - [x] `pick=1` grids: the left button picks an item up (drawn at the pointer) and puts it on another grid: sold, stored, taken out, worn, taken off, bought, offered in a trade, put on a workbench; the right button uses (Esc or the right button lets it go)
@@ -1006,7 +1006,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] each member's own face (the engine has no faces: every hero wears face 1)
     - [ ] Follow (TeamFollow) for a member
     - [x] help (CDlgHelp 215)
-    - [ ] the auto check's aura-team rules
+    - [x] the auto check's aura-team rules (CTeam::Process: a leader's auto-invite shared with its team, `TeamAction::AutoInvite`, opening it and telling the team as 11140; anyone else asks to join; every 30 s the players in view, up to 4 leaders or the free places; one who said no left a minute; invites always asked; the front's MsgAuraGroup 2045 toggle both ways)
+    - [ ] MsgAuraGroup's update (1) and initialize (2) to a real client, so its own check sees the leaders around
     - [ ] double-clicking a face starts a team whisper; living-player checks on Join/Invite picks
   - [ ] UI 268 CMenuGroup (team options): 1 of 3 audit mismatches fixed
     - [x] opened by the leader only, and closed with 141

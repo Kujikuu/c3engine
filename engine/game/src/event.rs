@@ -122,6 +122,17 @@ pub enum Event {
         player: EntityId,
         leader: EntityId,
     },
+    /// `leader`'s team, player `player`'s, invites the players near on its own, or stopped.
+    TeamAuto {
+        player: EntityId,
+        leader: EntityId,
+        on: bool,
+    },
+    /// `by` said no to player `player`'s invite or ask to join.
+    TeamRefused {
+        player: EntityId,
+        by: EntityId,
+    },
     /// A message from a script or a gift ("You received 1 Stancher").
     Notice {
         player: EntityId,

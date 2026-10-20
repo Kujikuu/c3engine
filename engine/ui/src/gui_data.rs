@@ -15,8 +15,8 @@ pub(crate) struct GuiState {
     pub trade: Option<TradeView>,
     /// Bag items put on a workbench (compose, gems), in its slots' order.
     pub work: Vec<u32>,
-    /// Invites and asks to join a team are taken at once (the team dialog's auto check).
-    pub auto_team: bool,
+    /// The team dialog's auto check: the hero's asks, and who said no to them.
+    pub auto_team: crate::auto_team::AutoTeam,
     /// The `pointed=` of the control under the pointer.
     pub pointed: Option<String>,
     /// The hero's last exp gain and when it came (shown 2 s, CGameMap::ShowExp).
@@ -846,7 +846,13 @@ impl GuiData for HeroData<'_> {
                 })
                 .into()
             }
-            "team.auto" => u8::from(self.state.auto_team).into(),
+            // The auto check: in a team, whether it invites on its own; else whether the
+            // hero asks to join (CDlgGroup::RefreshAutoGroup).
+            "team.auto" => u8::from(match p.team {
+                Some(leader) => self.view.sim.auto_inviting(leader),
+                None => self.state.auto_team.apply,
+            })
+            .into(),
             // Team member `n`'s look; a member is picked who does not lead.
             _ if key.starts_with("team.look.") => {
                 let n: usize = key.strip_prefix("team.look.")?.parse().ok()?;

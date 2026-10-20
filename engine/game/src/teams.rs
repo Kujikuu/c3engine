@@ -56,6 +56,11 @@ pub enum TeamAction {
     ShareItems,
     Leave,
     Kick(EntityId),
+    /// A leader invites the players near on its own, or stops (TQ's aura group: the team
+    /// dialog's auto check, MsgAuraGroup); turning it on opens the team.
+    AutoInvite(bool),
+    /// The player says no to this player's invite or ask to join (TQ's MsgTeam 14).
+    Refuse(EntityId),
 }
 
 /// What a team asks of a player on another map (the host carries it there).
@@ -116,6 +121,11 @@ impl Sim {
             self.events.push(Event::Notice { player: id, text });
             return;
         }
+        match action {
+            TeamAction::AutoInvite(on) => return self.auto_invite(id, on),
+            TeamAction::Refuse(asker) => return self.refuse_team(id, asker),
+            _ => {}
+        }
         let (word, other) = match action {
             TeamAction::Create => ("create", None),
             TeamAction::Invite(e) => ("invite", Some(e)),
@@ -129,12 +139,63 @@ impl Sim {
             TeamAction::KeepMoney
             | TeamAction::ShareMoney
             | TeamAction::KeepItems
-            | TeamAction::ShareItems => return,
+            | TeamAction::ShareItems
+            | TeamAction::AutoInvite(_)
+            | TeamAction::Refuse(_) => return,
         };
         let name = other.map(|e| self.name_of(e));
         let words: Vec<&str> = std::iter::once(word).chain(name.as_deref()).collect();
         let text = self.team_command(id, &words).unwrap_or_else(|why| why);
         self.events.push(Event::Notice { player: id, text });
+    }
+
+    /// Leader `id` turns its team's auto-invite on or off; its members here are told.
+    fn auto_invite(&mut self, id: EntityId, on: bool) {
+        if self.players.get(&id).and_then(|p| p.team) != Some(id) {
+            return;
+        }
+        if on {
+            self.auto_invite_teams.insert(id);
+            self.closed_teams.remove(&id);
+        } else {
+            self.auto_invite_teams.remove(&id);
+        }
+        let word = if on { "activate" } else { "deactivate" };
+        let name = self.name_of(id);
+        self.tell_team(id, &format!("Captain {name} has {word}d the Auto-Invite."));
+        for player in self.in_team(id) {
+            if self.players.contains_key(&player) {
+                self.events.push(Event::TeamAuto {
+                    player,
+                    leader: id,
+                    on,
+                });
+            }
+        }
+    }
+
+    /// Player `id` says no to `asker`'s invite, or to its ask to join `id`'s team; the
+    /// asker is told.
+    fn refuse_team(&mut self, id: EntityId, asker: EntityId) {
+        let invited = self.team_invites.get(&id) == Some(&asker);
+        let asked = self.team_applies.get(&asker) == Some(&id);
+        if invited {
+            self.team_invites.remove(&id);
+        }
+        if asked {
+            self.team_applies.remove(&asker);
+        }
+        if (invited || asked) && self.players.contains_key(&asker) {
+            self.events.push(Event::TeamRefused {
+                player: asker,
+                by: id,
+            });
+        }
+    }
+
+    /// Whether `leader`'s team invites the players near on its own.
+    pub fn auto_inviting(&self, leader: EntityId) -> bool {
+        self.auto_invite_teams.contains(&leader)
     }
 
     /// Player `id` (on this map) is invited to `leader`'s team.
@@ -404,6 +465,7 @@ impl Sim {
     pub(crate) fn leave_team(&mut self, id: EntityId, leader: EntityId) {
         if id == leader {
             self.closed_teams.remove(&leader);
+            self.auto_invite_teams.remove(&leader);
             self.team_applies.retain(|_, l| *l != leader);
             self.tell_team(leader, "The team broke up.");
             for m in self.in_team(leader) {

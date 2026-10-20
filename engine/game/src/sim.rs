@@ -97,6 +97,8 @@ pub struct Sim {
     pub(crate) pending_gifts: BTreeMap<(String, String), crate::Gifts>,
     pub(crate) next_gift_flush_ms: u64,
     pub(crate) closed_teams: std::collections::BTreeSet<EntityId>,
+    /// Teams (by leader) inviting the players near on their own.
+    pub(crate) auto_invite_teams: std::collections::BTreeSet<EntityId>,
     /// Teams (by leader) whose members keep their money from each other, and those sharing
     /// items.
     pub(crate) teams_keeping_money: std::collections::BTreeSet<EntityId>,
@@ -177,6 +179,7 @@ impl Sim {
             pending_gifts: BTreeMap::new(),
             next_gift_flush_ms: 0,
             closed_teams: std::collections::BTreeSet::new(),
+            auto_invite_teams: std::collections::BTreeSet::new(),
             teams_keeping_money: std::collections::BTreeSet::new(),
             teams_sharing_items: std::collections::BTreeSet::new(),
             elsewhere: BTreeMap::new(),

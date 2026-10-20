@@ -25,6 +25,8 @@ pub(crate) struct Prompt {
     /// Who asked (empty for the player's own actions).
     pub name: String,
     pub yes: Yes,
+    /// What No sends the game (refusing a team ask, TQ's MsgTeam 14).
+    pub no: Option<Input>,
     until: Option<Instant>,
 }
 
@@ -36,6 +38,7 @@ impl Prompt {
             kind: kind.to_owned(),
             name: name.to_owned(),
             yes: Yes::Game(input),
+            no: None,
             until: lapses.then(|| now + LAPSE),
         }
     }
@@ -47,6 +50,7 @@ impl Prompt {
             kind: kind.to_owned(),
             name: String::new(),
             yes: Yes::Actions(actions.to_owned()),
+            no: None,
             until: None,
         })
     }

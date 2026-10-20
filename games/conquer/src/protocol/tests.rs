@@ -424,6 +424,28 @@ fn msg_mentor_member_puts_its_strings_at_0x44() {
 }
 
 #[test]
+fn the_auto_check_speaks_msg_aura_group() {
+    // Told: 20 bytes, on at 8 and the leader at 12.
+    let told = pk::aura_group(true, 1_000_001);
+    assert_eq!(
+        (told.len(), u32_at(&told, 8), u32_at(&told, 12)),
+        (20, 1, 1_000_001)
+    );
+    // Turned off by the leader's client.
+    let mut w = Writer::new();
+    w.u16(20)
+        .u16(pk::AURA_GROUP)
+        .u16(pk::AURA_GROUP_TOGGLE)
+        .u16(0)
+        .u32(0);
+    w.u32(0).u32(0);
+    assert_eq!(
+        pk::parse(&w.into_bytes()).unwrap(),
+        Request::AuraGroup { action: 0, data: 0 }
+    );
+}
+
+#[test]
 fn dice_tables_speak_msg_dice() {
     // Betting open with 50 s, no entries: 20 bytes, the seconds in the count.
     let open = pk::dice(pk::dice::BEGIN, 50, 7, &[]);

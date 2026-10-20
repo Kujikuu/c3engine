@@ -7,6 +7,7 @@
 //! server in M6). Placing things over the world and item icons come from the host through
 //! [`GameView`] and [`Icons`].
 
+mod auto_team;
 mod bag;
 mod chat;
 pub use chat::{ChatFilter, ChatLook, channel_key};
@@ -511,6 +512,8 @@ pub struct GameUi {
     music_before: f32,
     /// The hero's team's options as last drawn (closed, keeping money, sharing items).
     team_options: (bool, bool, bool),
+    /// Whether the hero's team invites on its own, when the hero leads it.
+    team_auto: Option<bool>,
     overlay: hud::Overlay,
     bag_open: bool,
     quests_open: bool,
@@ -899,7 +902,15 @@ impl GameUi {
                 };
                 actions.push(UiAction::Game(c3_game::Input::Team(action)));
             }
-            "team_auto" => self.gui_state.auto_team ^= true,
+            // The auto check (CDlgGroup::OnAutoGroup): a leader's team invites on its own (the
+            // team opened), anyone else asks to join.
+            "team_auto" => match self.team_auto {
+                Some(on) => {
+                    let auto = c3_game::TeamAction::AutoInvite(!on);
+                    actions.push(UiAction::Game(c3_game::Input::Team(auto)));
+                }
+                None => self.gui_state.auto_team.apply ^= true,
+            },
             // The minimap shown or rolled up (the main bar's map check).
             // The map check opens and closes the radar; its buttons switch the overview and
             // the full picture with the crop (OnMainMap, OnBtnRadar01/02).
@@ -979,7 +990,9 @@ impl GameUi {
                 None => {}
             },
             "prompt_no" => {
-                self.gui_state.prompt = None;
+                if let Some(no) = self.gui_state.prompt.take().and_then(|p| p.no) {
+                    actions.push(UiAction::Game(no));
+                }
                 self.gui_state.booth_item = None;
                 (self.gui_state.fields).retain(|k, _| !k.starts_with(PROMPT_AMOUNT));
             }
@@ -1988,7 +2001,12 @@ impl GameUi {
             _ => return,
         };
         let name = sim.player(from).map_or("", |p| p.name.as_str()).to_owned();
-        self.ask(kind, &name, input);
+        if self.ask(kind, &name, input) && kind.starts_with("team_") {
+            // No refuses (CDlgConfirm::OnConfirmBtnCancel5065, modes 1 and 2).
+            if let Some(p) = &mut self.gui_state.prompt {
+                p.no = Some(Input::Team(T::Refuse(from)));
+            }
+        }
     }
 
     /// Puts `name`'s ask of `kind` to the hero when the game UI has a prompt; whether it
@@ -2205,23 +2223,13 @@ impl GameUi {
                     direction: 0,
                 });
             }
-            // Asks of the hero, put to it when the game UI has a prompt (and not auto-taken).
-            if !self.gui_state.auto_team {
-                self.ask_event(event, sim, hero);
-            }
-            // Auto-joining: an invite joins, a leader takes in whoever asks.
-            if self.gui_state.auto_team {
-                use c3_game::{Input, TeamAction};
-                match *event {
-                    Event::TeamInvited { player, leader } if player == hero => {
-                        self.auto_inputs.push(Input::Team(TeamAction::Join(leader)));
-                    }
-                    Event::TeamApplied { player, applicant } if player == hero => {
-                        self.auto_inputs
-                            .push(Input::Team(TeamAction::Accept(applicant)));
-                    }
-                    _ => {}
-                }
+            // Asks of the hero, put to it when the game UI has a prompt.
+            self.ask_event(event, sim, hero);
+            // One who said no to the hero's team ask is left alone a while.
+            if let Event::TeamRefused { player, by } = *event
+                && player == hero
+            {
+                self.gui_state.auto_team.refused(by, sim.now_ms());
             }
         }
         for event in events {
@@ -2383,6 +2391,9 @@ impl GameUi {
             self.gui_state.follow_suggestions(view.sim, p);
             self.gui_state.follow_share(view.sim, p);
         }
+        // The team dialog's auto check asks around.
+        let asks = self.gui_state.auto_team.asks(view.sim, view.hero);
+        self.auto_inputs.extend(asks);
         // The radar opens as the player last left it (MapModeRecord).
         if !self.gui_state.radar_restored {
             self.gui_state.radar.visible = !self.prefs.radar_shut;
@@ -2399,6 +2410,8 @@ impl GameUi {
         self.team_options = (player.team)
             .map(|leader| view.sim.team_options(leader))
             .unwrap_or_default();
+        self.team_auto =
+            (player.team == Some(view.hero)).then(|| view.sim.auto_inviting(view.hero));
         // A placement asked for, without the game's placing window: where the hero stands,
         // as it faces.
         let placing_window = self

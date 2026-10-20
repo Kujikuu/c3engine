@@ -119,6 +119,8 @@ impl Event {
             | Event::StorageOpened { player, .. }
             | Event::Trade { player, .. }
             | Event::TeamInvited { player, .. }
+            | Event::TeamAuto { player, .. }
+            | Event::TeamRefused { player, .. }
             | Event::TeamApplied { player, .. }
             | Event::GuildInvited { player, .. }
             | Event::GuildApplied { player, .. }

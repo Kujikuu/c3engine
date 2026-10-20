@@ -1715,6 +1715,36 @@ fn dropped_items_and_money_come_back_as_they_were() {
 }
 
 #[test]
+fn a_team_invites_on_its_own_and_hears_refusals() {
+    use crate::{Input, TeamAction};
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let lead = sim.add_player("Lead", (5, 5), 1);
+    let other = sim.add_player("Other", (6, 5), 1);
+    sim.input(lead, Input::Team(TeamAction::Create));
+    sim.input(lead, Input::Team(TeamAction::Close));
+    sim.input(lead, Input::Team(TeamAction::AutoInvite(true)));
+    assert!(
+        sim.auto_inviting(lead) && !sim.team_options(lead).0,
+        "on, and open"
+    );
+    assert!(sim.take_events().contains(&Event::TeamAuto {
+        player: lead,
+        leader: lead,
+        on: true
+    }));
+    sim.input(lead, Input::Team(TeamAction::Invite(other)));
+    sim.input(other, Input::Team(TeamAction::Refuse(lead)));
+    assert!(sim.take_events().contains(&Event::TeamRefused {
+        player: lead,
+        by: other
+    }));
+    sim.input(other, Input::Team(TeamAction::Join(lead)));
+    assert!(sim.team_members(other).is_empty(), "the invite is gone");
+    sim.input(lead, Input::Team(TeamAction::Leave));
+    assert!(!sim.auto_inviting(lead));
+}
+
+#[test]
 fn team_actions_invite_join_and_leave() {
     use crate::{Input, TeamAction};
     let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);

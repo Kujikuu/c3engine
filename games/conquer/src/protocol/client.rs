@@ -795,7 +795,12 @@ impl ConquerClient {
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
         // The items are listed (business spec §2.7): the client's 333 and 334 may open.
-        out.push(pk::item_lock(Ids::player(p.id), pk::item_lock::LISTED, 0, 0));
+        out.push(pk::item_lock(
+            Ids::player(p.id),
+            pk::item_lock::LISTED,
+            0,
+            0,
+        ));
         out.extend(p.skills.iter().map(|s| magic_info(p, *s)));
         out.extend(
             weapon_skills(p)
@@ -1984,6 +1989,14 @@ impl ConquerClient {
             Event::TeamInvited { player, leader } if Some(*player) == hero => {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
+            // Said no to: MsgTeam 14 with who (the client leaves them alone a minute).
+            Event::TeamRefused { player, by } if Some(*player) == hero => {
+                vec![pk::team(pk::team::REJECT_AUTO_GROUP, Ids::player(*by))]
+            }
+            // The team's auto-invite turned on or off.
+            Event::TeamAuto { player, leader, on } if Some(*player) == hero => {
+                vec![pk::aura_group(*on, Ids::player(*leader))]
+            }
             // The warehouse as it is now, and the money kept.
             // Merchant account news (business spec §2.4, §2.5): attribute 39 with the state,
             // and MsgInteract 33 (offered 0, granted 255) or 35 (days waiting).
@@ -2515,9 +2528,15 @@ impl ConquerClient {
                     (pk::team::INVITE, Some(e)) => Some(TeamAction::Invite(e)),
                     (pk::team::ACCEPT_INVITE, Some(e)) => Some(TeamAction::Join(e)),
                     (pk::team::KICK, Some(e)) => Some(TeamAction::Kick(e)),
+                    (pk::team::REJECT_AUTO_GROUP, Some(e)) => Some(TeamAction::Refuse(e)),
                     _ => None,
                 };
                 inputs.extend(action.map(Input::Team));
+            }
+            Request::AuraGroup { action: a, data } => {
+                if a == pk::AURA_GROUP_TOGGLE {
+                    inputs.push(Input::Team(TeamAction::AutoInvite(data != 0)));
+                }
             }
             Request::Trade { action: a, data } => match a {
                 pk::trade::APPLY => {
