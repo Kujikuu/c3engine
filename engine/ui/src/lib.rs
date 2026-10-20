@@ -227,6 +227,8 @@ pub fn item_name(sim: &Sim, kind: u32) -> String {
 #[derive(Default)]
 pub struct GameUi {
     chat: chat::Chat,
+    /// The simulation asked the hero where to place an NPC (answered next frame).
+    placing: bool,
     overlay: hud::Overlay,
     bag_open: bool,
     quests_open: bool,
@@ -513,6 +515,13 @@ impl GameUi {
             }
         }
         for event in events {
+            if let Event::PlacementAsked { player, .. } = *event
+                && player == hero
+            {
+                self.placing = true;
+            }
+        }
+        for event in events {
             self.overlay.event(event, hero, now);
             match event {
                 Event::Warning(text) => self.log.push(LogLine::Error(text.clone())),
@@ -553,6 +562,13 @@ impl GameUi {
         let Some(player) = view.player() else {
             return actions;
         };
+        // A placement asked for: where the hero stands, as it faces.
+        if std::mem::take(&mut self.placing) {
+            actions.push(UiAction::Game(c3_game::Input::Place {
+                cell: player.cell,
+                direction: player.direction,
+            }));
+        }
         let typing = self.chat.typing;
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();
         hud::hint_line(ui, view);

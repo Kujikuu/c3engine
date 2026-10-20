@@ -475,6 +475,20 @@ impl Sim {
                     self.events.push(Event::Notice { player, text });
                 }
             }
+            Effect::AskPlacement { look, kind, event } => {
+                if let (Ok(look), Ok(kind), Some(p)) = (
+                    u32::try_from(look),
+                    u32::try_from(kind),
+                    self.players.get_mut(&id),
+                ) {
+                    p.placing = Some(event);
+                    self.events.push(Event::PlacementAsked {
+                        player: id,
+                        look,
+                        kind,
+                    });
+                }
+            }
             Effect::OpenWindow(dialog) => {
                 if let Ok(dialog) = u32::try_from(dialog) {
                     self.events.push(Event::OpenWindow { player: id, dialog });
@@ -620,6 +634,10 @@ impl Sim {
             world: self.world_flags.clone(),
             statuses: p.statuses.iter().map(|s| i64::from(s.id)).collect(),
             combining: p.combining.iter().map(|&i| i64::from(i)).collect(),
+            placed: {
+                let (cell, direction) = p.placed.unwrap_or((p.cell, p.direction));
+                (i64::from(cell.0), i64::from(cell.1), i64::from(direction))
+            },
             map: self.map_ids.first().copied().map_or(0, i64::from),
             cell: (i64::from(p.cell.0), i64::from(p.cell.1)),
             life: p.life.into(),

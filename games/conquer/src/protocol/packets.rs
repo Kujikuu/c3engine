@@ -682,6 +682,16 @@ pub fn npc_info_ex(
 /// The kind of a guild-war pole, the only NPC whose MsgNpcInfoEx carries a name.
 const GUILD_FLAG: u16 = 10;
 
+/// MsgNpc EVENT_LAYNPC: the player asked to place an NPC of `look` and `kind` (TQ's 401).
+pub fn lay_npc(look: u32, kind: u16) -> Vec<u8> {
+    packet(NPC, |w| {
+        w.u32(0).u32(look).u16(LAY_NPC).u16(kind);
+    })
+}
+
+/// MsgNpc's action asking the client to place an NPC.
+const LAY_NPC: u16 = 5;
+
 /// One part of an NPC dialog.
 pub fn dialog(action: u8, index: u8, text: &str) -> Vec<u8> {
     dialog_with(action, index, 0, text)
@@ -743,6 +753,11 @@ pub enum Request {
     Npc {
         action: u16,
         id: u32,
+    },
+    /// Where the player placed the NPC it was asked to (MsgNpcInfo from the client).
+    Placed {
+        cell: (u16, u16),
+        look: u16,
     },
     Dialog {
         action: u8,
@@ -889,7 +904,9 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             r.skip(4)?;
             let kind = r.u16()?;
             let count = usize::from(r.u16()?).min(20);
-            let items = (0..count).map(|_| r.u32()).collect::<Result<Vec<u32>, _>>()?;
+            let items = (0..count)
+                .map(|_| r.u32())
+                .collect::<Result<Vec<u32>, _>>()?;
             Request::Fuse { kind, items }
         }
         GEM_EMBED => {
@@ -921,6 +938,14 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             Request::MapItem {
                 action: r.u8()?,
                 id,
+            }
+        }
+        NPC_INFO => {
+            r.skip(4)?;
+            let cell = (r.u16()?, r.u16()?);
+            Request::Placed {
+                cell,
+                look: r.u16()?,
             }
         }
         NPC => {

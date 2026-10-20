@@ -1021,6 +1021,9 @@ impl ConquerClient {
             | Event::CommandReply { text, .. } => {
                 vec![self.system(text)]
             }
+            Event::PlacementAsked { player, look, kind } if Some(*player) == hero => {
+                vec![pk::lay_npc(*look, *kind as u16)]
+            }
             // A window the game opens: MsgAction 126 with its number.
             Event::OpenWindow { player, dialog } if Some(*player) == hero => {
                 let cell = cell16(self.state_cell(*player).unwrap_or_default());
@@ -1382,6 +1385,11 @@ impl ConquerClient {
                 id: item_id,
             } => inputs.push(Input::PickUp(EntityId(item_id))),
             Request::Npc { action: 0, id: npc } => inputs.push(Input::Talk(npc)),
+            // The facing is the look's last digit.
+            Request::Placed { cell, look } => inputs.push(Input::Place {
+                cell: (i32::from(cell.0), i32::from(cell.1)),
+                direction: (look % 10) as u8,
+            }),
             Request::Dialog {
                 action: pk::DIALOG_ANSWER,
                 index,

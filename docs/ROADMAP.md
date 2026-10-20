@@ -617,7 +617,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         their life a world flag (`npc<id>.life`), shown to the client as MsgNpcInfoEx 1109;
         at 0 their `linkid` chain runs (`npc_destroyed_<linkid>`, sort bit 0x10; play-tested:
         a Magic target hit six times)
-  - [ ] NPC laying through the client's placement (MsgNpc 2031 EVENT_LAYNPC and its answer)
+  - [x] NPC laying through the client's placement: 401 asks (`ask_placement`, MsgNpc 2031 EVENT_LAYNPC), the client's MsgNpcInfo answers (`Input::Place`), its action runs as `lay_<action>` and 403 places the NPC there (`placed`); the engine's own UI places at the hero
+  - [x] The guild war (`tq/guild_war`, made from the poles): the war on in the pole's weekly window (map status bit 1, 306 `status`), hits on the pole given back outside it (play-tested: 130 a hit, life kept at 20,000,000), each guild's damage scored and 2% paid from the owner's fund, 207 hands the map to the top scorer with a tenth of the old owner's fund; NPCs among blocked cells hit from the nearest walkable ring
   - [x] The wanted list (3001-3008) on the shared world state (`wanted.*` nodes) and text
         variables kept with the player (`text_var`); play-tested: Sunfer takes a 200,000
         bounty on a name typed
@@ -651,7 +652,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
         1078/1079, bonus rows 1023, DragonBall transfers 1088-1091, `%emoney_card`,
         `%dragon_type`) as TQ's with no rows; 1061 with worked-out values (`%user_map_x`,
         `%iter_rand`); delays from tokens (1071)
-- [ ] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
+- [x] Conquer's rules as data and scripts on M7's gameplay core: formulas, professions, XP
       skills, PK and name colours, ghost and revive, item upgrades
   - Done so far (2026-10-19): the import writes the engine's rule tables from TQ's (items with
     requirements and CP prices, monsters, levels, shops, skills, statuses, class points) and

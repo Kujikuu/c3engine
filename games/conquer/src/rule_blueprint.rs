@@ -167,7 +167,7 @@ pub fn rules_blueprint() -> Blueprint {
 
 /// Event `def`'s node and the way on for a new lane: the event's own when no lane starts
 /// from it yet, else a sequence put after it (a graph has one node per event).
-fn event_lane(g: &mut Graph, def: &str, pos: [f32; 2]) -> (u32, (u32, &'static str)) {
+pub(crate) fn event_lane(g: &mut Graph, def: &str, pos: [f32; 2]) -> (u32, (u32, &'static str)) {
     let Some(event) = g.nodes.iter().find(|n| n.def == def).map(|n| n.id) else {
         let event = node(g, def, pos, &[]);
         return (event, (event, "then"));
@@ -199,7 +199,7 @@ fn node(g: &mut Graph, def: &str, pos: [f32; 2], values: &[(&str, Literal)]) -> 
     id
 }
 
-fn wire(g: &mut Graph, from: (u32, &str), to: (u32, &str)) {
+pub(crate) fn wire(g: &mut Graph, from: (u32, &str), to: (u32, &str)) {
     g.wires.push(Wire {
         from: PinRef {
             node: from.0,
@@ -212,7 +212,7 @@ fn wire(g: &mut Graph, from: (u32, &str), to: (u32, &str)) {
     });
 }
 
-fn text(t: &str) -> Literal {
+pub(crate) fn text(t: &str) -> Literal {
     Literal::Text(t.to_owned())
 }
 
@@ -1102,7 +1102,11 @@ fn xp_bar(g: &mut Graph, top: f32) {
 const JAIL: (i64, i64, i64) = (6000, 29, 72);
 
 /// Exec wires `from` → each of `nodes` in turn; the last one's `then`.
-fn chain(g: &mut Graph, from: (u32, &'static str), nodes: &[u32]) -> (u32, &'static str) {
+pub(crate) fn chain(
+    g: &mut Graph,
+    from: (u32, &'static str),
+    nodes: &[u32],
+) -> (u32, &'static str) {
     let mut at = from;
     for &n in nodes {
         wire(g, at, (n, "exec"));

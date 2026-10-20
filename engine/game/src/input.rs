@@ -51,6 +51,13 @@ pub enum Input {
         item: u32,
         target: u32,
     },
+    /// Place what the player was asked to place (`PlacementAsked`) at `cell`, facing
+    /// `direction`.
+    Place {
+        cell: CellPos,
+        #[serde(default)]
+        direction: u8,
+    },
     /// Work items together (set a gem, compose, enchant): the game's kind of work, the items
     /// (up to five, the player's own) and a number (a socket); its rules answer.
     Combine {
@@ -141,6 +148,7 @@ impl Sim {
             Input::Wear { item, slot } => self.wear_in(id, item, slot),
             Input::UseOn { item, target } => self.use_item_on(id, item, target),
             Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
+            Input::Place { cell, direction } => self.place_asked(id, cell, direction),
             Input::Store { npc, item } => self.store(id, npc, item),
             Input::OpenStorage(npc) => self.open_storage(id, npc),
             Input::TradeAsk(target) => self.ask_trade(id, target),

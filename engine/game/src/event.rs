@@ -155,6 +155,13 @@ pub enum Event {
         entity: EntityId,
         sound: String,
     },
+    /// `player` is asked where to place an NPC of `look` and `kind` (answered by
+    /// `Input::Place`).
+    PlacementAsked {
+        player: EntityId,
+        look: u32,
+        kind: u32,
+    },
     /// A script opened the game UI's dialog `dialog` for `player`.
     OpenWindow {
         player: EntityId,

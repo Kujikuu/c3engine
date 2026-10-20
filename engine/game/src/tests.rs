@@ -1906,3 +1906,57 @@ fn npcs_with_life_are_hit_down_and_run_their_destruction_event() {
     );
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn placements_asked_for_run_their_event_where_the_player_put_it() {
+    let dir = std::env::temp_dir().join(format!("c3-game-place-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn on_login() { ask_placement(1130, 9, \"lay_7\"); }
+         fn lay_7() { set_flag(\"px\", placed(\"x\")); set_flag(\"py\", placed(\"y\")); }
+",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![shopkeeper()], vec![], rules(), 5);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    sim.advance(50);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (10, 10)));
+    sim.logged_in(hero);
+    assert!(sim.take_events().contains(&Event::PlacementAsked {
+        player: hero,
+        look: 1130,
+        kind: 9
+    }));
+    // Not where an NPC stands; then beside the hero.
+    sim.input(
+        hero,
+        Input::Place {
+            cell: (2, 2),
+            direction: 0,
+        },
+    );
+    assert!(!sim.player(hero).unwrap().flags.contains_key("px"));
+    sim.input(
+        hero,
+        Input::Place {
+            cell: (11, 12),
+            direction: 3,
+        },
+    );
+    assert!(
+        !sim.player(hero).unwrap().flags.contains_key("px"),
+        "asked once"
+    );
+    sim.logged_in(hero);
+    sim.input(
+        hero,
+        Input::Place {
+            cell: (11, 12),
+            direction: 3,
+        },
+    );
+    let flags = &sim.player(hero).unwrap().flags;
+    assert_eq!((flags["px"], flags["py"]), (11, 12));
+    let _ = std::fs::remove_dir_all(dir);
+}

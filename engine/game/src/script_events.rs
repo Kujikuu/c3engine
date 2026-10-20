@@ -113,7 +113,7 @@ impl Sim {
         self.script_event_with(id, Some(npc), function, Vec::new());
     }
 
-    fn script_event_with(
+    pub(crate) fn script_event_with(
         &mut self,
         id: EntityId,
         npc: Option<&c3_scene::Npc>,

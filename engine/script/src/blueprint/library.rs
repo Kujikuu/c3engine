@@ -217,6 +217,38 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     pure(
+        "world.flag_top",
+        "Highest of world variables",
+        "World",
+        &[("prefix", Text)],
+        Number,
+        "flag_top({prefix})",
+    ),
+    action(
+        "world.clear_flags",
+        "Clear world variables",
+        "World",
+        &[("prefix", Text)],
+        &[],
+        "clear_flags({prefix});",
+    ),
+    action(
+        "npc.ask_placement",
+        "Ask where to place an NPC",
+        "NPCs",
+        &[("look", Number), ("kind", Number), ("event", Text)],
+        &[],
+        "ask_placement({look}, {kind}, {event});",
+    ),
+    pure(
+        "npc.placed",
+        "Where it was placed",
+        "NPCs",
+        &[("field", Text)],
+        Number,
+        "placed({field})",
+    ),
+    pure(
         "combine.items",
         "Items worked together",
         "Items",
@@ -590,6 +622,12 @@ pub const NODES: &[NodeDef] = &[
         "erase_trap();",
     ),
     event("event.minute", "Every minute (no player)", "on_minute", &[]),
+    event(
+        "event.hit_npc",
+        "On hitting an NPC (it is the dialogue's NPC)",
+        "on_hit_npc",
+        &[("damage", Number)],
+    ),
     action(
         "world.timer",
         "Start a world timer",

@@ -5,6 +5,7 @@
 
 pub mod character;
 pub mod game;
+pub mod guild_war;
 pub mod import;
 mod magic;
 pub mod module;

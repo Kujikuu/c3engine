@@ -154,6 +154,10 @@ pub struct Player {
     pub(crate) timers: Vec<(String, u64)>,
     /// The items being worked together while `on_combine` runs.
     pub(crate) combining: Vec<u32>,
+    /// The event a placement the player was asked for runs, and where it placed it while
+    /// that runs.
+    pub(crate) placing: Option<String>,
+    pub(crate) placed: Option<(CellPos, u8)>,
     /// The regions it stands in (ids), to tell scripts when that changes.
     #[serde(skip)]
     pub(crate) regions: Vec<u32>,

@@ -28,6 +28,9 @@ const PLAYER_PATH: PathRules = PathRules {
 /// them all with `combine_items`).
 const MAX_COMBINED: usize = 20;
 
+/// The farthest a player reaches to hit an NPC standing among cells no one walks on.
+const MAX_NPC_REACH: i32 = 8;
+
 impl Sim {
     /// Brings a player into the world at `cell` (or the walkable cell nearest it).
     pub fn add_player(&mut self, name: impl Into<String>, cell: CellPos, level: u32) -> EntityId {
@@ -63,6 +66,8 @@ impl Sim {
                 pk_kills: 0,
                 timers: Vec::new(),
                 combining: Vec::new(),
+                placing: None,
+                placed: None,
                 regions: Vec::new(),
                 stats,
                 bag: Vec::new(),
@@ -342,6 +347,29 @@ impl Sim {
 
     /// Items `items` (the player's own, up to five) worked together as `kind`:
     /// `on_combine(kind, item1, ..., item5, value)`, missing ones 0.
+    /// Places what player `id` was asked to at `cell` (on the map, where no NPC stands, within
+    /// its view): the placement's event runs with it.
+    pub fn place_asked(&mut self, id: EntityId, cell: CellPos, direction: u8) {
+        let range = self.settings.view_range;
+        let taken = self.npcs.iter().any(|n| n.cell == cell);
+        let Some(p) = self.players.get_mut(&id).filter(|p| p.is_alive()) else {
+            return;
+        };
+        let near = distance(p.cell, cell) <= range;
+        let Some(event) = p.placing.take() else {
+            return;
+        };
+        if taken || !near || self.grid.get(cell).is_none() {
+            self.message(id, "That can't go there.");
+            return;
+        }
+        p.placed = Some((cell, direction % 8));
+        self.script_event(id, &event, Vec::new());
+        if let Some(p) = self.players.get_mut(&id) {
+            p.placed = None;
+        }
+    }
+
     pub fn combine(&mut self, id: EntityId, kind: u32, items: &[u32], value: i64) {
         let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
             return;
@@ -786,8 +814,15 @@ impl Sim {
             p.path.clear();
             return;
         };
+        // An NPC stands on cells no one walks on (a pole, a gate): it is reached from the
+        // nearest ring of walkable cells around it.
+        let is_npc = !self.monsters.contains_key(&target) && !self.players.contains_key(&target);
+        let (reach, beside) = match is_npc {
+            true => self.nearest_ring(goal, self.players[&id].cell),
+            false => (0, goal),
+        };
         let p = self.players.get_mut(&id).expect("ticking");
-        let range = p.stats.attack_range.max(1) as i32;
+        let range = (p.stats.attack_range.max(1) as i32).max(reach);
         if distance(p.cell, goal) <= range {
             p.path.clear();
             if self.now_ms >= p.next_attack_ms {
@@ -803,16 +838,9 @@ impl Sim {
             }
             return;
         }
-        // Re-plan when the monster moved away from where the path leads; an NPC stands on a
-        // cell no one walks on, so the way leads beside it.
+        // Re-plan when the monster moved away from where the path leads.
         if p.path.back().is_none_or(|&end| distance(end, goal) > range) {
-            let here = p.cell;
-            let to = match self.monsters.contains_key(&target) || self.players.contains_key(&target)
-            {
-                true => goal,
-                false => self.beside(goal, here),
-            };
-            self.plan_path(id, to);
+            self.plan_path(id, beside);
             let p = self.players.get_mut(&id).expect("ticking");
             if p.path.is_empty() {
                 // Nothing brings it closer (a wall between them).
@@ -822,6 +850,20 @@ impl Sim {
             }
         }
         self.step_player(id);
+    }
+
+    /// The nearest ring around `center` (up to 8 cells out) with a walkable cell, and its
+    /// walkable cell nearest `from`; ring 1 and `center` when there is none.
+    fn nearest_ring(&self, center: CellPos, from: CellPos) -> (i32, CellPos) {
+        for r in 1..=MAX_NPC_REACH {
+            let ring = (-r..=r)
+                .flat_map(|dx| (-r..=r).map(move |dy| (center.0 + dx, center.1 + dy)))
+                .filter(|&c| distance(c, center) == r && self.walkable(c));
+            if let Some(cell) = ring.min_by_key(|&c| distance(c, from)) {
+                return (r, cell);
+            }
+        }
+        (1, center)
     }
 
     fn walk_to_item(&mut self, id: EntityId, item: EntityId) {

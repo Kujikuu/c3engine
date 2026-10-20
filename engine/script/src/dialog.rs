@@ -26,6 +26,9 @@ pub struct PlayerState {
     pub statuses: Vec<i64>,
     /// The items being worked together (in `on_combine`).
     pub combining: Vec<i64>,
+    /// Where the player placed what it was asked to (`x`, `y`, `direction`), while the
+    /// placement's event runs; else its own cell and facing.
+    pub placed: (i64, i64, i64),
     /// The game id of the player's map and the cell it stands on.
     pub map: i64,
     pub cell: (i64, i64),
@@ -501,6 +504,13 @@ pub enum Effect {
     Announce(String),
     /// Open the game UI's dialog `id` for the player.
     OpenWindow(i64),
+    /// The player asked where to place an NPC of `look` and `kind`; the answer runs the
+    /// custom event `event`.
+    AskPlacement {
+        look: i64,
+        kind: i64,
+        event: String,
+    },
     /// A monster of type `kind` appears at `cell`.
     Spawn {
         kind: i64,

@@ -112,6 +112,9 @@ impl Sim {
         if skill.is_none() {
             self.wear_items(id, |t| t.bonus.attack_max > 0);
         }
+        // Its game hears of the hit (and may give the life back); it falls at 0 after that.
+        self.script_event_with(id, Some(&npc), "on_hit_npc", vec![i64::from(damage).into()]);
+        let left = self.npc_life(&npc);
         if left <= 0 && damage > 0 {
             let chain = extra_number(&npc, &self.npc_combat().destroyed_event);
             let key = u32::try_from(chain)

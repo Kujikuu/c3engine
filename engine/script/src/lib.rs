@@ -82,6 +82,14 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "flag_top(prefix) / clear_flags(prefix)",
+        "World variables named `<prefix><number>`: the number of the highest above 0 (0: none); all of them set to 0",
+    ),
+    (
+        "ask_placement(look, kind, event) / placed(field)",
+        "The player asked where to place an NPC of `look` and `kind`; its answer runs custom event `event`, where `placed` reads `x`, `y` or `direction` (else the player's own)",
+    ),
+    (
         "combine_items()",
         "Every item being worked together (in `on_combine`, which names only the first five)",
     ),

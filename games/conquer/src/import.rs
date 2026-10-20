@@ -209,6 +209,25 @@ pub fn import_server_data(content: &Content, sql: &str) -> ServerData {
     let (triggers, line) =
         crate::npc_logic::convert_triggers(&logic, &triggers_of(&tables, &server), &names);
     converted.blueprints.extend(triggers);
+    // The guild war of TQ's poles.
+    let poles: Vec<crate::guild_war::Pole> = (server.maps.values())
+        .flat_map(|p| &p.npcs)
+        .filter_map(crate::guild_war::Pole::of)
+        .collect();
+    if !poles.is_empty() {
+        converted.report.push(format!(
+            "Guild war: {} poles ({})",
+            poles.len(),
+            (poles.iter())
+                .map(|p| format!("NPC {} on map {}, {}", p.npc, p.map, p.window))
+                .collect::<Vec<_>>()
+                .join("; ")
+        ));
+        converted.blueprints.push((
+            crate::guild_war::GUILD_WAR_BLUEPRINT.into(),
+            crate::guild_war::guild_war_blueprint(&poles),
+        ));
+    }
     converted.report.push(line);
     server.set_scripts(&converted.scripts);
     let mut placed = std::collections::HashSet::new();

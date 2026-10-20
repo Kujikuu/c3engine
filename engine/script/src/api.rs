@@ -423,6 +423,55 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     let s = shared.clone();
+    engine.register_fn("ask_placement", move |look: i64, kind: i64, event: &str| {
+        with(&s, |c| {
+            c.effects.push(Effect::AskPlacement {
+                look,
+                kind,
+                event: event.to_owned(),
+            })
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("placed", move |field: &str| {
+        with(&s, |c| match field {
+            "x" => c.player.placed.0,
+            "y" => c.player.placed.1,
+            "direction" => c.player.placed.2,
+            _ => 0,
+        })
+    });
+    // A family of world variables `<prefix><number>`: the number of the highest above 0,
+    // and all of them back to 0.
+    let s = shared.clone();
+    engine.register_fn("flag_top", move |prefix: &str| {
+        with(&s, |c| {
+            let mut best = (0, 0);
+            for (name, &value) in &c.player.world {
+                let Some(n) = name
+                    .strip_prefix(prefix)
+                    .and_then(|n| n.parse::<i64>().ok())
+                else {
+                    continue;
+                };
+                if value > best.1 {
+                    best = (n, value);
+                }
+            }
+            best.0
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("clear_flags", move |prefix: &str| {
+        with(&s, |c| {
+            for (name, value) in c.player.world.iter_mut() {
+                if name.starts_with(prefix) {
+                    *value = 0;
+                }
+            }
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("combine_items", move || {
         with(&s, |c| {
             (c.player.combining.iter())

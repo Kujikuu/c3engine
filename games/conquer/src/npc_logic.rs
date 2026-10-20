@@ -63,11 +63,19 @@ const WANTED_BOUNTY: &str = "wanted_bounty";
 pub(crate) const WANTED_ORDER: &str = "wanted_order";
 /// The player variable holding the spouse's name (empty: single).
 pub(crate) const MATE: &str = "mate";
+/// The middle of the world variables a guild-war pole keeps each guild's damage in
+/// (`npc<id>.score.<guild>`).
+pub(crate) const SCORE: &str = ".score.";
 /// The player attribute holding the id of its home (a map made while playing).
 const HOME: &str = "home_id";
 /// The player variable holding the police-wanted name the player took on (3011).
 pub(crate) const POLICE_TARGET: &str = "police_target";
 const WANTED_MODIFY: &str = "wanted_modify";
+
+/// The custom event a placement asked for by 401 runs: its action `action`'s chain.
+fn laid_event(action: u32) -> String {
+    format!("lay_{action}")
+}
 
 /// The chain an NPC made by 2007 `param` runs when destroyed: its `linkid` (token 11) when its
 /// sort (token 2) has the die-action bit.
@@ -324,6 +332,20 @@ pub fn convert_triggers(
             spend: false,
         })
         .collect();
+    // Placements answered (401): their actions' chains.
+    let laid: std::collections::BTreeSet<u32> = (logic.actions.values())
+        .filter(|a| a.kind == 401)
+        .filter_map(|a| a.param.split_whitespace().next()?.parse().ok())
+        .filter(have)
+        .collect();
+    let laid_events: Vec<Trigger> = (laid.into_iter())
+        .map(|action| Trigger {
+            def: "event.custom",
+            name: Some(laid_event(action)),
+            action,
+            spend: false,
+        })
+        .collect();
     let hook_events: Vec<Trigger> = (HOOKS.iter())
         .filter(|(a, _)| have(a))
         .map(|&(action, def)| Trigger {
@@ -360,6 +382,7 @@ pub fn convert_triggers(
         ("tq/world", world_events),
         ("tq/traps", trap_events),
         ("tq/destroyed", death_events),
+        ("tq/laid", laid_events),
     ] {
         if events.is_empty() {
             continue;
@@ -1246,6 +1269,7 @@ impl<'a> Builder<'a> {
             // A map's attributes (306 `field op n [map]`) on a map made while playing (a home):
             // its level (`res_lev`), portal and map doc; a map doc compared (the player's map).
             306 => self.map_attribute(g, a, &tokens, column),
+            207 => self.reset_syn_owner(g, column),
             // An NPC made while playing: name, kind, look, its map and cell, its first task's
             // blueprint (TQ's `name type sort lookface ownertype ownerid mapid x y ... task0`).
             2007 => {
@@ -1289,20 +1313,15 @@ impl<'a> Builder<'a> {
             // runs task `idNextTask`, whose 403 makes it. Here the task runs at once and the
             // NPC goes where the player stands.
             401 => {
-                let next = int(0)
-                    .and_then(|t| self.logic.tasks.get(&(t as u32)))
-                    .map(|t| t.next);
-                match next.filter(|&n| n != 0) {
-                    Some(action) => {
-                        let call = self.call(g, action, column);
-                        Emitted {
-                            entry: Some(call),
-                            ok: Some((call, "then")),
-                            fail: None,
-                        }
-                    }
-                    None => self.not_converted(g, a, column),
-                }
+                let (Some(action), Some(kind), Some(look)) = (int(0), int(1), int(3)) else {
+                    return self.not_converted(g, a, column);
+                };
+                let values = [
+                    ("look", num(look)),
+                    ("kind", num(kind)),
+                    ("event", txt(&laid_event(action as u32))),
+                ];
+                Self::plain(g, "npc.ask_placement", &values, column)
             }
             403 => {
                 let (Some(name), Some(kind), Some(look)) = (tokens.first(), int(1), int(3)) else {
@@ -1319,8 +1338,10 @@ impl<'a> Builder<'a> {
                     ("script", txt(&script)),
                 ];
                 let create = g.node("npc.create", &values, column);
-                for (pin, def) in [("map", "player.map"), ("x", "player.x"), ("y", "player.y")] {
-                    let at = g.node(def, &[], column);
+                let map = g.node("player.map", &[], column);
+                g.data(map, create, "map");
+                for pin in ["x", "y"] {
+                    let at = g.node("npc.placed", &[("field", txt(pin))], column);
                     g.data(at, create, pin);
                 }
                 Emitted {
@@ -2815,6 +2836,9 @@ impl<'a> Builder<'a> {
             return self.not_converted(g, a, column);
         };
         let Some(map) = tokens.get(3).and_then(|t| self.number(g, t, column)) else {
+            if field == "status" {
+                return self.map_status(g, a, &op.to_ascii_lowercase(), n, column);
+            }
             if field == "mapdoc" && op == "==" {
                 let here = g.node("player.map", &[], column);
                 let same = self.compare_node(g, here, "==", n, column);
@@ -2846,6 +2870,91 @@ impl<'a> Builder<'a> {
         self.feed(g, &map, get, "id");
         let cmp = self.compare_node(g, get, op, n, column);
         Self::branch(g, cmp, column)
+    }
+
+    /// The player's map's status bits (306 `status test|set|reset bits`; TQ's bit 1 is a guild
+    /// war on), kept as world variable `map<id>.status`.
+    fn map_status(
+        &mut self,
+        g: &mut Canvas,
+        a: &Action,
+        op: &str,
+        bits: i64,
+        column: i32,
+    ) -> Emitted {
+        let map = g.node("player.map", &[], column);
+        let prefix = g.node("text.number", &[("text", txt("map"))], column);
+        g.data(map, prefix, "number");
+        let name = g.node("text.join", &[("b", txt(".status"))], column);
+        g.data(prefix, name, "a");
+        let now = g.node("world.flag", &[], column);
+        g.data(name, now, "name");
+        let on = g.node("math.bit_and", &[("b", num(bits))], column);
+        g.data(now, on, "a");
+        let cleared = g.node("math.subtract", &[], column);
+        g.data(now, cleared, "a");
+        g.data(on, cleared, "b");
+        let value = match op {
+            "test" => {
+                let cmp = self.compare_node(g, on, "!=", 0, column);
+                return Self::branch(g, cmp, column);
+            }
+            "set" => {
+                let set = g.node("math.add", &[("b", num(bits))], column);
+                g.data(cleared, set, "a");
+                set
+            }
+            "reset" => cleared,
+            _ => return self.not_converted(g, a, column),
+        };
+        let write = g.node("world.set_flag", &[], column);
+        g.data(name, write, "name");
+        g.data(value, write, "value");
+        Emitted {
+            entry: Some(write),
+            ok: Some((write, "then")),
+            fail: None,
+        }
+    }
+
+    /// 207: a guild-war pole (the dialogue's NPC) to the guild that did it most damage
+    /// (`npc<id>.score.<guild>`), which takes a tenth of the old owner's fund and its map; the
+    /// scores cleared. Fails with no score.
+    fn reset_syn_owner(&mut self, g: &mut Canvas, column: i32) -> Emitted {
+        let npc = g.node("npc.id", &[], column);
+        let head = g.node("text.number", &[("text", txt("npc"))], column);
+        g.data(npc, head, "number");
+        let prefix = g.node("text.join", &[("b", txt(SCORE))], column);
+        g.data(head, prefix, "a");
+        let winner = g.node("world.flag_top", &[], column);
+        g.data(prefix, winner, "prefix");
+        let won = self.compare_node(g, winner, ">", 0, column);
+        let map = g.node("player.map", &[], column);
+        let owner = g.node("guild.map_owner", &[], column);
+        g.data(map, owner, "map");
+        let fund = g.node("guild.fund", &[], column);
+        g.data(owner, fund, "guild");
+        let tenth = g.node("math.divide", &[("b", num(10))], column);
+        g.data(fund, tenth, "a");
+        let loss = g.node("math.subtract", &[("a", num(0))], column);
+        g.data(tenth, loss, "b");
+        let take = g.node("guild.add_fund", &[], column);
+        g.data(owner, take, "guild");
+        g.data(loss, take, "amount");
+        let give = g.node("guild.add_fund", &[], column);
+        g.data(winner, give, "guild");
+        g.data(tenth, give, "amount");
+        let own = g.node("guild.set_map_owner", &[], column);
+        g.data(map, own, "map");
+        g.data(winner, own, "guild");
+        let told = g.node(
+            "world.announce",
+            &[("text", txt("The guild war's pole has a new owner."))],
+            column,
+        );
+        let clear = g.node("world.clear_flags", &[], column);
+        g.data(prefix, clear, "prefix");
+        self.guarded(g, &[won], None, &[take, give, own, told, clear], column)
     }
 
     /// A step that always fails (TQ's unknown or unimplemented ones, empty billing).

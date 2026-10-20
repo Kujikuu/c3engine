@@ -145,6 +145,8 @@ fn playtest(ws: &mut dyn Workspace, args: &Value) -> Result<Value, String> {
         "problems": problems,
         "steps": log,
         "player": end,
+        // The shared world variables (an NPC's life, a map's status) at the end.
+        "world": sim.world_state().flags,
         "played_ms": played,
     }))
 }
