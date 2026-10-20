@@ -861,7 +861,8 @@ impl Gui {
 /// A tooltip naming a line of a name file (`ini/StrRes.ini:100220`): the file and the key.
 pub(crate) fn tip_line(tip: &str) -> Option<(&str, &str)> {
     let (file, key) = tip.rsplit_once(':')?;
-    (file.contains('.') && !key.is_empty() && !file.contains('{')).then_some((file, key))
+    let named = file.contains('.') && !key.is_empty() && !file.contains(['{', ' ']);
+    named.then_some((file, key))
 }
 
 /// The numbers a document pattern is read for (`{n}` from 0 below this).

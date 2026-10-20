@@ -264,6 +264,9 @@ pub struct CameraSettings {
     pub clamp_to_map: bool,
     /// How hard (screen pixels) the view shakes when the hero is hit; 0: no shake.
     pub shake: f64,
+    /// How far (screen pixels: sideways, up, down) the player may push the view towards the
+    /// screen's edges, holding Alt with screen-move on (TQ's ON_MAIN_SCREENMOVE); 0: not at all.
+    pub edge_look: [f64; 3],
     /// Tilt of 3D models and effects, in degrees; `None`: the game's own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tilt_deg: Option<f64>,
@@ -284,6 +287,7 @@ impl Default for CameraSettings {
             dead_zone: 0.0,
             clamp_to_map: false,
             shake: 0.0,
+            edge_look: [0.0; 3],
             tilt_deg: None,
             new_map_cell: [64.0, 32.0],
         }

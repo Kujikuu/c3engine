@@ -1194,6 +1194,7 @@ impl Session {
                 UiAction::Rebind(_)
                 | UiAction::ResetControls
                 | UiAction::Leave
+                | UiAction::EdgeLook(_)
                 | UiAction::SetPrefs(_) => host.push(action),
                 action => self.act(action),
             }
@@ -1224,6 +1225,7 @@ impl Session {
             UiAction::Rebind(_)
             | UiAction::ResetControls
             | UiAction::Leave
+            | UiAction::EdgeLook(_)
             | UiAction::SetPrefs(_) => return,
         };
         self.input(input);

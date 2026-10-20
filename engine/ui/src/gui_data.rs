@@ -19,6 +19,8 @@ pub(crate) struct GuiState {
     pub auto_team: bool,
     /// The `pointed=` of the control under the pointer.
     pub pointed: Option<String>,
+    /// Screen move is on.
+    pub screen_move: bool,
     /// The radar's mode, showing, and grow or shrink; whether it was set from the player's
     /// record yet.
     pub radar: crate::radar_box::RadarState,
@@ -606,6 +608,9 @@ impl GuiData for HeroData<'_> {
             }
             "hero.running" => f64::from(u8::from(p.running)),
             "ui.radar" => f64::from(u8::from(self.state.radar.visible)),
+            "ui.screen_move" => f64::from(u8::from(self.state.screen_move)),
+            // Its tip: StrRes 10073 while off, 10074 on.
+            "ui.screen_move_tip" => 10073.0 + f64::from(u8::from(self.state.screen_move)),
             "ui.radar_crop" => f64::from(u8::from(
                 self.state.radar.mode == crate::radar_box::RadarMode::Crop,
             )),

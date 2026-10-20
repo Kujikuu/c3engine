@@ -89,6 +89,8 @@ const UI_CONTROLS: &str = "ui/controls.ini";
 pub fn conquer_settings() -> ProjectSettings {
     let mut s = ProjectSettings::default();
     s.player.game_name = "Conquer Online".into();
+    // Screen move: Alt pushes the view 356 sideways, 192 up, 172 down (CGameMap::SetViewPos).
+    s.camera.edge_look = [356.0, 192.0, 172.0];
     s.player.icon = "conquer.ico".into();
     for (kind, file) in CURSORS {
         let cursor = match kind {

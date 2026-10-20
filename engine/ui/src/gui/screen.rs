@@ -507,9 +507,10 @@ fn anchored(area: Rect, base: [f32; 2], scale: f32, r: GuiRect) -> Pos2 {
 impl Painter<'_, '_> {
     /// A control's tooltip: a line of a name file, or its text with its bindings read.
     fn tip_text(&self, control: &Control, data: &dyn GuiData) -> Option<String> {
-        match super::tip_line(&control.tip) {
+        let tip = expand(&control.tip, data);
+        match super::tip_line(&tip) {
             Some((file, key)) => self.names.get(file).and_then(|t| t.get(key)).cloned(),
-            None => Some(expand(&control.tip, data)).filter(|t| !t.is_empty()),
+            None => Some(tip).filter(|t| !t.is_empty()),
         }
     }
 }

@@ -249,6 +249,8 @@ pub enum UiAction {
     Leave,
     /// What the statue window asks (its figure is the host's).
     Effigy(EffigyAction),
+    /// Screen move turned on or off (the view goes back to the hero when off).
+    EdgeLook(bool),
 }
 
 /// What the statue window asks for (TQ's CDlgEffigy).
@@ -1170,6 +1172,11 @@ impl GameUi {
                 }
             }
             "effigy_play" => actions.push(UiAction::Effigy(EffigyAction::PlayPause)),
+            // Screen move (the main bar's 1023, ON_MAIN_SCREENMOVE).
+            "screen_move" => {
+                self.gui_state.screen_move ^= true;
+                actions.push(UiAction::EdgeLook(self.gui_state.screen_move));
+            }
             "effigy_place" => actions.push(UiAction::Effigy(EffigyAction::Place)),
             "effigy_close" => actions.push(UiAction::Effigy(EffigyAction::Close)),
             "dice_cancel" => {

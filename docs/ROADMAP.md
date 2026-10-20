@@ -822,10 +822,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills
     - [x] XP skills picked from 189 shown as XpSkillType in the skill box; the box's Magic0 art replaced by the skill picked
     - [x] radar toggle transition (the client rolls it): see UI 5278
-    - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
+    - [x] screen move 1023 (ON_MAIN_SCREENMOVE: with it on, Alt pushes the view towards the edge the pointer is near, CGameMap::SetViewPos's steps and limits, `camera.edge_look`; off puts it back) and view equipment 1016 (next player clicked opens 258)
     - [x] PK button image by PK mode (Button47/49/48/412)
     - [x] hover tooltips (`tip=` on buttons, checks and meters; CMyShellDlg::ShowMsgDlg): run 10070, map 10072, view equipment 10370, the XP, mana and life orbs as current/most (Button40-46's 10741-10750 aren't in 5065's StrRes, so none)
-    - [ ] the exp strip's detailed overlay on hover (SetShowExpFlag) and screen move's 10073 / 10074 (with 1023 itself)
+    - [x] screen move's tip 10073 / 10074 by its state (`tip=` reads bindings in its key)
+    - [ ] the exp strip's detailed overlay on hover (SetShowExpFlag)
     - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
     - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
     - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts

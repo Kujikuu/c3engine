@@ -89,6 +89,9 @@ pub struct GameScreen {
     step_wait: f32,
     /// The player chose Leave the game.
     left: bool,
+    /// Screen move is on, and how far (screen pixels) the view is pushed.
+    edge_look_on: bool,
+    edge_offset: Vec2,
     /// UI actions to run once a frame has been drawn (a scripted shot's, after what its lines
     /// asked has come back); `after:2.5:` waits that long from the first frame.
     pub later: Vec<String>,
@@ -124,6 +127,8 @@ impl GameScreen {
             touch: TouchOverlay::default(),
             listening: None,
             later: Vec::new(),
+            edge_look_on: false,
+            edge_offset: Vec2::ZERO,
             first_frame: None,
             step_wait: 0.0,
             left: false,
@@ -164,9 +169,38 @@ impl GameScreen {
     /// The camera to draw the world with this frame (shaken just after the hero is hit).
     pub fn view_camera(&self) -> Camera2d {
         Camera2d {
-            center: self.camera.center + self.shake / self.camera.zoom,
+            center: self.camera.center + (self.shake + self.edge_offset) / self.camera.zoom,
             zoom: self.camera.zoom,
         }
+    }
+
+    /// Screen move: holding Alt with it on pushes the view towards the edge the pointer is
+    /// near (within 120 pixels; 170 at the bottom), `6 - distance / 20` pixels each 30 ms,
+    /// as far as the camera's `edge_look` lets (CGameMap::SetViewPos).
+    fn edge_look(&mut self, ui: &egui::Ui, rect: Rect, seconds: f32) {
+        let [side, up, down] = self.camera_settings().edge_look.map(|v| v as f32);
+        let (alt, pointer) = ui.input(|i| (i.modifiers.alt, i.pointer.hover_pos()));
+        let (Some(p), true) = (pointer, self.edge_look_on && alt && side + up + down > 0.0) else {
+            return;
+        };
+        let ticks = seconds / 0.03;
+        let (x, y) = (p.x - rect.left(), p.y - rect.top());
+        let (w, h) = (rect.width(), rect.height());
+        let mut push = Vec2::ZERO;
+        if y <= 120.0 {
+            push.y -= 6.0 - y / 20.0;
+        }
+        if y >= h - 170.0 {
+            push.y += 6.0 - (h - y - 50.0) / 20.0;
+        }
+        if x <= 120.0 {
+            push.x -= 6.0 - x / 20.0;
+        }
+        if x >= w - 120.0 {
+            push.x += 6.0 - (w - x) / 20.0;
+        }
+        let o = self.edge_offset + push * ticks;
+        self.edge_offset = Vec2::new(o.x.clamp(-side, side), o.y.clamp(-up, down));
     }
 
     /// Plays by `settings` from now on: the session's, the camera's, the controls and cursors.
@@ -294,6 +328,7 @@ impl GameScreen {
             }
         }
         self.follow_hero(seconds);
+        self.edge_look(ui, rect, seconds);
         self.clamp_to_map();
         self.shake = self.shake_at(now);
         let screen = Screen {
@@ -607,6 +642,12 @@ impl GameScreen {
                     self.controls_changed();
                 }
                 UiAction::Leave => self.left = true,
+                UiAction::EdgeLook(on) => {
+                    self.edge_look_on = on;
+                    if !on {
+                        self.edge_offset = Vec2::ZERO;
+                    }
+                }
                 UiAction::SetPrefs(prefs) => {
                     self.controls.prefs = prefs;
                     self.session.set_player_prefs(prefs);
