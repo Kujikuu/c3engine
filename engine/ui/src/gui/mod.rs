@@ -285,6 +285,9 @@ pub struct Control {
     pub line: i32,
     pub indent: Option<i32>,
     pub tips: String,
+    /// A button's or check's tooltip: its text (`{bindings}` read), or a line of a name file
+    /// (`tip=ini/StrRes.ini:100220`).
+    pub tip: String,
     pub foot: String,
     /// An image showing its binding's number as piles of pictures, the largest unit first
     /// (`piles=Button435:10000,Button434:1000,Button433:100`: TQ's chips, a column each unit,
@@ -476,6 +479,7 @@ impl Control {
             line: section.int("line").unwrap_or(0),
             indent: section.int("indent"),
             tips: text("tips"),
+            tip: text("tip"),
             foot: text("foot"),
             dy: text("dy"),
             piles: (text("piles").split(','))
@@ -567,9 +571,11 @@ impl Gui {
 
     /// Reads the name files the controls name (`names=`), each through `read`.
     pub fn load_names(&mut self, read: impl Fn(&str) -> Option<Vec<u8>>) {
+        let tip_files = (self.controls.iter()).filter_map(|c| Some(tip_line(&c.tip)?.0.to_owned()));
         let files: BTreeSet<String> = (self.controls.iter())
             .filter(|c| !c.names.is_empty())
             .map(|c| c.names.clone())
+            .chain(tip_files)
             .collect();
         for file in files {
             let Some(bytes) = read(&file) else {
@@ -850,6 +856,12 @@ impl Gui {
         };
         placed.unwrap_or_default()
     }
+}
+
+/// A tooltip naming a line of a name file (`ini/StrRes.ini:100220`): the file and the key.
+pub(crate) fn tip_line(tip: &str) -> Option<(&str, &str)> {
+    let (file, key) = tip.rsplit_once(':')?;
+    (file.contains('.') && !key.is_empty() && !file.contains('{')).then_some((file, key))
 }
 
 /// The numbers a document pattern is read for (`{n}` from 0 below this).

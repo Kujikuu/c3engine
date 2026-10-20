@@ -824,7 +824,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] radar toggle transition (the client rolls it): see UI 5278
     - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
     - [x] PK button image by PK mode (Button47/49/48/412)
-    - [ ] hover tooltips on exp, run, map, screen move, view equipment, XP, MP, HP (Dialog21, StrRes 10070-10074, 10370)
+    - [x] hover tooltips (`tip=` on buttons, checks and meters; CMyShellDlg::ShowMsgDlg): run 10070, map 10072, view equipment 10370, the XP, mana and life orbs as current/most (Button40-46's 10741-10750 aren't in 5065's StrRes, so none)
+    - [ ] the exp strip's detailed overlay on hover (SetShowExpFlag) and screen move's 10073 / 10074 (with 1023 itself)
     - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
     - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
     - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts
@@ -892,7 +893,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 325 mentor HUD button: 3 of 5 audit mismatches fixed
     - [x] always shown, btn-dssy alone (no Dialog531 frame, no Button532)
     - [x] its click opens the mentor contribution 319
-    - [ ] tooltip StrRes 100220
+    - [x] tooltip StrRes 100220 (`tip=`)
   - [x] UI 328 CDlgEquipTie5065 (item-lock button): the 2 audit mismatches fixed (329 itself is its own item)
   - [ ] UI 272 CDlgInsHelp (instant help): 1 of 8 audit mismatches fixed
     - [x] the folded Button490 always shown

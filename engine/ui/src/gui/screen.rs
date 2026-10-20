@@ -504,6 +504,16 @@ fn anchored(area: Rect, base: [f32; 2], scale: f32, r: GuiRect) -> Pos2 {
     )
 }
 
+impl Painter<'_, '_> {
+    /// A control's tooltip: a line of a name file, or its text with its bindings read.
+    fn tip_text(&self, control: &Control, data: &dyn GuiData) -> Option<String> {
+        match super::tip_line(&control.tip) {
+            Some((file, key)) => self.names.get(file).and_then(|t| t.get(key)).cloned(),
+            None => Some(expand(&control.tip, data)).filter(|t| !t.is_empty()),
+        }
+    }
+}
+
 struct Painter<'a, 'u> {
     ui: &'u mut egui::Ui,
     textures: &'a mut dyn Textures,
@@ -714,6 +724,10 @@ impl Painter<'_, '_> {
                 if let Some(texture) = self.frame(frames, frame) {
                     self.draw(texture, origin, None, None);
                 }
+                let response = match self.tip_text(control, data) {
+                    Some(tip) if self.live => response.on_hover_text(tip),
+                    _ => response,
+                };
                 if response.clicked() && !control.action.is_empty() {
                     clicked(control, events);
                 }
@@ -754,6 +768,17 @@ impl Painter<'_, '_> {
                 if shown.x >= 0.5 && shown.y >= 0.5 {
                     let part = Rect::from_min_size(offset.to_pos2(), shown);
                     self.draw(texture, origin + offset, Some(part), Some(shown));
+                }
+                // Its tooltip over the whole meter (an orb's `current/most`).
+                if let Some(tip) = self.tip_text(control, data).filter(|_| self.live) {
+                    let area = Rect::from_min_size(
+                        self.screen(origin.x, origin.y),
+                        full * self.place.scale,
+                    );
+                    let id = (self.ui.scope_id()).with(("gui tip", control.parent, control.id));
+                    self.ui
+                        .interact(area, id, egui::Sense::hover())
+                        .on_hover_text(tip);
                 }
             }
             ControlKind::Text => {

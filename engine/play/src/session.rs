@@ -1080,7 +1080,11 @@ impl Session {
                 if player == self.hero {
                     self.hero_model = None;
                 }
-                if self.viewed_model.as_ref().is_some_and(|(id, _)| *id == player) {
+                if self
+                    .viewed_model
+                    .as_ref()
+                    .is_some_and(|(id, _)| *id == player)
+                {
                     self.viewed_model = None;
                 }
             }
