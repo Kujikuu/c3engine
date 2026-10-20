@@ -353,6 +353,10 @@ impl GameModule for ConquerModule {
         crate::Content::login_list(address, read)
     }
 
+    fn item_glow(&self, kind: u32) -> Vec<Image> {
+        self.content.item_glow(kind)
+    }
+
     fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
         self.content.item_icon(kind, look)
     }

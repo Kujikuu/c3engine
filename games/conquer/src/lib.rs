@@ -414,6 +414,24 @@ impl Content {
     /// An item type's icon as the client finds it (`CItem::ShowMiniItem`, `GetItemMinIcon`):
     /// helmets, armour and shields by their colour (`color × 1,000,000 + type`, colour 3 when
     /// it has none or that one is missing), others by their type; then `ItemDefault`.
+    /// The light played under an item's icon, as CDlgMpcGoods::GetQualityEffect picks it
+    /// and CMyGrid draws it from `ani/effect.ani`: by the quality digit of gear (6 refined to
+    /// 9 super), gems, DragonBalls and Meteors, and the three exp balls.
+    pub fn item_glow(&self, kind: u32) -> Vec<Image> {
+        let Some(section) = quality_light(kind) else {
+            return Vec::new();
+        };
+        let Some(ani) = (self.fs.read(EFFECT_ANI)).and_then(|b| Ani::parse(&b).ok()) else {
+            return Vec::new();
+        };
+        let Some(frames) = ani.get(section) else {
+            return Vec::new();
+        };
+        (0..frames.frames.len())
+            .filter_map(|i| self.load_image(&frames.frame_str(i)?))
+            .collect()
+    }
+
     pub fn item_icon(&self, kind: u32, color: u32) -> Option<Image> {
         let ani = (self.item_icons)
             .get_or_init(|| Ani::parse(&self.fs.read(ITEM_ICON_ANI)?).ok())
@@ -476,6 +494,25 @@ impl c3_render::SceneAssets for Content {
 /// The client's minimaps, by map id.
 const MINIMAP_ANI: &str = "ani/MiniMap.Ani";
 const ITEM_ICON_ANI: &str = "ani/ItemMinIcon.Ani";
+const EFFECT_ANI: &str = "ani/effect.ani";
+
+/// CDlgMpcGoods::GetQualityEffect: the light under an item type's icon (effect.ani).
+fn quality_light(kind: u32) -> Option<&'static str> {
+    if kind / 100_000 < 10 && !(700_000..=800_000).contains(&kind) {
+        match kind % 10 {
+            6 => return Some("RoyalBlueLight"),
+            7 => return Some("BlueLight"),
+            8 => return Some("RedLight"),
+            9 => return Some("FireLight"),
+            _ => {}
+        }
+    }
+    match kind {
+        700_001..=700_127 => Some("GoldenLight"),
+        1_088_000..=1_088_002 | 1_100_003 | 1_100_006 | 1_100_009 => Some("YellowLight"),
+        _ => None,
+    }
+}
 const SERVER_DAT: &str = "Server.dat";
 const SERVER_ANI: &str = "ani/Server.ani";
 /// The radar's marks, as CRadar draws them: the hero (MiniMap.ani), players and team
@@ -500,4 +537,16 @@ fn quarters(parts: &[Image]) -> Image {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod glow_tests {
+    #[test]
+    fn lights_follow_the_quality_digit_gems_and_balls() {
+        assert_eq!(super::quality_light(410_009), Some("FireLight"));
+        assert_eq!(super::quality_light(130_006), Some("RoyalBlueLight"));
+        assert_eq!(super::quality_light(410_003), None);
+        assert_eq!(super::quality_light(700_011), Some("GoldenLight"));
+        assert_eq!(super::quality_light(1_088_000), Some("YellowLight"));
+    }
 }

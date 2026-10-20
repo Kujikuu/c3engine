@@ -11,6 +11,7 @@ use std::rc::Rc;
 pub struct GameTextures {
     game: Rc<dyn GameModule>,
     cache: HashMap<(u32, u32), Option<TextureHandle>>,
+    glows: HashMap<u32, Vec<TextureHandle>>,
     images: HashMap<String, Option<(TextureHandle, egui::Vec2)>>,
 }
 
@@ -19,6 +20,7 @@ impl GameTextures {
         Self {
             game,
             cache: HashMap::new(),
+            glows: HashMap::new(),
             images: HashMap::new(),
         }
     }
@@ -40,6 +42,23 @@ impl Icons for GameTextures {
             })
             .as_ref()
             .map(TextureHandle::id)
+    }
+
+    fn item_glow(&mut self, ctx: &egui::Context, kind: u32, time: f64) -> Option<TextureId> {
+        let game = &self.game;
+        let frames = self.glows.entry(kind).or_insert_with(|| {
+            let images = game.item_glow(kind).into_iter().enumerate();
+            images
+                .map(|(n, image)| {
+                    let size = [image.width as usize, image.height as usize];
+                    let color = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
+                    let name = format!("glow {kind} {n}");
+                    ctx.load_texture(name, color, egui::TextureOptions::LINEAR)
+                })
+                .collect()
+        });
+        let at = (time * 10.0) as usize % frames.len().max(1);
+        frames.get(at).map(TextureHandle::id)
     }
 }
 

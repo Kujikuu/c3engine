@@ -261,6 +261,10 @@ pub enum LogLine {
 pub trait Icons {
     /// The icon of item type `kind` in look `look` (0: its usual), if the game has one.
     fn item(&mut self, ctx: &egui::Context, kind: u32, look: u32) -> Option<TextureId>;
+    /// The frame of item type `kind`'s glow showing at `time` seconds, if it has one.
+    fn item_glow(&mut self, _ctx: &egui::Context, _kind: u32, _time: f64) -> Option<TextureId> {
+        None
+    }
 }
 
 /// The game being shown and how it sits on screen.

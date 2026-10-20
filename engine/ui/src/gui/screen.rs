@@ -756,8 +756,13 @@ impl Painter<'_, '_> {
                         continue;
                     };
                     let look = looks.get(index).copied().unwrap_or(0);
+                    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                    // Its glow under it (TQ's quality lights).
+                    let time = self.ui.input(|i| i.time);
+                    if let Some(glow) = self.textures.item_glow(self.ui.ctx(), kind, time) {
+                        (self.ui.painter()).image(glow, slot.shrink(1.0), uv, Color32::WHITE);
+                    }
                     if let Some(texture) = self.textures.item(self.ui.ctx(), kind, look) {
-                        let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
                         self.ui
                             .painter()
                             .image(texture, slot.shrink(1.0), uv, Color32::WHITE);

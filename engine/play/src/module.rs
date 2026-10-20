@@ -161,6 +161,12 @@ pub trait GameModule {
         let _ = (address, read);
         None
     }
+    /// The pictures of the glow played under item type `kind`'s icon, in turn a tenth of a
+    /// second each (TQ's quality lights); none: no glow.
+    fn item_glow(&self, kind: u32) -> Vec<Image> {
+        let _ = kind;
+        Vec::new()
+    }
     /// The icon of item type `kind` in look `look` (an item's look attribute; 0: its usual).
     fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
         let _ = (kind, look);
