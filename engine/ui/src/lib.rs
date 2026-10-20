@@ -992,7 +992,12 @@ impl GameUi {
                 let name = (self.gui_state.fields.get(CHAT_NAME)).cloned();
                 (self.gui_state.chat_bar).toggle_listed(name.unwrap_or_default().trim());
             }
-            "chat_clear" => self.chat.clear(),
+            // Clear (CDlgTalk::OnTalkClearbtn): every message area, and the broadcast banner's
+            // line (CMD_PIGEON_BANNER_RESET_5065).
+            "chat_clear" => {
+                self.chat.clear();
+                self.gui_state.banner_cleared = self.gui_state.broadcasts_heard.len();
+            }
             // The question shown answered: Yes does what it asks, No drops it.
             "prompt_yes" => match self.gui_state.prompt.take().map(|p| p.yes) {
                 Some(prompt::Yes::Game(input)) => actions.push(UiAction::Game(input)),

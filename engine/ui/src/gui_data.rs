@@ -95,6 +95,8 @@ pub(crate) struct GuiState {
     /// button pressed (`first` or `bump`, the row).
     pub broadcast: Option<String>,
     pub broadcasts_heard: Vec<(String, String)>,
+    /// How many were heard when the banner was last cleared (the chat bar's Clear).
+    pub banner_cleared: usize,
     pub pigeon_move: Option<(String, usize)>,
     /// The nobility page's Contribute was pressed, and the face window's OK.
     pub donating: bool,
@@ -1168,6 +1170,11 @@ impl GuiData for HeroData<'_> {
             "nobility.query" => self.view_number("nobility_query") as f64,
             "pigeon.rows" => self.pigeon_rows().len() as f64,
             "pigeon.heard" => self.state.broadcasts_heard.len() as f64,
+            // The banner shows the last line heard since it was cleared.
+            "pigeon.banner" => {
+                let new = self.state.broadcasts_heard.len() > self.state.banner_cleared;
+                u8::from(new).into()
+            }
             // The message board: its posts, the mode (0 list, 1 writing, 2 reading), the tab
             // chosen (`board.tab.0`).
             "board.count" => self.board_posts().len() as f64,

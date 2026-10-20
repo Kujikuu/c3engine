@@ -845,10 +845,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] broadcast (ad_channel) mode: tip 11034, placeholder 11023, level 50 / 5 CPs / 80 bytes, prompt 296; and 174's [174-1549]
     - [x] friend channel (2009): friends and enemies in the game (`FriendAction`, `WorldChange::Friendship`/`Enemy`, a killer kept as the victim's enemy)
     - [ ] service channel (2014, 20 s cooldown StrRes 10444)
-    - [ ] taking a listed name off asks first (CDlgConfirm 158, needs the yes/no prompt)
+    - [x] taking a listed name off asks first (CDlgConfirm 158: `ask:unlist:chat_list`)
     - [ ] 148: kept between sessions, hidden when the mouse leaves, its arrows [148-1]/[148-2]
     - [ ] inline #NN emoticons in the line (MyCombo.cpp 98)
-    - [ ] Clear 1092 clears every message area (system, GM) and resets banner 295
+    - [x] Clear 1092 clears every message area (system, GM) and resets banner 295 (`pigeon.banner`)
     - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
     - [ ] clicking the bar focuses the line; 1094 as one image changed by the channel
     - [x] the log as g_objGameMsg draws it: said lines `[Talk]Ann speaks to All: hi[h:m]` in yellow, 6 up from 130 above the bottom, shadowed; system notes ([System]) at the top left, 3, gone after 15 s (`GameModule::chat_look`, StrRes prefixes)
