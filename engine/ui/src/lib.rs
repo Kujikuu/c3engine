@@ -521,6 +521,10 @@ impl GameUi {
                 None => {}
             },
             "prompt_no" => self.gui_state.prompt = None,
+            // The hero's skill `n` picked for the right button (`pick_skill:<n>`).
+            _ if action.starts_with("pick_skill:") => {
+                self.gui_state.picking = action["pick_skill:".len()..].parse().ok();
+            }
             // An action asked first (`ask:<kind>:<actions>`; leaving a guild).
             _ if action.starts_with("ask:") => {
                 self.gui_state.prompt = prompt::Prompt::confirm(&action["ask:".len()..]);
@@ -555,6 +559,18 @@ impl GameUi {
                 }
             }
         }
+    }
+
+    /// The skill picked for the right button.
+    pub fn picked_skill(&self) -> Option<u32> {
+        self.gui_state.picked_skill
+    }
+
+    /// Answers Yes to the question shown (Enter): what it asks the game; none when no
+    /// question shows.
+    pub fn answer_prompt(&mut self) -> Option<Vec<UiAction>> {
+        self.gui_state.prompt.as_ref()?;
+        Some(self.run_gui_action("prompt_yes"))
     }
 
     /// Another player's ask of the hero (`event`) put to it as a question.
@@ -679,6 +695,10 @@ impl GameUi {
     /// Closes the topmost window (menu, dialogue, shop, bag, quests); `false` when none was
     /// open. A dialogue or shop closes through the returned action.
     pub fn back(&mut self, sim: &Sim, hero: EntityId) -> (bool, Option<UiAction>) {
+        // Esc answers No to a question shown.
+        if self.gui_state.prompt.take().is_some() {
+            return (true, None);
+        }
         if let Some(page) = self.menu {
             self.menu = (page == menu::Page::Controls).then_some(menu::Page::Main);
             return (true, None);
@@ -854,6 +874,9 @@ impl GameUi {
                 }
                 // The edit asked to take the keyboard has had this frame to.
                 self.gui_state.focus = None;
+                if let Some(n) = self.gui_state.picking.take() {
+                    self.gui_state.picked_skill = player.skills.get(n).copied();
+                }
                 if let Some(name) = picked_target {
                     self.gui_state.fields.insert(CHAT_NAME.into(), name);
                     if let Some(gui) = &mut self.gui {
@@ -890,8 +913,12 @@ impl GameUi {
                 hud::bar(ui, view, player, &mut open, &mut actions);
             }
         }
-        hud::skill_bar(ui, view, player, &mut actions);
-        let lift = if player.skills.is_empty() {
+        // The engine's skill bar, unless the game UI shows the hero's skills itself.
+        let own_skills = self.gui.as_ref().is_some_and(|g| g.binds("skill."));
+        if !own_skills {
+            hud::skill_bar(ui, view, player, &mut actions);
+        }
+        let lift = if player.skills.is_empty() || own_skills {
             0.0
         } else {
             hud::SKILL_ROW

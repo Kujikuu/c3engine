@@ -391,6 +391,9 @@ impl GameScreen {
                 self.session.cast_slot(slot);
             }
         }
+        if a.pressed(Action::CastPicked) {
+            self.session.cast_picked();
+        }
         let turn = i8::from(a.pressed(Action::TurnRight)) - i8::from(a.pressed(Action::TurnLeft));
         if turn != 0
             && let Some(hero) = self.session.world.hero_mut()

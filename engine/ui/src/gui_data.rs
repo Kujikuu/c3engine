@@ -28,6 +28,10 @@ pub(crate) struct GuiState {
     pub chat_bar: crate::chat_bar::ChatBar,
     /// The yes/no question shown.
     pub prompt: Option<crate::prompt::Prompt>,
+    /// The skill picked for the right button (a type), and a pick waiting for the hero's
+    /// skills (`pick_skill:<n>`).
+    pub picked_skill: Option<u32>,
+    pub picking: Option<usize>,
 }
 
 /// The most items a workbench holds.
@@ -179,6 +183,9 @@ impl GuiData for HeroData<'_> {
             "team.auto" => u8::from(self.state.auto_team).into(),
             // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
             "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
+            "skill.picked" => u8::from(self.state.picked_skill.is_some()).into(),
+            // The hero has skills (the strip opens only then).
+            "hero.has_skills" => u8::from(!p.skills.is_empty()).into(),
             _ if key.starts_with("prompt.kind.") => {
                 let kind = key.strip_prefix("prompt.kind.")?;
                 u8::from(self.state.prompt.as_ref().is_some_and(|p| p.kind == kind)).into()
@@ -244,6 +251,8 @@ impl GuiData for HeroData<'_> {
                 let name = key.strip_prefix("hero.text.")?;
                 Some(self.player.texts.get(name).cloned().unwrap_or_default())
             }
+            // The skill picked for the right button (its type).
+            "skill.picked" => self.state.picked_skill.map(|s| s.to_string()),
             // The hero's skill `n` (its type), none past the last.
             _ if key.starts_with("skill.") => {
                 let n: usize = key.strip_prefix("skill.")?.parse().ok()?;

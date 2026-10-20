@@ -798,7 +798,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] stamina x1.5 while Blessed, and extra stamina 1027 (Progress47) above 99 (DlgMain.cpp 703-709, 757-762)
     - [ ] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136)
     - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
-    - [ ] skill box 1022 shows the right-click skill picked (MagicSkillType / XpSkillType) and casts it
+    - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills
+    - [ ] XP skills picked from 189 (XpSkillType) into the skill box
     - [ ] radar toggle transition (the client rolls it)
     - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
     - [ ] PK button image by PK mode (Button47/49/48/412)
@@ -824,7 +825,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the log under the bar is the engine's egui box, not g_objGameMsg's three areas (Message rendering)
     - [ ] 139 CDlgChat and 274 CDlgTalkAct are still drafts
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 188 CDlgMagic (normal-magic skill strip): partial, 11 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 188 CDlgMagic (normal-magic skill strip): 3 of 11 audit mismatches fixed
+    - [x] a click picks the skill for the skill box and hides 188 and 214 (ON_MAGIC_CHOOSE)
+    - [x] the engine's egui skill bar is not drawn when the game UI shows the skills
+    - [x] the opener does nothing without skills
+    - [ ] right-aligned and sized by skill count (x = 1024 - n*50 - 18)
+    - [ ] paging 1275/1276 past 10 skills
+    - [ ] skills listed as GetMagicByIndex does (no dwScreenRepresent 3, no transform magics while transformed; Kongfu skills in 214)
+    - [ ] disabled skills covered (Image0) and not pickable
+    - [ ] hover tooltip and drag to the quick bar
+    - [ ] the opener also toggles 214 and hides 189
+    - [ ] 140 / 191 opening no longer close it (window model)
+    - [ ] hidden on death and booth close
   - [ ] UI 5278 CDlgMipmap and the 5065 radar (minimap): missing (engine substitute), 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): draft only, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 325 CDlgBigmap = mentor HUD button (IDD_DIALOG_MENTOR_HUD_5065): draft only (wrong), 5 mismatches (docs/conquer_ui_audit.md)

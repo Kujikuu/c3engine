@@ -69,6 +69,8 @@ pub enum Action {
     Skill6,
     Skill7,
     Skill8,
+    /// Cast the skill picked for it (TQ's skill box) at what is under the pointer.
+    CastPicked,
     /// Move the camera off the hero.
     Pan,
     Zoom,
@@ -87,7 +89,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self::Click,
         Self::Move,
         Self::Interact,
@@ -105,6 +107,7 @@ impl Action {
         Self::Skill6,
         Self::Skill7,
         Self::Skill8,
+        Self::CastPicked,
         Self::Pan,
         Self::Zoom,
         Self::Follow,
@@ -156,7 +159,8 @@ impl Action {
             | Self::Skill5
             | Self::Skill6
             | Self::Skill7
-            | Self::Skill8 => ActionGroup::Skills,
+            | Self::Skill8
+            | Self::CastPicked => ActionGroup::Skills,
             Self::Pan | Self::Zoom | Self::Follow | Self::FitMap => ActionGroup::Camera,
             Self::Bag | Self::Quests | Self::Chat | Self::Menu => ActionGroup::Windows,
             Self::Navigate | Self::Confirm | Self::Back => ActionGroup::Menus,
@@ -183,6 +187,7 @@ impl Action {
             Self::Skill6 => "Skill 6",
             Self::Skill7 => "Skill 7",
             Self::Skill8 => "Skill 8",
+            Self::CastPicked => "Cast the picked skill",
             Self::Pan => "Pan the camera",
             Self::Zoom => "Zoom",
             Self::Follow => "Follow the hero",
@@ -218,6 +223,7 @@ impl Action {
             Self::Skill6 => b(&["Key 6"]),
             Self::Skill7 => b(&["Key 7"]),
             Self::Skill8 => b(&["Key 8"]),
+            Self::CastPicked => b(&["Mouse Right"]),
             Self::Pan => b(&[
                 "Keys W A S D",
                 "Keys ArrowUp ArrowLeft ArrowDown ArrowRight",

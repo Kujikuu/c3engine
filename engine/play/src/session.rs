@@ -613,6 +613,13 @@ impl Session {
     }
 
     pub fn open_chat(&mut self) {
+        // Enter answers Yes to a question shown.
+        if let Some(actions) = self.ui.answer_prompt() {
+            for action in actions {
+                self.act(action);
+            }
+            return;
+        }
         self.ui.open_chat();
     }
 
@@ -749,6 +756,13 @@ impl Session {
     pub fn cast_slot(&mut self, slot: usize) {
         let skill = (self.sim.player(self.hero)).and_then(|p| p.skills.get(slot).copied());
         if let Some(skill) = skill {
+            self.cast_skill(skill);
+        }
+    }
+
+    /// Casts the skill picked in the game UI (its skill box), if one is.
+    pub fn cast_picked(&mut self) {
+        if let Some(skill) = self.ui.picked_skill() {
             self.cast_skill(skill);
         }
     }
