@@ -43,6 +43,37 @@ pub struct ChatLook {
     /// (`base` high).
     pub bottom: f32,
     pub base: [f32; 2],
+    /// The colours a player may give each channel (TQ's eight), and each channel's first
+    /// (`[talk, 7]`: by channel key, see [`channel_key`]).
+    pub palette: Vec<[u8; 3]>,
+    pub colors: Vec<(String, usize)>,
+}
+
+/// What the player chose to see of the chat (TQ's chat options and blacklist): channels hidden
+/// (by [`channel_key`]), whispers from friends only, each channel's colour (an index into the
+/// look's palette), names never heard.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ChatFilter {
+    pub hidden: std::collections::BTreeSet<String>,
+    pub friends_only: bool,
+    pub colors: std::collections::BTreeMap<String, usize>,
+    pub blacklist: Vec<String>,
+}
+
+/// The key a chat channel's options go by: `talk`, `whisper`, `team`, `guild`, `friend`,
+/// `leave_word`, `board`, `broadcast`.
+pub fn channel_key(channel: c3_game::ChatChannel) -> &'static str {
+    use c3_game::ChatChannel as C;
+    match channel {
+        C::Local => "talk",
+        C::Whisper => "whisper",
+        C::Team => "team",
+        C::Guild => "guild",
+        C::Friend => "friend",
+        C::LeaveWord => "leave_word",
+        C::Board(_) => "board",
+        C::Broadcast => "broadcast",
+    }
 }
 
 /// How long a system note stays, in seconds.
@@ -59,6 +90,8 @@ pub(crate) struct Chat {
     pub typing: bool,
     /// Opened this frame (by an Enter that mustn't also send).
     opening: bool,
+    /// What the player chose to see.
+    pub filter: ChatFilter,
 }
 
 impl Chat {
@@ -88,8 +121,30 @@ impl Chat {
         }
     }
 
+    /// Whether a line `name` said on `channel` is filtered out (a channel hidden, a name
+    /// blacklisted, a whisper from someone not a friend while only friends' show).
+    fn filtered(
+        &self,
+        sim: &Sim,
+        hero: EntityId,
+        channel: c3_game::ChatChannel,
+        name: &str,
+    ) -> bool {
+        let f = &self.filter;
+        let whisper = channel == c3_game::ChatChannel::Whisper;
+        let me = sim.player(hero).map_or("", |p| p.name.as_str());
+        f.hidden.contains(channel_key(channel))
+            || f.blacklist.iter().any(|b| b.eq_ignore_ascii_case(name))
+            || (whisper && f.friends_only && !sim.world_state().are_friends(me, name))
+    }
+
     /// A line for what happened to the hero.
     pub fn event(&mut self, event: &Event, sim: &Sim, hero: EntityId) {
+        if let Event::Chat { channel, name, .. } = event
+            && self.filtered(sim, hero, *channel, name)
+        {
+            return;
+        }
         let currency = &sim.settings().currency;
         let line = match event {
             Event::Died { id, .. } if *id == hero => Some((
@@ -169,7 +224,13 @@ impl Chat {
                     }
                     false => String::new(),
                 };
-                let [r, g, b] = look.color;
+                // The channel's colour as the player chose it, else the look's first.
+                let key = channel_key(*channel);
+                let index = (self.filter.colors.get(key).copied())
+                    .or_else(|| look.colors.iter().find(|(k, _)| k == key).map(|(_, i)| *i));
+                let [r, g, b] = index
+                    .and_then(|i| look.palette.get(i).copied())
+                    .unwrap_or(look.color);
                 let line = format!("{prefix}{name}{}{to}{}{text}{clock}", look.to, look.says);
                 self.push_said(line, Color32::from_rgb(r, g, b));
                 return;

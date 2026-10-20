@@ -67,6 +67,10 @@ pub(crate) struct GuiState {
     pub face_changing: bool,
     /// The shop's repair is on: the next bag item clicked is repaired (TQ's fix cursor).
     pub repairing: bool,
+    /// What the player chose to see of the chat (kept with the log's), and each channel's
+    /// first colour (the game's look).
+    pub chat_filter: crate::ChatFilter,
+    pub chat_colors: Vec<(String, usize)>,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -629,6 +633,31 @@ impl GuiData for HeroData<'_> {
                 u8::from(row.1 != self.player.name).into()
             }
             "pigeon.mode" => self.view_number("pigeon") as f64,
+            // The chat options: a channel shown (`chat.shown.talk`), whispers from friends only,
+            // a channel's colour (`chat.color.team`: an index of the palette), the colour list
+            // open.
+            _ if key.starts_with("chat.shown.") => {
+                let channel = key.strip_prefix("chat.shown.")?;
+                u8::from(!self.state.chat_filter.hidden.contains(channel)).into()
+            }
+            "chat.friends_only" => u8::from(self.state.chat_filter.friends_only).into(),
+            _ if key.starts_with("chat.color.") => {
+                let channel = key.strip_prefix("chat.color.")?;
+                let first = self
+                    .state
+                    .chat_colors
+                    .iter()
+                    .find(|(k, _)| k == channel)
+                    .map(|(_, i)| *i);
+                self.state
+                    .chat_filter
+                    .colors
+                    .get(channel)
+                    .copied()
+                    .or(first)
+                    .unwrap_or(0) as f64
+            }
+            "chat.choosing" => u8::from(self.state.views.contains_key("chat_color_for")).into(),
             // The faces the hero may take, and the one picked on the page (`view:face_pick`).
             "faces.count" => self.faces().len() as f64,
             "face.pages" => self.faces().len().div_ceil(FACE_PAGE) as f64,
@@ -1026,7 +1055,7 @@ impl GuiData for HeroData<'_> {
                     _ => String::new(),
                 })
             }
-            "word.text" | "board.text" => {
+            "word.text" | "board.text" | "black.name" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // The post read on the message board.
@@ -1265,6 +1294,11 @@ impl GuiData for HeroData<'_> {
                     .collect();
                 let picked = (self.state.views.get("hotkey_pick")).and_then(|v| v.parse().ok());
                 (rows, picked)
+            }
+            // The names whose lines are never heard (the blacklist).
+            "blacklist.rows" => {
+                let picked = (self.state.views.get("blacklist_pick")).and_then(|v| v.parse().ok());
+                (self.state.chat_filter.blacklist.clone(), picked)
             }
             // The message board's page of 8: its words (31 letters), author and time, as
             // CDlgLevWord lists them.

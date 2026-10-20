@@ -845,8 +845,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
     - [ ] clicking the bar focuses the line; 1094 as one image changed by the channel
     - [x] the log as g_objGameMsg draws it: said lines `[Talk]Ann speaks to All: hi[h:m]` in yellow, 6 up from 130 above the bottom, shadowed; system notes ([System]) at the top left, 3, gone after 15 s (`GameModule::chat_look`, StrRes prefixes)
-    - [ ] the GM area (2011) mid-left; the log's line count dragged by 5326; Alt for clickable names; blacklist / channel filters
-    - [ ] 139 CDlgChat and 274 CDlgTalkAct are still drafts
+    - [ ] the GM area (2011) mid-left; the log's line count dragged by 5326; Alt for clickable names
+    - [x] blacklist / channel filters (139, 239)
+    - [ ] 274 CDlgTalkAct is still a draft
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 188 CDlgMagic (normal-magic skill strip): 6 of 11 audit mismatches fixed
     - [x] a click picks the skill for the skill box and hides 188 and 214 (ON_MAGIC_CHOOSE)
@@ -1102,8 +1103,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 274 CDlgTalkAct (emotion icon picker): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [x] UI 148 CDlgListBox (whisper-name history): the 3 audit mismatches fixed (opened by 145-1185, Dialog24 at -3,-4, names bound and picked); what is left is under 145
-  - [ ] UI 139 CDlgChat (chat options: filters and colours): draft only, 11 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 239 CDlgBlack (blacklist): draft only, 8 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 139 CDlgChat (chat options: filters and colours): 9 of 11 audit mismatches fixed
+    - [x] Dialog36 with Image36; a check per channel (G/B/D/H/S/Z, on at first) hiding its lines, SF whispers from friends only; each channel's colour (Image36N, talk 7, the rest 6) opening the eight swatches, one picked colouring its lines (`ChatFilter`, `ChatLook::palette`); Sift to 239; closes
+    - [ ] Record 1336 (opens 218, missing); help 1667; the action channel's lines (the engine has none yet)
+  - [ ] UI 239 CDlgBlack (blacklist): 7 of 8 audit mismatches fixed
+    - [x] Dialog36 with Image37's two frames; the names listed, the name typed (15), Add asked first (StrRes 11017 in 158), Del the picked one; a blacklisted name's lines unheard; closes back to 139
+    - [ ] help 1667
   - [ ] Message boards (packets spec 1111, B10): `gameplay.boards`, a guild's own board, posting from `board_min_level`, one post per author on the world state (ChatChannel::Board, Input::TakeDown, GM take-down); the Conquer front lists pages of 8 and reads posts (MsgMessageBoard 1111, MsgTalk 2201-2205)
     - [x] engine, UI and front
     - [ ] posts' text checked (CheckText) and the 2206 system board

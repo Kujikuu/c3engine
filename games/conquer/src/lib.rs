@@ -447,6 +447,22 @@ impl Content {
             system_lines: 3,
             bottom: 130.0,
             base: [1024.0, 768.0],
+            // CDlgChat's palette (DlgChat.cpp 37-44) and first colours (talk 7, the rest 6: 199-206).
+            palette: [
+                0xDE6E2C, 0xFFADAD, 0xF62D1E, 0x34EEFF, 0x126AFC, 0xADFFAD, 0xF1FF00, 0xEAE9E9,
+            ]
+            .map(|c: u32| [(c >> 16) as u8, (c >> 8) as u8, c as u8])
+            .to_vec(),
+            colors: [
+                ("talk", 7),
+                ("whisper", 6),
+                ("team", 6),
+                ("guild", 6),
+                ("friend", 6),
+                ("action", 6),
+            ]
+            .map(|(k, i)| (k.to_owned(), i))
+            .to_vec(),
         })
     }
 

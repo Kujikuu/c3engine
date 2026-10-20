@@ -9,7 +9,7 @@
 
 mod bag;
 mod chat;
-pub use chat::ChatLook;
+pub use chat::{ChatFilter, ChatLook, channel_key};
 mod chat_bar;
 mod dialogue;
 pub mod fonts;
@@ -261,6 +261,9 @@ pub(crate) const CHAT_NAME: &str = "chat.name";
 const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
+/// The name typed in the blacklist.
+const BLACK_NAME: &str = "black.name";
+
 /// The kind of `Input::Combine` that repairs an item (the games' own, as `combine:5`).
 const REPAIR_KIND: u32 = 5;
 
@@ -892,6 +895,72 @@ impl GameUi {
             "nobility_donate" => self.gui_state.donating = true,
             // The face picked taken (the face NPC's OK).
             "face_change" => self.gui_state.face_changing = true,
+            // The chat options (CDlgChat): a channel shown or hidden, whispers from friends
+            // only, a channel's colour list opened, a colour picked; the blacklist (CDlgBlack):
+            // the name typed added (asked first, StrRes 11017), the picked one let go.
+            _ if action.starts_with("chat_toggle:") => {
+                let channel = action["chat_toggle:".len()..].to_owned();
+                let hidden = &mut self.gui_state.chat_filter.hidden;
+                if !hidden.remove(&channel) {
+                    hidden.insert(channel);
+                }
+                self.chat.filter = self.gui_state.chat_filter.clone();
+            }
+            "chat_friends_only" => {
+                let f = &mut self.gui_state.chat_filter;
+                f.friends_only = !f.friends_only;
+                self.chat.filter = f.clone();
+            }
+            _ if action.starts_with("chat_color_for:") => {
+                // Any channel's colour closes an open list (OnChatImgGc and the rest).
+                let channel = action["chat_color_for:".len()..].to_owned();
+                if self.gui_state.views.remove("chat_color_for").is_none() {
+                    self.gui_state
+                        .views
+                        .insert("chat_color_for".into(), channel);
+                }
+            }
+            _ if action.starts_with("chat_color:") => {
+                let index = action["chat_color:".len()..].parse::<usize>();
+                if let (Some(channel), Ok(index)) =
+                    (self.gui_state.views.remove("chat_color_for"), index)
+                {
+                    self.gui_state.chat_filter.colors.insert(channel, index);
+                    self.chat.filter = self.gui_state.chat_filter.clone();
+                }
+            }
+            "blacklist_add" => {
+                let name = self
+                    .gui_state
+                    .fields
+                    .get(BLACK_NAME)
+                    .map_or("", |n| n.trim());
+                if !name.is_empty() {
+                    let mut prompt = prompt::Prompt::confirm("blacklist_add:blacklist_put");
+                    if let Some(p) = &mut prompt {
+                        p.name = name.to_owned();
+                    }
+                    self.gui_state.prompt = prompt;
+                }
+            }
+            "blacklist_put" => {
+                let name = self.gui_state.fields.remove(BLACK_NAME).unwrap_or_default();
+                let name = name.trim().to_owned();
+                let list = &mut self.gui_state.chat_filter.blacklist;
+                if !name.is_empty() && !list.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
+                    list.push(name);
+                    self.chat.filter = self.gui_state.chat_filter.clone();
+                }
+            }
+            "blacklist_drop" => {
+                let picked = (self.gui_state.views.remove("blacklist_pick"))
+                    .and_then(|v| v.parse::<usize>().ok());
+                let list = &mut self.gui_state.chat_filter.blacklist;
+                if let Some(at) = picked.filter(|at| *at < list.len()) {
+                    list.remove(at);
+                    self.chat.filter = self.gui_state.chat_filter.clone();
+                }
+            }
             // The shop's Repair: the next bag item clicked is repaired (ON_NPCBUY_FIX).
             "repair_mode" => self.gui_state.repairing = true,
             "words_clear" => {
@@ -1371,6 +1440,7 @@ impl GameUi {
 
     /// Shows the chat log in a game's look (TQ's CGameMsg), or the engine's.
     pub fn set_chat_look(&mut self, look: Option<ChatLook>) {
+        self.gui_state.chat_colors = look.as_ref().map(|l| l.colors.clone()).unwrap_or_default();
         self.chat.set_look(look);
     }
 
@@ -1631,6 +1701,7 @@ impl GameUi {
                             if list == "friends.rows"
                                 || list == "enemies.rows"
                                 || list == "partners.rows"
+                                || list == "blacklist.rows"
                                 || list == "students.rows"
                                 || list == "board.rows" =>
                         {
