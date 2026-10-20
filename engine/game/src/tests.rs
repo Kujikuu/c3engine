@@ -2256,3 +2256,21 @@ fn pk_modes_choose_whom_attacks_may_hit() {
     sim.input(a, Input::SetPkMode(PkMode::Team));
     assert!(sim.foe_cell(a, b).is_none(), "team spares the team");
 }
+
+#[test]
+fn a_living_player_shows_its_emote() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let a = sim.add_player("A", (5, 5), 1);
+    sim.take_events();
+    sim.input(a, Input::Emote(250));
+    let shown = sim.take_events().into_iter().any(|e| {
+        matches!(
+            e,
+            Event::Emoted {
+                player,
+                emote: 250
+            } if player == a
+        )
+    });
+    assert!(shown);
+}

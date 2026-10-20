@@ -980,7 +980,14 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Enter/Esc mapped to OK/Cancel
     - [ ] the other 40-odd modes (booth, mentor, item lock, offline training...) as their features land
   - [ ] UI 137 CDlgTrade (trade): partial, 21 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 140 CDlgAct (emote bar): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 140 CDlgAct (emotes): 3 of 6 audit mismatches fixed
+    - [x] emotes in the game (`Input::Emote`, `Event::Emoted`; the view plays the action once, held or looping by `Looks::emote_play`: Conquer holds sit, kneel and faint and loops the dance); Conquer's MsgAction 81 both ways
+    - [x] the ten ButtonA buttons show their emotes
+    - [x] 188/191 no longer close it; Esc as the client
+    - [ ] dragging an emote onto the quick bar
+    - [ ] emote hotkeys (user actions 10-19)
+    - [ ] BtnClick.wav from the main bar's button
+    - [ ] checked live: the pose seen in a running client (the start-up --act runs before the actors load)
   - [ ] UI 191 CDlgPk (PK modes): 8 of 9 audit mismatches fixed
     - [x] PK modes in the game: free, peace (monsters only), team (spares team, guild, spouse), arrest (bad names only) (`Input::SetPkMode`, `Player::pk_mode`, `PkModeSet`); Conquer's MsgAction 96 both ways; players enter in arrest mode (`pk.start_mode`)
     - [x] the four buttons (Button47/49/48/412) set their mode and hide the picker

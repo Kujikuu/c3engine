@@ -183,6 +183,11 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// Player `player` shows emote `emote` (the game's action number).
+    Emoted {
+        player: EntityId,
+        emote: u32,
+    },
     /// Player `player`'s PK mode is now `mode`.
     PkModeSet {
         player: EntityId,

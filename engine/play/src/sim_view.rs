@@ -99,6 +99,16 @@ impl SimView {
                         world.actors[i].walk_to(to, scene);
                     }
                 }
+                Event::Emoted { player, emote } => {
+                    if let Some(i) = self.actor(player) {
+                        use crate::module::EmotePlay;
+                        match world.game.looks().emote_play(emote) {
+                            EmotePlay::Once => world.actor_action(i, emote, true),
+                            EmotePlay::Hold => world.actor_hold(i, emote),
+                            EmotePlay::Loop => world.actor_action(i, emote, false),
+                        }
+                    }
+                }
                 Event::Placed { id, cell } | Event::Jumped { id, to: cell } => {
                     if let Some(i) = self.actor(id) {
                         world.actors[i].place(cell);

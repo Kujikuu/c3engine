@@ -648,6 +648,12 @@ impl GameUi {
                     actions.push(UiAction::Game(c3_game::Input::DropMoney(amount)));
                 }
             }
+            // The hero shows emote `<n>` (`emote:250`: TQ's sitting down).
+            _ if action.starts_with("emote:") => {
+                if let Ok(emote) = action["emote:".len()..].parse() {
+                    actions.push(UiAction::Game(c3_game::Input::Emote(emote)));
+                }
+            }
             // The hero's PK mode set (`pk_mode:free|peace|team|arrest`).
             _ if action.starts_with("pk_mode:") => {
                 use c3_core::settings::PkMode as M;

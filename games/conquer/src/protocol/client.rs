@@ -1134,6 +1134,14 @@ impl ConquerClient {
                 let cell = cell16(self.state_cell(*from).unwrap_or_default());
                 vec![pk::interact(interact::COURT, f, self.hero_id(), cell, 0)]
             }
+            // A player's emote, to everyone who sees it (the hero too).
+            Event::Emoted { player, emote } => {
+                let Some(who) = self.client_id(*player, ids) else {
+                    return Vec::new();
+                };
+                let cell = cell16(self.state_cell(*player).unwrap_or_default());
+                vec![pk::action(who, action::EMOTION, *emote, cell, 0)]
+            }
             // The hero's PK mode, as its main bar's PK button shows it.
             Event::PkModeSet { player, mode } if Some(*player) == hero => {
                 let code = pk_mode_code(*mode);
@@ -1304,10 +1312,7 @@ impl ConquerClient {
         let mut out = Vec::new();
         match request {
             Request::Action {
-                action: a,
-                data,
-                cell,
-                dir,
+                action: a, data, ..
             } => match a {
                 action::ENTER_MAP => out = self.enter(),
                 action::GET_ITEMS
@@ -1315,7 +1320,7 @@ impl ConquerClient {
                 | action::GET_PROFICIENCIES
                 | action::GET_SPELLS
                 | action::GET_GUILD => out.push(pk::action(id, a, 0, (0, 0), 0)),
-                action::EMOTION => out.push(pk::action(id, a, data, cell, dir)),
+                action::EMOTION => inputs.push(Input::Emote(data)),
                 action::QUERY_PLAYER => {
                     if let Some((_, packet)) = ids.entity(data).and_then(|e| self.seen.get(&e)) {
                         out.push(packet.clone());

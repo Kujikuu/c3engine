@@ -507,6 +507,16 @@ impl Looks for ConquerModule {
         self.content.part_action_effects(key, act)
     }
 
+    /// Sitting, kneeling and fainting hold their last frame; the dance loops (TQ's emotes).
+    fn emote_play(&self, emote: u32) -> c3_play::module::EmotePlay {
+        use c3_play::module::EmotePlay;
+        match emote {
+            1 => EmotePlay::Loop,
+            170 | 250 | 270 => EmotePlay::Hold,
+            _ => EmotePlay::Once,
+        }
+    }
+
     fn action(&self, act: Act) -> u32 {
         match act {
             Act::Stand => action::STANDBY,

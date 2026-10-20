@@ -26,6 +26,14 @@ pub enum Act {
     Jump,
 }
 
+/// How an emote plays (see [`Looks::emote_play`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmotePlay {
+    Once,
+    Hold,
+    Loop,
+}
+
 /// How a game dresses and animates its roles.
 pub trait Looks {
     /// What player `p` looks like in what it wears.
@@ -39,6 +47,12 @@ pub trait Looks {
     fn character(&self, look: &Look, act: u32) -> Result<Character, String>;
     /// `character`'s motions for action `act` (empty when its models keep their own).
     fn motions(&self, character: &Character, look: &Look, act: u32) -> CharacterMotions;
+    /// How emote `emote` plays: once, held on its last frame (sitting), or looping (a
+    /// dance) until the role moves.
+    fn emote_play(&self, emote: u32) -> EmotePlay {
+        let _ = emote;
+        EmotePlay::Once
+    }
     /// Milliseconds per animation frame of action `act`.
     fn frame_ms(&self, look: &Look, act: u32) -> u32;
     /// Effects a part starts when its role begins action `act` (weapon trails); `"none"`

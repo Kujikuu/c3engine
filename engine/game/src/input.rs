@@ -109,6 +109,8 @@ pub enum Input {
     Say(String),
     /// Whom the player's attacks may hit among other players.
     SetPkMode(c3_core::settings::PkMode),
+    /// Show emote `n` (the game's action number: a wave, a bow, sitting down).
+    Emote(u32),
     /// Say `text` on `channel` (to player `to` when whispering).
     Chat {
         channel: crate::ChatChannel,
@@ -158,6 +160,11 @@ impl Sim {
             Input::CloseShop => self.close_shop(id),
             Input::Revive => self.revive(id),
             Input::SetPkMode(mode) => self.set_pk_mode(id, mode),
+            Input::Emote(emote) => {
+                if self.players.get(&id).is_some_and(|p| p.is_alive()) {
+                    self.events.push(Event::Emoted { player: id, emote });
+                }
+            }
             Input::Ghost => self.become_ghost(id),
             Input::Use(item) => self.use_item(id, item),
             Input::Wear { item, slot } => self.wear_in(id, item, slot),
