@@ -183,6 +183,8 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.guild_join_min_fund = 100_000;
     // A guild under 100,000 can't talk on its channel either (packets 1004, 2004).
     s.gameplay.guild_chat_min_fund = 100_000;
+    // Face, forge and gem NPCs open their windows (MyShellDlg.cpp 2100-2108, Role.h).
+    s.gameplay.npc_windows = vec![[5, 212], [6, 211], [7, 229]];
     // Players enter in arrest mode, as the client asks at login (DlgMain.cpp 2176).
     s.gameplay.pk.start_mode = c3_core::settings::PkMode::Arrest;
     s.gameplay.guild_max_members = 800;

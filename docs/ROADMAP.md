@@ -1098,9 +1098,33 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 294 CDlgBroadcast5065 (pigeon broadcast board): draft only, 9 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 296 CDlgPigeonPrompt5065 (broadcast prompts): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 293 CDlgOfflineMessage5065 (whisper to an offline friend): draft only, 4 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 229 CDlgEmbed (gem sockets): partial, 13 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 275 CDlgItemCompose5065 (+N composing): partial, 12 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 211 CDlgImprove (raise quality / level): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 229 CDlgEmbed (gem sockets): 5 of 13 audit mismatches fixed
+    - [x] opened by a gem NPC (`gameplay.npc_windows`: an NPC kind opening a window in place of a dialogue)
+    - [x] the bag opened with it
+    - [x] embedding closes it; closing empties the workbench
+    - [x] items put on its slots (pick and put) or by the bag's right button
+    - [x] tooltips on its slots
+    - [ ] only socketed gear on 1688, gems routed by type
+    - [ ] sockets only where the gear has them, over Dialog30; gems already set shown
+    - [ ] socket picked (ImageFocus); embedding only newly placed gems; Take Out from the picked socket, asked first (158 mode 17)
+    - [ ] double-click to take an item back without shifting
+    - [ ] help 1667; +N
+  - [ ] UI 275 CDlgItemCompose5065 (+N composing): 4 of 12 audit mismatches fixed
+    - [x] the bag opened with it; right part (closes the right owner)
+    - [x] composing closes it; closing empties the workbench
+    - [x] items put on its slots
+    - [x] tooltips and quality lights on its slots
+    - [ ] refused while trading
+    - [ ] slots by kind: main equipment only, treasures after it (Image510), gems from +5 (Image511), routed by type
+    - [ ] compose only with main and both treasures
+    - [ ] help 1667; +N
+  - [ ] UI 211 CDlgImprove (raise quality / level): 4 of 6 audit mismatches fixed
+    - [x] opened by a forge NPC, with the bag
+    - [x] the gear (1628) and the DragonBall or Meteor (1629) put on it
+    - [x] OK uses the second on the first (`use_on:1:0`) and closes
+    - [x] closing empties the workbench
+    - [ ] 1628 only gear at full durability, 1629 only DragonBall / Meteor / MeteorTear
+    - [ ] help 1667; double-click to take back
   - [ ] UI 278 CDlgOven (refine / fuse): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 105 CDlgEnchant: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 298 CDlgBrokenRepair5065: draft only, 5 mismatches (docs/conquer_ui_audit.md)

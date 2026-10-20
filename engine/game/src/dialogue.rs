@@ -17,6 +17,12 @@ impl Sim {
         let Some(n) = self.npcs.iter().find(|n| n.id == npc) else {
             return;
         };
+        // An NPC of a kind that opens a window opens it.
+        let window = self.settings.npc_windows.iter().find(|[kind, _]| *kind == n.kind);
+        if let Some(&[_, dialog]) = window {
+            self.events.push(Event::OpenWindow { player: id, dialog });
+            return;
+        }
         if n.script.is_empty() || self.scripts.is_none() {
             let text = format!("{} has nothing to say.", n.name);
             self.message(id, text);

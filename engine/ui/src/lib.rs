@@ -762,6 +762,23 @@ impl GameUi {
                 self.gui_state.prompt = prompt::Prompt::confirm(&action["ask:".len()..]);
             }
             "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
+            // The workbench emptied (a workbench closed).
+            "work_clear" => self.gui_state.work.clear(),
+            // Workbench slot `a`'s item used on slot `b`'s (`use_on:1:0`: a DragonBall on
+            // the gear, TQ's improve).
+            _ if action.starts_with("use_on:") => {
+                let mut slots = action["use_on:".len()..].split(':');
+                let mut at = || {
+                    slots
+                        .next()?
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|n| self.gui_state.work.get(n).copied())
+                };
+                if let (Some(item), Some(target)) = (at(), at()) {
+                    actions.push(UiAction::Game(c3_game::Input::UseOn { item, target }));
+                }
+            }
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
             "menu" => self.toggle_menu(),

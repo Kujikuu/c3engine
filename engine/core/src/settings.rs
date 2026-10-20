@@ -443,6 +443,10 @@ pub struct GameplaySettings {
     /// alone).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub guild_invite_rank: u32,
+    /// NPC kinds that open a game UI window when talked to, in place of a dialogue (TQ's
+    /// forge, gem and face NPCs): each `[kind, window number]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub npc_windows: Vec<[u32; 2]>,
     /// The fund a guild needs for its members to talk on its channel (0: none).
     #[serde(default)]
     pub guild_chat_min_fund: i64,
@@ -523,6 +527,7 @@ impl Default for GameplaySettings {
             point_attributes: Vec::new(),
             guild_join_min_fund: 0,
             guild_chat_min_fund: 0,
+            npc_windows: Vec::new(),
             guild_max_members: 0,
             team_exp_range: 0,
             loot_protection_seconds: 0.0,
