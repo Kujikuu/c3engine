@@ -106,6 +106,9 @@ pub(crate) fn log_shows(shown: &str, key: &str) -> bool {
     matches!(shown, "" | "all") || shown == key
 }
 
+/// The dialog showing another player's equipment.
+pub(crate) const VIEW_EQUIP_DIALOG: u32 = 258;
+
 /// The emotions a page of the picker shows (CDlgTalkAct: 32).
 pub(crate) const EMOTE_PAGE: usize = 32;
 
@@ -331,6 +334,12 @@ impl HeroData<'_> {
         self.state.words.get(self.view_number("word"))
     }
 
+    /// The player whose equipment is shown (`view:viewed`), while in the world.
+    pub(crate) fn viewed(&self) -> Option<&c3_game::Player> {
+        let id = self.state.views.get("viewed")?.parse().ok()?;
+        self.view.sim.player(c3_game::EntityId(id))
+    }
+
     /// The faces the hero's body may take (the settings' `faces`; a body none names, as the
     /// game's usual look, the first set's).
     pub(crate) fn faces(&self) -> Vec<u32> {
@@ -421,6 +430,13 @@ impl HeroData<'_> {
         Some(match key {
             "hero.bag" => p.bag.iter().collect(),
             "hero.equipment" => p.equipment.iter().collect(),
+            // The shown player's worn item in slot `n` (CDlgNpcEquip).
+            _ if key.starts_with("viewed.worn.") => {
+                let slot: u8 = key.strip_prefix("viewed.worn.")?.parse().ok()?;
+                (self.viewed()?.equipment.iter())
+                    .filter(|i| sim.slot_of(i) == Some(slot))
+                    .collect()
+            }
             _ if key.starts_with("hero.worn.") => {
                 let slot: Option<u8> = key.strip_prefix("hero.worn.").and_then(|s| s.parse().ok());
                 (p.equipment.iter())
@@ -688,6 +704,9 @@ impl GuiData for HeroData<'_> {
             // Battle power: the total, each part (`power.0` the level .. `power.6` other), the
             // detail page's mode (`view:power_mode`: 1 quality .. 5 other) and a row's score,
             // quality step (0 none, 1 Refined .. 4 Super) and whether it counts.
+            // The shown player's profession and battle power.
+            "viewed.profession" => self.viewed()?.profession as f64,
+            "viewed.power" => self.view.viewed_power.as_ref()?.parts.iter().sum::<i64>() as f64,
             "power.total" => self.view.power.as_ref()?.parts.iter().sum::<i64>() as f64,
             "power.mode" => self.view_number("power_mode") as f64,
             // The detail page's total: the part its mode counts.
@@ -1003,6 +1022,24 @@ impl GuiData for HeroData<'_> {
             }
             "nobility.amount" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
             // The hero's rank title and icon, and the title of the rank asked about.
+            // The shown player's name, spouse (none for StrRes 100122, "None") and rank icon.
+            "viewed.name" => Some(self.viewed()?.name.clone()),
+            "viewed.mate" => {
+                let spouse = &self.view.sim.settings().spouse_text;
+                Some(
+                    self.viewed()?
+                        .texts
+                        .get(spouse)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            }
+            "viewed.noble" => {
+                let sim = self.view.sim;
+                let n = &sim.settings().nobility;
+                let rank = sim.world_state().noble_rank(n, &self.viewed()?.name).0;
+                Some(noble_images(rank).0.replace("16", "64"))
+            }
             "nobility.rank_name" | "nobility.query_name" | "nobility.icon" => {
                 let sim = self.view.sim;
                 let n = &sim.settings().nobility;

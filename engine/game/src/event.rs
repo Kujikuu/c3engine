@@ -186,6 +186,11 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// `viewer` looked at `player`'s equipment.
+    Observed {
+        player: EntityId,
+        viewer: EntityId,
+    },
     /// `player` is shown `owner`'s booth (its own, just opened, or another's it came to).
     BoothShown {
         player: EntityId,

@@ -399,6 +399,10 @@ pub mod action {
     /// A client window opened by number (1 compose, 4 the warehouse).
     pub const OPEN_DIALOG: u16 = 126;
     pub const QUERY_PLAYER: u16 = 102;
+    /// Another player's equipment asked for (117; the 5065 client's view button sends 310,
+    /// which the front answers alike, Redux's A15).
+    pub const OBSERVE_EQUIPMENT: u16 = 117;
+    pub const OBSERVE_PLAYER: u16 = 310;
     pub const LEAVE_MAP: u16 = 132;
     pub const JUMP: u16 = 133;
     /// The dead hero gets up as a ghost, after its fall.
@@ -655,6 +659,8 @@ pub fn user_info(h: &HeroInfo) -> Vec<u8> {
 /// An item in the hero's bag (`position` 0) or worn (its slot).
 /// MsgItemInfo actions: a new item, and one that changed.
 pub const ITEM_ADD: u8 = 1;
+/// MsgItemInfo's action of another player's worn item (its id that player's).
+pub const ITEM_OTHER_EQUIPMENT: u8 = 4;
 pub const ITEM_UPDATE: u8 = 3;
 
 /// One item as MsgItemInfo (1008) shows it.

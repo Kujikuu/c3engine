@@ -261,6 +261,9 @@ pub(crate) const CHAT_NAME: &str = "chat.name";
 const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
+/// The view group holding the player whose equipment is shown.
+const VIEWED: &str = "viewed";
+
 /// The name typed in the blacklist.
 const BLACK_NAME: &str = "black.name";
 
@@ -316,8 +319,10 @@ pub struct GameView<'a> {
     pub controls: &'a ControlsView<'a>,
     /// The map drawn small, under the radar's dots.
     pub minimap: Option<RadarMap>,
-    /// The hero's battle power as the game counts it; none: the game counts none.
+    /// The hero's battle power as the game counts it, and the shown player's (CDlgNpcEquip);
+    /// none: the game counts none.
     pub power: Option<Power>,
+    pub viewed_power: Option<Power>,
 }
 
 /// A player's battle power: what each part gives (the game's order: TQ's level, rebirths,
@@ -422,6 +427,12 @@ impl GameUi {
     pub fn take_pick(&mut self, player: EntityId) -> Option<UiAction> {
         use c3_game::{GuildAction as G, Input, TeamAction as T};
         let input = match self.pick.take()?.as_str() {
+            // Another player's equipment shown (CMD_NPCEQUIP: CDlgNpcEquip, 258).
+            "view_equip" => {
+                (self.gui_state.views).insert(VIEWED.into(), player.0.to_string());
+                self.open_dialog(gui_data::VIEW_EQUIP_DIALOG);
+                Input::Observe(player)
+            }
             "trade" => Input::TradeAsk(player),
             "team_invite" => Input::Team(T::Invite(player)),
             "team_join" => Input::Team(T::Apply(player)),
@@ -435,6 +446,12 @@ impl GameUi {
             _ => return None,
         };
         Some(UiAction::Game(input))
+    }
+
+    /// The player whose equipment the UI shows (CDlgNpcEquip's), if one.
+    pub fn viewed(&self) -> Option<EntityId> {
+        let id = self.gui_state.views.get(VIEWED)?.parse().ok()?;
+        Some(EntityId(id))
     }
 
     /// Opens dialog `id` of the game's UI from data.

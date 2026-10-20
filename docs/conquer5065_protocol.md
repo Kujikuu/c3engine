@@ -545,6 +545,7 @@ Redux names these fields Data1 = 12, Data2 = 16 (Low = x, High = y) and Data3 = 
 | 99 | Mine | | |
 | 100 | PositionHeartbeat | S to C challenge / C to S answer | optional anti-cheat (C.E) |
 | 102 | QueryPlayer | C to S: data = unknown id | the client sends it whenever it gets a walk / jump / action for an id it does not know (`MsgAction.cpp:211-231`, `MsgWalk.cpp`). **The server replies with that entity's spawn packet (1014)** (`GameServer.cs:663`). |
+| 117 / 310 | ObserveEquipment / ObservePlayer | C to S: data = the player looked at (the 5065 client's view button, CMD_NPCEQUIP, sends 310) | the front answers both alike (Redux A15): the target's MsgPlayer 1014, then MsgItemInfo 1008 action 4 (OTHERPLAYER_EQUIPMENT, `id` = the target's id) for each worn item at its position; the target gets the system line "<name> is checking your equipment." (`Input::Observe`, `Event::Observed`). |
 | 106 | QueryTeamMember | | |
 | 108 | KickBack | S to C: position correction (data low / high and x / y = cell) | |
 | 114 | DestroyBooth | | Redux calls 114 "GetSurroundings". The 5065 client has no such request; 114 is DestroyBooth. The server must push spawns itself. |

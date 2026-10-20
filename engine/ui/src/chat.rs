@@ -193,6 +193,10 @@ impl Chat {
                 .rules()
                 .status(*status)
                 .map(|t| (format!("{} wore off.", t.name), style::DIM)),
+            Event::Observed { player, viewer } if *player == hero => {
+                let name = sim.player(*viewer).map_or("Someone", |p| p.name.as_str());
+                Some((format!("{name} is checking your equipment."), style::TEXT))
+            }
             Event::LeveledUp { player, level } if *player == hero => {
                 Some((format!("Level up! You are level {level}."), style::GOLD))
             }

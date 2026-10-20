@@ -99,6 +99,7 @@ impl Event {
             | Event::PartnerAsked { player, .. }
             | Event::MentorAsked { player, .. }
             | Event::BoothShown { player, .. }
+            | Event::Observed { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {
                 to: Some(player), ..

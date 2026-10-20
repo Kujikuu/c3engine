@@ -1202,7 +1202,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 330 CDlgEmoneyWithdraw5065 (CP withdraw button): draft only, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 277 CDlgPortableChest5065 (portable chest): missing, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 329 CDlgItemLock5065 (item lock): draft only, 7 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 258 CDlgNpcEquip (another player's equipment): draft only, 10 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 258 CDlgNpcEquip (another player's equipment): 6 of 10 audit mismatches fixed
+    - [x] opened by the main bar's view button (130-1016, `pick:view_equip`) and a player clicked; Dialog42 on the right; the nine worn items in their places with their tips; Image160 at +90,+302; name, spouse; its rank image (nob_*64); its battle power (`GameView::viewed_power`); the one looked at told (`Input::Observe`; the front's MsgAction 117 / 310)
+    - [ ] the player's model at +120,+295 and the slide in from the right; the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; help (topic 36); closed when other right-side dialogs open; the spouse over the network (players' texts aren't sent)
   - [ ] UI 241 CDlgEffigy (statue placement): draft only, 9 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 242 CDlgLay (place an NPC): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 262 CDlgDice: draft only, 9 mismatches (docs/conquer_ui_audit.md)

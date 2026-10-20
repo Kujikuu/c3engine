@@ -468,6 +468,8 @@ pub struct ConquerClient {
     seen_guilds: HashMap<EntityId, u32>,
     /// The owner of the booth whose goods the client asked for.
     booth_asked: Option<EntityId>,
+    /// The player whose equipment the client asked to see.
+    observe_asked: Option<EntityId>,
     /// The hero's mentor and students as the client was last told (`None`: not yet), and
     /// whether it asked for them or for what students gave.
     mentors_told: Option<(String, Vec<String>)>,
@@ -623,6 +625,24 @@ impl ConquerClient {
             .map(|p| (p.author.as_str(), p.text.as_str(), p.time.as_str()))
             .collect();
         Some(pk::board_list(index, channel, &page))
+    }
+
+    /// Player `target` as the client's view of it shows it: its MsgPlayer, then each worn
+    /// item as that player's (MsgItemInfo 4, packets spec 117 / Redux A15).
+    fn observed(&self, target: EntityId, sim: &Sim) -> Vec<Vec<u8>> {
+        let Some(p) = sim.player(target) else {
+            return Vec::new();
+        };
+        let mut out: Vec<Vec<u8>> = (self.seen.get(&target).map(|(_, packet)| packet.clone()))
+            .into_iter()
+            .collect();
+        let owner = Ids::player(target);
+        for i in &p.equipment {
+            let mut info = item_fields(i, slot_of(sim.rules(), i), pk::ITEM_OTHER_EQUIPMENT, sim);
+            info.id = owner;
+            out.push(pk::item_info(&info));
+        }
+        out
     }
 
     /// Booth `owner`'s goods, last first, and its cry (booth_trade spec §1.5).
@@ -912,6 +932,9 @@ impl ConquerClient {
         }
         if let Some(owner) = self.booth_asked.take() {
             out.extend(self.booth_goods(owner, sim));
+        }
+        if let Some(target) = self.observe_asked.take() {
+            out.extend(self.observed(target, sim));
         }
         if let Some((channel, index, name)) = self.board_asked.take() {
             out.extend(self.board(sim, channel, index, &name));
@@ -1673,6 +1696,11 @@ impl ConquerClient {
                 };
                 vec![pk::talk(code, name, &hearer, text, colour)]
             }
+            // The one looked at told who (STR_QUERYEQUIPMENT_HINT).
+            Event::Observed { player, viewer } if Some(*player) == hero => {
+                let name = sim.player(*viewer).map_or("", |p| p.name.as_str());
+                vec![self.system(&format!("{name} is checking your equipment."))]
+            }
             Event::Message { text, .. }
             | Event::Notice { text, .. }
             | Event::CommandReply { text, .. } => {
@@ -1935,6 +1963,12 @@ impl ConquerClient {
                 | action::GET_SPELLS
                 | action::GET_GUILD => out.push(pk::action(id, a, 0, (0, 0), 0)),
                 action::EMOTION => inputs.push(Input::Emote(data)),
+                action::OBSERVE_EQUIPMENT | action::OBSERVE_PLAYER => {
+                    if let Some(target) = ids.entity(data) {
+                        self.observe_asked = Some(target);
+                        inputs.push(Input::Observe(target));
+                    }
+                }
                 action::QUERY_PLAYER => {
                     if let Some((_, packet)) = ids.entity(data).and_then(|e| self.seen.get(&e)) {
                         out.push(packet.clone());

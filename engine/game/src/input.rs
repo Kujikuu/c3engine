@@ -134,6 +134,8 @@ pub enum Input {
     Partner(crate::PartnerAction),
     /// Booths: opening one, setting out wares, buying from one.
     Booth(crate::BoothAction),
+    /// Look at player `0`'s equipment (it is told who looks).
+    Observe(EntityId),
     /// Say `text` on `channel` (to player `to` when whispering).
     Chat {
         channel: crate::ChatChannel,
@@ -186,6 +188,15 @@ impl Sim {
             Input::GuildNotice(text) => self.guild_notice(id, &text),
             Input::Friend(action) => self.friend_action(id, action),
             Input::Booth(action) => self.booth_action(id, action),
+            Input::Observe(target) => {
+                if target != id && self.players.contains_key(&target) {
+                    let viewer = id;
+                    self.events.push(Event::Observed {
+                        player: target,
+                        viewer,
+                    });
+                }
+            }
             Input::Partner(action) => self.partner_action(id, action),
             Input::Mentor(action) => self.mentor_action(id, action),
             Input::Broadcast(action) => self.broadcast_action(id, action),

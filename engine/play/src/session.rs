@@ -726,7 +726,9 @@ impl Session {
 
     /// Runs a game UI action as a click would (a question asked: `ask:guild_leave:...`).
     pub fn gui_action(&mut self, action: &str) {
-        for action in self.ui.run_gui_action(action) {
+        // `{hero}`: the hero's id (a scripted look at its own equipment, `view:viewed:{hero}`).
+        let action = action.replace("{hero}", &self.hero.0.to_string());
+        for action in self.ui.run_gui_action(&action) {
             self.act(action);
         }
     }
@@ -946,10 +948,11 @@ impl Session {
                 projection: self.world.scene.projection,
                 marks: self.minimap.marks,
             });
-        let power =
-            (self.sim.player(self.hero)).and_then(|p| self.world.game.battle_power(&self.sim, p));
+        let power_of =
+            |id| (self.sim.player(id)).and_then(|p| self.world.game.battle_power(&self.sim, p));
         let view = GameView {
-            power,
+            power: power_of(self.hero),
+            viewed_power: self.ui.viewed().and_then(power_of),
             sim: &self.sim,
             hero: self.hero,
             rect: screen.rect,
