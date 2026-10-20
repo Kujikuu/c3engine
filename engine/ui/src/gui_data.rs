@@ -19,6 +19,8 @@ pub(crate) struct GuiState {
     pub auto_team: crate::auto_team::AutoTeam,
     /// The hero has had mana since it came in.
     pub mana_seen: bool,
+    /// The game UI's name files, read as tables (`table:<file>|<key>`).
+    pub tables: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
     /// The hero's friends online as last seen (none before the first look).
     pub friends_online: Option<std::collections::BTreeSet<String>>,
     /// The hero's attributes as last seen, and when each last changed.
@@ -679,36 +681,106 @@ impl HeroData<'_> {
         })
     }
 
-    /// The attribute `hero.attr_at.<prefix>.<low>-<high>.<n>[+<group>]` names: its number and
-    /// value.
-    fn attr_entry(&self, key: &str) -> Option<(i64, i64)> {
-        let spec = key.split_once('.')?.1.split_once('.')?.1;
-        let (prefix, rest) = spec.split_once('.')?;
-        let (ranges, n) = rest.split_once('.')?;
-        // `low-high`, or several between commas (`0-399,600-999999`).
+    /// The hero's attributes named `<prefix><number>` with the number in `ranges` (`low-high`,
+    /// several between commas, or `@<view group>:<default>`: the ranges the group holds), by
+    /// number: each number and value.
+    fn attr_list(&self, prefix: &str, ranges: &str) -> Option<Vec<(i64, i64)>> {
+        let ranges = match ranges.strip_prefix('@') {
+            Some(spec) => {
+                let (group, default) = spec.split_once(':').unwrap_or((spec, ""));
+                self.state.views.get(group).map_or(default, String::as_str)
+            }
+            None => ranges,
+        };
         let ranges: Vec<(i64, i64)> = (ranges.split(','))
             .map(|r| {
                 let (low, high) = r.split_once('-')?;
                 Some((low.parse().ok()?, high.parse().ok()?))
             })
             .collect::<Option<_>>()?;
-        let (n, group) = n.split_once('+').map_or((n, None), |(n, g)| (n, Some(g)));
-        let offset = group
-            .and_then(|g| self.state.views.get(g))
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(0);
-        let n = n.parse::<usize>().ok()? + offset;
         let mut found: Vec<(i64, i64)> = (self.player.attributes.iter())
             .filter_map(|(name, &value)| {
                 let number: i64 = name.strip_prefix(prefix)?.parse().ok()?;
                 let within = ranges
                     .iter()
                     .any(|&(low, high)| (low..=high).contains(&number));
-                (within && value > 0).then_some((number, value))
+                within.then_some((number, value))
             })
             .collect();
         found.sort_unstable();
-        found.get(n).copied()
+        Some(found)
+    }
+
+    /// A place in a list: numbers and view groups' numbers added (`0+page`); a group not set
+    /// counts 0, but one marked `!` must hold a number (`pick!+page`: nothing picked yet).
+    fn list_index(&self, spec: &str) -> Option<usize> {
+        spec.split('+').try_fold(0usize, |sum, part| {
+            let (group, needed) = match part.strip_suffix('!') {
+                Some(group) => (group, true),
+                None => (part, false),
+            };
+            let n = match group.parse::<usize>() {
+                Ok(n) => n,
+                Err(_) => match self.state.views.get(group) {
+                    Some(v) => v.parse::<usize>().ok()?,
+                    None if needed => return None,
+                    None => 0,
+                },
+            };
+            Some(sum + n)
+        })
+    }
+
+    /// The attribute `hero.attr_at.<prefix>.<ranges>.<n>` names: its number and value.
+    fn attr_entry(&self, key: &str) -> Option<(i64, i64)> {
+        let spec = key.split_once('.')?.1.split_once('.')?.1;
+        let (prefix, rest) = spec.split_once('.')?;
+        let (ranges, n) = rest.split_once('.')?;
+        let n = self.list_index(n)?;
+        self.attr_list(prefix, ranges)?.get(n).copied()
+    }
+
+    /// A row of a table the game UI reads (`table:<file>|<key>`): the key a number or a
+    /// binding, `+k` added (`table:ini/WeaponSkillLevelExp.ini|<level>+1`); a key found by
+    /// its number too (`0` finds `000`).
+    fn table_row(&self, spec: &str) -> Option<String> {
+        let (file, key) = spec.split_once('|')?;
+        let table = self.state.tables.get(file)?;
+        let (base, add) = match key.rsplit_once('+') {
+            Some((b, k)) if k.parse::<i64>().is_ok() => (b, k.parse::<i64>().unwrap_or(0)),
+            _ => (key, 0),
+        };
+        let number = base.parse::<f64>().ok().or_else(|| self.number(base));
+        let key = match number {
+            Some(n) => (n as i64 + add).to_string(),
+            None => base.to_owned(),
+        };
+        if let Some(row) = table.get(&key) {
+            return Some(row.clone());
+        }
+        let wanted = key.parse::<i64>().ok()?;
+        (table.iter())
+            .find(|(k, _)| k.trim().parse::<i64>().ok() == Some(wanted))
+            .map(|(_, v)| v.clone())
+    }
+
+    /// A sum worked left to right (`calc:<a> * 100 / <b>`, `calc:<level> - 1 * 10`): numbers
+    /// and bindings between `+ - * /`, spaces around each.
+    fn calc(&self, expr: &str) -> Option<f64> {
+        let mut words = expr.split_whitespace();
+        let operand = |w: &str| w.parse::<f64>().ok().or_else(|| self.number(w));
+        let mut total = operand(words.next()?)?;
+        while let (Some(op), Some(w)) = (words.next(), words.next()) {
+            let v = operand(w)?;
+            total = match op {
+                "+" => total + v,
+                "-" => total - v,
+                "*" => total * v,
+                "/" if v != 0.0 => total / v,
+                _ => return None,
+            };
+        }
+        Some(total)
     }
 }
 
@@ -725,6 +797,12 @@ impl GuiData for HeroData<'_> {
     }
 
     fn number(&self, key: &str) -> Option<f64> {
+        if let Some(expr) = key.strip_prefix("calc:") {
+            return self.calc(expr);
+        }
+        if let Some(spec) = key.strip_prefix("table:") {
+            return self.table_row(spec)?.trim().parse().ok();
+        }
         // A binding divided, whole (`team.look.0/10000`: a Conquer face from its look).
         if let Some((binding, by)) = key.rsplit_once('/')
             && let Ok(by) = by.parse::<f64>()
@@ -1343,6 +1421,25 @@ impl GuiData for HeroData<'_> {
             // The `n`th of the hero's attributes named `<prefix><number>` with the number in
             // `low-high` and above 0: its number (`hero.attr_at.<prefix>.<low>-<high>.<n>`) or
             // its value (`hero.attr_val...`); `n` may add a view group's number (`3+page`).
+            // Whether there is an `n`th (`hero.attr_has.<prefix>.<ranges>.<n>`).
+            _ if key.starts_with("hero.attr_has.") => {
+                u8::from(self.attr_entry(key).is_some()).into()
+            }
+            // How many such attributes there are (`hero.attr_count.<prefix>.<ranges>`).
+            _ if key.starts_with("hero.attr_count.") => {
+                let (prefix, ranges) = key.strip_prefix("hero.attr_count.")?.split_once('.')?;
+                self.attr_list(prefix, ranges)?.len() as f64
+            }
+            // Another attribute of the `n`th's number (`hero.attr_other.<other>.<prefix>.
+            // <ranges>.<n>`: a weapon skill's experience, `weapon_exp_<type>`), 0 when none.
+            _ if key.starts_with("hero.attr_other.") => {
+                let (other, rest) = key.strip_prefix("hero.attr_other.")?.split_once('.')?;
+                let (number, _) = self.attr_entry(&format!("hero.attr_at.{rest}"))?;
+                p.attributes
+                    .get(&format!("{other}{number}"))
+                    .copied()
+                    .unwrap_or(0) as f64
+            }
             _ if key.starts_with("hero.attr_at.") || key.starts_with("hero.attr_val.") => {
                 let (number, value) = self.attr_entry(key)?;
                 (if key.starts_with("hero.attr_at.") {
@@ -1372,6 +1469,7 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            _ if key.starts_with("table:") => self.table_row(&key["table:".len()..]),
             // A confirmation row's item or partner name, and a partner's face while online.
             _ if key.starts_with("share.left.name.") => {
                 let row: usize = key.strip_prefix("share.left.name.")?.parse().ok()?;

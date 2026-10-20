@@ -294,6 +294,10 @@ pub struct Control {
     /// (`arrows=1`; TQ's CMyList: Button815 / Button816, 16 square, the lower 3 above the
     /// bottom; drawn only where the skin has them, as 5065's Control.ani hasn't).
     pub arrows: bool,
+    /// An image drawn as level marks of the number its `value` reads (`pips=<20>,<5>,<1>`:
+    /// TQ's CMyImage::ShowLevel: the first alone at 20, else one of the second each 5, 26
+    /// apart, then one of the third each 1, 14 apart, two a row).
+    pub pips: Vec<String>,
     /// A colour filled under it with its alpha (`back=00000099`: TQ's ShowBlock 0x99000000).
     pub back_alpha: u8,
     /// Numbered documents a list shows in place of rows (`pages=Help/help{n}.htm`: HTML read
@@ -515,6 +519,10 @@ impl Control {
             }),
             tail: section.int("tail").is_some_and(|t| t != 0),
             arrows: section.int("arrows").is_some_and(|a| a != 0),
+            pips: (section.get("pips").unwrap_or_default().split(','))
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty())
+                .collect(),
             back_alpha: (section.get("back"))
                 .filter(|c| c.trim_start_matches('#').len() == 8)
                 .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
@@ -623,10 +631,16 @@ impl Gui {
     /// Reads the name files the controls name (`names=`), each through `read`.
     pub fn load_names(&mut self, read: impl Fn(&str) -> Option<Vec<u8>>) {
         let tip_files = (self.controls.iter()).filter_map(|c| Some(tip_line(&c.tip)?.0.to_owned()));
+        // Files read as tables by bindings (`table:<file>|<key>`).
+        let table_files = (self.controls.iter())
+            .flat_map(|c| [&c.text, &c.fill_in, &c.value, &c.when])
+            .flat_map(|s| s.match_indices("table:").map(move |(at, _)| &s[at + 6..]))
+            .filter_map(|rest| Some(rest.split_once('|')?.0.to_owned()));
         let files: BTreeSet<String> = (self.controls.iter())
             .filter(|c| !c.names.is_empty())
             .map(|c| c.names.clone())
             .chain(tip_files)
+            .chain(table_files)
             .collect();
         for file in files {
             let Some(bytes) = read(&file) else {

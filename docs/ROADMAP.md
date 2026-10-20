@@ -713,7 +713,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
         Phoenix gems), adding points (`spend:`, `Input::SpendPoints`, MsgAllot 1024)
         (screenshot)
   - [x] Status: the weapon skills page (three classes of six, `Weapon<type>` icons and levels from the hero's `weapon_<type>` attributes; `hero.attr_at`, `place=`, `&` in `when`) and the equipment page (`hero.worn.<slot>`, a click takes an item off) (screenshot); item icons found as the client finds them (ItemMinIcon.Ani's `Item<key>`: helmets, armour and shields by colour × 1,000,000 + type, colour 3 by default; else ItemDefault; `item_look_attribute`)
-  - [ ] Status: a weapon skill picked shows its name, level and progress
+  - [x] Status: a weapon skill picked shows its name, level and progress (see UI 134)
   - [x] Dialogs the game opens (`when=<binding>`, in place of the engine's window): an
         NPC's shop (152) with its wares (`shop.items`, a click buys) and the bag beside it;
         bag clicks use, wear or sell (screenshot: shop and bag); GM `/shop NPC`
@@ -952,12 +952,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] add buttons play AddPoint.wav
     - [ ] the PK title prefix from Common.ini [PkTitle]
     - [ ] the details from GetMinAtk/GetMaxAtk/GetDef with item additions and gem percents rather than the rules' shown values
-  - [ ] UI 134 CDlgQueryWeapon (weapon skills page): 1 of 6 audit mismatches fixed
+  - [ ] UI 134 CDlgQueryWeapon (weapon skills page): 5 of 6 audit mismatches fixed
     - [x] "other" holds every type that is neither 4xx nor 5xx (attribute ranges between commas)
-    - [ ] levels as Weaponlevel5/1/20 pips
-    - [ ] a clicked icon's name, level, exp percent and description
-    - [ ] paging by 6 while more exist
-    - [ ] arrival order and level-0 skills
+    - [x] levels as Weaponlevel5/1/20 pips (`pips=`, CMyImage::ShowLevel) (screenshot)
+    - [x] a clicked icon's name, level, exp percent and description (WeaponSkillName.ini, StrRes 10018 / 10115, 10019 of WeaponSkillLevelExp.ini / 10020, 100089-100091; `table:`, `calc:`, `hero.attr_other`, printf numbers in `fill_in`) (screenshot)
+    - [x] paging by 6 while more exist (`view_step` against `hero.attr_count`)
+    - [x] level-0 skills listed (10115)
+    - [ ] arrival order (the engine keeps attributes sorted by name, so skills list by type)
     - [x] help (CDlgHelp 215)
   - [ ] UI 135 CDlgEquip (equipment page): 3 of 7 audit mismatches fixed
     - [x] treasure 1679 and mount 1680 places

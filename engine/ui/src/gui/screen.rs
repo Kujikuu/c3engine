@@ -451,7 +451,18 @@ fn fill_first(text: &str, with: &str) -> String {
             end += 1;
         }
         if end < bytes.len() && b"sdufx".contains(&bytes[end]) {
-            return format!("{}{with}{}", &text[..start], &text[end + 1..]);
+            // A number as the conversion asks: `%0.3f` to three places, `%d` / `%u` whole.
+            let shown = match (bytes[end], with.trim().parse::<f64>()) {
+                (b'f', Ok(n)) => {
+                    let places = (text[start + 1..end].split_once('.'))
+                        .and_then(|(_, p)| p.parse::<usize>().ok())
+                        .unwrap_or(6);
+                    format!("{n:.places$}")
+                }
+                (b'd' | b'u', Ok(n)) => format!("{}", n.trunc() as i64),
+                _ => with.to_owned(),
+            };
+            return format!("{}{shown}{}", &text[..start], &text[end + 1..]);
         }
         at = start + 1;
     }
@@ -633,6 +644,37 @@ impl Painter<'_, '_> {
         data: &dyn GuiData,
         events: &mut Vec<GuiEvent>,
     ) {
+        // A level as marks (CMyImage::ShowLevel).
+        if let [full, five, one] = control.pips.as_slice() {
+            let level = data.number(&control.value).unwrap_or(0.0).max(0.0) as usize;
+            let mut marks: Vec<(&str, Vec2)> = Vec::new();
+            if level == 20 {
+                marks.push((full, Vec2::new(38.0, 4.0)));
+            } else if level > 0 {
+                let fives = level / 5;
+                marks.extend((0..fives).map(|i| (five.as_str(), Vec2::new(i as f32 * 26.0, 4.0))));
+                for i in 0..level % 5 {
+                    let (x, y) = match i * 14 {
+                        o if o < 28 => (o, 0),
+                        o => (o - 28, 16),
+                    };
+                    marks.push((one, Vec2::new((fives * 24 + x) as f32, y as f32)));
+                }
+            }
+            for (section, offset) in marks {
+                if let Some(picture) = self.frame(self.skin.frames(section), 0) {
+                    self.draw(picture, at + offset, None, None);
+                }
+            }
+            if self.live && !control.action.is_empty() {
+                let rect = Rect::from_min_size(self.screen(at.x, at.y), size * self.place.scale);
+                let id = (self.ui.scope_id()).with(("gui pips", control.parent, control.id));
+                if self.ui.interact(rect, id, egui::Sense::click()).clicked() {
+                    clicked(control, events);
+                }
+            }
+            return;
+        }
         // A number shown as piles (CMyImage::ShowMoney): a column each unit, a picture each.
         if !control.piles.is_empty() {
             let mut left = data.number(&control.value).unwrap_or(0.0).max(0.0) as u64;

@@ -554,6 +554,7 @@ pub struct GameUi {
 impl GameUi {
     /// Draws `gui` (the game's UI from data) in place of the engine's bar.
     pub fn set_gui(&mut self, gui: Option<gui::Gui>) {
+        self.gui_state.tables = gui.as_ref().map(|g| g.names.clone()).unwrap_or_default();
         self.gui = gui;
     }
 
