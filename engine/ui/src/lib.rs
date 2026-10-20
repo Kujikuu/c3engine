@@ -1924,15 +1924,37 @@ impl GameUi {
                 self.system("Sorry, you don`t have enough silver.", style::BAD);
             }
         }
+        // A broadcast line (CDlgTalk's A_CLICK): from the level, with the cost in hand, not
+        // too long (kept to change), then asked (CDlgPigeonPrompt mode 55).
         if let Some(text) = self.gui_state.broadcast.take() {
-            let low = player.level < view.sim.settings().broadcast.min_level;
-            let line = c3_game::Input::Chat {
-                channel: c3_game::ChatChannel::Broadcast,
-                to: String::new(),
-                text: text.clone(),
+            let b = &view.sim.settings().broadcast;
+            let have = match b.currency.is_empty() {
+                true => player.money,
+                false => player.wallet.get(&b.currency).copied().unwrap_or(0),
             };
-            let kind = if low { "broadcast_low" } else { "broadcast" };
-            self.ask(kind, &text, line);
+            if player.level < b.min_level {
+                let level = b.min_level;
+                let line = format!(
+                    "You can use the Broadcast channel right after you reach level {level}."
+                );
+                self.system(line, style::BAD);
+            } else if have < b.cost {
+                let line = format!(
+                    "You don`t have enough {} to broadcast this message.",
+                    b.currency
+                );
+                self.system(line, style::BAD);
+            } else if text.len() > b.max_len {
+                self.system("The message is too long to broadcast.", style::BAD);
+                self.gui_state.fields.insert(CHAT_TEXT.into(), text);
+            } else {
+                let line = c3_game::Input::Chat {
+                    channel: c3_game::ChatChannel::Broadcast,
+                    to: String::new(),
+                    text: text.clone(),
+                };
+                self.ask("broadcast", &text, line);
+            }
         }
         let data = gui_data::HeroData {
             view,

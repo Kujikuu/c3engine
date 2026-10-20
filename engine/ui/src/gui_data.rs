@@ -1170,6 +1170,8 @@ impl GuiData for HeroData<'_> {
             "nobility.query" => self.view_number("nobility_query") as f64,
             "pigeon.rows" => self.pigeon_rows().len() as f64,
             "pigeon.heard" => self.state.broadcasts_heard.len() as f64,
+            // The level broadcasts start from.
+            "broadcast.min_level" => self.view.sim.settings().broadcast.min_level.into(),
             // The banner shows the last line heard since it was cleared.
             "pigeon.banner" => {
                 let new = self.state.broadcasts_heard.len() > self.state.banner_cleared;

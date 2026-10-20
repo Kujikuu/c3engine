@@ -888,6 +888,11 @@ impl Painter<'_, '_> {
                     super::Align::Right => rect.right() - galley.size().x,
                 };
                 let at = Pos2::new(left, rect.top());
+                if control.boxed {
+                    let block =
+                        Rect::from_min_size(at, galley.size()).expand(2.0 * self.place.scale);
+                    (self.ui.painter()).rect_filled(block, 0.0, Color32::from_black_alpha(0x80));
+                }
                 if let Some(edge) = edged {
                     for d in [
                         Vec2::new(-1.0, 0.0),
@@ -977,6 +982,21 @@ impl Painter<'_, '_> {
                     0 => usize::MAX,
                     n => n,
                 };
+                // Its hint while empty, in its own colour as the client's text (the broadcast
+                // line's 11023).
+                let hinted = text.is_empty()
+                    && !control.hint.is_empty()
+                    && (control.hint_when.is_empty() || expression(&control.hint_when, data));
+                if hinted {
+                    let hint = named(&control.hint, self.names.get(&control.names));
+                    let shown = (self.ui.painter()).layout_no_wrap(
+                        hint,
+                        font.clone(),
+                        Color32::from_rgb(r, g, b),
+                    );
+                    let at = Pos2::new(rect.left(), rect.center().y - shown.size().y / 2.0);
+                    (self.ui.painter()).galley(at, shown, Color32::WHITE);
+                }
                 // A `wrap` edit takes several lines (TQ's SetMultiLine).
                 let edit = match control.wrap {
                     true => egui::TextEdit::multiline(&mut text).desired_width(rect.width()),

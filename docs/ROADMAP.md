@@ -842,7 +842,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] lines half a second apart at least (StrRes 10044); line breaks taken out
     - [x] List 1185 opens the names list 148 (Dialog24, yellow names, a pick fills the name and hides it); Add 1545 switches Button57/58/59 and lists or takes off the name
     - [x] Log 1095 toggles 139; Action 1096 toggles 274 and closes 191 (`close:N`)
-    - [ ] broadcast (ad_channel) mode: tip 11034, placeholder 11023, level 50 / 5 CPs / 80 bytes, prompt 296; and 174's [174-1549]
+    - [x] broadcast (ad_channel) mode: tip 11034 (`boxed=1`), placeholder 11023 (edit `hint=`), level 50 (the pick refused with 296) / 5 CPs / 80 bytes, prompt 296; and 174's [174-1549] (screenshot)
     - [x] friend channel (2009): friends and enemies in the game (`FriendAction`, `WorldChange::Friendship`/`Enemy`, a killer kept as the victim's enemy)
     - [x] service channel (2014, 20 s cooldown StrRes 10444): `ChatChannel::Service` to the game masters online on any map, [Service] (100157) in the log; the front's 2014 both ways
     - [x] taking a listed name off asks first (CDlgConfirm 158: `ask:unlist:chat_list`)
@@ -856,7 +856,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the log's line count dragged (the line slider, 5326)
     - [x] blacklist / channel filters (139, 239)
     - [x] 274 CDlgTalkAct (the emotion picker)
-  - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
+  - [x] UI 174 CMenuTalk (channel menu): both audit mismatches fixed ([174-1549] broadcast; friend and service channels send)
   - [ ] UI 188 CDlgMagic (normal-magic skill strip): 6 of 11 audit mismatches fixed
     - [x] a click picks the skill for the skill box and hides 188 and 214 (ON_MAGIC_CHOOSE)
     - [x] the engine's egui skill bar is not drawn when the game UI shows the skills

@@ -281,6 +281,12 @@ pub struct Control {
     pub beside: bool,
     /// A colour filled under it (`back=rrggbb`; a Win32 edit's brush).
     pub back: Option<[u8; 3]>,
+    /// A text on a half-black block 2 pixels around it (`boxed=1`; TQ's ShowBlock under a tip).
+    pub boxed: bool,
+    /// What an empty edit shows faint until typed in (`hint={=11023}`, a names-file string),
+    /// while `hint_when` holds (always when empty).
+    pub hint: String,
+    pub hint_when: String,
     /// A list shown from its end, the newest rows lowest, the mouse wheel going back (`tail=1`;
     /// a log).
     pub tail: bool,
@@ -491,6 +497,9 @@ impl Control {
             travel: section.int("travel").unwrap_or(0).max(0),
             vertical: section.int("vertical").is_some_and(|v| v != 0),
             beside: section.int("beside").is_some_and(|b| b != 0),
+            boxed: section.int("boxed").is_some_and(|b| b != 0),
+            hint: text("hint"),
+            hint_when: text("hint_when"),
             back: section.get("back").map(|_| rgb("back")),
             tail: section.int("tail").is_some_and(|t| t != 0),
             pages: text("pages"),
