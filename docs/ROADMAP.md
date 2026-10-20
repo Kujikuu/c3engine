@@ -1003,7 +1003,14 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the main bar's PK button shows the mode
     - [x] 140/188 no longer close it (window model)
     - [ ] PK-cycle hotkey (user action 40)
-  - [ ] UI 189 CDlgXp (XP / revive / land / abort-transform strip): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 189 CDlgXp (XP / revive strip): 2 of 6 audit mismatches fixed
+    - [x] death revive mode: shown while the hero is dead at (906, 595), 118 wide; XpSkillType0 revives (`revive` action)
+    - [x] placed bottom right as the client moves it, not by GUI.ini
+    - [ ] XpSkillType5 revive-here (needs Blessed and a revive-here map; StrRes 10484/10485), and the 20 s ghost gate message (100033)
+    - [ ] XP-full mode: the XP skills as XpSkillType<type>, picked into the skill box or cast at once, shown on XP full and hidden when it empties
+    - [ ] paging 1277/1278
+    - [ ] land, abort-transform and booth-close modes
+    - [ ] checked live with a dead hero
   - [ ] UI 214 CDlgKongfu (Kongfu skill strip): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 133 CDlgKnightage (guild): partial, 20 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 257 CDlgFacState (guild member info): draft only, 4 mismatches (docs/conquer_ui_audit.md)

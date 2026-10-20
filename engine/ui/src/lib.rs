@@ -669,6 +669,8 @@ impl GameUi {
                     actions.push(UiAction::Game(c3_game::Input::DropMoney(amount)));
                 }
             }
+            // A dead hero comes back to life where the map sends it.
+            "revive" => actions.push(UiAction::Game(c3_game::Input::Revive)),
             // The hero shows emote `<n>` (`emote:250`: TQ's sitting down).
             _ if action.starts_with("emote:") => {
                 if let Ok(emote) = action["emote:".len()..].parse() {
