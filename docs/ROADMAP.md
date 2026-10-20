@@ -756,11 +756,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
         (windows 2, 3)
   - [x] The skill strip (CDlgMagic 188, the bar's Skill box): the hero's skills as Magic.Ani's
         icons (`skill.N`), a click casts (`cast:N`) (screenshot)
-  - [ ] Skills: the strip right-aligned to its skill count, the XP and Kongfu strips
-  - [ ] Data and actions per dialog: the
+  - [x] Skills: the strip right-aligned to its skill count (`stretch=`), the XP and Kongfu strips (189, 214; their own gaps under UI 188 / 189 / 214)
+  - [x] Data and actions per dialog: the
         warehouse grid and money, team members, friends, guild info, shop, trade, NPC talk,
         skills, compose, gem setting, PK mode; dialogs opened by the game (shop, warehouse,
-        trade, NPC talk) rather than buttons
+        trade, NPC talk) rather than buttons (each dialog's remaining gaps are its own items
+        in the audit below)
   - [x] A dialog opened closes those it would cover (TQ's side panels swap)
   - [x] UI sounds: settings [ui] sound_open / sound_close / sound_click, Conquer's
         DlgOpen, DlgClose and BtnClick (not heard in a test yet)
