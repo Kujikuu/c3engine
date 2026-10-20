@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /lay LOOK · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /lay LOOK · /hear NAME WORDS · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -33,6 +33,30 @@ impl Sim {
             "Raised {name} {} {} {}.",
             args[0], args[1], args[2]
         ))
+    }
+
+    /// `/hear NAME WORDS` (game masters): NAME whispers WORDS to the player (to try the chat).
+    fn hear_command(&mut self, id: EntityId, words: &[&str]) -> Result<String, String> {
+        let Some(p) = self
+            .players
+            .get(&id)
+            .filter(|p| self.settings.is_gm(&p.name))
+        else {
+            return Err("Only game masters can use commands.".into());
+        };
+        let [name, said @ ..] = words else {
+            return Err("Usage: /hear NAME WORDS".into());
+        };
+        let hearer = p.name.clone();
+        self.events.push(Event::Chat {
+            player: id,
+            name: (*name).to_owned(),
+            text: said.join(" "),
+            channel: crate::ChatChannel::Whisper,
+            to: Some(id),
+            hearer,
+        });
+        Ok(format!("{name} whispered."))
     }
 
     /// `/attribute NAME N` (game masters): sets one of the player's attributes.
@@ -101,6 +125,7 @@ impl Sim {
             Some("wallet") => return self.wallet_command(id, rest),
             Some("deposit") => return self.deposit_command(id, rest),
             Some("attribute") => return self.attribute_command(id, rest),
+            Some("hear") => return self.hear_command(id, rest),
             _ => {}
         }
         let mut words = line.trim_start_matches('/').split_whitespace();

@@ -12,6 +12,7 @@ mod chat;
 pub use chat::{ChatFilter, ChatLook, channel_key};
 pub use destinations::Destination;
 mod chat_bar;
+mod conversations;
 mod destinations;
 mod dialogue;
 pub mod fonts;
@@ -294,6 +295,10 @@ pub struct Placing {
     pub cell: Option<CellPos>,
     pub direction: u8,
 }
+
+/// The private chat window's line typed, and the view group showing its session list.
+const PM_TEXT: &str = "pm.text";
+const PM_LIST: &str = "pm_list";
 
 /// The kind of the game's exit question.
 const EXIT: &str = "exit";
@@ -1076,6 +1081,32 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            // The private chat windows: a tray icon's conversation shown, Send, Close (its
+            // icon goes), Minimize, its player blacklisted, the windows hidden.
+            _ if action.starts_with("pm_open:") => {
+                if let Ok(at) = action["pm_open:".len()..].parse() {
+                    self.gui_state.conversations.show(at);
+                    self.gui_state.views.remove(PM_LIST);
+                    self.gui_state.focus = Some(PM_TEXT.into());
+                }
+            }
+            "pm_send" => self.gui_state.pm_sending = true,
+            "pm_close" => self.gui_state.conversations.close(),
+            "pm_minimize" => self.gui_state.conversations.open = None,
+            "pm_blacklist" => {
+                let peer = self.gui_state.conversations.current().filter(|c| !c.team);
+                if let Some(name) = peer.map(|c| c.name.clone()) {
+                    let list = &mut self.gui_state.chat_filter.blacklist;
+                    if !list.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
+                        list.push(name);
+                        self.chat.filter = self.gui_state.chat_filter.clone();
+                    }
+                }
+            }
+            "pm_conceal" => {
+                let c = &mut self.gui_state.conversations;
+                c.hidden = !c.hidden;
+            }
             // The placing window (CDlgLay): turned left or right, put there, or let go.
             "place_left" | "place_right" => {
                 if let Some(p) = &mut self.placing {
@@ -1333,6 +1364,63 @@ impl GameUi {
         if fps <= SLOW_FPS {
             self.gui_state.views.insert(LOW_FPS.into(), "1".into());
         }
+    }
+
+    /// A whisper to the hero, or a team line from another, kept in its conversation when the
+    /// game's UI has the private chat windows (binds `pm.`); blacklisted names aren't.
+    fn converse(&mut self, event: &Event, sim: &Sim, hero: EntityId) {
+        let Event::Chat {
+            player,
+            name,
+            text,
+            channel,
+            to,
+            ..
+        } = event
+        else {
+            return;
+        };
+        if !self.gui.as_ref().is_some_and(|g| g.binds("pm.")) {
+            return;
+        }
+        let team = match channel {
+            c3_game::ChatChannel::Whisper if *to == Some(hero) => false,
+            c3_game::ChatChannel::Team => true,
+            _ => return,
+        };
+        let me = sim.player(hero).map_or("", |p| p.name.as_str());
+        let blacklisted =
+            (self.gui_state.chat_filter.blacklist.iter()).any(|b| b.eq_ignore_ascii_case(name));
+        if name == me || blacklisted {
+            return;
+        }
+        let face = sim.player(*player).map_or(0, |p| p.look.face);
+        let line = format!("{name}: {text}");
+        self.gui_state.conversations.heard(name, team, face, line);
+    }
+
+    /// The private chat window's Send: its line to its player (or the team), kept with it.
+    fn pm_send(&mut self, player: &Player, actions: &mut Vec<UiAction>) {
+        if !std::mem::take(&mut self.gui_state.pm_sending) {
+            return;
+        }
+        let text = self.gui_state.fields.remove(PM_TEXT).unwrap_or_default();
+        let text = text.trim();
+        let Some(c) = self.gui_state.conversations.current() else {
+            return;
+        };
+        if text.is_empty() {
+            return;
+        }
+        let channel = match c.team {
+            true => c3_game::ChatChannel::Team,
+            false => c3_game::ChatChannel::Whisper,
+        };
+        let to = c.name.clone();
+        let text = text.to_owned();
+        let line = format!("{}: {text}", player.name);
+        actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }));
+        self.gui_state.conversations.said(line);
     }
 
     /// What offline training does next: asked (the blessed; others told StrRes 11001 and
@@ -1839,6 +1927,7 @@ impl GameUi {
             }
         }
         for event in events {
+            self.converse(event, sim, hero);
             if let Event::PlacementAsked { player, look, .. } = *event
                 && player == hero
             {
@@ -2131,6 +2220,10 @@ impl GameUi {
                             picked_contact = Some((key, index));
                         }
                         // A listed name picked fills the chat bar's name; the list hides.
+                        // A conversation picked in the session list opens.
+                        gui::GuiEvent::Item { list, index } if list == "pm.names" => {
+                            picked_contact = Some(("pm_pick".to_owned(), index));
+                        }
                         gui::GuiEvent::Item { list, index } if list == CHAT_TARGETS => {
                             picked_target = data.state.chat_bar.targets.get(index).cloned();
                         }
@@ -2313,6 +2406,11 @@ impl GameUi {
                     }
                     None => {}
                 }
+                if picked_contact.as_ref().is_some_and(|(k, _)| k == "pm_pick") {
+                    let row = picked_contact.take().map_or(0, |(_, row)| row);
+                    self.gui_state.conversations.show(row);
+                    self.gui_state.views.remove(PM_LIST);
+                }
                 if let Some((key, row)) = picked_contact {
                     // Another group picked: none of its actions is yet.
                     if key == "hotkey_group" {
@@ -2346,6 +2444,7 @@ impl GameUi {
                 self.purchase(view, player, &mut actions);
                 self.lock_bind(view, player);
                 self.training_next(view, player, &mut actions);
+                self.pm_send(player, &mut actions);
                 let used = self.gui_state.use_kind.take();
                 let item = used.and_then(|kind| player.bag.iter().find(|i| i.kind == kind));
                 actions.extend(item.map(|i| UiAction::Use(i.id)));

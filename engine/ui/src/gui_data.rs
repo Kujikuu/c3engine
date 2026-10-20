@@ -83,6 +83,9 @@ pub(crate) struct GuiState {
     pub purchase_asked: Option<String>,
     /// The lock window's bind pressed.
     pub lock_binding: bool,
+    /// The private conversations (Chat.dll's), and the window's Send pressed.
+    pub conversations: crate::conversations::Conversations,
+    pub pm_sending: bool,
     /// Something being placed has its cell (the placing window shows).
     pub place_fixed: bool,
     /// Offline training: the minutes offered or what it trained (its windows'), and what it
@@ -735,6 +738,36 @@ impl GuiData for HeroData<'_> {
             }
             // Something being placed was put on a cell (the placing window turns it).
             "place.fixed" => u8::from(self.state.place_fixed).into(),
+            // The private chat windows: a conversation shown (not hidden), its player's
+            // level when in sight; the tray's icons (`pm.tray.has.0`, its team icon, flashing
+            // a frame each 300 ms).
+            "pm.open" => {
+                let c = &self.state.conversations;
+                u8::from(c.current().is_some() && !c.hidden).into()
+            }
+            "pm.hidden" => u8::from(self.state.conversations.hidden).into(),
+            "pm.level" => {
+                let c = self.state.conversations.current().filter(|c| !c.team)?;
+                (self.view.sim.players())
+                    .find(|p| p.name == c.name)?
+                    .level
+                    .into()
+            }
+            _ if key.starts_with("pm.tray.") => {
+                let (field, n) = key["pm.tray.".len()..].split_once('.')?;
+                let c = self
+                    .state
+                    .conversations
+                    .list
+                    .get(n.parse::<usize>().ok()?)?;
+                let blink = (chrono::Utc::now().timestamp_millis() / 300) % 2 == 0;
+                match field {
+                    "has" => 1.0,
+                    "team" => u8::from(c.team).into(),
+                    "flash" => u8::from(c.flashing && blink).into(),
+                    _ => return None,
+                }
+            }
             // The auto-path menu: how many headings, and the row of the one open.
             "autorun.count" => crate::destinations::roots(self.view).len() as f64,
             "autorun.open" => u8::from(self.number("autorun.open_row").is_some()).into(),
@@ -1264,9 +1297,29 @@ impl GuiData for HeroData<'_> {
                     .cloned()
                     .unwrap_or_else(|| "11194".into()),
             ),
+            // The private chat window: whom it is with ("Team" for the team's), the faces,
+            // and a tray icon's face.
+            "pm.name" => {
+                let c = self.state.conversations.current()?;
+                Some(if c.team {
+                    "Team".into()
+                } else {
+                    c.name.clone()
+                })
+            }
+            "pm.face" => {
+                let c = self.state.conversations.current()?;
+                Some(c.face.max(1).to_string())
+            }
+            "pm.self_face" => Some(self.player.look.face.max(1).to_string()),
+            _ if key.starts_with("pm.tray.face.") => {
+                let n: usize = key["pm.tray.face.".len()..].parse().ok()?;
+                let c = self.state.conversations.list.get(n)?;
+                (!c.team).then(|| c.face.max(1).to_string())
+            }
             // The item being bought: its name, and how many are to be bought.
             "purchase.name" => Some(crate::item_name(self.view.sim, self.state.purchase?.kind)),
-            "word.text" | "board.text" | "black.name" | "purchase.amount" => {
+            "word.text" | "board.text" | "black.name" | "purchase.amount" | "pm.text" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // The post read on the message board.
@@ -1536,6 +1589,22 @@ impl GuiData for HeroData<'_> {
                     false => d.title.clone(),
                 });
                 (rows.collect(), None)
+            }
+            // The private chat window's lines, and every conversation (the session list).
+            "pm.history" => {
+                let c = self.state.conversations.current();
+                (c.map_or_else(Vec::new, |c| c.lines.clone()), None)
+            }
+            "pm.names" => {
+                let list = &self.state.conversations.list;
+                let names = list.iter().map(|c| {
+                    if c.team {
+                        "Team".into()
+                    } else {
+                        c.name.clone()
+                    }
+                });
+                (names.collect(), None)
             }
             // The names whose lines are never heard (the blacklist).
             "blacklist.rows" => {
