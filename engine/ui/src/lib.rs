@@ -173,6 +173,17 @@ fn draw_held(
     );
 }
 
+/// A PK mode's name in bindings and actions.
+pub(crate) fn pk_mode_name(mode: c3_core::settings::PkMode) -> &'static str {
+    use c3_core::settings::PkMode as M;
+    match mode {
+        M::Free => "free",
+        M::Peace => "peace",
+        M::Team => "team",
+        M::Arrest => "arrest",
+    }
+}
+
 /// The typed answer of the NPC's page, when something is typed (CDlgTask sends none empty).
 fn typed_answer(state: &gui_data::GuiState, player: &Player) -> Option<UiAction> {
     let page = &player.dialogue.as_ref()?.page;
@@ -636,6 +647,17 @@ impl GameUi {
                 if let Some(amount) = typed.and_then(|t| t.trim().parse::<u64>().ok()) {
                     actions.push(UiAction::Game(c3_game::Input::DropMoney(amount)));
                 }
+            }
+            // The hero's PK mode set (`pk_mode:free|peace|team|arrest`).
+            _ if action.starts_with("pk_mode:") => {
+                use c3_core::settings::PkMode as M;
+                let mode = match &action["pk_mode:".len()..] {
+                    "peace" => M::Peace,
+                    "team" => M::Team,
+                    "arrest" => M::Arrest,
+                    _ => M::Free,
+                };
+                actions.push(UiAction::Game(c3_game::Input::SetPkMode(mode)));
             }
             // The member picked in the team dialog sent out.
             "team_kick_picked" => self.gui_state.kicking = true,

@@ -27,6 +27,37 @@ impl Sim {
         self.pk_free = free;
     }
 
+    /// Player `id` attacks other players by `mode` from now on.
+    pub fn set_pk_mode(&mut self, id: EntityId, mode: c3_core::settings::PkMode) {
+        if let Some(p) = self.players.get_mut(&id) {
+            p.pk_mode = mode;
+            self.events.push(Event::PkModeSet { player: id, mode });
+        }
+    }
+
+    /// Whether player `attacker`'s PK mode lets it hit player `target`: free hits anyone,
+    /// peace no one, team anyone but its team, guild and spouse, arrest only bad names.
+    pub(crate) fn mode_allows(&self, attacker: EntityId, target: EntityId) -> bool {
+        use c3_core::settings::PkMode;
+        let (Some(a), Some(t)) = (self.players.get(&attacker), self.players.get(&target)) else {
+            return true;
+        };
+        match a.pk_mode {
+            PkMode::Free => true,
+            PkMode::Peace => false,
+            PkMode::Arrest => self.mark_of(target).is_evil(),
+            PkMode::Team => {
+                let teammate = a.team.is_some() && a.team == t.team;
+                let world = &self.world;
+                let guild = |name: &str| world.guild_of(name).map(|(g, _)| g);
+                let guildmate = guild(&a.name).is_some() && guild(&a.name) == guild(&t.name);
+                let spouse = (a.texts.get(&self.settings.spouse_text))
+                    .is_some_and(|s| s.eq_ignore_ascii_case(&t.name));
+                !(teammate || guildmate || spouse)
+            }
+        }
+    }
+
     /// Player `id`'s name mark now.
     fn mark_of(&self, id: EntityId) -> crate::NameMark {
         let Some(p) = self.players.get(&id) else {
@@ -111,7 +142,8 @@ impl Sim {
             let cell = self.hittable_npc_cell(target)?;
             return self.may_fight(from, cell, false).then_some(cell);
         };
-        let allowed = self.pk && target != attacker && p.is_alive();
+        let allowed =
+            self.pk && target != attacker && p.is_alive() && self.mode_allows(attacker, target);
         (allowed && self.may_fight(from, p.cell, true)).then_some(p.cell)
     }
 

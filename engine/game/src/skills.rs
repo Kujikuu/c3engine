@@ -216,7 +216,7 @@ impl Sim {
                     .map(|m| m.id);
                 // On PK maps a blast reaches other players too.
                 let players = (self.players.values())
-                    .filter(|p| self.pk && p.id != caster)
+                    .filter(|p| self.pk && p.id != caster && self.mode_allows(caster, p.id))
                     .filter(|p| p.is_alive() && distance(p.cell, goal) <= area)
                     .map(|p| p.id);
                 monsters.chain(players).collect()

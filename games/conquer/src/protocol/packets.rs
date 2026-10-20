@@ -176,6 +176,8 @@ pub mod action {
     pub const GET_PROFICIENCIES: u16 = 77;
     pub const GET_SPELLS: u16 = 78;
     pub const EMOTION: u16 = 81;
+    /// The hero's PK mode, asked and told (actionSetPkMode).
+    pub const SET_PK_MODE: u16 = 96;
     /// The client stepped on a portal (data: its cell, x | y << 16).
     pub const CHANGE_MAP: u16 = 85;
     pub const FLY_MAP: u16 = 86;

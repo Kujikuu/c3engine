@@ -184,6 +184,9 @@ pub struct Player {
     /// PK points: what killing other players has earned (game-defined).
     #[serde(default)]
     pub pk: i32,
+    /// Whom its attacks may hit among other players.
+    #[serde(default)]
+    pub pk_mode: c3_core::settings::PkMode,
     /// Its name as others see it (crime and PK points), kept up to date by the simulation.
     #[serde(default)]
     pub mark: NameMark,

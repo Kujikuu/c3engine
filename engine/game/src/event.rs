@@ -183,6 +183,11 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// Player `player`'s PK mode is now `mode`.
+    PkModeSet {
+        player: EntityId,
+        mode: c3_core::settings::PkMode,
+    },
     /// `from` proposed marriage to `player`.
     Proposed {
         player: EntityId,

@@ -580,6 +580,24 @@ pub struct PkSettings {
     pub black_at: i32,
     /// Every this many seconds a player loses a PK point (0: never).
     pub decay_seconds: f64,
+    /// The PK mode players enter the world in (TQ's client asks for arrest).
+    #[serde(default)]
+    pub start_mode: PkMode,
+}
+
+/// Whom a player's attacks may hit among other players, where players may fight (TQ's PK
+/// modes, in their order).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PkMode {
+    /// Anyone.
+    #[default]
+    Free,
+    /// No player: monsters only.
+    Peace,
+    /// Anyone but its team, its guild and its spouse.
+    Team,
+    /// Only players of bad name (criminals, red and black names).
+    Arrest,
 }
 
 impl Default for PkSettings {
@@ -593,6 +611,7 @@ impl Default for PkSettings {
             red_at: 30,
             black_at: 100,
             decay_seconds: 360.0,
+            start_mode: PkMode::Free,
         }
     }
 }

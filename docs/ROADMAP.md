@@ -820,7 +820,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] XP skills picked from 189 (XpSkillType) into the skill box
     - [ ] radar toggle transition (the client rolls it)
     - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
-    - [ ] PK button image by PK mode (Button47/49/48/412)
+    - [x] PK button image by PK mode (Button47/49/48/412)
     - [ ] hover tooltips on exp, run, map, screen move, view equipment, XP, MP, HP (Dialog21, StrRes 10070-10074, 10370)
     - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
     - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
@@ -981,7 +981,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the other 40-odd modes (booth, mentor, item lock, offline training...) as their features land
   - [ ] UI 137 CDlgTrade (trade): partial, 21 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 140 CDlgAct (emote bar): draft only, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 191 CDlgPk (PK mode picker): draft only, 9 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 191 CDlgPk (PK modes): 8 of 9 audit mismatches fixed
+    - [x] PK modes in the game: free, peace (monsters only), team (spares team, guild, spouse), arrest (bad names only) (`Input::SetPkMode`, `Player::pk_mode`, `PkModeSet`); Conquer's MsgAction 96 both ways; players enter in arrest mode (`pk.start_mode`)
+    - [x] the four buttons (Button47/49/48/412) set their mode and hide the picker
+    - [x] the main bar's PK button shows the mode
+    - [x] 140/188 no longer close it (window model)
+    - [ ] PK-cycle hotkey (user action 40)
   - [ ] UI 189 CDlgXp (XP / revive / land / abort-transform strip): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 214 CDlgKongfu (Kongfu skill strip): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 133 CDlgKnightage (guild): partial, 20 mismatches (docs/conquer_ui_audit.md)

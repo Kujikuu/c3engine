@@ -78,6 +78,7 @@ impl Sim {
                 mates: Vec::new(),
                 profession: 0,
                 pk: 0,
+                pk_mode: self.settings.pk.start_mode,
                 mark: crate::NameMark::Good,
                 crime_until: 0,
                 next_decay_ms: 0,

@@ -107,6 +107,8 @@ pub enum Input {
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
     Say(String),
+    /// Whom the player's attacks may hit among other players.
+    SetPkMode(c3_core::settings::PkMode),
     /// Say `text` on `channel` (to player `to` when whispering).
     Chat {
         channel: crate::ChatChannel,
@@ -155,6 +157,7 @@ impl Sim {
             Input::Sell { npc, item } => self.sell(id, npc, item),
             Input::CloseShop => self.close_shop(id),
             Input::Revive => self.revive(id),
+            Input::SetPkMode(mode) => self.set_pk_mode(id, mode),
             Input::Ghost => self.become_ghost(id),
             Input::Use(item) => self.use_item(id, item),
             Input::Wear { item, slot } => self.wear_in(id, item, slot),

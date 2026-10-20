@@ -277,6 +277,11 @@ impl GuiData for HeroData<'_> {
                 self.team().get(n)?.look.into()
             }
             "team.picked_member" => u8::from(self.picked_member().is_some()).into(),
+            // The hero's PK mode is `<mode>` (`hero.pk_mode.free|peace|team|arrest`).
+            _ if key.starts_with("hero.pk_mode.") => {
+                let mode = key.strip_prefix("hero.pk_mode.")?;
+                u8::from(crate::pk_mode_name(p.pk_mode) == mode).into()
+            }
             // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
             "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
             // The open shop's wares are priced in currency `<name>` (`shop.priced_in.CPs`; TQ's

@@ -94,6 +94,7 @@ impl Event {
             | Event::ClientCue { player, .. }
             | Event::ClientCueText { player, .. }
             | Event::Proposed { player, .. }
+            | Event::PkModeSet { player, .. }
             | Event::Chat {
                 to: Some(player), ..
             }

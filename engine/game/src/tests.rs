@@ -2236,3 +2236,23 @@ fn chat_reaches_its_channel() {
     say(&mut sim, ChatChannel::Guild, "");
     assert!(heard(&mut sim).contains(&(ann, Some(bob), ChatChannel::Guild)));
 }
+
+#[test]
+fn pk_modes_choose_whom_attacks_may_hit() {
+    use c3_core::settings::PkMode;
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    sim.set_pk(true);
+    let a = sim.add_player("A", (5, 5), 1);
+    let b = sim.add_player("B", (6, 5), 1);
+    sim.input(a, Input::SetPkMode(PkMode::Peace));
+    assert!(sim.foe_cell(a, b).is_none(), "peace hits no player");
+    sim.input(a, Input::SetPkMode(PkMode::Arrest));
+    assert!(sim.foe_cell(a, b).is_none(), "arrest hits only bad names");
+    sim.input(a, Input::SetPkMode(PkMode::Free));
+    assert!(sim.foe_cell(a, b).is_some());
+    sim.input(a, Input::Team(crate::TeamAction::Create));
+    sim.input(a, Input::Team(crate::TeamAction::Invite(b)));
+    sim.input(b, Input::Team(crate::TeamAction::Join(a)));
+    sim.input(a, Input::SetPkMode(PkMode::Team));
+    assert!(sim.foe_cell(a, b).is_none(), "team spares the team");
+}

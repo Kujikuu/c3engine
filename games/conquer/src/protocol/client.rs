@@ -72,6 +72,28 @@ impl Ids {
     }
 }
 
+/// TQ's PK mode numbers (Hero.h PKMODE_*): free, monsters only, team-exclude, arrestment
+/// (and the guild mode, taken as team-exclude).
+fn pk_mode(code: u32) -> c3_core::settings::PkMode {
+    use c3_core::settings::PkMode;
+    match code {
+        1 => PkMode::Peace,
+        2 | 4 => PkMode::Team,
+        3 => PkMode::Arrest,
+        _ => PkMode::Free,
+    }
+}
+
+fn pk_mode_code(mode: c3_core::settings::PkMode) -> u32 {
+    use c3_core::settings::PkMode;
+    match mode {
+        PkMode::Free => 0,
+        PkMode::Peace => 1,
+        PkMode::Team => 2,
+        PkMode::Arrest => 3,
+    }
+}
+
 fn cell16(c: CellPos) -> (u16, u16) {
     (c.0.max(0) as u16, c.1.max(0) as u16)
 }
@@ -1112,6 +1134,17 @@ impl ConquerClient {
                 let cell = cell16(self.state_cell(*from).unwrap_or_default());
                 vec![pk::interact(interact::COURT, f, self.hero_id(), cell, 0)]
             }
+            // The hero's PK mode, as its main bar's PK button shows it.
+            Event::PkModeSet { player, mode } if Some(*player) == hero => {
+                let code = pk_mode_code(*mode);
+                vec![pk::action(
+                    self.hero_id(),
+                    action::SET_PK_MODE,
+                    code,
+                    (0, 0),
+                    0,
+                )]
+            }
             // A wedding: fireworks over the bride or groom, the spouse's name to each.
             Event::Married { player, spouse } => {
                 let mut out = Vec::new();
@@ -1303,6 +1336,7 @@ impl ConquerClient {
                     inputs.push(Input::Revive);
                 }
                 action::GHOST => inputs.push(Input::Ghost),
+                action::SET_PK_MODE => inputs.push(Input::SetPkMode(pk_mode(data))),
                 _ => {}
             },
             Request::Walk { dir, run } => {
