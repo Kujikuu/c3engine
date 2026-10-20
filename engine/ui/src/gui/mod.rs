@@ -213,8 +213,10 @@ pub struct Control {
     /// A binding: when it is set, the skin's `ImageFocus` is drawn over the control (the
     /// picked server, as `CMyImage::ShowFocus`).
     pub focus: String,
-    /// A progress bar's full value, a binding or a number.
+    /// A progress bar's full value and where it starts (`min=100`: a bar of what is over
+    /// 100), each a binding or a number.
     pub max: String,
+    pub min: String,
     pub fill: Fill,
     /// A progress bar's image area, drawn as it is at the control's corner (`area=w,h`;
     /// TQ's `CMyProgress::SetWidthAndHeight`); none: the control's size.
@@ -450,6 +452,7 @@ impl Control {
             value: text("value"),
             focus: text("focus"),
             max: text("max"),
+            min: text("min"),
             fill,
             area,
             text: text("text"),

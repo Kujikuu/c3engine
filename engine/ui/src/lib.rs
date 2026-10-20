@@ -2409,6 +2409,8 @@ impl GameUi {
         if let Some(p) = view.sim.player(view.hero) {
             self.gui_state.follow_suggestions(view.sim, p);
             self.gui_state.follow_share(view.sim, p);
+            self.gui_state.mana_seen |= p.mana > 0 && p.stats.max_mana > 0;
+            self.gui_state.follow_attrs(p);
         }
         // The team dialog's auto check asks around.
         let asks = self.gui_state.auto_team.asks(view.sim, view.hero);

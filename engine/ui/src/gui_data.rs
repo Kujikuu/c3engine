@@ -17,6 +17,10 @@ pub(crate) struct GuiState {
     pub work: Vec<u32>,
     /// The team dialog's auto check: the hero's asks, and who said no to them.
     pub auto_team: crate::auto_team::AutoTeam,
+    /// The hero has had mana since it came in.
+    pub mana_seen: bool,
+    /// The hero's attributes as last seen, and when each last changed.
+    pub attrs_seen: std::collections::HashMap<String, (i64, Option<std::time::Instant>)>,
     /// The `pointed=` of the control under the pointer.
     pub pointed: Option<String>,
     /// The hero's last exp gain and when it came (shown 2 s, CGameMap::ShowExp).
@@ -216,6 +220,24 @@ pub(crate) struct TradeView {
 pub(crate) const SUGGEST_ROWS: usize = 9;
 
 impl GuiState {
+    /// Notes the hero's attributes that changed since last seen (the first look at one is
+    /// no change).
+    pub(crate) fn follow_attrs(&mut self, p: &c3_game::Player) {
+        let now = std::time::Instant::now();
+        // One set later than the first look changed from its default.
+        let first = self.attrs_seen.is_empty();
+        for (name, &value) in &p.attributes {
+            match self.attrs_seen.get_mut(name) {
+                Some(seen) if seen.0 != value => *seen = (value, Some(now)),
+                Some(_) => {}
+                None => {
+                    let at = (!first).then_some(now);
+                    self.attrs_seen.insert(name.clone(), (value, at));
+                }
+            }
+        }
+    }
+
     /// Lists the hero's free items worth locking it hasn't been shown yet, and shows the list
     /// when there are; locked or gone ones leave it (a merchant is shown none).
     pub(crate) fn follow_suggestions(&mut self, sim: &c3_game::Sim, p: &c3_game::Player) {
@@ -693,6 +715,18 @@ impl GuiData for HeroData<'_> {
             "hero.life_max" => p.stats.max_life.into(),
             "hero.mana" => p.mana.into(),
             "hero.mana_max" => p.stats.max_mana.into(),
+            // The hero has had mana this session (TQ's orb keeps life whole until then).
+            "hero.mana_seen" => u8::from(self.state.mana_seen).into(),
+            // Milliseconds since an attribute last changed (`hero.attr_age.xp<500`: TQ's XP orb
+            // flash); a long time when it hasn't.
+            _ if key.starts_with("hero.attr_age.") => {
+                let name = key.strip_prefix("hero.attr_age.")?;
+                (self.state.attrs_seen.get(name))
+                    .and_then(|(_, at)| *at)
+                    .map_or(f64::MAX, |at| at.elapsed().as_secs_f64() * 1000.0)
+            }
+            // The time of day as unix seconds (an attribute holding when a state ends).
+            "clock.unix" => chrono::Utc::now().timestamp() as f64,
             "hero.exp" => p.exp as f64,
             "hero.exp_next" => need()? as f64,
             // The control under the pointer is `pointed=<v>` (`pointed.exp`).

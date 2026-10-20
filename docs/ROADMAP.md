@@ -814,9 +814,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] message board 1006 toggles 240 and setup 1008 toggles 138 as OnMainLeaveWord / OnMainSetup do (both dialogs still drafts, below)
     - [x] map check 1015 shows and toggles the radar (frame from its visibility)
     - [x] a hero made without the create screen gets the game's profession (`new_character.profession`; Conquer: Trojan) so it has points and life
-    - [ ] life orb's mana latch: the client keeps the whole-orb life until mana is first above 0, then never goes back (we follow max mana)
-    - [ ] XP orb's 500 ms mode-2 flash on an XP change (DlgMain.cpp 849-864)
-    - [ ] stamina x1.5 while Blessed, and extra stamina 1027 (Progress47) above 99 (DlgMain.cpp 703-709, 757-762)
+    - [x] life orb's mana latch: the client keeps the whole-orb life until mana is first above 0, then never goes back (`hero.mana_seen`)
+    - [x] XP orb's 500 ms mode-2 flash on an XP change (DlgMain.cpp 849-864; `hero.attr_age.<name>`: ms since an attribute changed)
+    - [x] stamina x1.5 while Blessed, and extra stamina 1027 (Progress47) above 99 (DlgMain.cpp 703-709, 757-762; progress `min=`, `clock.unix`) (screenshot)
+    - [ ] stamina up to 150 while Blessed in the rules (the attribute's most is 100, so 1027 never shows yet)
     - [ ] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136)
     - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
     - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills
@@ -830,7 +831,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] a cursed hero's 10483 in its place (no curse status yet)
     - [x] trade 1010: the 10065 prompt (`note:`; 10712, the dead hero's refusal, isn't in 5065's StrRes, so the client shows nothing either); the friend and partner Add buttons' 10345 / 11145 the same way; `pick:` says nothing itself when the game has its own UI
     - [x] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024 (`sound=none`)
-    - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts
+    - [x] actions 1009, PK 1013 and friends 1026 toggle 140 / 191 / 160 (OnMainAct, OnMainPk, OnMainFriend; the friends take the right part)
   - [ ] UI 145 CDlgTalk (chat bar): 10 of 16 audit mismatches fixed (docs/conquer_ui_audit.md)
     - [x] line 1542 takes 88 characters, name 1544 15, the name red while listed (`limit=`, `mark=`)
     - [x] Down/Up step through the last 20 lines said, as CDlgTalk does (Down older, Up newer)

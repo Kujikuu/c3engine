@@ -748,12 +748,12 @@ impl Painter<'_, '_> {
             }
             ControlKind::Progress => {
                 let frames = self.skin.frames(&control.ani);
+                let read = |key: &str| key.parse().ok().or_else(|| data.number(key));
                 let value = data.number(&control.value).unwrap_or(0.0);
-                let max = (control.max.parse().ok())
-                    .or_else(|| data.number(&control.max))
-                    .unwrap_or(0.0);
-                let f = if max > 0.0 {
-                    (value / max).clamp(0.0, 1.0) as f32
+                let max = read(&control.max).unwrap_or(0.0);
+                let min = read(&control.min).unwrap_or(0.0);
+                let f = if max > min {
+                    ((value - min) / (max - min)).clamp(0.0, 1.0) as f32
                 } else {
                     0.0
                 };
