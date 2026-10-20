@@ -29,6 +29,8 @@ pub struct PlayerState {
     /// Where the player placed what it was asked to (`x`, `y`, `direction`), while the
     /// placement's event runs; else its own cell and facing.
     pub placed: (i64, i64, i64),
+    /// The action and frame a posed figure (a statue) was placed in (0 otherwise).
+    pub placed_pose: (i64, i64),
     /// The game id of the player's map and the cell it stands on.
     pub map: i64,
     pub cell: (i64, i64),

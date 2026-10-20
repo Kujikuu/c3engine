@@ -1254,10 +1254,14 @@ pub enum Request {
         action: u16,
         id: u32,
     },
-    /// Where the player placed the NPC it was asked to (MsgNpcInfo from the client).
+    /// Where the player placed the NPC it was asked to (MsgNpcInfo from the client); a
+    /// statue's (CHero::CreateStatuty) has its facing as the look, its frame as the type and
+    /// its action as the sort.
     Placed {
         cell: (u16, u16),
         look: u16,
+        kind: u16,
+        sort: u16,
     },
     Dialog {
         action: u8,
@@ -1478,6 +1482,8 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             Request::Placed {
                 cell,
                 look: r.u16()?,
+                kind: r.u16().unwrap_or(0),
+                sort: r.u16().unwrap_or(0),
             }
         }
         NPC => {

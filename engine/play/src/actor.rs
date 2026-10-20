@@ -556,6 +556,16 @@ impl Actor {
         }
     }
 
+    /// The frame of its action it shows at `now_ms` (a statue's pose is kept by it).
+    pub fn shown_frame(&self, now_ms: u64) -> u32 {
+        self.frame(now_ms) as u32
+    }
+
+    /// The action it plays.
+    pub fn action(&self) -> u32 {
+        self.playing.action
+    }
+
     /// Body animation frame at `now_ms`: actions loop from their start; attachments use the
     /// same frame (`C3DRole::SetFrame`).
     fn frame(&self, now_ms: u64) -> f32 {

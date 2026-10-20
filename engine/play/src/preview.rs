@@ -92,6 +92,38 @@ impl LookPreview {
         target
     }
 
+    /// Plays action `act`, looping (a statue's pose).
+    pub fn play(&mut self, act: u32) {
+        let now = self.world.now_ms();
+        if let Some(actor) = self.world.actors.first_mut() {
+            actor.hold_frame = None;
+        }
+        self.world.actor_action(0, act, false);
+        let _ = now;
+    }
+
+    /// Stops the role on the frame it shows, or plays on.
+    pub fn set_paused(&mut self, paused: bool) {
+        let now = self.world.now_ms();
+        if let Some(actor) = self.world.actors.first_mut() {
+            actor.hold_frame = paused.then(|| actor.shown_frame(now));
+        }
+    }
+
+    /// Turns the role `steps` eighths.
+    pub fn turn(&mut self, steps: i8) {
+        if let Some(actor) = self.world.actors.first_mut() {
+            actor.turn(steps);
+        }
+    }
+
+    /// The role's facing, action and the frame it shows.
+    pub fn pose(&self) -> (u8, u32, u32) {
+        let now = self.world.now_ms();
+        (self.world.actors.first())
+            .map_or((0, 0, 0), |a| (a.direction, a.action(), a.shown_frame(now)))
+    }
+
     /// Frames the role: centred, filling `FILL` of the picture whatever its model's size.
     fn fit(&mut self, viewport: Vec2) {
         self.fitted = true;

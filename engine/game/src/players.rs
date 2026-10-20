@@ -90,6 +90,7 @@ impl Sim {
                 combining: Vec::new(),
                 placing: None,
                 placed: None,
+                placed_pose: None,
                 regions: Vec::new(),
                 stats,
                 bag: Vec::new(),
@@ -414,7 +415,13 @@ impl Sim {
     /// `on_combine(kind, item1, ..., item5, value)`, missing ones 0.
     /// Places what player `id` was asked to at `cell` (on the map, where no NPC stands, within
     /// its view): the placement's event runs with it.
-    pub fn place_asked(&mut self, id: EntityId, cell: CellPos, direction: u8) {
+    pub fn place_asked(
+        &mut self,
+        id: EntityId,
+        cell: CellPos,
+        direction: u8,
+        pose: Option<(u32, u32)>,
+    ) {
         let range = self.settings.view_range;
         let taken = self.npcs.iter().any(|n| n.cell == cell);
         let Some(p) = self.players.get_mut(&id).filter(|p| p.is_alive()) else {
@@ -429,9 +436,11 @@ impl Sim {
             return;
         }
         p.placed = Some((cell, direction % 8));
+        p.placed_pose = pose;
         self.script_event(id, &event, Vec::new());
         if let Some(p) = self.players.get_mut(&id) {
             p.placed = None;
+            p.placed_pose = None;
         }
     }
 

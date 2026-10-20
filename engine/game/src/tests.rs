@@ -1941,6 +1941,7 @@ fn placements_asked_for_run_their_event_where_the_player_put_it() {
         Input::Place {
             cell: (2, 2),
             direction: 0,
+            pose: None,
         },
     );
     assert!(!sim.player(hero).unwrap().flags.contains_key("px"));
@@ -1949,6 +1950,7 @@ fn placements_asked_for_run_their_event_where_the_player_put_it() {
         Input::Place {
             cell: (11, 12),
             direction: 3,
+            pose: None,
         },
     );
     assert!(
@@ -1961,6 +1963,7 @@ fn placements_asked_for_run_their_event_where_the_player_put_it() {
         Input::Place {
             cell: (11, 12),
             direction: 3,
+            pose: None,
         },
     );
     let flags = &sim.player(hero).unwrap().flags;

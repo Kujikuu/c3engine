@@ -184,6 +184,9 @@ pub struct Player {
     /// that runs.
     pub(crate) placing: Option<String>,
     pub(crate) placed: Option<(CellPos, u8)>,
+    /// The action and frame it was placed in (a statue's pose).
+    #[serde(skip)]
+    pub(crate) placed_pose: Option<(u32, u32)>,
     /// The regions it stands in (ids), to tell scripts when that changes.
     #[serde(skip)]
     pub(crate) regions: Vec<u32>,

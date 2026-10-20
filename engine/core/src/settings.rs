@@ -421,6 +421,33 @@ impl NpcCombatSettings {
     }
 }
 
+/// Statues of players (TQ's effigies): a placement asked for NPC kind `kind` is a statue of the
+/// player, posed in the game's statue window. Statues stand on fixed `slots` of their maps; a
+/// guild rank may take only its own slots (the nearest free one), and the player must stand
+/// within `reach` cells of it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StatueSettings {
+    pub kind: u32,
+    pub maps: Vec<StatueMap>,
+    pub ranks: Vec<StatueRank>,
+    pub reach: i32,
+}
+
+/// A map's statue slots, in order.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatueMap {
+    pub map: u32,
+    pub slots: Vec<[i32; 2]>,
+}
+
+/// The statue slots (indices) guild rank `rank` may take.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatueRank {
+    pub rank: u32,
+    pub slots: Vec<usize>,
+}
+
 /// Dice tables (TQ's sic-bo): NPCs of `kinds` keep one. A round takes bets for
 /// `bet_seconds`, rolls three dice `roll_seconds` after it closes, and opens the next
 /// `next_seconds` after the roll. A chip is one of `chips`, and a player's bets in a round total at
@@ -567,6 +594,9 @@ pub struct GameplaySettings {
     /// Dice tables (off while `kinds` is empty).
     #[serde(default)]
     pub dice: DiceSettings,
+    /// Statues of players (off while `kind` is 0).
+    #[serde(default)]
+    pub statues: StatueSettings,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -725,6 +755,7 @@ impl Default for GameplaySettings {
             nobility: NobilitySettings::default(),
             offline_training: OfflineTraining::default(),
             dice: DiceSettings::default(),
+            statues: StatueSettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),

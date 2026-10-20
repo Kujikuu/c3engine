@@ -445,6 +445,8 @@ fn more(engine: &mut Engine, shared: &Shared) {
             "x" => c.player.placed.0,
             "y" => c.player.placed.1,
             "direction" => c.player.placed.2,
+            "action" => c.player.placed_pose.0,
+            "frame" => c.player.placed_pose.1,
             _ => 0,
         })
     });

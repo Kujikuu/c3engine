@@ -688,6 +688,10 @@ impl Sim {
                 let (cell, direction) = p.placed.unwrap_or((p.cell, p.direction));
                 (i64::from(cell.0), i64::from(cell.1), i64::from(direction))
             },
+            placed_pose: {
+                let (action, frame) = p.placed_pose.unwrap_or_default();
+                (i64::from(action), i64::from(frame))
+            },
             map: self.map_ids.first().copied().map_or(0, i64::from),
             cell: (i64::from(p.cell.0), i64::from(p.cell.1)),
             life: p.life.into(),

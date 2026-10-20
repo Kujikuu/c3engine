@@ -247,6 +247,29 @@ pub enum UiAction {
     ResetControls,
     /// Leave the game (the client closes; the Studio stops playing).
     Leave,
+    /// What the statue window asks (its figure is the host's).
+    Effigy(EffigyAction),
+}
+
+/// What the statue window asks for (TQ's CDlgEffigy).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffigyAction {
+    /// Pose the figure in action `n` (a pose button; 0 opens it as it stands).
+    Pose(u32),
+    /// Play or pause the pose.
+    PlayPause,
+    /// Turn the figure this many eighths.
+    Turn(i8),
+    /// Put the statue up.
+    Place,
+    Close,
+}
+
+/// The statue being posed: its figure's picture (once drawn) and whether it plays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EffigyView {
+    pub texture: Option<egui::TextureId>,
+    pub playing: bool,
 }
 
 /// One action on the Controls page.
@@ -383,6 +406,8 @@ pub struct GameView<'a> {
     pub viewed_power: Option<Power>,
     /// The game's auto-path destinations, every map's.
     pub destinations: &'a [Destination],
+    /// A statue of the hero being posed.
+    pub effigy: Option<EffigyView>,
 }
 
 /// A player's battle power: what each part gives (the game's order: TQ's level, rebirths,
@@ -1126,6 +1151,20 @@ impl GameUi {
             }
             // A right click on the table takes every bet back (the server's cancel-all;
             // DlgDice.cpp OnRButtonDown); the chip is put down.
+            // The statue window: a pose, play / pause, turning, OK, close (CDlgEffigy).
+            _ if action.starts_with("effigy_pose:") => {
+                if let Ok(act) = action["effigy_pose:".len()..].parse() {
+                    actions.push(UiAction::Effigy(EffigyAction::Pose(act)));
+                }
+            }
+            _ if action.starts_with("effigy_turn:") => {
+                if let Ok(steps) = action["effigy_turn:".len()..].parse() {
+                    actions.push(UiAction::Effigy(EffigyAction::Turn(steps)));
+                }
+            }
+            "effigy_play" => actions.push(UiAction::Effigy(EffigyAction::PlayPause)),
+            "effigy_place" => actions.push(UiAction::Effigy(EffigyAction::Place)),
+            "effigy_close" => actions.push(UiAction::Effigy(EffigyAction::Close)),
             "dice_cancel" => {
                 if let Some(d) = &mut self.gui_state.dice {
                     d.chip = 0;
@@ -1179,7 +1218,11 @@ impl GameUi {
                     ..
                 }) = self.placing.take()
                 {
-                    actions.push(UiAction::Game(c3_game::Input::Place { cell, direction }));
+                    actions.push(UiAction::Game(c3_game::Input::Place {
+                        cell,
+                        direction,
+                        pose: None,
+                    }));
                 }
             }
             "place_cancel" => self.placing = None,
@@ -1986,8 +2029,11 @@ impl GameUi {
         }
         for event in events {
             self.converse(event, sim, hero);
-            if let Event::PlacementAsked { player, look, .. } = *event
+            // A statue is posed in the statue window, not placed by the pointer.
+            let statue = sim.settings().statues.kind;
+            if let Event::PlacementAsked { player, look, kind } = *event
                 && player == hero
+                && (statue == 0 || kind != statue)
             {
                 self.placing = Some(Placing {
                     look,
@@ -2167,6 +2213,7 @@ impl GameUi {
             actions.push(UiAction::Game(c3_game::Input::Place {
                 cell: player.cell,
                 direction: player.direction,
+                pose: None,
             }));
         }
         // An ask not answered in time goes.

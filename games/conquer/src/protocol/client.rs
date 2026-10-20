@@ -2551,10 +2551,20 @@ impl ConquerClient {
                 id: item_id,
             } => inputs.push(Input::PickUp(EntityId(item_id))),
             Request::Npc { action: 0, id: npc } => inputs.push(Input::Talk(npc)),
-            // The facing is the look's last digit.
-            Request::Placed { cell, look } => inputs.push(Input::Place {
+            // The facing is the look's last digit; a statue's is the look, posed in its
+            // action (the sort) and frame (the type).
+            Request::Placed {
+                cell,
+                look,
+                kind,
+                sort,
+            } => inputs.push(Input::Place {
                 cell: (i32::from(cell.0), i32::from(cell.1)),
-                direction: (look % 10) as u8,
+                direction: match sort {
+                    0 => (look % 10) as u8,
+                    _ => (look % 8) as u8,
+                },
+                pose: (sort != 0).then(|| (u32::from(sort), u32::from(kind))),
             }),
             Request::Dialog {
                 action: pk::DIALOG_ANSWER,

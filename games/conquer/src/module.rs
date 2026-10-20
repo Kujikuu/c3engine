@@ -308,6 +308,57 @@ pub fn conquer_settings() -> ProjectSettings {
             ..Default::default()
         };
     }
+    // Statues (CHero::CreateStatuty, Hero.h Statuary1037 / 1038): NPC kind 9 on the guild
+    // maps; the leader takes slot 0, the deputies the nearest free of 1-2, branch managers
+    // of 3-6; within 4 cells.
+    {
+        use c3_core::settings::{StatueMap, StatueRank, StatueSettings};
+        let slots = |s: &[[i32; 2]]| s.to_vec();
+        s.gameplay.statues = StatueSettings {
+            kind: 9,
+            maps: vec![
+                StatueMap {
+                    map: 1037,
+                    slots: slots(&[
+                        [187, 191],
+                        [184, 198],
+                        [194, 188],
+                        [185, 210],
+                        [200, 210],
+                        [206, 204],
+                        [206, 189],
+                    ]),
+                },
+                StatueMap {
+                    map: 1038,
+                    slots: slots(&[
+                        [379, 384],
+                        [373, 387],
+                        [382, 378],
+                        [380, 394],
+                        [382, 399],
+                        [389, 385],
+                        [394, 387],
+                    ]),
+                },
+            ],
+            ranks: vec![
+                StatueRank {
+                    rank: 100,
+                    slots: vec![0],
+                },
+                StatueRank {
+                    rank: 90,
+                    slots: vec![1, 2],
+                },
+                StatueRank {
+                    rank: 80,
+                    slots: vec![3, 4, 5, 6],
+                },
+            ],
+            reach: 4,
+        };
+    }
     // Jumps climb at most 200 above where the hero stands (CHero::m_nHeightCanJump).
     s.gameplay.jump_height = 200;
     // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,

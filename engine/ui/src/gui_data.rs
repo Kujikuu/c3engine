@@ -573,6 +573,14 @@ impl GuiData for HeroData<'_> {
         self.state.focus.as_deref()
     }
 
+    /// The statue's figure (`effigy.model`).
+    fn image(&self, key: &str) -> Option<egui::TextureId> {
+        match key {
+            "effigy.model" => self.view.effigy?.texture,
+            _ => None,
+        }
+    }
+
     fn number(&self, key: &str) -> Option<f64> {
         // A binding divided, whole (`team.look.0/10000`: a Conquer face from its look).
         if let Some((binding, by)) = key.rsplit_once('/')
@@ -780,6 +788,9 @@ impl GuiData for HeroData<'_> {
             // The dice table: seated, what lies on bet `n` (`dice.total.3`), and on the bet
             // last chipped on (everyone's, the hero's), the chip picked.
             "dice.open" => u8::from(self.state.dice.is_some()).into(),
+            // The statue window: open, its pose playing.
+            "effigy.open" => u8::from(self.view.effigy.is_some()).into(),
+            "effigy.playing" => u8::from(self.view.effigy?.playing).into(),
             "dice.chip" => self.state.dice.as_ref()?.chip as f64,
             // The pointed bet's own and everyone's chips, else every bet's (DlgDice's
             // m_nShowChipIndex, DICE_VALUE_ALL); the pointed chip's size (1632).

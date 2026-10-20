@@ -125,6 +125,8 @@ pub struct Session {
     weather: crate::weather::WeatherOverlay,
     /// The game's auto-path destinations.
     destinations: Vec<c3_ui::Destination>,
+    /// A statue of the hero being posed (the host draws its picture).
+    pub effigy: Option<crate::effigy::Effigy>,
 }
 
 /// A map's minimap: the image until the UI uploads it, then its texture.
@@ -383,6 +385,7 @@ impl Session {
             minimap,
             weather: Default::default(),
             destinations,
+            effigy: None,
         })
     }
 
@@ -872,6 +875,70 @@ impl Session {
         }
     }
 
+    /// What the statue window asks: a pose (`Pose(0)` opens it standing), play or pause,
+    /// turn, put the statue up (CHero::CreateStatuty), close.
+    pub fn effigy_action(&mut self, action: crate::effigy::EffigyAction) {
+        use crate::effigy::{Effigy, EffigyAction as A, StatueRefused};
+        let game = Rc::clone(&self.world.game);
+        if self.effigy.is_none() {
+            let Some(p) = self.sim.player(self.hero) else {
+                return;
+            };
+            let look = game.looks().player(p);
+            let tilt = crate::settings::tilt_deg(&self.settings, &*game);
+            let preview = crate::preview::LookPreview::new(Rc::clone(&game), &look, tilt);
+            self.effigy = Some(Effigy::new(preview));
+        }
+        let Some(effigy) = self.effigy.as_mut() else {
+            return;
+        };
+        match action {
+            A::Pose(0) => {}
+            A::Pose(act) => {
+                effigy.preview.play(act);
+                effigy.playing = true;
+            }
+            A::PlayPause => {
+                effigy.playing = !effigy.playing;
+                effigy.preview.set_paused(!effigy.playing);
+            }
+            A::Turn(steps) => effigy.preview.turn(steps),
+            A::Close => self.effigy = None,
+            A::Place => {
+                let (direction, action, frame) = effigy.preview.pose();
+                let Some(p) = self.sim.player(self.hero) else {
+                    return;
+                };
+                let statues = &self.settings.gameplay.statues;
+                let map = self.sim.map_ids().first().copied().unwrap_or(0);
+                let rank = (self.sim.world_state().guild_of(&p.name))
+                    .and_then(|(_, rank)| u32::try_from(rank).ok());
+                let taken = |c: CellPos| (self.sim.npcs().iter()).any(|n| n.cell == c);
+                match crate::effigy::statue_slot(statues, map, rank, p.cell, taken) {
+                    Ok(cell) => {
+                        let place = Input::Place {
+                            cell,
+                            direction,
+                            pose: Some((action, frame)),
+                        };
+                        self.effigy = None;
+                        self.input(place);
+                    }
+                    Err(StatueRefused::Full) => {}
+                    Err(why) => {
+                        let line = match why {
+                            StatueRefused::Rank => {
+                                "Only the Guild Leader, Deputy Guild Leader and Branch Manager can place the statue."
+                            }
+                            _ => "Please place the statue in the guild map.",
+                        };
+                        self.ui.system(line, style::BAD);
+                    }
+                }
+            }
+        }
+    }
+
     /// Jumps the hero to the cell under the pointer, checked first as the sim checks it
     /// (`CHero::Jump`): too far, too high on the way, or nowhere to stand is told.
     pub fn jump_to_pointer(&mut self) {
@@ -952,6 +1019,15 @@ impl Session {
         let shown =
             (self.ui.placement()).and_then(|p| Some((p.look, p.cell.or(pointed)?, p.direction)));
         self.view.preview(&mut self.world, shown);
+        // A statue asked of the hero: its figure, posed in the game's statue window.
+        let statue = self.settings.gameplay.statues.kind;
+        let asked = events.iter().any(|e| {
+            matches!(e, Event::PlacementAsked { player, kind, .. }
+                if *player == self.hero && statue != 0 && *kind == statue)
+        });
+        if asked {
+            self.effigy_action(crate::effigy::EffigyAction::Pose(0));
+        }
         self.ui.events(&events, &self.sim, self.hero, now);
         self.audio.events(&events, &self.sim, self.hero);
         self.audio.update(&self.sim, self.hero, now);
@@ -1019,6 +1095,10 @@ impl Session {
             |id| (self.sim.player(id)).and_then(|p| self.world.game.battle_power(&self.sim, p));
         let view = GameView {
             destinations: &self.destinations,
+            effigy: (self.effigy.as_ref()).map(|e| c3_ui::EffigyView {
+                texture: e.texture,
+                playing: e.playing,
+            }),
             power: power_of(self.hero),
             viewed_power: self.ui.viewed().and_then(power_of),
             sim: &self.sim,
@@ -1070,6 +1150,7 @@ impl Session {
             UiAction::Say(text) => Input::Say(text),
             UiAction::ToggleSound => return self.audio.toggle_muted(),
             UiAction::ToggleRun => return self.toggle_running(),
+            UiAction::Effigy(a) => return self.effigy_action(a),
             UiAction::Rebind(_)
             | UiAction::ResetControls
             | UiAction::Leave

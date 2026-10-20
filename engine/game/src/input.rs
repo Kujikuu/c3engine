@@ -62,6 +62,9 @@ pub enum Input {
         cell: CellPos,
         #[serde(default)]
         direction: u8,
+        /// The action and frame a posed figure (a statue) was placed in.
+        #[serde(default)]
+        pose: Option<(u32, u32)>,
     },
     /// Work items together (set a gem, compose, enchant): the game's kind of work, the items
     /// (up to five, the player's own) and a number (a socket); its rules answer.
@@ -245,7 +248,11 @@ impl Sim {
             Input::SpendPoints(points) => self.spend_points(id, &points),
             Input::Propose(target) => self.propose(id, target),
             Input::AcceptProposal(from) => self.accept_proposal(id, from),
-            Input::Place { cell, direction } => self.place_asked(id, cell, direction),
+            Input::Place {
+                cell,
+                direction,
+                pose,
+            } => self.place_asked(id, cell, direction, pose),
             Input::Store { npc, item } => self.store(id, npc, item),
             Input::OpenStorage(npc) => self.open_storage(id, npc),
             Input::TradeAsk(target) => self.ask_trade(id, target),
