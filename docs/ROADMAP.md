@@ -1302,7 +1302,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 380 CDlgQuestList5065 / 381 CDlgQuestTrack5065: draft only (non-native additions), 7 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 215 CDlgHelp (help pages): the pages as text
     - [x] the Win32 dialog's bitmaps (HelpBk.bmp centred, Close, More); Help<n>.htm read as paragraphs (`pages=`, `html_paragraphs`) where the browser sat, on the pages' #292010 in their #999999, the wheel scrolling; every dialog's Help sets its topic (the DLG_* owner or OnHelp's number) and opens it
-    - [ ] the pages' own look (fonts, colours, headings centred, the background image, links); More opening the [OemHelp] url (StrRes 10435) in a browser
+    - [x] More opening the [OemHelp] url (StrRes 10435) in a browser
+    - [ ] the pages' own look (fonts, colours, headings centred, the background image, links)
   - [ ] Mentors (adapters spec §5, Guide.dll): `gameplay.mentor` (Conquer: level 70, gaps 30/20/10 by rebirths, cq_tutor_type students, cq_student_type shares, 50,000 silver and 72 hours to leave); offer / ask / answer, leave, expel; a student's exp gives its mentor and its mentor's mentor time at its level (flushed each minute), claimed as experience (TQ's AwardTimeExp, `Rules::level_time`), blessed hours or +1 stones; the Conquer front carries MsgMentor 2065, the relations (2066) and the claims (2067)
     - [x] engine, UI and front for the above
     - [ ] blessed hours from prayer items and item points from +N drops (no hooks yet), battle power shares (no battle power yet), a mentor taking back a student who left (actions 5/6), the timers and notices of actions 10-23
