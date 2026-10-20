@@ -1029,6 +1029,27 @@ fn killing_the_guarded_curses_and_the_cursed_gain_no_exp() {
 }
 
 #[test]
+fn a_pk_victim_loses_exp_and_mana_and_its_killer_gains_some() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let mut settings = sim.settings().clone();
+    settings.pk.exp_lost_divisors = [50, 10, 5];
+    settings.pk.mana_lost_percent = 50;
+    settings.pk.killer_share = true;
+    sim.set_settings(settings);
+    sim.set_pk(true);
+    let a = sim.add_player("A", (5, 5), 1);
+    let b = sim.add_player("B", (6, 5), 1);
+    let v = sim.players.get_mut(&b).unwrap();
+    (v.exp, v.mana) = (5000, 31);
+    sim.attack(a, b);
+    sim.advance(60_000);
+    let victim = sim.player(b).unwrap();
+    assert_eq!(victim.exp, 4900, "2% lost");
+    let killer = sim.player(a).unwrap();
+    assert!(killer.level > 1 || killer.exp > 0, "the killer's share of it");
+}
+
+#[test]
 fn npcs_move_within_the_map_and_leave_for_others() {
     let guide = Npc {
         id: 7,

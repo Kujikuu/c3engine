@@ -384,7 +384,11 @@ fn spawn(state: &EntityState, ids: &mut Ids, sim: &Sim) -> Vec<u8> {
             pk::spawn(&Spawn {
                 id,
                 look,
-                status: if m.is_alive() { 0 } else { pk::STATUS_DEAD.into() },
+                status: if m.is_alive() {
+                    0
+                } else {
+                    pk::STATUS_DEAD.into()
+                },
                 gear: [0; 4],
                 life: m.life.min(u16::MAX.into()) as u16,
                 level: m.level as u16,

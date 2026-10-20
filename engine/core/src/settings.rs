@@ -886,6 +886,21 @@ pub struct PkSettings {
     pub curse_status: u32,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub curse_guard: String,
+    /// What a player killed by a player loses, but on a free-PK map or guarded by
+    /// `curse_guard` from an unguarded killer: its experience divided by these for a good,
+    /// red and black name (0: none), and this percent of its mana (TQ's 50, 10, 5 and 50).
+    #[serde(default, skip_serializing_if = "is_zeros")]
+    pub exp_lost_divisors: [u32; 3],
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub mana_lost_percent: u32,
+    /// A killer of no higher level than its victim gets (2 x the levels between + 50)% of
+    /// what it lost, 10% at least, 300 time units' worth of its level at most (TQ's).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub killer_share: bool,
+}
+
+fn is_zeros(n: &[u32; 3]) -> bool {
+    n.iter().all(|v| *v == 0)
 }
 
 /// Whom a player's attacks may hit among other players, where players may fight (TQ's PK
@@ -917,6 +932,9 @@ impl Default for PkSettings {
             start_mode: PkMode::Free,
             curse_status: 0,
             curse_guard: String::new(),
+            exp_lost_divisors: [0; 3],
+            mana_lost_percent: 0,
+            killer_share: false,
         }
     }
 }

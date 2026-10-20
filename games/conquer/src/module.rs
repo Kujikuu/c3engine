@@ -384,6 +384,11 @@ pub fn conquer_settings() -> ProjectSettings {
     // Killing the heaven-blessed unblessed curses (ProcessPk 00418ee3).
     s.gameplay.pk.curse_status = (crate::rules::TQ_STATUS + crate::rules::CURSE) as u32;
     s.gameplay.pk.curse_guard = "blessing_until".into();
+    // A PK victim loses 2% of its exp (10% red, 20% black) and half its mana; a killer of no
+    // higher level gets part (ProcessPk; CalcExpLost 00418491, the guild fund's part aside).
+    s.gameplay.pk.exp_lost_divisors = [50, 10, 5];
+    s.gameplay.pk.mana_lost_percent = 50;
+    s.gameplay.pk.killer_share = true;
     // Jumps climb at most 200 above where the hero stands (CHero::m_nHeightCanJump).
     s.gameplay.jump_height = 200;
     // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,

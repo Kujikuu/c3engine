@@ -156,24 +156,67 @@ impl Sim {
         self.wear_items(id, |t| t.bonus.attack_max > 0);
     }
 
-    /// `damage` from player `id` to player `target`; a kill counts against the killer.
-    /// A killer of a guarded player, not guarded itself, bears the curse (TQ's ProcessPk
-    /// 00418ee3: killing the heaven-blessed).
-    fn curse_killer(&mut self, killer: EntityId, victim: EntityId) {
-        let (curse, guard) = (self.settings.pk.curse_status, &self.settings.pk.curse_guard);
-        if curse == 0 || guard.is_empty() {
+    /// What player `victim` (of mark `mark`) loses to player `killer`, but on a free-PK map
+    /// (TQ's ProcessPk 00418ee3): a guarded victim of an unguarded killer loses no
+    /// experience and the killer bears the curse; another loses its share of experience (a
+    /// killer of no higher level gets part of it); either loses part of its mana.
+    fn pk_kill_losses(&mut self, killer: EntityId, victim: EntityId, mark: crate::NameMark) {
+        if self.pk_free {
             return;
         }
+        let pk = self.settings.pk.clone();
         let now = chrono::Utc::now().timestamp();
         let guarded = |id: EntityId| {
-            (self.players.get(&id))
-                .is_some_and(|p| p.attributes.get(guard).is_some_and(|t| *t > now))
+            !pk.curse_guard.is_empty()
+                && (self.players.get(&id))
+                    .is_some_and(|p| p.attributes.get(&pk.curse_guard).is_some_and(|t| *t > now))
         };
-        if guarded(victim) && !guarded(killer) {
-            self.add_status(killer, curse, Some(victim));
+        let spared = guarded(victim) && !guarded(killer);
+        let Some(v) = self.players.get_mut(&victim) else {
+            return;
+        };
+        v.mana -= v.mana * pk.mana_lost_percent.min(100) / 100;
+        let victim_level = v.level;
+        if spared {
+            if pk.curse_status != 0 {
+                self.message(victim, "Your blessing takes effect! You lose no EXP.");
+                self.add_status(killer, pk.curse_status, Some(victim));
+            }
+            return;
         }
+        let divisor = match mark {
+            crate::NameMark::Black => pk.exp_lost_divisors[2],
+            crate::NameMark::Red => pk.exp_lost_divisors[1],
+            _ => pk.exp_lost_divisors[0],
+        };
+        let lost = match divisor {
+            0 => 0,
+            d => v.exp / u64::from(d),
+        };
+        if lost == 0 {
+            return;
+        }
+        v.exp -= lost;
+        self.message(victim, format!("You lost {lost} EXP!"));
+        let Some(k) = self.players.get(&killer) else {
+            return;
+        };
+        if !pk.killer_share || k.level > victim_level {
+            return;
+        }
+        let between = i64::from(k.level) - i64::from(victim_level);
+        let percent = (2 * between + 50).max(10) as u64;
+        let most = match (
+            self.rules.level_exp(k.level),
+            self.rules.level_time(k.level),
+        ) {
+            (Some(exp), Some(time)) if time > 0 => exp.saturating_mul(300) / time,
+            _ => u64::MAX,
+        };
+        self.gain_exp(killer, (lost * percent / 100).min(most));
     }
 
+    /// `damage` from player `id` to player `target`; a kill counts against the killer.
     pub(crate) fn hurt_player(&mut self, id: EntityId, target: EntityId, damage: u32) {
         let victim_mark = self.mark_of(target);
         let crime = self.settings.pk.crime_seconds;
@@ -191,7 +234,7 @@ impl Sim {
         });
         if dead {
             self.note_enemy(target, id);
-            self.curse_killer(id, target);
+            self.pk_kill_losses(id, target, victim_mark);
             self.kill_player(target, Some(id));
             if let Some(killer) = self.players.get_mut(&id) {
                 killer.pk_kills += 1;
