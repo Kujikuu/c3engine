@@ -864,6 +864,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the opener hides 189
     - [ ] 140 / 191 opening no longer close it (window model)
     - [ ] hidden on death and booth close
+  - [ ] Conquer's jump as the client does it: Ctrl+click (and the client's jump rules: range, walkable, height), the hero's jump motion along its arc, other players seen jumping, the dust where it lands; checked against the 5065 client source (3drole Hero jump, CRole::Jump)
   - [ ] UI 5278 CDlgMipmap / radar (minimap): 3 of 5 audit mismatches fixed
     - [x] the radar as CRadar's crop: MiniMap.ani's picture upright in a 170x128 box top right, at 0xaa, around the hero and clamped to the picture (`ui.radar_box`)
     - [x] hero mark (MiniMap.ani hero) and teammates (PlayerFlag, TeamLeader); no monster/NPC dots, as the native client
