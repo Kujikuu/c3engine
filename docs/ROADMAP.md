@@ -1213,7 +1213,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] UI 238 CDlgMsgReceive (received words): the 6 audit mismatches fixed
     - [x] who left the words and what; Previous / Next enabled as there are more; Reply only to an offline friend; Delete All
     - [x] help (CDlgHelp 215)
-  - [ ] UI 290 CDlgItemPurchase5065 (+292 CDlgBuyMessage5065) (CP buy amount): draft only, 10 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 290 CDlgItemPurchase5065 (+292 CDlgBuyMessage5065) (CP buy amount): 8 of 10 audit mismatches fixed
+    - [x] a buy in a shop priced in another currency asks the amount when the UI binds `purchase.` (c3-ui purchase.rs; bought at once, and refused by the game, when none may be): VipInfoBG and VipInfo1, the item and its name, the amount (2 / 5 / 10 / Max), the most by bag room and funds (10503 / 10504 / 10510); OK on more shows 292 (PublicInfoBG, 10508 / 10509, 10507, OK back); then the cost confirmed (10511-10514) and that many bought; Cancel; the front reads MsgItem's count (0x14) and buys that many
+    - [ ] the refusals' own words before it opens (10505 bag full, 10506 too few CPs); the name's quality prefix and colour (BuildDisplayName); the amount edit's VipInfo2 at its own size
   - [ ] UI 330 CDlgEmoneyWithdraw5065 (CP withdraw button): draft only, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 277 CDlgPortableChest5065 (portable chest): missing, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 329 CDlgItemLock5065 (item lock): draft only, 7 mismatches (docs/conquer_ui_audit.md)

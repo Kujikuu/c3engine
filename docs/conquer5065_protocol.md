@@ -490,7 +490,7 @@ Size 24 = 0x18.
 | 12 | u16 | action |
 | 14 | u16 | reserved |
 | 16 | u32 | verification / timestamp |
-| 20 | u32 | reserved (Redux "Amount") |
+| 20 | u32 | reserved (Redux "Amount"): a CP-shop BUY's count (CMsgItem::CreateWithExtra from the 290 asking); the front buys that many, 1 to 40 |
 
 Actions (client names, `MsgItem.h:16-46`):
 

@@ -73,6 +73,12 @@ pub(crate) struct GuiState {
     pub chat_colors: Vec<(String, usize)>,
     /// The emotions the chat look has (the picker's).
     pub emotes: usize,
+    /// An item being bought several at once, and the asking's button pressed (worked out
+    /// with the game's data).
+    pub purchase: Option<crate::purchase::Purchase>,
+    pub purchase_asked: Option<String>,
+    /// A buy asked by an action (`buy:<npc>:<kind>`): its shop and item kind.
+    pub buying: Option<(u32, u32)>,
     /// The lines said this session with their channels' keys (the chat log's).
     pub chat_log: Vec<(String, String)>,
     /// The bag item put on the hero's booth, waiting for its price.
@@ -689,6 +695,24 @@ impl GuiData for HeroData<'_> {
                     .or(first)
                     .unwrap_or(0) as f64
             }
+            // The purchase asking: open, its step, the most that may be bought (and whether
+            // the funds hold it), how many are to be bought and what they cost.
+            "purchase.open" => u8::from(self.state.purchase.is_some()).into(),
+            "purchase.step" => self.state.purchase?.step.number().into(),
+            "purchase.most" | "purchase.by_funds" | "purchase.cost" | "purchase.count" => {
+                let p = self.state.purchase?;
+                let l = crate::purchase::limits(self.view, self.player, p.npc, p.kind)?;
+                let count = match p.step {
+                    crate::purchase::Step::Confirm(n) => n,
+                    _ => 0,
+                };
+                match key {
+                    "purchase.most" => l.most.into(),
+                    "purchase.by_funds" => u8::from(l.by_funds).into(),
+                    "purchase.count" => count.into(),
+                    _ => (l.price * u64::from(count)) as f64,
+                }
+            }
             // The emotion picker's pages.
             "emote.pages" => self.state.emotes.div_ceil(EMOTE_PAGE) as f64,
             "chat.choosing" => u8::from(self.state.views.contains_key("chat_color_for")).into(),
@@ -1111,7 +1135,9 @@ impl GuiData for HeroData<'_> {
                 })
             }
             "chatlog.date" => Some(chrono::Local::now().format("%Y-%-m-%-d").to_string()),
-            "word.text" | "board.text" | "black.name" => {
+            // The item being bought: its name, and how many are to be bought.
+            "purchase.name" => Some(crate::item_name(self.view.sim, self.state.purchase?.kind)),
+            "word.text" | "board.text" | "black.name" | "purchase.amount" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // The post read on the message board.
@@ -1298,6 +1324,8 @@ impl GuiData for HeroData<'_> {
             return items.into_iter().map(|i| i.kind).collect();
         }
         match key {
+            // The item being bought several at once.
+            "purchase.item" => self.state.purchase.map(|p| p.kind).into_iter().collect(),
             // What the partner offers.
             "trade.theirs" => self
                 .state

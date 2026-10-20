@@ -1126,6 +1126,8 @@ pub enum Request {
         action: u16,
         id: u32,
         data: u32,
+        /// The dword at 0x14 (CMsgItem::CreateWithExtra: how many a CP-shop buy is for).
+        extra: u32,
     },
     MapItem {
         action: u8,
@@ -1252,7 +1254,15 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             let (id, data) = (r.u32()?, r.u32()?);
             match r.u16()? {
                 item::PING => Request::Ping(bytes.to_vec()),
-                action => Request::Item { action, id, data },
+                action => {
+                    let extra = r.skip(6).and_then(|()| r.u32()).unwrap_or(0);
+                    Request::Item {
+                        action,
+                        id,
+                        data,
+                        extra,
+                    }
+                }
             }
         }
         GUILD => {
@@ -1488,6 +1498,25 @@ mod tests {
             name: "Pheasant",
         };
         assert_eq!(spawn(&s).len(), 90 + 1 + 9 + 1);
+    }
+
+    #[test]
+    fn a_cp_shop_buy_names_how_many() {
+        // MsgItem 1009 as CMsgItem::CreateWithExtra builds it: shop 432, a Meteor, buy, 5.
+        let mut b = vec![24, 0, 0xF1, 3];
+        b.extend(432_u32.to_le_bytes());
+        b.extend(1_088_001_u32.to_le_bytes());
+        b.extend(item::BUY.to_le_bytes());
+        b.extend([0; 6]);
+        b.extend(5_u32.to_le_bytes());
+        let request = Request::Item {
+            action: item::BUY,
+            id: 432,
+            data: 1_088_001,
+            extra: 5,
+        };
+        assert_eq!(parse(&b).unwrap(), request);
+        assert!(matches!(parse(&b[..16]).unwrap(), Request::Item { extra: 0, .. }));
     }
 
     #[test]

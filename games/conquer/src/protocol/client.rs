@@ -215,6 +215,9 @@ fn stored(i: &c3_game::Item, sim: &Sim) -> pk::Stored {
     }
 }
 
+/// The most one CP-shop buy is for (a full bag of 40).
+const BUY_MOST: u32 = 40;
+
 /// Item `i` as MsgItemInfo: its durability in hundredths (or how many are stacked), and its
 /// numbers by the settings' item attribute names (Conquer's: plus, gems, bless...).
 fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> {
@@ -2051,6 +2054,7 @@ impl ConquerClient {
                 action: a,
                 id: item_id,
                 data,
+                extra,
             } => match a {
                 // Equipment worn in the slot the client names (data): a one-handed
                 // weapon in the left hand.
@@ -2062,10 +2066,14 @@ impl ConquerClient {
                 item::UNEQUIP => inputs.push(Input::Unequip(item_id)),
                 item::DROP => inputs.push(Input::Drop(item_id)),
                 item::DROP_MONEY if item_id >= 100 => inputs.push(Input::DropMoney(item_id.into())),
-                item::BUY => inputs.push(Input::Buy {
-                    npc: item_id,
-                    kind: data,
-                }),
+                // A CP-shop buy names how many (the 290 asking); each is bought in turn.
+                item::BUY => {
+                    let buy = Input::Buy {
+                        npc: item_id,
+                        kind: data,
+                    };
+                    inputs.extend(std::iter::repeat_n(buy, extra.clamp(1, BUY_MOST) as usize));
+                }
                 item::SELL => inputs.push(Input::Sell {
                     npc: item_id,
                     item: data,

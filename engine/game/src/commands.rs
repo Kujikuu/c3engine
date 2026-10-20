@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -35,6 +35,24 @@ impl Sim {
         ))
     }
 
+    /// `/wallet CURRENCY N` (game masters): sets how much of a currency the player has.
+    fn wallet_command(&mut self, id: EntityId, words: &[&str]) -> Result<String, String> {
+        let gm = self
+            .players
+            .get(&id)
+            .is_some_and(|p| self.settings.is_gm(&p.name));
+        if !gm {
+            return Err("Only game masters can use commands.".into());
+        }
+        let [currency, amount] = words else {
+            return Err("Usage: /wallet CURRENCY N".into());
+        };
+        let amount: u64 = (amount.parse()).map_err(|_| format!("\"{amount}\" is not a number"))?;
+        let p = self.players.get_mut(&id).expect("checked above");
+        p.wallet.insert((*currency).to_owned(), amount);
+        Ok(format!("{currency} set to {amount}."))
+    }
+
     pub fn command(&mut self, id: EntityId, line: &str) -> Result<String, String> {
         // Everyone runs their team.
         let all: Vec<&str> = line.trim_start_matches('/').split_whitespace().collect();
@@ -46,6 +64,12 @@ impl Sim {
             .is_some_and(|w| w.eq_ignore_ascii_case("signal"))
         {
             return self.signal_command(id, &all[1..]);
+        }
+        if all
+            .first()
+            .is_some_and(|w| w.eq_ignore_ascii_case("wallet"))
+        {
+            return self.wallet_command(id, &all[1..]);
         }
         let mut words = line.trim_start_matches('/').split_whitespace();
         let name = words.next().unwrap_or_default().to_lowercase();

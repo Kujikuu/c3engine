@@ -20,6 +20,7 @@ mod hud;
 pub mod icons;
 mod menu;
 mod prompt;
+mod purchase;
 mod quests;
 mod radar;
 mod shop;
@@ -263,6 +264,9 @@ const GUILD_NOTICE: &str = "guild.notice";
 const PROMPT_AMOUNT: &str = "prompt.amount";
 /// The view group holding the player whose equipment is shown.
 const VIEWED: &str = "viewed";
+
+/// The amount typed in the purchase asking.
+const PURCHASE_AMOUNT: &str = "purchase.amount";
 
 /// The name typed in the blacklist.
 const BLACK_NAME: &str = "black.name";
@@ -975,6 +979,31 @@ impl GameUi {
                 (self.gui_state.chat_log).retain(|(k, _)| !gui_data::log_shows(&shown, k));
             }
             "chatlog_clear" => self.gui_state.chat_log.clear(),
+            // The purchase asking: an amount set, OK, back from the limit, cancel.
+            _ if action.starts_with("purchase_set:") => {
+                let amount = &action["purchase_set:".len()..];
+                match amount {
+                    "max" => self.gui_state.purchase_asked = Some("max".into()),
+                    n => {
+                        self.gui_state
+                            .fields
+                            .insert(PURCHASE_AMOUNT.into(), n.to_owned());
+                    }
+                }
+                self.gui_state.focus = Some(PURCHASE_AMOUNT.into());
+            }
+            // An item bought from a shop (`buy:<npc>:<kind>`), as a click on its ware.
+            _ if action.starts_with("buy:") => {
+                let mut parts = action["buy:".len()..]
+                    .split(':')
+                    .map(|p| p.parse::<u32>().ok());
+                if let (Some(Some(npc)), Some(Some(kind))) = (parts.next(), parts.next()) {
+                    self.gui_state.buying = Some((npc, kind));
+                }
+            }
+            "purchase_ok" => self.gui_state.purchase_asked = Some("ok".into()),
+            "purchase_back" => self.gui_state.purchase_asked = Some("back".into()),
+            "purchase_cancel" => self.gui_state.purchase = None,
             "blacklist_add" => {
                 let name = self
                     .gui_state
@@ -1144,6 +1173,79 @@ impl GameUi {
                 }
             }
         }
+    }
+
+    /// Buying in a shop priced in another currency, when the game's UI asks the amount
+    /// (binds `purchase.`): a buy clicked opens the asking (bought at once when none may be),
+    /// and the asking's buttons: an amount set (`purchase_set:5`, `purchase_set:max`), OK (the
+    /// amount checked, then the cost confirmed, then bought one by one), back from the limit
+    /// told, cancel.
+    fn purchase(&mut self, view: &GameView, player: &Player, actions: &mut Vec<UiAction>) {
+        use purchase::Step;
+        let asks = self.gui.as_ref().is_some_and(|g| g.binds("purchase."));
+        let mut opened = None;
+        // A buy asked by an action comes as a click on its ware.
+        let asked = self.gui_state.buying.take();
+        actions.extend(asked.map(|(npc, kind)| UiAction::Buy { npc, kind }));
+        actions.retain(|a| match *a {
+            UiAction::Buy { npc, kind } if asks && opened.is_none() => {
+                let open = purchase::limits(view, player, npc, kind).filter(|l| l.most > 0);
+                opened = open.map(|_| purchase::Purchase {
+                    npc,
+                    kind,
+                    step: Step::Amount,
+                });
+                opened.is_none()
+            }
+            _ => true,
+        });
+        if let Some(p) = opened {
+            self.gui_state.purchase = Some(p);
+            self.gui_state
+                .fields
+                .insert(PURCHASE_AMOUNT.into(), "1".into());
+            self.gui_state.focus = Some(PURCHASE_AMOUNT.into());
+        }
+        let (Some(asked), Some(p)) = (
+            self.gui_state.purchase_asked.take(),
+            self.gui_state.purchase,
+        ) else {
+            return;
+        };
+        let limits = purchase::limits(view, player, p.npc, p.kind);
+        let most = limits.map_or(0, |l| l.most);
+        let typed =
+            (self.gui_state.fields.get(PURCHASE_AMOUNT)).and_then(|t| t.trim().parse::<u32>().ok());
+        let step = match (asked.as_str(), p.step) {
+            ("max", Step::Amount) => {
+                self.gui_state
+                    .fields
+                    .insert(PURCHASE_AMOUNT.into(), most.to_string());
+                Step::Amount
+            }
+            ("ok", Step::Amount) => match typed.unwrap_or(0) {
+                0 => {
+                    self.gui_state
+                        .fields
+                        .insert(PURCHASE_AMOUNT.into(), "1".into());
+                    Step::Amount
+                }
+                n if n > most => Step::Limit,
+                n => Step::Confirm(n),
+            },
+            ("back", Step::Limit) => Step::Amount,
+            ("ok", Step::Confirm(n)) => {
+                let buy = UiAction::Buy {
+                    npc: p.npc,
+                    kind: p.kind,
+                };
+                actions.extend(std::iter::repeat_n(buy, n.min(most).max(1) as usize));
+                self.gui_state.purchase = None;
+                return;
+            }
+            _ => p.step,
+        };
+        self.gui_state.purchase = Some(purchase::Purchase { step, ..p });
     }
 
     /// A contact row double-clicked (TQ's ON_FRIEND_CHAT / ON_FRIEND_LEAVE): an online friend
@@ -1939,6 +2041,7 @@ impl GameUi {
                     self.gui_event(event, &mut actions);
                 }
                 self.contact_word(view, player, &mut actions);
+                self.purchase(view, player, &mut actions);
                 // What the hero offers shows in its side of the trade.
                 if let Some(trade) = &mut self.gui_state.trade {
                     for action in &actions {
