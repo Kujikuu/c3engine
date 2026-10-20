@@ -1435,7 +1435,9 @@ impl GameUi {
                         } else {
                             &gui.sounds.close
                         };
-                        if !sound.is_empty() {
+                        // A sliding dialog sounds by itself as it comes and goes.
+                        let slides = gui.dialogs().any(|d| d.id == dialog && d.slide);
+                        if !sound.is_empty() && !slides {
                             actions.push(UiAction::PlaySound(sound.clone()));
                         }
                     } else if let Some(page) = id("page:") {

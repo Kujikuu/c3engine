@@ -297,6 +297,9 @@ pub struct Control {
     /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
     /// opening it closes the one there. None: it closes nothing (the HUD strips).
     pub slot: String,
+    /// A dialog that slides in from its side of the screen when it opens (`slide=1`; TQ's
+    /// frame mode: 20 steps of a twentieth of its width, 15 ms apart).
+    pub slide: bool,
     /// Other parts, or dialogs by number, a dialog clears as it opens (`clears=right`: a
     /// trade; `clears=131,160`: the setup hiding the status).
     pub clears: String,
@@ -483,6 +486,7 @@ impl Control {
                 .collect(),
             open: text("open"),
             slot: text("slot"),
+            slide: text("slide") == "1",
             clears: text("clears"),
             esc: section.int("esc").is_some_and(|e| e != 0),
             opens: ids("opens"),
@@ -526,6 +530,8 @@ pub struct Gui {
     pub skin: Skin,
     /// Dialogs and controls, in drawing order.
     pub controls: Vec<Control>,
+    /// When each dialog shown began to show (UI seconds; a sliding dialog's start).
+    opened_at: std::cell::RefCell<std::collections::HashMap<u32, f64>>,
     /// Dialogs opened by actions.
     open: BTreeSet<u32>,
     /// Dialogs their `when` shows, as last worked out, and those of them the player closed
@@ -549,6 +555,7 @@ impl Gui {
             controls: (ini::parse(controls).iter())
                 .filter_map(Control::parse)
                 .collect(),
+            opened_at: Default::default(),
             open: BTreeSet::new(),
             when_shown: BTreeSet::new(),
             dismissed: BTreeSet::new(),

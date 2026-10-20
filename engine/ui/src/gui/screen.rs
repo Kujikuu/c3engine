@@ -146,9 +146,30 @@ impl Gui {
         let shown = |d: &Control| {
             d.screen == self.screen && !d.when.is_empty() && set(d, data) && !self.dismissed(d.id)
         };
-        for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
+        let now = ctx.input(|i| i.time);
+        let showing: Vec<&Control> = (self.dialogs())
+            .filter(|d| self.is_open(d) || shown(d))
+            .collect();
+        let mut opened = self.opened_at.borrow_mut();
+        // A sliding dialog sounds as it comes and goes (TQ's DlgOpen / DlgClose).
+        let sliding = |id: u32| self.dialogs().any(|d| d.id == id && d.slide);
+        let gone = (opened.keys()).filter(|id| !showing.iter().any(|d| d.id == **id));
+        if gone.copied().any(sliding) && !self.sounds.close.is_empty() {
+            events.push(GuiEvent::Sound(self.sounds.close.clone()));
+        }
+        opened.retain(|id, _| showing.iter().any(|d| d.id == *id));
+        let came = showing.iter().any(|d| d.slide && !opened.contains_key(&d.id));
+        if came && !self.sounds.open.is_empty() {
+            events.push(GuiEvent::Sound(self.sounds.open.clone()));
+        }
+        for dialog in showing {
             let r = self.fitted(ctx, dialog, data).0;
-            let place = self.place_rect(r, area);
+            let mut place = self.place_rect(r, area);
+            let since = *opened.entry(dialog.id).or_insert(now);
+            if dialog.slide {
+                place.origin.x += self.slide_offset(r, place.scale, now - since);
+                ctx.request_repaint();
+            }
             let size = Vec2::new(r.w.max(0) as f32, r.h.max(0) as f32) * place.scale;
             egui::Area::new(egui::Id::unique(("gui dialog", dialog.id)))
                 .fixed_pos(place.origin)
@@ -173,6 +194,20 @@ impl Gui {
         let dialog = self.dialogs().find(|d| d.id == control.parent)?;
         let r = self.rect(control);
         Some(self.place(dialog, area).screen(r.x as f32, r.y as f32))
+    }
+
+    /// How far (screen pixels) a sliding dialog laid out at `r` still is from its place
+    /// `seconds` after it opened: off its side of the screen at first, a twentieth of its
+    /// width nearer every 15 ms (TQ's frame mode 1).
+    fn slide_offset(&self, r: GuiRect, scale: f32, seconds: f64) -> f32 {
+        const STEPS: f64 = 20.0;
+        let steps = (seconds * 1000.0 / 15.0).floor().min(STEPS);
+        let left = (1.0 - steps / STEPS) as f32 * r.w.max(0) as f32 * scale;
+        let base = self.layout.base()[0] as f32;
+        match (r.x as f32 + r.w as f32 / 2.0) < base / 2.0 {
+            true => -left,
+            false => left,
+        }
     }
 
     /// Where `dialog` sits when the UI is drawn over `area`.

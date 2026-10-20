@@ -927,7 +927,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] quality lights under icons
     - [ ] the suspicious-item reif effect
     - [ ] repair mode
-    - [ ] slide-in from the right; bag and 287 hiding each other
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] bag and 287 hiding each other
   - [ ] UI 131 CDlgQuery (status): 6 of 11 audit mismatches fixed
     - [x] tab checks lit for their page, the role's first (check values take `when` expressions); the weapons' tab a pixel lower
     - [x] opens only when the right part is free of a shop, warehouse, workbench, lock list or guild (`blocked=`); the right part's rule closes others
@@ -935,7 +936,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] skills tab 1028 and page 163
     - [ ] power button 1464, battle-power digits and 286/287
     - [x] help (CDlgHelp 215)
-    - [ ] slide-in, open/close sounds; hotkeys 20/21/22/43
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] hotkeys 20/21/22/43
   - [ ] UI 132 CDlgQuery_Role (role page): 3 of 5 audit mismatches fixed
     - [x] PK in the client's colours (red 20-99, yellow below 0, black from 100)
     - [x] spouse and guild "None" (StrRes 10075) when there is none (text bindings count as set when not empty)
@@ -977,7 +979,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] help (CDlgHelp 215)
     - [ ] a CP buy asks the amount (290); a valuable sold asks first (IMPTITEM_CONFIRM)
     - [ ] price rows in the tooltip; +N and colour on wares
-    - [ ] slide-in and DlgOpen/DlgClose; refused while trading or with an NPC booth open
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] refused while trading or with an NPC booth open
   - [ ] UI 161 CDlgDepot (warehouse): 8 of 14 audit mismatches fixed
     - [x] page 1626 and page count 1627 (`view_page.`, `list_pages.` bindings)
     - [x] page buttons only with more than one page, paging 20 at a time
@@ -988,7 +991,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] deposit only when 0 < amount <= money; live commas while typing; focus on open
     - [ ] bag-full / warehouse-full messages and the locked-item confirm
     - [ ] quality, +N, colour and reif on stored items
-    - [ ] slide-in and sounds; refused while trading
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] refused while trading
   - [ ] UI 141 CDlgGroup (team): 8 of 13 audit mismatches fixed
     - [x] faces only, no names; a face clicked is picked, with the focus frame
     - [x] Kick sends out the member picked and is disabled (frame 2) until one who does not lead is (`disabled=`, a TQ button's disabled frame)
@@ -1068,7 +1072,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] members' online state in the list
     - [x] clicking a member opens 257 with its details (a list runs its action for the row clicked)
     - [x] help (CDlgHelp 215)
-    - [ ] slide-in, sounds, y 58
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] y 58
   - [x] UI 257 CDlgFacState (guild member info): the 4 audit mismatches fixed (opened by a member clicked on 133's member page; name, level, rank title, contribution; closed with 133; no longer closes 133)
   - [ ] UI 160 CDlgFriend (friends): 9 of 12 audit mismatches fixed
     - [x] GeneralBG frame and the DialogFriend title image
@@ -1078,7 +1083,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] a name clicked opens 209; closing hides 209
     - [ ] whisper and leave-word row actions
     - [x] help (CDlgHelp 215)
-    - [ ] slide-in, sounds; list arrows [160-1]/[160-2]
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] list arrows [160-1]/[160-2]
     - [x] the Conquer front's MsgFriend (1019): the lists at login, made / lost / online / offline as they change, apply / accept / break / enemy delete from the client, a friend ask told
     - [ ] online / offline notices to friends (StrRes 100103/100104)
   - [ ] UI 269 CDlgEnemy (enemies): 6 of 8 audit mismatches fixed
@@ -1086,7 +1092,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Friend opens 160; mentor and business buttons
     - [x] a name clicked opens 270
     - [x] help (CDlgHelp 215)
-    - [ ] slide-in
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
   - [ ] UI 209 CDlgFrdState (friend info): 5 of 7 audit mismatches fixed
     - [x] opened by a friend clicked; no longer closes 160
     - [x] name, level, profession, PK, guild, rank, spouse (what only a player here shows is empty elsewhere)
@@ -1201,7 +1207,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Faces: `PlayerLook::face`, `gameplay.faces` by body and `face_cost` (Conquer: 102 male faces from 1, 90 female from 201, 500 silver, paid even for a wrong face as TQ's MsgAction 142); team faces and the Conquer look face use it
   - [ ] UI 212 CDlgNpcFace (change avatar): 5 of 6 audit mismatches fixed
     - [x] opened by face NPCs; Dialog27, six faces of the hero's body (PlayerFace), the clicked one framed (ImageFocus), Up / Down by six, OK takes it and closes
-    - [ ] the slide-in
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
   - [ ] Booths: players sell from booth spots (engine/game booths.rs, `gameplay.booth_spots`; Conquer's ShopFlag NPCs, kind 16)
     - [x] a free spot offers a booth (StrRes 10364, DlgConfirm mode 13); its owner stands beside it; wares from the bag at a price in money or another currency, up to 20; others who come to the spot see them and buy (the item and the money change hands); the booth closes when its owner closes it, walks, jumps or leaves
     - [x] TQ's placement: the owner two cells out from the spot along its facing, the booth one more; wares drop off when their items leave the bag; the owner told who paid (STR_BOOTH_BUY_sds)
@@ -1214,11 +1220,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] shown with the bag while the hero keeps a booth; Dialog34, six slots a page (Up/Down), each item (tooltip, glow), its price with commas and its Dialog56/57 coin; GetBack under filled slots; Change never drawn (DlgMpcBooth.cpp 252-347)
     - [x] a bag item put on a slot asks its price in silver or CPs (DlgConfirm mode 10: Dialog56/57, edits 1666/1667)
     - [x] Hawk opens 235; both close buttons close the booth, hiding the cry (`hides=` on a `when` dialog)
-    - [ ] slide-in and sounds
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
     - [x] help (CDlgHelp 215)
   - [ ] UI 234 CDlgNpcBooth (another player's booth): 7 of 8 audit mismatches fixed
     - [x] shown when the hero comes to another's booth, from its first page: items, prices, coins, a Buy under each, paging; closing leaves it (DlgNpcBooth.cpp 213-522)
-    - [ ] slide-in
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
     - [x] help (CDlgHelp 215)
   - [ ] UI 235 CDlgHawk (booth cry-out): 2 of 3 audit mismatches fixed
     - [x] opened by the booth's Hawk, a 64-letter edit, Agree sets the cry and closes (DlgHawk.cpp 98-167)
@@ -1247,12 +1253,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 258 CDlgNpcEquip (another player's equipment): 7 of 10 audit mismatches fixed
     - [x] opened by the main bar's view button (130-1016, `pick:view_equip`) and a player clicked; Dialog42 on the right; the nine worn items in their places with their tips; Image160 at +90,+302; name, spouse; its rank image (nob_*64); its battle power (`GameView::viewed_power`); the one looked at told (`Input::Observe`; the front's MsgAction 117 / 310)
     - [x] the player as a figure, feet at +120,+295 (`viewed.model`: the session's figure of whom the UI shows, drawn by the client like the statue's)
-    - [ ] the slide in from the right; the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; closed when other right-side dialogs open; the spouse over the network (players' texts aren't sent)
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; closed when other right-side dialogs open; the spouse over the network (players' texts aren't sent)
     - [x] help (CDlgHelp 215)
   - [ ] UI 241 CDlgEffigy (statue placement): 8 of 9 audit mismatches fixed
     - [x] opened when the game asks for a statue (`gameplay.statues.kind`; Conquer 9, the front's EVENT_LAYNPC); Dialog38 on the left with the hero's figure drawn into it (`effigy.rs`, the session's LookPreview, the client's own target; GUI `type=model` `effigy.model`); the eight poses (230 / 210 / 170 / 150 / 160 / 1 / 190 / 200), play / pause (Button381 / Button380), turning (382 / 383), help 33, Button5 and Button333 close
     - [x] OK puts the statue up as CHero::CreateStatuty: on the guild maps' fixed slots (Conquer: Statuary1037 / 1038), the nearest free one the guild rank takes (100: 0; 90: 1-2; 80: 3-6), within 4; StrRes 100128 / 100129 refused; `Input::Place` carries the pose (the front's MsgNpcInfo look / type / sort), scripts read `placed("action")` / `placed("frame")`
-    - [ ] the slide-in from the left (300 ms)
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
     - [ ] the statue itself: an NPC drawn in its placer's look, held in the pose (C3DStatuary)
   - [x] UI 242 CDlgLay (place an NPC): the 6 audit mismatches fixed: an NPC the game asks to place (`Event::PlacementAsked`) follows the pointer (`GameUi::placement`, SimView's preview actor) until a click puts it; the placing window (`place.fixed`, Dialog36 on the left) turns it (1367 / 1368), puts it (1668: `Input::Place`) or lets it go (1671, 1701, 1702); help 34; without the game's window it goes where the hero stands, as before; GMs `/lay LOOK`; scripted shots run their `--act`s after the first frame and take `{cell}`
   - [ ] Dice tables (tq_re spec systems/dice.md): `gameplay.dice` (Conquer: DiceKing's kind 19, 50 s / 2 s / 8 s, chips 100 / 1000 / 10000, 30000 a round, g_aPayFor), engine/game dice.rs (a seat offered on talking, a round started by a seat, one record a player and bet, cancel all, the roll told to those near, payouts by rule, a win over 60000 told around)
@@ -1273,7 +1280,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] UI 285 CDlgOfflineTrainingConfirm: the 5 audit mismatches fixed: opened by the exit question's OfflineTG (the blessed; else 11001); PublicInfoBG, 11011 (orange, 20) and 11014 with the hours and minutes; OK starts it and leaves the game, Cancel goes back to the exit question
   - [ ] UI 303 CDlgAutoRun5065 (auto-path destinations): 6 of 7 audit mismatches fixed
     - [x] the game's destinations (`GameModule::destinations`; Conquer decodes ini/MapDestination.dat: MSVC rand key 0x2537, XOR, rotate); flipped by 304; path_title and 11121; the hero's map's headings on path_target rows (lit, pressed; lists take `row=`, `line=`, `indent=`, `tips=`, `foot=`), their marks as tips, path_bottom; 11120 where none; a heading opens its places to its left under path_menutitle (controls take `dy=`); a place picked is walked to and the menu closes
-    - [ ] the 300 ms slide in from the right; a heading opening under the pointer (and closing after 5 s away); the tip's own look (Dialog21, 320 wide, `` lines); stopping within the place's radius; the foot 5 pixels higher
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] a heading opening under the pointer (and closing after 5 s away); the tip's own look (Dialog21, 320 wide, `` lines); stopping within the place's radius; the foot 5 pixels higher
   - [ ] UI 334 CDlgFurnishment5065 (item-bind list): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 380 CDlgQuestList5065 / 381 CDlgQuestTrack5065: draft only (non-native additions), 7 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 215 CDlgHelp (help pages): the pages as text
@@ -1297,7 +1305,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] refusing an ask tells the asker from the game UI (the prompt's No sends nothing yet)
   - [ ] UI 326 CDlgBusiness (trade partners): 6 of 7 audit mismatches fixed
     - [x] GeneralBG and its title, the partners in yellow (online first), assessment icons by hours of trial left, a row opening 327 and double-click whisper / leave words, Add under 20 (StrRes 11145), friend / enemy / mentor pages
-    - [ ] slide-in, the hours tip over an assessment icon (StrRes 11147), rows 11-20 scrolled
+    - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
+    - [ ] the hours tip over an assessment icon (StrRes 11147), rows 11-20 scrolled
     - [x] help (CDlgHelp 215)
   - [ ] UI 327 CDlgBusinessState: 3 of 4 audit mismatches fixed
     - [x] GeneralShuxingBG1, the partner's name, level, profession, PK, guild, rank, spouse and assessment icon; Delete asks first (StrRes 11146)
