@@ -65,6 +65,19 @@ pub enum GuiEvent {
     Item { list: String, index: usize },
     /// Edit `field` now reads `text`.
     Edited { field: String, text: String },
+    /// A key pressed while edit `field` has the keyboard.
+    EditKey { field: String, key: EditKey },
+}
+
+/// The keys an edit tells the game about (the chat line's history, channels and names).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditKey {
+    Up,
+    Down,
+    CtrlUp,
+    CtrlDown,
+    CtrlLeft,
+    CtrlRight,
 }
 
 /// How a dialog's layout pixels sit on the screen.
@@ -248,6 +261,32 @@ fn clicked(control: &Control, events: &mut Vec<GuiEvent>) {
         events.push(GuiEvent::Sound(control.sound.clone()));
     }
     events.push(GuiEvent::Action(control.action.clone()));
+}
+
+/// The arrow keys pressed in edit `field`, plain or with Ctrl.
+fn edit_keys(ui: &egui::Ui, field: &str, events: &mut Vec<GuiEvent>) {
+    use egui::Key;
+    let keys = ui.input(|i| {
+        let ctrl = i.modifiers.ctrl;
+        [
+            (Key::ArrowUp, !ctrl, EditKey::Up),
+            (Key::ArrowDown, !ctrl, EditKey::Down),
+            (Key::ArrowUp, ctrl, EditKey::CtrlUp),
+            (Key::ArrowDown, ctrl, EditKey::CtrlDown),
+            (Key::ArrowLeft, ctrl, EditKey::CtrlLeft),
+            (Key::ArrowRight, ctrl, EditKey::CtrlRight),
+        ]
+        .into_iter()
+        .filter(|(key, when, _)| *when && i.key_pressed(*key))
+        .map(|(_, _, k)| k)
+        .collect::<Vec<_>>()
+    });
+    for key in keys {
+        events.push(GuiEvent::EditKey {
+            field: field.to_owned(),
+            key,
+        });
+    }
 }
 
 /// Whether one of `control`'s `when` bindings (`|` between them) is set (not 0).
@@ -499,10 +538,22 @@ impl Painter<'_, '_> {
             }
             ControlKind::Edit => {
                 let mut text = data.text(&control.value).unwrap_or_default();
-                let [r, g, b] = control.color;
+                let marked = !control.mark.is_empty()
+                    && data.number(&control.mark).is_some_and(|v| v != 0.0);
+                let [r, g, b] = if marked {
+                    control.mark_color
+                } else {
+                    control.color
+                };
                 let font = crate::fonts::font(control.size * self.place.scale);
+                let limit = if control.limit > 0 {
+                    control.limit
+                } else {
+                    usize::MAX
+                };
                 let edit = egui::TextEdit::singleline(&mut text)
                     .id_salt(("gui edit", control.parent, control.id))
+                    .char_limit(limit)
                     .password(control.password)
                     .frame(egui::Frame::NONE)
                     .font(font)
@@ -517,6 +568,9 @@ impl Painter<'_, '_> {
                         field: control.value.clone(),
                         text,
                     });
+                }
+                if self.live && response.has_focus() {
+                    edit_keys(self.ui, &control.value, events);
                 }
                 // Enter in an edit with an action runs it (the chat line sends).
                 let entered = self.ui.input(|i| i.key_pressed(egui::Key::Enter));

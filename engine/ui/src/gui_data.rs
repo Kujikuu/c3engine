@@ -24,6 +24,8 @@ pub(crate) struct GuiState {
     pub focus: Option<String>,
     /// Each view group's view (`view:<group>:<name>`; a status page's base or details).
     pub views: std::collections::HashMap<String, String>,
+    /// The chat bar's lines said, listed names and recent channels.
+    pub chat_bar: crate::chat_bar::ChatBar,
 }
 
 /// The most items a workbench holds.
@@ -173,6 +175,17 @@ impl GuiData for HeroData<'_> {
                 .into()
             }
             "team.auto" => u8::from(self.state.auto_team).into(),
+            // The name typed in the chat bar is listed / can be (the Add button's state).
+            "chat.listed" | "chat.can_list" => {
+                let name = self.state.fields.get(crate::CHAT_NAME);
+                let name = name.map_or("", |n| n.trim());
+                let bar = &self.state.chat_bar;
+                u8::from(match key {
+                    "chat.listed" => bar.listed(name),
+                    _ => bar.can_list(name),
+                })
+                .into()
+            }
             // 1 while view group `<group>` shows view `<name>` (`view.<group>.<name>`).
             _ if key.starts_with("view.") => {
                 let (group, name) = key.strip_prefix("view.")?.split_once('.')?;
@@ -356,6 +369,8 @@ impl GuiData for HeroData<'_> {
                 let names = self.player.mates.iter().map(|m| m.name.clone());
                 (names.collect(), None)
             }
+            // The names listed to talk to (the chat bar's list).
+            "chat.targets" => (self.state.chat_bar.targets.clone(), None),
             // The hero's guild's members, or its allies or enemies (the guild tab picked).
             "guild.member_names" => {
                 let world = self.view.sim.world_state();

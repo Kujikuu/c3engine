@@ -285,8 +285,8 @@ impl FrontEnd {
                 _ => {}
             },
             GuiEvent::Action(action) => self.act(&action, actions),
-            // The front end plays no sounds yet.
-            GuiEvent::Sound(_) => {}
+            // The front end plays no sounds yet, and its edits take no keys.
+            GuiEvent::Sound(_) | GuiEvent::EditKey { .. } => {}
         }
     }
 

@@ -9,6 +9,7 @@
 
 mod bag;
 mod chat;
+mod chat_bar;
 mod dialogue;
 pub mod fonts;
 pub mod front;
@@ -159,7 +160,9 @@ pub struct ControlsView<'a> {
 
 /// The game UI's chat line and whisper name fields.
 const CHAT_TEXT: &str = "chat.text";
-const CHAT_NAME: &str = "chat.name";
+pub(crate) const CHAT_NAME: &str = "chat.name";
+/// The chat bar's list of names (TQ's CDlgListBox, hidden once a name is picked).
+const CHAT_TARGETS: &str = "chat.targets";
 
 /// A line for the host's console (script output, data problems).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -317,6 +320,12 @@ impl GameUi {
                 return;
             }
             gui::GuiEvent::Item { .. } => return,
+            gui::GuiEvent::EditKey { field, key } => {
+                if field == CHAT_TEXT {
+                    self.chat_key(key);
+                }
+                return;
+            }
         };
         // Several actions, `;` between them, run in turn; a workbench clears after.
         for part in action.split(';') {
@@ -446,8 +455,10 @@ impl GameUi {
             "radar" => self.gui_state.radar_hidden ^= true,
             // The chat bar: its line said on the picked channel (`view:chat:<channel>`;
             // talk when none), a whisper to the name typed; the shown lines cleared.
+            // Lines are a half second apart at least (StrRes 10044); each is kept for Up/Down.
             "chat_send" => {
                 let text = self.gui_state.fields.remove(CHAT_TEXT).unwrap_or_default();
+                let text = text.replace(['\r', '\n'], " ");
                 if text.trim().is_empty() {
                     return;
                 }
@@ -455,25 +466,38 @@ impl GameUi {
                     .gui_state
                     .fields
                     .get(CHAT_NAME)
-                    .cloned()
+                    .map(|n| n.trim().to_owned())
                     .unwrap_or_default();
-                use c3_game::ChatChannel as C;
-                let channel = match self.gui_state.views.get("chat").map(String::as_str) {
-                    None | Some("talk") => Some(C::Local),
-                    Some("whisper") => Some(C::Whisper),
-                    Some("team") => Some(C::Team),
-                    Some("guild") => Some(C::Guild),
-                    Some(_) => None,
-                };
-                match channel {
-                    _ if text.starts_with('/') => {
-                        actions.push(UiAction::Game(c3_game::Input::Say(text)));
-                    }
-                    Some(channel) => {
-                        actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }))
-                    }
-                    None => self.system("That channel isn't open yet.", style::BAD),
+                if text.starts_with('/') {
+                    actions.push(UiAction::Game(c3_game::Input::Say(text)));
+                    return;
                 }
+                if self.gui_state.chat_bar.too_soon(std::time::Instant::now()) {
+                    self.system(
+                        "You have sent too many messages. Please wait a moment to send again.",
+                        style::BAD,
+                    );
+                    return;
+                }
+                let picked = self.chat_channel().to_owned();
+                use c3_game::ChatChannel as C;
+                let channel = match picked.as_str() {
+                    "talk" => C::Local,
+                    "whisper" => C::Whisper,
+                    "team" => C::Team,
+                    "guild" => C::Guild,
+                    _ => {
+                        self.system("That channel isn't open yet.", style::BAD);
+                        return;
+                    }
+                };
+                self.gui_state.chat_bar.said(&text, &picked, &to);
+                actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }));
+            }
+            // The name typed listed, or taken off when it is (the Add button).
+            "chat_list" => {
+                let name = (self.gui_state.fields.get(CHAT_NAME)).cloned();
+                (self.gui_state.chat_bar).toggle_listed(name.unwrap_or_default().trim());
             }
             "chat_clear" => self.chat.clear(),
             "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
@@ -500,9 +524,44 @@ impl GameUi {
                         }
                     } else if let Some(page) = id("page:") {
                         gui.show_page(page);
+                    } else if let Some(dialog) = id("close:") {
+                        gui.close(dialog);
                     }
                 }
             }
+        }
+    }
+
+    /// The chat bar's channel picked (`view:chat:<channel>`; talk at first).
+    fn chat_channel(&self) -> &str {
+        self.gui_state.views.get("chat").map_or("talk", String::as_str)
+    }
+
+    /// A key in the chat line: Down / Up step through the lines said, Ctrl+Up / Down
+    /// cycle the channel, Ctrl+Left / Right the recent channel-and-name pairs.
+    fn chat_key(&mut self, key: gui::EditKey) {
+        use gui::EditKey as K;
+        let state = &mut self.gui_state;
+        let current = state.fields.get(CHAT_TEXT).cloned().unwrap_or_default();
+        let line = match key {
+            K::Down => state.chat_bar.older(&current),
+            K::Up => state.chat_bar.newer(),
+            K::CtrlUp | K::CtrlDown => {
+                let now = state.views.get("chat").map_or("talk", String::as_str);
+                let next = chat_bar::next_channel(now, key == K::CtrlUp);
+                state.views.insert("chat".into(), next.into());
+                None
+            }
+            K::CtrlLeft | K::CtrlRight => {
+                if let Some((channel, name)) = state.chat_bar.cycle_recent(key == K::CtrlLeft) {
+                    state.views.insert("chat".into(), channel);
+                    state.fields.insert(CHAT_NAME.into(), name);
+                }
+                None
+            }
+        };
+        if let Some(line) = line {
+            state.fields.insert(CHAT_TEXT.into(), line);
         }
     }
 
@@ -691,6 +750,7 @@ impl GameUi {
                 let mut others = Vec::new();
                 let working = gui.open_uses("work.");
                 let mut work = Vec::new();
+                let mut picked_target = None;
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
                     match event {
                         // A bag item onto an open workbench; a slot clicked empties it.
@@ -704,6 +764,10 @@ impl GameUi {
                                     .map(|id| (false, *id)),
                             );
                         }
+                        // A listed name picked fills the chat bar's name; the list hides.
+                        gui::GuiEvent::Item { list, index } if list == CHAT_TARGETS => {
+                            picked_target = data.state.chat_bar.targets.get(index).cloned();
+                        }
                         gui::GuiEvent::Item { list, index } => {
                             actions.extend(grid_click(&data, player, &list, index));
                         }
@@ -712,6 +776,12 @@ impl GameUi {
                 }
                 // The edit asked to take the keyboard has had this frame to.
                 self.gui_state.focus = None;
+                if let Some(name) = picked_target {
+                    self.gui_state.fields.insert(CHAT_NAME.into(), name);
+                    if let Some(gui) = &mut self.gui {
+                        gui.close_holding(CHAT_TARGETS);
+                    }
+                }
                 let bench = &mut self.gui_state.work;
                 for (put, id) in work {
                     if !put {

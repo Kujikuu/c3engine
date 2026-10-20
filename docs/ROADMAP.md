@@ -801,7 +801,23 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
     - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
     - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts
-  - [ ] UI 145 CDlgTalk (chat bar): partial, 16 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 145 CDlgTalk (chat bar): 10 of 16 audit mismatches fixed (docs/conquer_ui_audit.md)
+    - [x] line 1542 takes 88 characters, name 1544 15, the name red while listed (`limit=`, `mark=`)
+    - [x] Down/Up step through the last 20 lines said, as CDlgTalk does (Down older, Up newer)
+    - [x] Ctrl+Up/Down cycle the channel, Ctrl+Left/Right the last 5 channel-and-name pairs
+    - [x] lines half a second apart at least (StrRes 10044); line breaks taken out
+    - [x] List 1185 opens the names list 148 (Dialog24, yellow names, a pick fills the name and hides it); Add 1545 switches Button57/58/59 and lists or takes off the name
+    - [x] Log 1095 toggles 139; Action 1096 toggles 274 and closes 191 (`close:N`)
+    - [ ] broadcast (ad_channel) mode: tip 11034, placeholder 11023, level 50 / 5 CPs / 80 bytes, prompt 296; and 174's [174-1549]
+    - [ ] friend (2009) and service (2014, 20 s cooldown StrRes 10444) channels sent (needs M13 friends)
+    - [ ] taking a listed name off asks first (CDlgConfirm 158, needs the yes/no prompt)
+    - [ ] 148: kept between sessions, hidden when the mouse leaves, its arrows [148-1]/[148-2]
+    - [ ] inline #NN emoticons in the line (MyCombo.cpp 98)
+    - [ ] Clear 1092 clears every message area (system, GM) and resets banner 295
+    - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
+    - [ ] clicking the bar focuses the line; 1094 as one image changed by the channel
+    - [ ] the log under the bar is the engine's egui box, not g_objGameMsg's three areas (Message rendering)
+    - [ ] 139 CDlgChat and 274 CDlgTalkAct are still drafts
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 188 CDlgMagic (normal-magic skill strip): partial, 11 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 5278 CDlgMipmap and the 5065 radar (minimap): missing (engine substitute), 5 mismatches (docs/conquer_ui_audit.md)

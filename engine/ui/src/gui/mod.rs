@@ -29,7 +29,7 @@
 pub mod ini;
 mod screen;
 
-pub use screen::{GuiData, GuiEvent, GuiImages, Place, Textures};
+pub use screen::{EditKey, GuiData, GuiEvent, GuiImages, Place, Textures};
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -222,6 +222,11 @@ pub struct Control {
     pub screen: String,
     /// An edit hides what is typed.
     pub password: bool,
+    /// The most characters an edit takes (0: any).
+    pub limit: usize,
+    /// A binding: while it is set, the text shows in `mark_color` (a listed name in red).
+    pub mark: String,
+    pub mark_color: [u8; 3],
     /// Its own place wins over the layout's (the client's code moves it, as TQ's does for
     /// screens it lays out per resolution).
     pub fixed: bool,
@@ -268,12 +273,14 @@ impl Control {
             let n: Vec<i32> = s.split(',').filter_map(|v| v.trim().parse().ok()).collect();
             <[i32; 2]>::try_from(n).ok()
         });
-        let color = section
-            .get("color")
-            .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
-            .map_or([255, 255, 255], |c| {
-                [(c >> 16) as u8, (c >> 8) as u8, c as u8]
-            });
+        let rgb = |key: &str| {
+            (section.get(key))
+                .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
+                .map_or([255, 255, 255], |c| {
+                    [(c >> 16) as u8, (c >> 8) as u8, c as u8]
+                })
+        };
+        let color = rgb("color");
         let fill = match section.get("fill").unwrap_or("right") {
             "up" => Fill::Up,
             "left" => Fill::Left,
@@ -307,6 +314,9 @@ impl Control {
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
+            limit: section.int("limit").unwrap_or(0).max(0) as usize,
+            mark: text("mark"),
+            mark_color: rgb("mark_color"),
             stack: section.int("stack").is_some_and(|s| s != 0),
             fit: section.int("fit").unwrap_or(0).max(0),
             fixed: section.int("fixed").is_some_and(|f| f != 0),
@@ -476,6 +486,22 @@ impl Gui {
         let mut pages = self.pages(id).peekable();
         let first = pages.peek().copied();
         self.pages(id).find(|p| self.open.contains(&p.id)).or(first)
+    }
+
+    /// Closes dialog `id`.
+    pub fn close(&mut self, id: u32) {
+        self.open.remove(&id);
+    }
+
+    /// Closes the dialogs with a control bound to `binding` (a list hidden once picked from).
+    pub fn close_holding(&mut self, binding: &str) {
+        let holders: Vec<u32> = (self.controls.iter())
+            .filter(|c| c.value == binding)
+            .map(|c| c.parent)
+            .collect();
+        for id in holders {
+            self.open.remove(&id);
+        }
     }
 
     /// Opens dialog `id`, or closes it when it is open; whether it is open now.
