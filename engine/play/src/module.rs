@@ -151,9 +151,14 @@ pub trait GameModule {
     /// A file of the game's content (sounds), loose or packed.
     fn read_file(&self, path: &str) -> Option<Vec<u8>>;
     /// The game's own login list (its groups and servers) for a project that lists none,
-    /// each server at `address` (this project's server).
-    fn login_list(&self, address: &str) -> Option<LoginList> {
-        let _ = address;
+    /// each server at `address` (this project's server); `read` reads the game's files, a
+    /// project's own copies first.
+    fn login_list(
+        &self,
+        address: &str,
+        read: &dyn Fn(&str) -> Option<Vec<u8>>,
+    ) -> Option<LoginList> {
+        let _ = (address, read);
         None
     }
     /// The icon of item type `kind` in look `look` (an item's look attribute; 0: its usual).

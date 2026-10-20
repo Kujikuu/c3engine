@@ -57,11 +57,12 @@ impl FrontPhase {
         // A project that lists no servers shows the game's own list (Conquer: its Server.dat),
         // each at this machine's server.
         let local = format!("127.0.0.1:{}", settings.network.port);
+        let read = |path: &str| game.read_file(path);
         let listed = settings
             .network
             .servers
             .is_empty()
-            .then(|| game.login_list(&local));
+            .then(|| game.login_list(&local, &read));
         let (mut servers, groups) = match listed.flatten() {
             Some((groups, servers)) => (servers, groups),
             None => (

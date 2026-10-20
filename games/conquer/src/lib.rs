@@ -364,15 +364,19 @@ impl Content {
 
     /// The minimap of the first of `map_ids` the client has (see `ConquerModule::minimap`).
     /// The radar's picture for mark `kind` (see [`RADAR_MARKS`]).
-    /// The client's login list from its `Server.dat` (CDlgLogin's LoadNativeGroups and
+    /// The login list from `Server.dat` (a project's own copy first: a native one naming
+    /// Server.ani's pictures, as the pre-Flash clients' does) (CDlgLogin's LoadNativeGroups and
     /// LoadNativeServers): `[Header]` GroupAmount and GroupN pictures, each `[GroupN]`'s
     /// ServerAmount, ServerNameN (else ServerN) and PicN, every server at `address`. A
     /// picture shows when Server.ani has a section of its name; the 5065 list names the Flash
     /// login's files (`Group11.swf`), which the native login, like the client's, leaves blank.
-    pub fn login_list(&self, address: &str) -> Option<c3_play::module::LoginList> {
+    pub fn login_list(
+        address: &str,
+        read: &dyn Fn(&str) -> Option<Vec<u8>>,
+    ) -> Option<c3_play::module::LoginList> {
         use c3_core::settings::{ServerEntry, ServerGroup};
-        let ini = c3_formats_tq::ini::Ini::parse(&self.fs.read(SERVER_DAT)?);
-        let ani = Ani::parse(&self.fs.read(SERVER_ANI)?).ok();
+        let ini = c3_formats_tq::ini::Ini::parse(&read(SERVER_DAT)?);
+        let ani = read(SERVER_ANI).and_then(|bytes| Ani::parse(&bytes).ok());
         // A picture is the Server.ani section of that name, as CMyImage::InsertImage finds it.
         let picture = |name: &str| -> String {
             match ani.as_ref().is_some_and(|a| a.get(name).is_some()) {
