@@ -645,6 +645,48 @@ impl ConquerClient {
         Some(pk::board_list(index, channel, &page))
     }
 
+    /// A dice table's news as the 5065 client hears it (dice spec §2.4, §5).
+    fn dice_news(&self, npc: u32, news: &c3_game::DiceNews, sim: &Sim) -> Vec<Vec<u8>> {
+        use c3_game::DiceNews as N;
+        use pk::dice as d;
+        let silver = |n: u64| u32::try_from(n).unwrap_or(u32::MAX);
+        match news {
+            N::Offered => Vec::new(),
+            N::Joined { name } => vec![pk::name(d::NAME_JOIN, npc, name)],
+            N::Left { name } => vec![pk::name(d::NAME_LEAVE, npc, name)],
+            N::Open { seconds } => {
+                let seconds = u8::try_from(*seconds).unwrap_or(u8::MAX);
+                vec![pk::dice(d::BEGIN, seconds, npc, &[])]
+            }
+            N::Closed => vec![pk::dice(d::END, 0, npc, &[])],
+            N::Chips { bets, mine, cancel } => {
+                let action = match (cancel, mine) {
+                    (false, false) => d::CHIP_IN,
+                    (false, true) => d::CHIP_IN_CONFIRM,
+                    (true, false) => d::CANCEL,
+                    (true, true) => d::CANCEL_CONFIRM,
+                };
+                let entries: Vec<(u8, u32)> = bets.iter().map(|&(b, m)| (b, silver(m))).collect();
+                let count = u8::try_from(entries.len()).unwrap_or(u8::MAX);
+                vec![pk::dice(action, count, npc, &entries)]
+            }
+            // TQ rolls four dice; the client draws three.
+            N::Rolled { dice: [a, b, c] } => vec![pk::dice_roll(npc, [*a, *b, *c, 1])],
+            N::Won { name, amount } => vec![pk::name(d::NAME_BONUS, silver(*amount), name)],
+            // STR_MISS_BET, whispered by the table's NPC (channel 2000, white).
+            N::Missed => {
+                let speaker =
+                    (sim.npcs().iter().find(|n| n.id == npc)).map_or("", |n| n.name.as_str());
+                let hearer = self
+                    .hero
+                    .and_then(|h| sim.player(h))
+                    .map_or("", |p| p.name.as_str());
+                let words = "You miss the chance! Keep alert!";
+                vec![pk::talk(2000, speaker, hearer, words, WHITE)]
+            }
+        }
+    }
+
     /// The hero's item `item`'s lock as MsgEquipLock tells it: its unlock day asked, or what
     /// became of it (locked, unlocking, freed).
     fn item_lock(&self, item: u32, asked: bool, sim: &Sim) -> Option<Vec<u8>> {
@@ -1937,6 +1979,11 @@ impl ConquerClient {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
             // The warehouse as it is now, and the money kept.
+            // A dice table's news (MsgName 17/18/19, MsgDice 1113; dice spec §2.4). The seat
+            // offer is the client's own question for a type-19 NPC.
+            Event::Dice { player, npc, news } if Some(*player) == hero => {
+                self.dice_news(*npc, news, sim)
+            }
             // Offline training news (MsgTraining 2044, MsgTrainingInfo 2043).
             Event::Training { player, news } if Some(*player) == hero => {
                 use c3_game::TrainingNews as N;
@@ -2272,6 +2319,32 @@ impl ConquerClient {
             } => {
                 out.push(self.member_page(data));
             }
+            // Sitting at a dice table and leaving it (MsgName 17, 18 with the table's id).
+            Request::Name {
+                kind: pk::dice::NAME_JOIN,
+                data,
+            } => inputs.push(Input::Dice(c3_game::DiceAction::Join(data))),
+            Request::Name {
+                kind: pk::dice::NAME_LEAVE,
+                data,
+            } => inputs.push(Input::Dice(c3_game::DiceAction::Leave(data))),
+            // A chip on a bet; every bet taken back (MsgDice 1113 action 2 with type 22).
+            Request::Dice {
+                action: pk::dice::CHIP_IN,
+                npc,
+                kind,
+                amount,
+            } if amount > 0 => inputs.push(Input::Dice(c3_game::DiceAction::Chip {
+                npc,
+                bet: kind,
+                money: u64::from(amount),
+            })),
+            Request::Dice {
+                action: pk::dice::CANCEL,
+                npc,
+                kind: pk::dice::ALL,
+                ..
+            } => inputs.push(Input::Dice(c3_game::DiceAction::CancelAll(npc))),
             // Asking another player to be friends (or taking up its ask), letting a friend
             // go, forgetting an enemy.
             Request::Friend {

@@ -60,6 +60,52 @@ pub fn business(action: u8, id: u32, online: bool, minutes: u16, look: u32, name
 
 pub const BUSINESS: u16 = 2046;
 /// Offline training (Training.dll): MsgTraining's actions both ways, and what it trained.
+/// MsgDice (MsgBetOutside) 1113, both ways (tq_re spec systems/dice.md §2.1).
+pub const DICE: u16 = 1113;
+pub mod dice {
+    /// Client: a chip put on a bet; server: another player's chips.
+    pub const CHIP_IN: u8 = 0;
+    /// The player's own chip taken.
+    pub const CHIP_IN_CONFIRM: u8 = 1;
+    /// Client: the bets taken back (with ALL); server: another player's bets taken back.
+    pub const CANCEL: u8 = 2;
+    pub const CANCEL_CONFIRM: u8 = 3;
+    /// Betting open (with the seconds left), betting closed.
+    pub const BEGIN: u8 = 4;
+    pub const END: u8 = 5;
+    /// The roll.
+    pub const ROLL: u8 = 6;
+    /// The bet type meaning every bet (a cancel's).
+    pub const ALL: u8 = 22;
+    /// MsgName's table actions: a player at the table (its own name: seated), a player
+    /// gone, a win (data: the payout).
+    pub const NAME_JOIN: u8 = 17;
+    pub const NAME_LEAVE: u8 = 18;
+    pub const NAME_BONUS: u8 = 19;
+}
+
+/// MsgDice 1113 from the server: `entries` (bet type, silver) after the table's id, then
+/// the zero slot TQ's builder leaves; `count` is the entry count or, opening, the seconds left.
+pub fn dice(action: u8, count: u8, npc: u32, entries: &[(u8, u32)]) -> Vec<u8> {
+    packet(DICE, |w| {
+        w.u8(action).u8(count).u16(0).u32(npc);
+        for &(kind, silver) in entries {
+            w.u8(kind).u8(0).u16(0).u32(silver);
+        }
+        w.u32(0).u32(0);
+    })
+}
+
+/// MsgDice's roll: one entry holding the four dice (only the first three are drawn).
+pub fn dice_roll(npc: u32, dice: [u8; 4]) -> Vec<u8> {
+    packet(DICE, |w| {
+        w.u8(dice::ROLL).u8(1).u16(0).u32(npc).u32(0);
+        for d in dice {
+            w.u8(d);
+        }
+    })
+}
+
 pub const TRAINING: u16 = 2044;
 pub const TRAINING_INFO: u16 = 2043;
 pub mod training {
@@ -1136,6 +1182,13 @@ pub enum Request {
     },
     /// Offline training asked of (2044): its action.
     Training(u16),
+    /// A dice table (1113): a chip of `amount` on bet `kind`, or the bets taken back.
+    Dice {
+        action: u8,
+        npc: u32,
+        kind: u8,
+        amount: u32,
+    },
     /// An item locked, unlocked or its unlock day asked (2048).
     ItemLock {
         item: u32,
@@ -1481,6 +1534,19 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
         }
         MENTOR_PRIZE => Request::MentorPrize { action: r.u8()? },
         TRAINING => Request::Training(r.u16()?),
+        DICE => {
+            let action = r.u8()?;
+            r.skip(3)?;
+            let npc = r.u32()?;
+            let kind = r.u8()?;
+            r.skip(3)?;
+            Request::Dice {
+                action,
+                npc,
+                kind,
+                amount: r.u32()?,
+            }
+        }
         ITEM_LOCK => {
             let item = r.u32()?;
             Request::ItemLock {

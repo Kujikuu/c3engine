@@ -1252,7 +1252,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] UI 242 CDlgLay (place an NPC): the 6 audit mismatches fixed: an NPC the game asks to place (`Event::PlacementAsked`) follows the pointer (`GameUi::placement`, SimView's preview actor) until a click puts it; the placing window (`place.fixed`, Dialog36 on the left) turns it (1367 / 1368), puts it (1668: `Input::Place`) or lets it go (1671, 1701, 1702); help 34; without the game's window it goes where the hero stands, as before; GMs `/lay LOOK`; scripted shots run their `--act`s after the first frame and take `{cell}`
   - [ ] Dice tables (tq_re spec systems/dice.md): `gameplay.dice` (Conquer: DiceKing's kind 19, 50 s / 2 s / 8 s, chips 100 / 1000 / 10000, 30000 a round, g_aPayFor), engine/game dice.rs (a seat offered on talking, a round started by a seat, one record a player and bet, cancel all, the roll told to those near, payouts by rule, a win over 60000 told around)
     - [x] engine and UI
-    - [ ] the front (MsgName 17 / 18 / 19, MsgDice 1113, the NPC's dice animation); the countdown shown; a player's bets lost when it logs off at a closed table
+    - [x] the front: MsgName 17 / 18 sit and leave, 17 / 18 / 19 told back (seated, gone, a win); MsgDice 1113 both ways (chips and their confirms, cancels, betting open with the seconds left and closed, the roll's four dice); STR_MISS_BET whispered by the table (channel 2000); the NPC's kind 19 in MsgNpcInfo for the client's own question
+    - [x] a player gone at the roll loses its bets unpaid
+    - [ ] the NPC's dice animation in the engine's own client (CDiceView: the three dice on the table, `_VAR_DICE0..2`)
+    - [ ] the countdown shown (CDlgDice's BeginCountDown)
   - [ ] UI 262 CDlgDice: 7 of 9 audit mismatches fixed
     - [x] seated by DiceKing's question (StrRes 10394; 10395 to leave); Dialog43 two down; each bet's chips as piles (`piles=`: Button435 / 434 / 433, CMyImage::ShowMoney); the chip picked (+4,+4) put on a bet clicked; the last bet's own and total (1420 / 1421) and the chip (1632); Exit (1415); the players (1422)
     - [ ] the hover showing a bet's chips and the chip's size, Hide / Resume (1416 / 1633), the chip cursor, right-click cancel all
