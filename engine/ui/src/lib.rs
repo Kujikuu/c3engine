@@ -358,6 +358,20 @@ pub(crate) enum TrainingNext {
 /// The view groups of the lock window: the item picked, and its tip when not the first.
 const LOCK_ITEM: &str = "lock_item";
 const LOCK_TIP: &str = "lock_tip";
+/// Another player's ask of `kind` as a chat line, for the engine's own UI.
+fn ask_line(kind: &str, name: &str) -> Option<String> {
+    Some(match kind {
+        "guild_invite" => format!("{name} invites you into their guild."),
+        "guild_apply" => format!("{name} asks to join your guild."),
+        "marriage" => format!("{name} asks to marry you."),
+        "mentor_offer" => format!("{name} offers to be your mentor."),
+        "mentor_ask" => format!("{name} asks you to be their mentor."),
+        "partner" => format!("{name} asks to be your trade partner."),
+        "friend" => format!("{name} asks to be your friend."),
+        _ => return None,
+    })
+}
+
 /// The tip when what was put in is no equipment (TQ's StrRes 11195).
 const LOCK_ONLY_EQUIPMENT: &str = "11195";
 
@@ -2001,7 +2015,12 @@ impl GameUi {
             _ => return,
         };
         let name = sim.player(from).map_or("", |p| p.name.as_str()).to_owned();
-        if self.ask(kind, &name, input) && kind.starts_with("team_") {
+        if !self.ask(kind, &name, input) {
+            // The engine's own UI: told in chat (the game tells team asks itself).
+            if let Some(line) = ask_line(kind, &name) {
+                self.system(line, style::GOLD);
+            }
+        } else if kind.starts_with("team_") {
             // No refuses (CDlgConfirm::OnConfirmBtnCancel5065, modes 1 and 2).
             if let Some(p) = &mut self.gui_state.prompt {
                 p.no = Some(Input::Team(T::Refuse(from)));

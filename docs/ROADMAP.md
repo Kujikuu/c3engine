@@ -788,7 +788,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] an amount typed in the prompt (modes 5, 9, 10, 11: dropping money, donating, booth prices) and the gem take-out, item drop and important-item asks
     - [x] Enter/Esc answer it
     - [x] refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT: `TeamAction::Refuse`, `Event::TeamRefused`; prompts carry what No sends; the front's MsgTeam 14 both ways)
-    - [ ] the engine's own UI (no game dialog) still turns asks into chat lines
+    - [x] the engine's own UI (no game dialog) still turns asks into chat lines (guild, marriage, mentor, partner and friend asks; team and trade asks the game tells itself)
   - [ ] UI engine: items in grids
     - [x] `pick=1` grids: the left button picks an item up (drawn at the pointer) and puts it on another grid: sold, stored, taken out, worn, taken off, bought, offered in a trade, put on a workbench; the right button uses (Esc or the right button lets it go)
     - [x] item tooltips under the pointer (what it is, its stack, quality and durability)
