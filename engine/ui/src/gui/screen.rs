@@ -723,7 +723,8 @@ impl Painter<'_, '_> {
         let size = Vec2::new(at.w.max(0) as f32, at.h.max(0) as f32);
         let rect = Rect::from_min_size(self.screen(origin.x, origin.y), size * self.place.scale);
         if let Some([r, g, b]) = control.back {
-            (self.ui.painter()).rect_filled(rect, 0.0, Color32::from_rgb(r, g, b));
+            let back = Color32::from_rgba_unmultiplied(r, g, b, control.back_alpha);
+            (self.ui.painter()).rect_filled(rect, 0.0, back);
         }
         match control.kind {
             ControlKind::Dialog => {
@@ -1072,6 +1073,30 @@ impl Painter<'_, '_> {
                 if self.live && over > 0.0 && self.ui.rect_contains_pointer(rect) {
                     let wheel = self.ui.input(|i| i.smooth_scroll_delta.y) / scale;
                     moved += if control.tail { wheel } else { -wheel };
+                }
+                // Its arrows, a row a click.
+                if control.arrows && over > 0.0 {
+                    let step = laid.first().map_or(16.0, |l| l.height());
+                    let up = (Vec2::new(size.x - 16.0, 0.0), "Button815", -step);
+                    let down = (Vec2::new(size.x - 16.0, size.y - 19.0), "Button816", step);
+                    for (offset, section, by) in [up, down] {
+                        let corner = origin + offset;
+                        if let Some(picture) = self.frame(self.skin.frames(section), 0) {
+                            self.draw(picture, corner, None, None);
+                        }
+                        let area = Rect::from_min_size(
+                            self.screen(corner.x, corner.y),
+                            Vec2::splat(16.0) * scale,
+                        );
+                        let clicked = self.live
+                            && (self
+                                .ui
+                                .interact(area, id.with(section), egui::Sense::click()))
+                            .clicked();
+                        if clicked {
+                            moved += if control.tail { -by } else { by };
+                        }
+                    }
                 }
                 moved = moved.clamp(0.0, over);
                 self.ui.data_mut(|d| d.insert_temp(id, moved));

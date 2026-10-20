@@ -290,6 +290,12 @@ pub struct Control {
     /// A list shown from its end, the newest rows lowest, the mouse wheel going back (`tail=1`;
     /// a log).
     pub tail: bool,
+    /// A list's scroll arrows at its right edge while its rows run past it, a row a click
+    /// (`arrows=1`; TQ's CMyList: Button815 / Button816, 16 square, the lower 3 above the
+    /// bottom; drawn only where the skin has them, as 5065's Control.ani hasn't).
+    pub arrows: bool,
+    /// A colour filled under it with its alpha (`back=00000099`: TQ's ShowBlock 0x99000000).
+    pub back_alpha: u8,
     /// Numbered documents a list shows in place of rows (`pages=Help/help{n}.htm`: HTML read
     /// as paragraphs), the one view group `page` holds.
     pub pages: String,
@@ -500,8 +506,19 @@ impl Control {
             boxed: section.int("boxed").is_some_and(|b| b != 0),
             hint: text("hint"),
             hint_when: text("hint_when"),
-            back: section.get("back").map(|_| rgb("back")),
+            back: section.get("back").map(|c| {
+                // `rrggbbaa` keeps its colour in the top three bytes.
+                let c = c.trim_start_matches('#');
+                let v = u32::from_str_radix(c, 16).unwrap_or(0xFFFFFF);
+                let v = if c.len() == 8 { v >> 8 } else { v };
+                [(v >> 16) as u8, (v >> 8) as u8, v as u8]
+            }),
             tail: section.int("tail").is_some_and(|t| t != 0),
+            arrows: section.int("arrows").is_some_and(|a| a != 0),
+            back_alpha: (section.get("back"))
+                .filter(|c| c.trim_start_matches('#').len() == 8)
+                .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
+                .map_or(0xFF, |c| c as u8),
             pages: text("pages"),
             page: text("page"),
             row: text("row"),

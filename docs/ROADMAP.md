@@ -846,7 +846,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] friend channel (2009): friends and enemies in the game (`FriendAction`, `WorldChange::Friendship`/`Enemy`, a killer kept as the victim's enemy)
     - [x] service channel (2014, 20 s cooldown StrRes 10444): `ChatChannel::Service` to the game masters online on any map, [Service] (100157) in the log; the front's 2014 both ways
     - [x] taking a listed name off asks first (CDlgConfirm 158: `ask:unlist:chat_list`)
-    - [ ] 148: kept between sessions, hidden when the mouse leaves, its arrows [148-1]/[148-2]
+    - [x] 148's arrows [148-1]/[148-2] (`arrows=1`: CMyList's, invisible in 5065 as Button815/816 aren't in its Control.ani, a row a click)
+    - [ ] 148: kept between sessions, hidden when the mouse leaves
     - [ ] inline #NN emoticons in the line (MyCombo.cpp 98)
     - [x] Clear 1092 clears every message area (system, GM) and resets banner 295 (`pigeon.banner`)
     - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
@@ -1092,7 +1093,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] whisper and leave-word row actions
     - [x] help (CDlgHelp 215)
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
-    - [ ] list arrows [160-1]/[160-2]
+    - [x] list arrows [160-1]/[160-2] (`arrows=1`)
     - [x] the Conquer front's MsgFriend (1019): the lists at login, made / lost / online / offline as they change, apply / accept / break / enemy delete from the client, a friend ask told
     - [ ] online / offline notices to friends (StrRes 100103/100104)
   - [ ] UI 269 CDlgEnemy (enemies): 6 of 8 audit mismatches fixed
@@ -1153,9 +1154,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] Message boards (packets spec 1111, B10): `gameplay.boards`, a guild's own board, posting from `board_min_level`, one post per author on the world state (ChatChannel::Board, Input::TakeDown, GM take-down); the Conquer front lists pages of 8 and reads posts (MsgMessageBoard 1111, MsgTalk 2201-2205)
     - [x] engine, UI and front
     - [ ] posts' text checked (CheckText) and the 2206 system board
-  - [ ] UI 240 CDlgLevWord (message board): 8 of 10 audit mismatches fixed
+  - [x] UI 240 CDlgLevWord (message board): the 10 audit mismatches fixed
     - [x] title Image371-373 by mode; tabs with frame 2 on the one chosen (`chosen=`); list, write and read modes; Send (StrRes 10362), Watch (10363 when none picked), Del, Up/Down/Refresh; OK posts (lines made one), Cancel Button7 / Button2; a row double-clicked whispers its author
-    - [ ] the dim block behind the edit in write and read modes (ShowBlock 0x99000000), the list arrows [240-1]/[240-2]
+    - [x] the dim block behind the edit in write and read modes (ShowBlock 0x99000000: `back=00000099`), the list arrows [240-1]/[240-2] (`arrows=1`)
     - [x] help (CDlgHelp 215)
   - [x] UI 5326 CDlgNorMsg (chat-log line handles): the 3 audit mismatches fixed: 5065 shows the shell's line slider (IDC_SLI_LINE, Slider0) instead; at the left, 152 above the bottom, its thumb rising with the said lines shown (14 pixels a line, 0-300; sliders take `vertical=1`); the number kept with the player's settings (`PlayerPrefs::chat_lines`, TQ's LineRecord); `ChatLook::line_px`
   - [ ] UI 218 CDlgLog (chat history viewer): the session's log
