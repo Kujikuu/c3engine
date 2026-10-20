@@ -280,6 +280,12 @@ const AUTORUN_OPEN: &str = "autorun_open";
 /// The view group holding the player whose equipment is shown.
 const VIEWED: &str = "viewed";
 
+/// The frames looked at, the speed under which the UI suggests a lighter mode, and the view
+/// group it sets.
+const SLOW_FRAMES: u32 = 600;
+const SLOW_FPS: f64 = 5.0;
+const LOW_FPS: &str = "low_fps";
+
 /// The view groups of the lock window: the item picked, and its tip when not the first.
 const LOCK_ITEM: &str = "lock_item";
 const LOCK_TIP: &str = "lock_tip";
@@ -442,6 +448,9 @@ pub struct GameUi {
     /// What the next click on a player does (`trade`, `team_invite`, ...), armed by a
     /// `pick:<what>` action.
     pick: Option<String>,
+    /// The game's first frames (when the first was drawn, how many): too slow, and the UI
+    /// suggests a lighter mode once (TQ's CDlgSetup_Graph).
+    first_frames: Option<(f64, u32)>,
 }
 
 impl GameUi {
@@ -1029,6 +1038,16 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            // Too slow: out of full screen, and the game left to be started again.
+            "low_fps_restart" => {
+                self.gui_state.views.remove(LOW_FPS);
+                let prefs = c3_core::settings::PlayerPrefs {
+                    fullscreen: false,
+                    ..self.prefs
+                };
+                actions.push(UiAction::SetPrefs(prefs));
+                actions.push(UiAction::Leave);
+            }
             // The lock window: its bind button (asked first), and closing it.
             "lock_bind" => self.gui_state.lock_binding = true,
             "lock_close" => {
@@ -1210,6 +1229,25 @@ impl GameUi {
                     }
                 }
             }
+        }
+    }
+
+    /// Counts the game's first frames: when the first 600 came at 5 a second or fewer, view
+    /// `low_fps` is set (CMyShellDlg::ProcessSetupGraphPrompt5065).
+    fn watch_frames(&mut self, now: f64) {
+        let (start, frames) = self.first_frames.get_or_insert((now, 0));
+        // Looked at once (`u32::MAX`: done).
+        if *frames == u32::MAX {
+            return;
+        }
+        *frames += 1;
+        if *frames < SLOW_FRAMES {
+            return;
+        }
+        let fps = f64::from(*frames) / (now - *start).max(f64::EPSILON);
+        *frames = u32::MAX;
+        if fps <= SLOW_FPS {
+            self.gui_state.views.insert(LOW_FPS.into(), "1".into());
         }
     }
 
@@ -1802,6 +1840,7 @@ impl GameUi {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
         self.prefs = view.controls.prefs;
+        self.watch_frames(ui.input(|i| i.time));
         self.chat.shown = (self.prefs.chat_lines > 0).then_some(self.prefs.chat_lines as usize);
         self.overlay.show(ui, view);
         let Some(player) = view.player() else {

@@ -1105,7 +1105,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] opened by setup's Other; hides the status and friends' pages as it opens
     - [ ] 1694 delete furniture (the delete-NPC cursor; needs furniture in homes)
     - [x] help (CDlgHelp 215)
-  - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)
+  - [x] UI 302 CDlgSetup_Graph (low-FPS restart prompt): the 5 audit mismatches fixed: shown once when the game's first 600 frames came at 5 a second or fewer (view `low_fps`); NewLoginMesBox2, StrRes 11075 in yellow; Restart leaves full screen and the game to be started again (the engine has no TQ standard mode), Not now hides it
   - [ ] UI 274 CDlgTalkAct (emotion icon picker): 5 of 6 audit mismatches fixed
     - [x] Dialog50 at (+3,-5); 32 of EmotionIco.ani's icons a page in eight columns, a frame each 300 ms (`animate=`); one clicked put in the chat line as `#NN` (88 letters at most); Last / Next pages; Close
     - [x] said lines draw their `#NN` emotions in place (CMyBitmap::ShowString: below EmotionIco.ini's count, a frame each 200 ms, a font and a half wide); the log's lines in their channels' colours
