@@ -19,6 +19,8 @@ pub(crate) struct GuiState {
     pub auto_team: crate::auto_team::AutoTeam,
     /// The hero has had mana since it came in.
     pub mana_seen: bool,
+    /// The hero's friends online as last seen (none before the first look).
+    pub friends_online: Option<std::collections::BTreeSet<String>>,
     /// The hero's attributes as last seen, and when each last changed.
     pub attrs_seen: std::collections::HashMap<String, (i64, Option<std::time::Instant>)>,
     /// The `pointed=` of the control under the pointer.
@@ -222,6 +224,27 @@ pub(crate) struct TradeView {
 pub(crate) const SUGGEST_ROWS: usize = 9;
 
 impl GuiState {
+    /// The hero's friends who came into the game and left it since last seen, each with
+    /// whether it came (none at the first look).
+    pub(crate) fn follow_friends(
+        &mut self,
+        sim: &c3_game::Sim,
+        p: &c3_game::Player,
+    ) -> Vec<(String, bool)> {
+        let world = sim.world_state();
+        let here =
+            |name: &str| world.online.contains_key(name) || sim.players().any(|q| q.name == name);
+        let now: std::collections::BTreeSet<String> = (world.friends_of(&p.name).into_iter())
+            .filter(|f| here(f))
+            .collect();
+        let Some(before) = self.friends_online.replace(now.clone()) else {
+            return Vec::new();
+        };
+        let came = now.difference(&before).map(|n| (n.clone(), true));
+        let left = before.difference(&now).map(|n| (n.clone(), false));
+        came.chain(left).collect()
+    }
+
     /// Notes the hero's attributes that changed since last seen (the first look at one is
     /// no change).
     pub(crate) fn follow_attrs(&mut self, p: &c3_game::Player) {

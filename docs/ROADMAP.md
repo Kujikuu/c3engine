@@ -1084,18 +1084,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
     - [ ] y 58
   - [x] UI 257 CDlgFacState (guild member info): the 4 audit mismatches fixed (opened by a member clicked on 133's member page; name, level, rank title, contribution; closed with 133; no longer closes 133)
-  - [ ] UI 160 CDlgFriend (friends): 9 of 12 audit mismatches fixed
+  - [x] UI 160 CDlgFriend (friends): the 12 audit mismatches fixed
     - [x] GeneralBG frame and the DialogFriend title image
     - [x] the friends in yellow, online first
     - [x] Add picks the player to ask (its ask put to the other as 158's friend question, StrRes 100101)
     - [x] Enemy opens 269; mentor 312 and business 326 open (their dialogs are their own items)
     - [x] a name clicked opens 209; closing hides 209
-    - [ ] whisper and leave-word row actions
+    - [x] whisper and leave-word row actions (a row double-clicked: online whispers it in the chat bar, offline opens 232; ON_FRIEND_CHAT / LEAVE)
     - [x] help (CDlgHelp 215)
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
     - [x] list arrows [160-1]/[160-2] (`arrows=1`)
     - [x] the Conquer front's MsgFriend (1019): the lists at login, made / lost / online / offline as they change, apply / accept / break / enemy delete from the client, a friend ask told
-    - [ ] online / offline notices to friends (StrRes 100103/100104)
+    - [x] online / offline notices to friends (StrRes 100103/100104; the real client prints them from the front's MsgFriend)
   - [ ] UI 269 CDlgEnemy (enemies): 6 of 8 audit mismatches fixed
     - [x] GeneralBG and the title image; enemies listed (a killer kept)
     - [x] Friend opens 160; mentor and business buttons

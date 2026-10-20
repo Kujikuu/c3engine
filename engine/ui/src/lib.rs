@@ -2462,6 +2462,14 @@ impl GameUi {
             self.gui_state.follow_suggestions(view.sim, p);
             self.gui_state.follow_share(view.sim, p);
             self.gui_state.mana_seen |= p.mana > 0 && p.stats.max_mana > 0;
+            // A friend coming into the game or leaving it (MsgFriend's 100103 / 100104).
+            for (name, came) in self.gui_state.follow_friends(view.sim, p) {
+                let line = match came {
+                    true => format!("Your friend {name} has come to the game!"),
+                    false => format!("Your friend {name} has left the game!"),
+                };
+                self.system(line, style::GOLD);
+            }
             self.gui_state.follow_attrs(p);
         }
         // The team dialog's auto check asks around.
