@@ -239,7 +239,8 @@ pub struct Control {
     pub cols: u32,
     pub rows: u32,
     /// A list's columns: this far apart (`step=`; 0: its width shared) and this wide
-    /// (`cell=`; 0: the step); its rows wrapped within the cell (`wrap=1`), and their text
+    /// (`cell=`; 0: the step); its rows (a text: its text) wrapped within the cell, or its
+    /// width (`wrap=1`), and their text
     /// in this colour under the pointer (`hover=rrggbb`) in place of a lit box. A list shows
     /// `limit` rows at most.
     pub step: i32,

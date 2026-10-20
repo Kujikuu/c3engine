@@ -561,6 +561,9 @@ impl GameUi {
                 }
             }
             "guild_kick_picked" => self.gui_state.guild_kicking = true,
+            // The hotkey page: the action picked waits for its new key; every key as it was.
+            "hotkey_change" => self.gui_state.rebinding = true,
+            "hotkey_revert" => actions.push(UiAction::ResetControls),
             // The friend or enemy picked let go (`contact_drop:friends`, `contact_drop:enemies`).
             _ if action.starts_with("contact_drop:") => {
                 self.gui_state.dropping = Some(action["contact_drop:".len()..].to_owned());
@@ -1182,6 +1185,17 @@ impl GameUi {
                         gui::GuiEvent::Item { list, index } if list == "guild.member_rows" => {
                             picked_guild_row = Some(index);
                         }
+                        // The hotkey page's group or action picked.
+                        gui::GuiEvent::Item { list, index }
+                            if list == "hotkey.groups" || list == "hotkey.actions" =>
+                        {
+                            let key = if list == "hotkey.groups" {
+                                "hotkey_group"
+                            } else {
+                                "hotkey_pick"
+                            };
+                            picked_contact = Some((key.to_owned(), index));
+                        }
                         // A friend or enemy picked (its details open by the list's action).
                         gui::GuiEvent::Item { list, index }
                             if list == "friends.rows" || list == "enemies.rows" =>
@@ -1214,6 +1228,14 @@ impl GameUi {
                     .collect();
                 self.gui_state.focus = None;
                 self.gui_state.held = held;
+                if std::mem::take(&mut self.gui_state.rebinding) {
+                    let data = gui_data::HeroData {
+                        view,
+                        player,
+                        state: &self.gui_state,
+                    };
+                    actions.extend(data.hotkey_picked().map(|r| UiAction::Rebind(r.action)));
+                }
                 if let Some(list) = self.gui_state.dropping.take() {
                     let data = gui_data::HeroData {
                         view,
@@ -1280,6 +1302,10 @@ impl GameUi {
                     }
                 }
                 if let Some((key, row)) = picked_contact {
+                    // Another group picked: none of its actions is yet.
+                    if key == "hotkey_group" {
+                        self.gui_state.views.remove("hotkey_pick");
+                    }
                     self.gui_state.views.insert(key, row.to_string());
                 }
                 if let Some(row) = picked_guild_row {

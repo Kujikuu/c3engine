@@ -1075,7 +1075,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] shadow buttons 1072/1077, show-names 1083 and KO-count 1087 checks (engine options)
     - [ ] the resolution radios 1533/1534 (Picture100)
     - [ ] help 1667 (topic 19); user hotkey 45
-  - [ ] UI 231 CDlgSetup_Hotkey (IDD_DIALOG_HOTKEY): draft only, 8 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 231 CDlgSetup_Hotkey (hotkeys): 5 of 8 audit mismatches fixed
+    - [x] opened by setup's Hotkey
+    - [x] the groups of actions and the picked group's actions (the engine's input actions), the picked action's keys
+    - [x] Change waits for the new key (the engine's rebinding, shown at +246,+126); Revert sets every key back
+    - [ ] TQ's own hotkey categories (StrRes 10300-10305, 11018) rather than the engine's action groups
+    - [ ] Delete (clearing a key)
+    - [ ] help 1667 (0x19)
   - [ ] UI 255 CDlgOther (setup "Other": furniture): draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 274 CDlgTalkAct (emotion icon picker): draft only, 6 mismatches (docs/conquer_ui_audit.md)

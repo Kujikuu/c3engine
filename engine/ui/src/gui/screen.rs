@@ -245,7 +245,11 @@ impl Gui {
                 (false, _) => 0,
                 (true, ControlKind::Text) => {
                     let text = expand(&control.text, data);
-                    let wrap = if r.w > 0 { r.w as f32 } else { f32::INFINITY };
+                    let wrap = if control.wrap && r.w > 0 {
+                        r.w as f32
+                    } else {
+                        f32::INFINITY
+                    };
                     let font = crate::fonts::font(control.size);
                     let galley = ctx.fonts_mut(|f| f.layout(text, font, Color32::WHITE, wrap));
                     galley.size().y.ceil() as i32
@@ -636,8 +640,9 @@ impl Painter<'_, '_> {
                 }
                 let [r, g, b] = control.color;
                 let font = crate::fonts::font(control.size * self.place.scale);
-                // Wrapped within its width when it has one (an NPC's words).
-                let wrap = if rect.width() > 1.0 {
+                // Wrapped within its width when it asks to be (`wrap=1`: an NPC's words); TQ's
+                // statics otherwise run on past their often tiny boxes.
+                let wrap = if control.wrap && rect.width() > 1.0 {
                     rect.width()
                 } else {
                     f32::INFINITY
@@ -796,7 +801,8 @@ impl Painter<'_, '_> {
                         line.left() + 4.0 * scale,
                         line.center().y - galley.size().y / 2.0,
                     );
-                    self.ui.painter().galley(at, galley, Color32::WHITE);
+                    // Kept inside its row (a long name is cut, as TQ's list boxes do).
+                    (self.ui.painter().with_clip_rect(line)).galley(at, galley, Color32::WHITE);
                     if response.clicked() {
                         events.push(GuiEvent::Item {
                             list: control.value.clone(),

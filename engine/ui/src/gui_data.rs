@@ -38,6 +38,8 @@ pub(crate) struct GuiState {
     pub guild_kicking: bool,
     /// A friend or enemy to let go: which list's picked one.
     pub dropping: Option<String>,
+    /// The hotkey page's Change was pressed (for the action picked).
+    pub rebinding: bool,
     /// The item picked up from a grid: its list and slot.
     pub held: Option<(String, usize)>,
     /// View-number steps asked for (`view_step:`): the group, the step and the binding that
@@ -125,6 +127,38 @@ impl HeroData<'_> {
         };
         let others = g.members.keys().filter(|m| **m != g.leader).cloned();
         std::iter::once(g.leader.clone()).chain(others).collect()
+    }
+
+    /// The groups of the actions players may rebind, in their order.
+    fn hotkey_groups(&self) -> Vec<c3_core::input::ActionGroup> {
+        let mut groups = Vec::new();
+        for row in self.view.controls.rows.iter().filter(|r| r.rebindable) {
+            let group = row.action.group();
+            if !groups.contains(&group) {
+                groups.push(group);
+            }
+        }
+        groups
+    }
+
+    /// The rebindable actions of the group picked on the hotkey page (`view:hotkey_group`).
+    pub(crate) fn hotkey_rows(&self) -> Vec<&crate::ControlRow> {
+        let Some(group) = self
+            .hotkey_groups()
+            .get(self.view_number("hotkey_group"))
+            .copied()
+        else {
+            return Vec::new();
+        };
+        (self.view.controls.rows.iter())
+            .filter(|r| r.rebindable && r.action.group() == group)
+            .collect()
+    }
+
+    /// The action picked on the hotkey page (`view:hotkey_pick`).
+    pub(crate) fn hotkey_picked(&self) -> Option<&crate::ControlRow> {
+        let row: usize = self.state.views.get("hotkey_pick")?.parse().ok()?;
+        self.hotkey_rows().get(row).copied()
     }
 
     /// The hero's friends (online first) or enemies (`list`: `friends`, `enemies`), by name.
@@ -508,6 +542,13 @@ impl GuiData for HeroData<'_> {
                         .unwrap_or_default(),
                 )
             }
+            // The keys of the action picked, or that a new key is awaited.
+            "hotkey.current" => Some(self.hotkey_picked()?.bindings.clone()),
+            "hotkey.listening" => self
+                .view
+                .controls
+                .listening
+                .map(|a| format!("{} ...", a.label())),
             // The friend or enemy picked: `contact.<list>.<field>` (name, level, profession,
             // pk, guild, rank, mate); what only a player here shows is empty elsewhere.
             _ if key.starts_with("contact.") => {
@@ -655,6 +696,22 @@ impl GuiData for HeroData<'_> {
             // The names listed to talk to (the chat bar's list).
             "chat.targets" => (self.state.chat_bar.targets.clone(), None),
             // The hero's guild's members, or its allies or enemies (the guild tab picked).
+            // The hotkey page: the groups of actions, and the picked group's actions.
+            "hotkey.groups" => {
+                let names = self
+                    .hotkey_groups()
+                    .iter()
+                    .map(|g| g.name().to_owned())
+                    .collect();
+                (names, Some(self.view_number("hotkey_group")))
+            }
+            "hotkey.actions" => {
+                let rows: Vec<String> = (self.hotkey_rows().iter())
+                    .map(|r| r.action.label().to_owned())
+                    .collect();
+                let picked = (self.state.views.get("hotkey_pick")).and_then(|v| v.parse().ok());
+                (rows, picked)
+            }
             // The hero's friends, online first, and its enemies.
             "friends.rows" | "enemies.rows" => {
                 let list = key.trim_end_matches(".rows");
