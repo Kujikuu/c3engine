@@ -794,6 +794,8 @@ impl ConquerClient {
         out.extend(
             (p.equipment.iter()).map(|i| item_info(i, slot_of(sim.rules(), i), pk::ITEM_ADD, sim)),
         );
+        // The items are listed (business spec §2.7): the client's 333 and 334 may open.
+        out.push(pk::item_lock(Ids::player(p.id), pk::item_lock::LISTED, 0, 0));
         out.extend(p.skills.iter().map(|s| magic_info(p, *s)));
         out.extend(
             weapon_skills(p)
@@ -1377,6 +1379,10 @@ impl ConquerClient {
         {
             let id = self.contact_id(name);
             out.push(pk::business(b::BREAK, id, false, 0, 0, name));
+        }
+        // The login's list ends with action 8 to the hero itself (business spec §2.7).
+        if before.is_none() {
+            out.push(pk::business(b::LISTED, self.hero_id(), false, 0, 0, ""));
         }
         self.partners_told = Some(now);
         out

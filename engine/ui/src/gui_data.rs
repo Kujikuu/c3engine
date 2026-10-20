@@ -23,6 +23,14 @@ pub(crate) struct GuiState {
     pub exp_gain: Option<(u64, std::time::Instant)>,
     /// Screen move is on.
     pub screen_move: bool,
+    /// The login confirmation (TQ's CDlgBusinessShare5065): the items being unlocked and the
+    /// trade partners on trial, each with whether it is ticked; each side's page; whether it
+    /// shows, and whether login has been looked at yet.
+    pub share_items: Vec<(u32, bool)>,
+    pub share_partners: Vec<(String, bool)>,
+    pub share_pages: [usize; 2],
+    pub share_shown: bool,
+    pub share_looked: bool,
     /// The lock suggestions (TQ's CDlgFurnishment5065): the items listed, those ever listed
     /// (a new one opens the list again), the page shown, and whether it shows.
     pub suggest: Vec<u32>,
@@ -230,6 +238,33 @@ impl GuiState {
         }
         let pages = self.suggest.len().div_ceil(SUGGEST_ROWS).max(1);
         self.suggest_page = self.suggest_page.min(pages - 1);
+    }
+
+    /// At login: the items being unlocked and the partners on trial to confirm, shown when an
+    /// item is (TQ's SignalListReady, the items' list coming first); later, rows no longer
+    /// unlocking or on trial leave.
+    pub(crate) fn follow_share(&mut self, sim: &c3_game::Sim, p: &c3_game::Player) {
+        let unlocking = |id: u32| {
+            (p.bag.iter().chain(&p.equipment)).any(|i| i.id == id && i.lock > c3_game::LOCKED)
+        };
+        let now = chrono::Utc::now().timestamp();
+        let trial = sim.settings().partner_probation_secs;
+        let trials: Vec<String> = (sim.world_state().partners_of(&p.name).into_iter())
+            .filter(|(_, since)| since + trial > now)
+            .map(|(name, _)| name)
+            .collect();
+        if !self.share_looked {
+            self.share_looked = true;
+            self.share_items = (p.bag.iter().chain(&p.equipment))
+                .filter(|i| i.lock > c3_game::LOCKED)
+                .map(|i| (i.id, false))
+                .collect();
+            self.share_partners = trials.iter().map(|n| (n.clone(), false)).collect();
+            self.share_shown = !self.share_items.is_empty();
+        }
+        self.share_items.retain(|(id, _)| unlocking(*id));
+        self.share_partners
+            .retain(|(name, _)| trials.contains(name));
     }
 
     /// The list closed: emptied, its page back to the first.
@@ -530,6 +565,12 @@ impl HeroData<'_> {
             "hero.equipment" => p.equipment.iter().collect(),
             // The item picked in the lock window.
             "lock.item" => self.lock_item().into_iter().collect(),
+            // The items being unlocked on the confirmation's page shown.
+            "share.left.items" => (self.state.share_items.iter())
+                .skip(self.state.share_pages[0] * SUGGEST_ROWS)
+                .take(SUGGEST_ROWS)
+                .filter_map(|(id, _)| p.bag.iter().chain(&p.equipment).find(|i| i.id == *id))
+                .collect(),
             // The lock suggestions on the page shown, nine a page.
             "suggest.items" => (self.state.suggest.iter())
                 .skip(self.state.suggest_page * SUGGEST_ROWS)
@@ -671,6 +712,37 @@ impl GuiData for HeroData<'_> {
             "hero.running" => f64::from(u8::from(p.running)),
             "ui.radar" => f64::from(u8::from(self.state.radar.visible)),
             "ui.screen_move" => f64::from(u8::from(self.state.screen_move)),
+            // The login confirmation: shown, everything ticked; each side's rows on its page, its
+            // page and pages; a row's tick.
+            "share.open" => f64::from(u8::from(self.state.share_shown)),
+            "share.all" => {
+                let s = self.state;
+                let all = s.share_items.iter().all(|e| e.1) && s.share_partners.iter().all(|e| e.1);
+                f64::from(u8::from(all))
+            }
+            _ if key.starts_with("share.") => {
+                let (side, rest) = key["share.".len()..].split_once('.')?;
+                let s = self.state;
+                let (side, len) = match side {
+                    "left" => (0, s.share_items.len()),
+                    "right" => (1, s.share_partners.len()),
+                    _ => return None,
+                };
+                let first = s.share_pages[side] * SUGGEST_ROWS;
+                match rest {
+                    "count" => len.saturating_sub(first).min(SUGGEST_ROWS) as f64,
+                    "page" => (s.share_pages[side] + 1) as f64,
+                    "pages" => len.div_ceil(SUGGEST_ROWS).max(1) as f64,
+                    _ => {
+                        let row: usize = rest.strip_prefix("check.")?.parse().ok()?;
+                        let ticked = match side {
+                            0 => s.share_items.get(first + row)?.1,
+                            _ => s.share_partners.get(first + row)?.1,
+                        };
+                        f64::from(u8::from(ticked))
+                    }
+                }
+            }
             // The lock suggestions: shown, how many on the page, the page and the pages.
             "suggest.open" => f64::from(u8::from(self.state.suggest_shown)),
             "suggest.count" => {
@@ -1221,6 +1293,28 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // A confirmation row's item or partner name, and a partner's face while online.
+            _ if key.starts_with("share.left.name.") => {
+                let row: usize = key.strip_prefix("share.left.name.")?.parse().ok()?;
+                let at = self.state.share_pages[0] * SUGGEST_ROWS + row;
+                let id = self.state.share_items.get(at)?.0;
+                let p = self.player;
+                let item = p.bag.iter().chain(&p.equipment).find(|i| i.id == id)?;
+                Some(self.view.item_name(item.kind))
+            }
+            _ if key.starts_with("share.right.") => {
+                let (what, row) = key["share.right.".len()..].split_once('.')?;
+                let at = self.state.share_pages[1] * SUGGEST_ROWS + row.parse::<usize>().ok()?;
+                let name = &self.state.share_partners.get(at)?.0;
+                match what {
+                    "name" => Some(name.clone()),
+                    "face" => {
+                        let online = self.view.sim.players().find(|o| &o.name == name)?;
+                        Some(online.look.face.max(1).to_string())
+                    }
+                    _ => None,
+                }
+            }
             // A lock suggestion's name, by its row on the page (`suggest.name.2`).
             _ if key.starts_with("suggest.name.") => {
                 let row: usize = key.strip_prefix("suggest.name.")?.parse().ok()?;

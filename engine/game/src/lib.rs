@@ -63,6 +63,7 @@ pub use entity::{GroundItem, Item, Monster, NameMark, Player, PlayerLook, Task};
 pub use event::Event;
 pub use friends::{FriendAction, MAX_ENEMIES, MAX_FRIENDS};
 pub use input::{Input, MAX_CHAT};
+pub use locks::LOCKED;
 pub use mentors::{Gifts, MentorAction, MentorGift, Mentorship};
 pub use merchants::{MerchantAction, MerchantNews};
 pub use nobility::{Donation, Noble, rank_by_value};

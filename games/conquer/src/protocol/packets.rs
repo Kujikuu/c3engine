@@ -146,6 +146,8 @@ pub mod item_lock {
     pub const CANCEL: u8 = 1;
     pub const QUERY: u8 = 2;
     pub const UNLOCKED: u8 = 3;
+    /// The login's item list is done (with the hero's id): 333 and 334 may open.
+    pub const LISTED: u8 = 4;
 }
 pub mod business {
     pub const APPLY: u8 = 0;
@@ -154,6 +156,8 @@ pub mod business {
     pub const OFFLINE: u8 = 3;
     pub const BREAK: u8 = 4;
     pub const ADD: u8 = 5;
+    /// The login's partner list is done (to the hero itself).
+    pub const LISTED: u8 = 8;
 }
 
 /// MsgMentor5065 (2065): a mentor action between two players, its data and names

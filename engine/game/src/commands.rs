@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /merchant 0|255|DAYS · /lay LOOK · /hear NAME WORDS · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /itemattr ITEM INDEX N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /merchant 0|255|DAYS · /lay LOOK · /hear NAME WORDS · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /itemattr ITEM INDEX N · /lock ITEM 0|1|DAYS · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -167,6 +167,26 @@ impl Sim {
                 held.durability = value;
                 self.events.push(Event::Dressed { player: id });
                 Ok(format!("Item {item}'s durability set to {value}."))
+            }
+            // Item ITEM's (0: the last in the bag) lock: 0 free, 1 locked, else unlocking in
+            // so many days.
+            "lock" => {
+                let item = u32::try_from(arg(0)?).map_err(|_| "Bad item".to_owned())?;
+                let state = u32::try_from(arg(1)?.max(0)).unwrap_or(0);
+                let lock = match state {
+                    0 | crate::LOCKED => state,
+                    days => crate::merchants::day(days),
+                };
+                let p = self.players.get_mut(&id).expect("checked above");
+                let held = match item {
+                    0 => p.bag.last_mut(),
+                    _ => (p.bag.iter_mut().chain(p.equipment.iter_mut())).find(|i| i.id == item),
+                };
+                let held = held.ok_or_else(|| format!("You hold no item {item}."))?;
+                held.lock = lock;
+                let item = held.id;
+                self.events.push(Event::ItemLocked { player: id, item });
+                Ok(format!("Item {item}'s lock set to {lock}."))
             }
             // Item ITEM's (0: the last in the bag) attribute number INDEX (the settings'
             // `item_attributes` order) set to N.

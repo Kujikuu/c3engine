@@ -1242,6 +1242,11 @@ impl GameUi {
                 self.gui_state.close_suggestions();
             }
             "suggest_ok" => self.gui_state.close_suggestions(),
+            // The login confirmation: a row ticked, its revoke (an item locked again, a
+            // partnership ended, each asked first), a page turned, OK (nothing sent).
+            // The login look again (a scripted shot after setting up what it shows).
+            "share_recheck" => self.gui_state.share_looked = false,
+            _ if action.starts_with("share_") => self.share_action(action),
             "suggest_prev" => {
                 self.gui_state.suggest_page = self.gui_state.suggest_page.saturating_sub(1);
             }
@@ -1674,6 +1679,51 @@ impl GameUi {
             _ => ("lock_reapply", c3_game::Input::Lock(item.id)),
         };
         self.ask(kind, &name, input);
+    }
+
+    fn share_action(&mut self, action: &str) {
+        let mut parts = action.split(':');
+        let (what, side, n) = (parts.next(), parts.next(), parts.next());
+        let side = usize::from(side == Some("r"));
+        let n: i64 = n.and_then(|n| n.parse().ok()).unwrap_or(0);
+        let s = &mut self.gui_state;
+        let at = s.share_pages[side] * gui_data::SUGGEST_ROWS + n.max(0) as usize;
+        match what {
+            Some("share_check") => match side {
+                0 => s
+                    .share_items
+                    .get_mut(at)
+                    .iter_mut()
+                    .for_each(|e| e.1 ^= true),
+                _ => s
+                    .share_partners
+                    .get_mut(at)
+                    .iter_mut()
+                    .for_each(|e| e.1 ^= true),
+            },
+            Some("share_revoke") if side == 0 => {
+                if let Some(&(item, _)) = s.share_items.get(at) {
+                    self.ask("lock_reapply", "", c3_game::Input::Lock(item));
+                }
+            }
+            Some("share_revoke") => {
+                if let Some((name, _)) = s.share_partners.get(at).cloned() {
+                    let end = c3_game::PartnerAction::Break(name.clone());
+                    self.ask("share_partner_drop", &name, c3_game::Input::Partner(end));
+                }
+            }
+            Some("share_page") => {
+                let page = &mut s.share_pages[side];
+                *page = (*page as i64 + n).max(0) as usize;
+            }
+            Some("share_ok") => {
+                s.share_shown = false;
+                s.share_items.clear();
+                s.share_partners.clear();
+                s.share_pages = [0, 0];
+            }
+            _ => {}
+        }
     }
 
     /// Buying in a shop priced in another currency, when the game's UI asks the amount
@@ -2321,9 +2371,11 @@ impl GameUi {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
         self.prefs = view.controls.prefs;
-        // Items worth locking the hero hasn't been shown (CDlgFurnishment5065).
+        // Items worth locking the hero hasn't been shown (CDlgFurnishment5065), and at login
+        // what is being unlocked and who is on trial (CDlgBusinessShare5065).
         if let Some(p) = view.sim.player(view.hero) {
             self.gui_state.follow_suggestions(view.sim, p);
+            self.gui_state.follow_share(view.sim, p);
         }
         // The radar opens as the player last left it (MapModeRecord).
         if !self.gui_state.radar_restored {
