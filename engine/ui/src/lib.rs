@@ -261,6 +261,8 @@ pub(crate) const CHAT_NAME: &str = "chat.name";
 const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
+/// What the hero's booth cries out, as typed.
+const BOOTH_CRY: &str = "booth.cry";
 /// The chat bar's list of names (TQ's CDlgListBox, hidden once a name is picked).
 const CHAT_TARGETS: &str = "chat.targets";
 
@@ -720,7 +722,58 @@ impl GameUi {
             },
             "prompt_no" => {
                 self.gui_state.prompt = None;
-                self.gui_state.fields.remove(PROMPT_AMOUNT);
+                self.gui_state.booth_item = None;
+                (self.gui_state.fields).retain(|k, _| !k.starts_with(PROMPT_AMOUNT));
+            }
+            // Booths: the bag item put on the hero's booth set out at the price typed (in the
+            // prompt's money, else its other currency `prompt.amount.<currency>`), the booth's
+            // cry, the hero's booth closed, another's left, a slot's ware taken back or bought.
+            "booth_add" => {
+                let typed = |k: &str| {
+                    (self.gui_state.fields.get(k)).and_then(|t| t.trim().parse::<u64>().ok())
+                };
+                let other = (self.gui_state.fields.keys())
+                    .filter_map(|k| k.strip_prefix(PROMPT_AMOUNT)?.strip_prefix('.'))
+                    .map(str::to_owned)
+                    .find(|c| typed(&format!("{PROMPT_AMOUNT}.{c}")).is_some_and(|v| v > 0));
+                let (price, currency) = match other {
+                    Some(c) => (typed(&format!("{PROMPT_AMOUNT}.{c}")).unwrap_or(0), c),
+                    None => (typed(PROMPT_AMOUNT).unwrap_or(0), String::new()),
+                };
+                (self.gui_state.fields).retain(|k, _| !k.starts_with(PROMPT_AMOUNT));
+                if let Some(item) = self.gui_state.booth_item.take()
+                    && price > 0
+                {
+                    let add = c3_game::BoothAction::Add {
+                        item,
+                        price,
+                        currency,
+                    };
+                    actions.push(UiAction::Game(c3_game::Input::Booth(add)));
+                }
+            }
+            "booth_cry" => {
+                let text = self.gui_state.fields.remove(BOOTH_CRY).unwrap_or_default();
+                if !text.trim().is_empty() {
+                    let cry = c3_game::BoothAction::Cry(text);
+                    actions.push(UiAction::Game(c3_game::Input::Booth(cry)));
+                }
+            }
+            "booth_close" => {
+                let close = c3_game::Input::Booth(c3_game::BoothAction::Close);
+                actions.push(UiAction::Game(close));
+            }
+            "booth_leave" => self.gui_state.booth = None,
+            _ if action.starts_with("booth_remove:") || action.starts_with("booth_buy:") => {
+                let (kind, n) = action.split_once(':').expect("checked");
+                let whose = if kind == "booth_buy" {
+                    "theirs"
+                } else {
+                    "mine"
+                };
+                if let Ok(n) = n.parse() {
+                    self.gui_state.booth_slot = Some((whose.to_owned(), n));
+                }
             }
             // The money typed in the prompt dropped (its drop-money question).
             "drop_money" => {
@@ -1101,6 +1154,19 @@ impl GameUi {
                 Event::StorageOpened { player, npc } if *player == hero => {
                     self.gui_state.storage = Some(*npc);
                 }
+                // A booth shown from its first page: another's (CDlgNpcBooth), or the hero's.
+                Event::BoothShown { player, owner } if *player == hero => {
+                    let whose = if *owner == hero { "mine" } else { "theirs" };
+                    self.gui_state.views.remove(&format!("booth_{whose}_page"));
+                    if *owner != hero {
+                        self.gui_state.booth = Some(*owner);
+                    }
+                }
+                // A free booth spot: whether to open a booth there (TQ's StrRes 10364).
+                Event::BoothOffered { player, spot } if *player == hero => {
+                    let open = c3_game::Input::Booth(c3_game::BoothAction::Open(*spot));
+                    self.ask("booth_open", "", open);
+                }
                 Event::ShopOpened { player, .. } if *player == hero && self.gui.is_none() => {
                     self.bag_open = true
                 }
@@ -1177,10 +1243,13 @@ impl GameUi {
                 let mut picked_target = None;
                 let mut picked_guild_row = None;
                 let mut picked_contact = None;
+                let mut booth_put = None;
                 // What happens to the item held: picked up, put down (or dropped).
                 let mut held = data.state.held.clone();
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
                     match event {
+                        // A booth's wares stay where they are (a slot's buttons act on them).
+                        gui::GuiEvent::Pick { list, .. } if list.starts_with("booth.") => {}
                         gui::GuiEvent::Pick { list, index } => held = Some((list, index)),
                         gui::GuiEvent::Put { list, .. } => {
                             let Some((from, at)) = held.take() else {
@@ -1190,6 +1259,10 @@ impl GameUi {
                                 // A bag item onto a workbench slot.
                                 ("hero.bag", Some(_)) => {
                                     work.extend(player.bag.get(at).map(|i| (true, i.id)))
+                                }
+                                // A bag item onto the hero's booth: its price asked.
+                                ("hero.bag", None) if list.starts_with("booth.mine") => {
+                                    booth_put = player.bag.get(at).map(|i| i.id);
                                 }
                                 _ => actions.extend(move_item(&data, player, (&from, at), &list)),
                             }
@@ -1304,6 +1377,26 @@ impl GameUi {
                         let kick = c3_game::TeamAction::Kick(mate.id);
                         actions.push(UiAction::Game(c3_game::Input::Team(kick)));
                     }
+                }
+                if let Some(item) = booth_put {
+                    self.gui_state.booth_item = Some(item);
+                    self.gui_state.prompt = prompt::Prompt::confirm("booth_add:booth_add");
+                }
+                if let Some((whose, n)) = self.gui_state.booth_slot.take() {
+                    let data = gui_data::HeroData {
+                        view,
+                        player,
+                        state: &self.gui_state,
+                    };
+                    let item = data.booth_ware(&whose, n).map(|w| w.item.id);
+                    let action = match (whose.as_str(), self.gui_state.booth, item) {
+                        ("mine", _, Some(item)) => Some(c3_game::BoothAction::Remove(item)),
+                        ("theirs", Some(owner), Some(item)) => {
+                            Some(c3_game::BoothAction::Buy { owner, item })
+                        }
+                        _ => None,
+                    };
+                    actions.extend(action.map(|a| UiAction::Game(c3_game::Input::Booth(a))));
                 }
                 if std::mem::take(&mut self.gui_state.answering) {
                     actions.extend(typed_answer(&self.gui_state, player));

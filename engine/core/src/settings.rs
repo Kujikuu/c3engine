@@ -447,6 +447,9 @@ pub struct GameplaySettings {
     /// forge, gem and face NPCs): each `[kind, window number]`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub npc_windows: Vec<[u32; 2]>,
+    /// NPC kinds that are booth spots: a player there may open a booth (TQ's booth flags).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub booth_spots: Vec<u32>,
     /// The fund a guild needs for its members to talk on its channel (0: none).
     #[serde(default)]
     pub guild_chat_min_fund: i64,
@@ -528,6 +531,7 @@ impl Default for GameplaySettings {
             guild_join_min_fund: 0,
             guild_chat_min_fund: 0,
             npc_windows: Vec::new(),
+            booth_spots: Vec::new(),
             guild_max_members: 0,
             team_exp_range: 0,
             loot_protection_seconds: 0.0,

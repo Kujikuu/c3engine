@@ -27,6 +27,10 @@ impl Sim {
             self.events.push(Event::OpenWindow { player: id, dialog });
             return;
         }
+        // A booth spot shows its booth, or offers to open one.
+        if self.settings.booth_spots.contains(&n.kind) {
+            return self.booth_spot(id, npc);
+        }
         if n.script.is_empty() || self.scripts.is_none() {
             let text = format!("{} has nothing to say.", n.name);
             self.message(id, text);

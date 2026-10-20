@@ -979,7 +979,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 158 CDlgConfirm (generic yes/no prompt): 7 of 14 audit mismatches fixed
     - [x] opens while a question is asked; Dialog15 at -5,-5 (Dialog45 at -25,-25 for a proposal); centred yellow text from StrRes (name, 10000/10002-10005/10365, 10001; 10009, 10008); OK runs it, Cancel drops it
     - [x] modes 0-2 hide after 10 s; a second trade ask refused
-    - [ ] amount edits and Dialog56/57 icons (modes 5, 9, 10, 11), Exercise (27), detail rows (32), Cancel hidden in modes 30, 34, 35, 52-54
+    - [x] amount edits and Dialog56/57 icons for dropping money (5), donating (9) and booth prices (10); the booth-open ask (13, StrRes 10364)
+    - [ ] Exercise (27), detail rows (32), Cancel hidden in modes 30, 34, 35, 52-54
     - [x] Enter/Esc mapped to OK/Cancel
     - [ ] the other 40-odd modes (booth, mentor, item lock, offline training...) as their features land
   - [ ] UI 137 CDlgTrade (trade): 9 of 21 audit mismatches fixed
@@ -1132,9 +1133,22 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 105 CDlgEnchant: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 298 CDlgBrokenRepair5065: draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 212 CDlgNpcFace (change avatar): draft only, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 233 CDlgMpcBooth (own booth): draft only, 11 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 234 CDlgNpcBooth (another player's booth): draft only, 8 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 235 CDlgHawk (booth cry-out): draft only, 3 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Booths: players sell from booth spots (engine/game booths.rs, `gameplay.booth_spots`; Conquer's ShopFlag NPCs, kind 16)
+    - [x] a free spot offers a booth (StrRes 10364, DlgConfirm mode 13); its owner stands beside it; wares from the bag at a price in money or another currency, up to 20; others who come to the spot see them and buy (the item and the money change hands); the booth closes when its owner closes it, walks, jumps or leaves
+    - [ ] the booth carpet NPC (type 14) and the owner sitting (_ACTION_SITDOWN), the cry shown to others
+    - [ ] the Conquer front: MsgAction 111/114 (create/destroy booth), MsgItem booth listing, buying and the booth NPC
+    - [ ] items locked, suspicious or protected refused (MyShellDlg.cpp 4421-4461); a CP ware asks first (BOOTH_EMONEY_BUY_CONFIRM_5065)
+  - [ ] UI 233 CDlgMpcBooth (own booth): 9 of 11 audit mismatches fixed
+    - [x] shown with the bag while the hero keeps a booth; Dialog34, six slots a page (Up/Down), each item (tooltip, glow), its price with commas and its Dialog56/57 coin; GetBack under filled slots; Change never drawn (DlgMpcBooth.cpp 252-347)
+    - [x] a bag item put on a slot asks its price in silver or CPs (DlgConfirm mode 10: Dialog56/57, edits 1666/1667)
+    - [x] Hawk opens 235; both close buttons close the booth, hiding the cry (`hides=` on a `when` dialog)
+    - [ ] Help (1667) once the help dialog lands; slide-in and sounds
+  - [ ] UI 234 CDlgNpcBooth (another player's booth): 7 of 8 audit mismatches fixed
+    - [x] shown when the hero comes to another's booth, from its first page: items, prices, coins, a Buy under each, paging; closing leaves it (DlgNpcBooth.cpp 213-522)
+    - [ ] Help (1667) and slide-in
+  - [ ] UI 235 CDlgHawk (booth cry-out): 2 of 3 audit mismatches fixed
+    - [x] opened by the booth's Hawk, a 64-letter edit, Agree sets the cry and closes (DlgHawk.cpp 98-167)
+    - [ ] the text filtered and the edit cleared on show
   - [ ] UI 232 CDlgMsgSend (leave a word): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 238 CDlgMsgReceive (received words): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 290 CDlgItemPurchase5065 (+292 CDlgBuyMessage5065) (CP buy amount): draft only, 10 mismatches (docs/conquer_ui_audit.md)

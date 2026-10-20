@@ -96,6 +96,8 @@ impl Event {
             | Event::Proposed { player, .. }
             | Event::PkModeSet { player, .. }
             | Event::FriendAsked { player, .. }
+            | Event::BoothShown { player, .. }
+            | Event::BoothOffered { player, .. }
             | Event::Chat {
                 to: Some(player), ..
             }
@@ -139,6 +141,7 @@ impl Event {
                 player, to: None, ..
             } => vec![player],
             Event::Effect { entity, .. } | Event::Sound { entity, .. } => vec![entity],
+            Event::BoothChanged { owner } => vec![owner],
             Event::RoomCue { player, .. } | Event::RoomCueText { player, .. } => vec![player],
             _ => Vec::new(),
         }

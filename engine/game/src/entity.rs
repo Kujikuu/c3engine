@@ -208,6 +208,9 @@ pub struct Player {
     pub dialogue: Option<Conversation>,
     /// The NPC whose shop the player has open.
     pub shop: Option<u32>,
+    /// The booth the player keeps, if it has one open.
+    #[serde(default)]
+    pub booth: Option<crate::Booth>,
     /// Script variables kept with the player (quest steps, counters).
     pub flags: BTreeMap<String, i64>,
     /// Script text variables kept with the player (a name typed for a later step).

@@ -42,6 +42,13 @@ pub(crate) struct GuiState {
     pub rebinding: bool,
     /// The item picked up from a grid: its list and slot.
     pub held: Option<(String, usize)>,
+    /// The other player whose booth the hero was shown.
+    pub booth: Option<c3_game::EntityId>,
+    /// The bag item put on the hero's booth, waiting for its price.
+    pub booth_item: Option<u32>,
+    /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
+    /// and the slot on the page.
+    pub booth_slot: Option<(String, usize)>,
     /// View-number steps asked for (`view_step:`): the group, the step and the binding that
     /// bounds it.
     pub steps: Vec<(String, i64, String)>,
@@ -213,6 +220,31 @@ impl HeroData<'_> {
         (picked.team != Some(picked.id)).then_some(picked)
     }
 
+    /// The wares of the hero's own booth (`mine`) or of the one it was shown (`theirs`).
+    pub(crate) fn booth_wares(&self, whose: &str) -> &[c3_game::Ware] {
+        let owner = match whose {
+            "mine" => Some(self.player),
+            "theirs" => self.state.booth.and_then(|o| self.view.sim.player(o)),
+            _ => None,
+        };
+        owner
+            .and_then(|p| p.booth.as_ref())
+            .map_or(&[], |b| &b.wares)
+    }
+
+    /// The ware in slot `n` of booth `whose`'s page (`view:booth_<whose>_page`).
+    pub(crate) fn booth_ware(&self, whose: &str, n: usize) -> Option<&c3_game::Ware> {
+        let first = self.view_number(&format!("booth_{whose}_page"));
+        self.booth_wares(whose).get(first + n)
+    }
+
+    /// A booth slot binding `booth.<whose>.<field>.<n>`: whose booth and the slot.
+    fn booth_slot<'k>(key: &'k str, field: &str) -> Option<(&'k str, usize)> {
+        let (whose, rest) = key.strip_prefix("booth.")?.split_once('.')?;
+        let n = rest.strip_prefix(field)?.strip_prefix('.')?.parse().ok()?;
+        Some((whose, n))
+    }
+
     pub(crate) fn own_items(&self, key: &str) -> Option<Vec<&c3_game::Item>> {
         let p = self.player;
         let sim = self.view.sim;
@@ -243,6 +275,16 @@ impl HeroData<'_> {
                 .and_then(|npc| p.storage.get(&npc))
                 .map(|items| items.iter().collect())
                 .unwrap_or_default(),
+            // A booth's wares, and the one in a slot of its page (`booth.mine.0`).
+            "booth.mine" | "booth.theirs" => {
+                let whose = key.strip_prefix("booth.")?;
+                self.booth_wares(whose).iter().map(|w| &w.item).collect()
+            }
+            _ if key.starts_with("booth.") => {
+                let (whose, n) = key.strip_prefix("booth.")?.split_once('.')?;
+                let ware = self.booth_ware(whose, n.parse().ok()?);
+                ware.map(|w| &w.item).into_iter().collect()
+            }
             _ => return None,
         })
     }
@@ -405,6 +447,23 @@ impl GuiData for HeroData<'_> {
             }
             // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
             "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
+            // The hero keeps a booth; it was shown another's, still open.
+            "booth.mine" | "booth.theirs" => {
+                let open = match key {
+                    "booth.mine" => p.booth.is_some(),
+                    _ => (self.state.booth.and_then(|o| self.view.sim.player(o)))
+                        .is_some_and(|o| o.booth.is_some()),
+                };
+                u8::from(open).into()
+            }
+            // A booth slot's coin: 0 empty, 1 the money, 2 another currency
+            // (`booth.mine.coin.0`).
+            _ if Self::booth_slot(key, "coin").is_some() => {
+                let (whose, n) = Self::booth_slot(key, "coin")?;
+                let coin =
+                    (self.booth_ware(whose, n)).map_or(0, |w| 1 + u8::from(!w.currency.is_empty()));
+                coin.into()
+            }
             // The open shop's wares are priced in currency `<name>` (`shop.priced_in.CPs`; TQ's
             // CP shops).
             _ if key.starts_with("shop.priced_in.") => {
@@ -507,6 +566,18 @@ impl GuiData for HeroData<'_> {
             // Who asked the question shown, and its kind.
             "prompt.name" => Some(self.state.prompt.as_ref()?.name.clone()),
             "prompt.kind" => Some(self.state.prompt.as_ref()?.kind.clone()),
+            // A booth slot's price (`booth.theirs.price.0`), empty when the slot is.
+            _ if Self::booth_slot(key, "price").is_some() => {
+                let (whose, n) = Self::booth_slot(key, "price")?;
+                Some(
+                    self.booth_ware(whose, n)
+                        .map_or_else(String::new, |w| w.price.to_string()),
+                )
+            }
+            // An amount typed in the prompt in a currency (`prompt.amount.CPs`); the cry.
+            _ if key.starts_with("prompt.amount.") || key == "booth.cry" => {
+                Some(self.state.fields.get(key).cloned().unwrap_or_default())
+            }
             // Team member `n`'s face (1, Conquer's heroes'), none past the team's end.
             _ if key.starts_with("team.face.") => {
                 let n = key.strip_prefix("team.face.")?;
@@ -780,5 +851,18 @@ mod tests {
         );
         state.trade_news(partner, &TradeNews::Done);
         assert!(state.trade.is_none());
+    }
+
+    #[test]
+    fn booth_slot_bindings_name_whose_booth_and_the_slot() {
+        let slot = HeroData::booth_slot;
+        assert_eq!(slot("booth.mine.coin.3", "coin"), Some(("mine", 3)));
+        assert_eq!(slot("booth.theirs.price.0", "price"), Some(("theirs", 0)));
+        assert_eq!(
+            slot("booth.mine.0", "coin"),
+            None,
+            "a grid slot, not a coin"
+        );
+        assert_eq!(slot("booth.mine.price.x", "price"), None);
     }
 }

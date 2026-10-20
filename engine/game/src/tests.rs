@@ -2304,3 +2304,59 @@ fn friends_ask_and_take_up_and_killers_become_enemies() {
     sim.input(b, Input::Friend(F::Forget("Ann".into())));
     assert!(sim.world_state().enemies_of("Bob").is_empty());
 }
+
+#[test]
+fn a_booth_sells_its_wares_and_closes_when_its_owner_walks() {
+    use crate::BoothAction as B;
+    let spot = Npc {
+        id: 900,
+        kind: 16,
+        cell: (10, 10),
+        ..shopkeeper()
+    };
+    let mut sim = Sim::new(Grid::new(30, 30), vec![spot], vec![], rules(), 9);
+    sim.set_settings(GameplaySettings {
+        booth_spots: vec![16],
+        ..GameplaySettings::default()
+    });
+    let mut seller = crate::PlayerSave::new("Seller", (12, 10));
+    seller.bag = vec![ARMOR.into()];
+    let mut buyer = crate::PlayerSave::new("Buyer", (12, 12));
+    buyer.money = 300;
+    let (s, b) = (sim.add_saved_player(&seller), sim.add_saved_player(&buyer));
+    sim.take_events();
+    sim.input(s, Input::Talk(900));
+    let offered = (sim.take_events().into_iter())
+        .any(|e| matches!(e, Event::BoothOffered { player, spot: 900 } if player == s));
+    assert!(offered, "a free spot offers a booth");
+    sim.input(s, Input::Booth(B::Open(900)));
+    let armor = sim.player(s).unwrap().bag[0].id;
+    sim.input(
+        s,
+        Input::Booth(B::Add {
+            item: armor,
+            price: 250,
+            currency: String::new(),
+        }),
+    );
+    sim.input(b, Input::Talk(900));
+    let shown = (sim.take_events().into_iter())
+        .any(|e| matches!(e, Event::BoothShown { player, owner } if player == b && owner == s));
+    assert!(shown, "a kept spot shows its booth");
+    sim.input(
+        b,
+        Input::Booth(B::Buy {
+            owner: s,
+            item: armor,
+        }),
+    );
+    let (sp, bp) = (sim.player(s).unwrap(), sim.player(b).unwrap());
+    assert!(sp.bag.is_empty() && sp.money == 250);
+    assert_eq!((bp.bag[0].kind, bp.money), (ARMOR, 50));
+    assert!(sp.booth.as_ref().is_some_and(|b| b.wares.is_empty()));
+    sim.input(s, Input::Walk((20, 20)));
+    assert!(
+        sim.player(s).unwrap().booth.is_none(),
+        "walking off closes it"
+    );
+}

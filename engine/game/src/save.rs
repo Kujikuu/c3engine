@@ -307,6 +307,7 @@ impl Sim {
     /// Takes player `id` off this map to another (it keeps its team; see [`Self::team_of`]).
     pub fn travel_out(&mut self, id: EntityId) {
         self.team_invites.remove(&id);
+        self.close_booth(id);
         if let Some(p) = self.players.remove(&id) {
             self.index.remove(id, p.cell);
             self.events.push(Event::Vanished(id));

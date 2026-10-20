@@ -186,6 +186,20 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// `player` is shown `owner`'s booth (its own, just opened, or another's it came to).
+    BoothShown {
+        player: EntityId,
+        owner: EntityId,
+    },
+    /// `player` came to free booth spot `spot` (an NPC) and may open a booth there.
+    BoothOffered {
+        player: EntityId,
+        spot: u32,
+    },
+    /// `owner`'s booth changed: opened, closed, a ware set out, taken back or sold.
+    BoothChanged {
+        owner: EntityId,
+    },
     /// `from` asks `player` to be friends.
     FriendAsked {
         player: EntityId,

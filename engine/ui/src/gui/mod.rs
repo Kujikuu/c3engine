@@ -608,7 +608,15 @@ impl Gui {
             .map(|d| d.id)
             .collect();
         self.dismissed.retain(|id| shown.contains(id));
+        // A dialog its `when` no longer shows closes those it hides (a booth's cry).
+        let gone: Vec<u32> = self.when_shown.difference(&shown).copied().collect();
         self.when_shown = shown;
+        for id in gone {
+            let hides = (self.dialogs().find(|d| d.id == id)).map(|d| d.hides.clone());
+            for other in hides.unwrap_or_default() {
+                self.shut(other);
+            }
+        }
     }
 
     /// Whether the player closed dialog `id` while its `when` shows it.

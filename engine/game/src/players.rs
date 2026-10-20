@@ -88,6 +88,7 @@ impl Sim {
                 task: Task::Idle,
                 dialogue: None,
                 shop: None,
+                booth: None,
                 flags: Default::default(),
                 texts: Default::default(),
                 path: VecDeque::new(),
@@ -133,6 +134,7 @@ impl Sim {
         p.task = Task::Idle;
         self.index.moved(id, from, to);
         self.events.push(Event::Jumped { id, to });
+        self.close_booth(id);
     }
 
     /// Whether a player can walk from `from` to `to` in a few steps (`to` walkable, a short
@@ -163,6 +165,7 @@ impl Sim {
             return self.enter_portal(id, goal);
         }
         self.stop_talking(id);
+        self.close_booth(id);
         let Some(p) = self.living(id) else { return };
         p.task = Task::Walk;
         p.arrive_tag = None;
@@ -701,7 +704,7 @@ impl Sim {
     }
 
     /// How much of `currency` (empty: the money) player `p` has.
-    fn funds(&self, p: &Player, currency: &str) -> u64 {
+    pub(crate) fn funds(&self, p: &Player, currency: &str) -> u64 {
         if currency.is_empty() {
             p.money
         } else {
