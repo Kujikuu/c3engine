@@ -227,6 +227,8 @@ pub fn conquer_settings() -> ProjectSettings {
     s.ui.sound_click = "sound/BtnClick.wav".into();
     s.ui.sound_sell = "sound/Sell.wav".into();
     s.ui.sound_equip = "sound/equip.wav".into();
+    // The radar: MiniMap.ani's picture in a 170x128 box top right (CGameMap::Create).
+    s.ui.radar_box = Some([170, 128]);
     // The login's server groups and pictures, from the client's Server.ani.
     s.network.groups = vec![c3_core::settings::ServerGroup {
         name: "Conquer".into(),

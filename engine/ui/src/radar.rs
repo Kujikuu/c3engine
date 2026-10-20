@@ -1,5 +1,6 @@
 //! The radar in the top-right corner: the ground around the hero, turned like the map on
-//! screen, with monsters, NPCs, other players and portals as dots.
+//! screen, with monsters, NPCs, other players and portals as dots; or, as a game asks
+//! (TQ's CRadar), its minimap upright in a box, with the hero and its team marked.
 
 use crate::style;
 use crate::{GameView, RadarMap};
@@ -19,10 +20,17 @@ const NPC: Color32 = Color32::from_rgb(250, 210, 80);
 const PLAYER: Color32 = Color32::from_rgb(110, 190, 255);
 const PORTAL: Color32 = Color32::from_rgb(170, 120, 255);
 
-pub(crate) fn show(ui: &egui::Ui, view: &GameView) {
+/// The box's minimap shows faded (CRadar's 0xaa).
+const BOX_ALPHA: u8 = 0xaa;
+
+/// Draws the radar; `scale` takes layout pixels to the screen's (a box radar).
+pub(crate) fn show(ui: &egui::Ui, view: &GameView, scale: f32) {
     let Some(hero) = view.sim.player(view.hero) else {
         return;
     };
+    if let Some(map) = view.minimap.as_ref().filter(|m| m.boxed.is_some()) {
+        return boxed(&ui.painter_at(view.rect), view, map, hero, scale);
+    }
     let center = Pos2::new(
         view.rect.right() - MARGIN - RADIUS,
         view.rect.top() + TOP + RADIUS,
@@ -83,6 +91,62 @@ pub(crate) fn show(ui: &egui::Ui, view: &GameView) {
         crate::fonts::font(10.0),
         style::DIM,
     );
+}
+
+/// The minimap in a box in the top-right corner, upright and at its own size (layout
+/// pixels): around the hero, but never past the picture's edges (CRadar::ShowCrop). The hero
+/// and its teammates are marked (CRadar::ShowHero, ShowRelationships).
+fn boxed(
+    painter: &egui::Painter,
+    view: &GameView,
+    map: &RadarMap,
+    hero: &c3_game::Player,
+    scale: f32,
+) {
+    let Some(frame) = map.boxed else {
+        return;
+    };
+    let [l, t, r, b] = map.bounds;
+    // Picture pixels per world pixel.
+    let (sx, sy) = (map.size.x / (r - l), map.size.y / (b - t));
+    let shown = frame.min(map.size);
+    let picture = |cell: CellPos| {
+        let (wx, wy) = map.projection.cell_to_world(cell);
+        egui::vec2((wx - l) * sx, (wy - t) * sy)
+    };
+    let centre = picture(hero.cell);
+    let crop = egui::vec2(
+        (centre.x - frame.x / 2.0).clamp(0.0, (map.size.x - frame.x).max(0.0)),
+        (centre.y - frame.y / 2.0).clamp(0.0, (map.size.y - frame.y).max(0.0)),
+    )
+    .floor();
+    let corner = Pos2::new(view.rect.right() - frame.x * scale, view.rect.top());
+    let uv = egui::Rect::from_min_size((crop / map.size).to_pos2(), shown / map.size);
+    let area = egui::Rect::from_min_size(corner, shown * scale);
+    painter.image(map.texture, area, uv, Color32::from_white_alpha(BOX_ALPHA));
+    let mark = |cell: CellPos, (texture, size): (egui::TextureId, egui::Vec2)| {
+        let at = corner + (picture(cell) - crop) * scale;
+        if area.contains(at) {
+            let full = egui::Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+            let spot = egui::Rect::from_center_size(at, size * scale);
+            painter.image(texture, spot, full, Color32::WHITE);
+        }
+    };
+    let team = hero.team;
+    let mates =
+        (view.sim.players()).filter(|p| p.id != hero.id && team.is_some() && p.team == team);
+    for p in mates {
+        let picture = match p.team == Some(p.id) {
+            true => map.marks.leader.or(map.marks.player),
+            false => map.marks.player,
+        };
+        if let Some(picture) = picture {
+            mark(p.cell, picture);
+        }
+    }
+    if let Some(picture) = map.marks.hero {
+        mark(hero.cell, picture);
+    }
 }
 
 /// The minimap around the hero, cut to the radar's circle.

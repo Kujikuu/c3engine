@@ -158,8 +158,14 @@ mod tests {
         let mut bar = ChatBar::default();
         bar.said("x", "whisper", "Ann");
         bar.said("y", "team", "Ann");
-        assert_eq!(bar.cycle_recent(false), Some(("team".into(), String::new())));
-        assert_eq!(bar.cycle_recent(false), Some(("whisper".into(), "Ann".into())));
+        assert_eq!(
+            bar.cycle_recent(false),
+            Some(("team".into(), String::new()))
+        );
+        assert_eq!(
+            bar.cycle_recent(false),
+            Some(("whisper".into(), "Ann".into()))
+        );
         assert_eq!(bar.cycle_recent(true), Some(("team".into(), String::new())));
     }
 

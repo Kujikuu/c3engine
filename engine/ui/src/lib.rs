@@ -10,7 +10,6 @@
 mod bag;
 mod chat;
 mod chat_bar;
-mod prompt;
 mod dialogue;
 pub mod fonts;
 pub mod front;
@@ -19,6 +18,7 @@ mod gui_data;
 mod hud;
 pub mod icons;
 mod menu;
+mod prompt;
 mod quests;
 mod radar;
 mod shop;
@@ -208,7 +208,11 @@ pub struct GameView<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct RadarMap {
     pub texture: egui::TextureId,
+    /// The picture's size in pixels, and the world it covers.
+    pub size: egui::Vec2,
     pub bounds: [f32; 4],
+    /// Shown as a box this size (layout pixels) in the top-right corner; none: the circle.
+    pub boxed: Option<egui::Vec2>,
     pub projection: c3_scene::IsoProjection,
     /// The game's pictures for the hero, players and team leaders (texture and size).
     pub marks: RadarMarks,
@@ -601,10 +605,20 @@ impl GameUi {
     /// Puts `name`'s ask of `kind` to the hero when the game UI has a prompt; whether it
     /// did. A trade asked while another is asked is turned away (StrRes 10433).
     fn ask(&mut self, kind: &str, name: &str, input: c3_game::Input) -> bool {
-        if !self.gui.as_ref().is_some_and(|g| g.shows_while("prompt.open")) {
+        if !self
+            .gui
+            .as_ref()
+            .is_some_and(|g| g.shows_while("prompt.open"))
+        {
             return false;
         }
-        if kind == "trade" && self.gui_state.prompt.as_ref().is_some_and(|p| p.kind == "trade") {
+        if kind == "trade"
+            && self
+                .gui_state
+                .prompt
+                .as_ref()
+                .is_some_and(|p| p.kind == "trade")
+        {
             self.system(
                 "You received another trade request! Close this one first.",
                 style::BAD,
@@ -618,7 +632,10 @@ impl GameUi {
 
     /// The chat bar's channel picked (`view:chat:<channel>`; talk at first).
     fn chat_channel(&self) -> &str {
-        self.gui_state.views.get("chat").map_or("talk", String::as_str)
+        self.gui_state
+            .views
+            .get("chat")
+            .map_or("talk", String::as_str)
     }
 
     /// A key in the chat line: Down / Up step through the lines said, Ctrl+Up / Down
@@ -833,7 +850,12 @@ impl GameUi {
         hud::status_row(ui, view, player);
         hud::team_list(ui, view, player);
         if !self.gui_state.radar_hidden {
-            radar::show(ui, view);
+            // Layout pixels to the screen's, as the game UI is drawn.
+            let scale = self.gui.as_ref().map_or(1.0, |g| {
+                let [w, h] = g.layout.base().map(|v| v as f32);
+                (view.rect.width() / w).min(view.rect.height() / h)
+            });
+            radar::show(ui, view, scale);
         }
         quests::npc_marks(&ui.painter_at(view.rect), view);
         self.in_team = player.team.is_some();

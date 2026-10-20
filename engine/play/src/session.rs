@@ -150,8 +150,8 @@ impl Minimap {
         }
     }
 
-    /// The texture, uploaded on first use.
-    fn texture(&mut self, ctx: &egui::Context) -> Option<egui::TextureId> {
+    /// The texture and its size, uploaded on first use.
+    fn texture(&mut self, ctx: &egui::Context) -> Option<(egui::TextureId, egui::Vec2)> {
         if let Some(image) = self.image.take() {
             let size = [image.width as usize, image.height as usize];
             let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
@@ -169,7 +169,7 @@ impl Minimap {
             }
             self.mark_textures.push(texture);
         }
-        self.texture.as_ref().map(egui::TextureHandle::id)
+        (self.texture.as_ref()).map(|t| (t.id(), t.size_vec2()))
     }
 }
 
@@ -934,8 +934,10 @@ impl Session {
         let minimap = self
             .minimap
             .texture(ui.ctx())
-            .map(|texture| c3_ui::RadarMap {
+            .map(|(texture, size)| c3_ui::RadarMap {
                 texture,
+                size,
+                boxed: (self.settings.ui.radar_box).map(|[w, h]| egui::vec2(w as f32, h as f32)),
                 bounds: c3_render::minimap::scene_bounds(&self.world.scene),
                 projection: self.world.scene.projection,
                 marks: self.minimap.marks,

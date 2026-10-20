@@ -838,7 +838,14 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the opener also toggles 214 and hides 189
     - [ ] 140 / 191 opening no longer close it (window model)
     - [ ] hidden on death and booth close
-  - [ ] UI 5278 CDlgMipmap and the 5065 radar (minimap): missing (engine substitute), 5 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 5278 CDlgMipmap / radar (minimap): 3 of 5 audit mismatches fixed
+    - [x] the radar as CRadar's crop: MiniMap.ani's picture upright in a 170x128 box top right, at 0xaa, around the hero and clamped to the picture (`ui.radar_box`)
+    - [x] hero mark (MiniMap.ani hero) and teammates (PlayerFlag, TeamLeader); no monster/NPC dots, as the native client
+    - [x] 130-1015 toggles it and its frame follows
+    - [ ] the grow/shrink transition (SetTransition)
+    - [ ] overview and full modes with Button01/Button02; MapModeRecord kept
+    - [ ] the hero mark animated (all its frames); the spouse mark (PlayerFlag frame 2), the leader mark only for 8 s after MsgAction 101, Friend mark 6 s
+    - [ ] maps with fewer than 4 minimap frames drawn as ShowFallback
   - [ ] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): draft only, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 325 CDlgBigmap = mentor HUD button (IDD_DIALOG_MENTOR_HUD_5065): draft only (wrong), 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 328 CDlgEquipTie5065 (item-lock button on the HUD): draft only, 2 mismatches (docs/conquer_ui_audit.md)

@@ -873,6 +873,11 @@ pub struct UiSettings {
     pub sound_sell: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub sound_equip: String,
+    /// The radar as a box in the top-right corner, this wide and high in layout pixels: the
+    /// minimap upright, at its own size, around the hero (TQ's 170x128); none: the engine's
+    /// turning circle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radar_box: Option<[u32; 2]>,
 }
 
 impl UiSettings {
