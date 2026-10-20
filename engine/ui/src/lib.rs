@@ -946,6 +946,18 @@ impl GameUi {
                     line.push_str(&format!("#{at:02}"));
                 }
             }
+            // The chat log's Delete (the lines of the channel shown) and Delete All
+            // (CDlgLog::OnLogDel, OnLogDelall: the day's log).
+            "chatlog_del" => {
+                let shown = self
+                    .gui_state
+                    .views
+                    .get("chatlog")
+                    .cloned()
+                    .unwrap_or_default();
+                (self.gui_state.chat_log).retain(|(k, _)| !gui_data::log_shows(&shown, k));
+            }
+            "chatlog_clear" => self.gui_state.chat_log.clear(),
             "blacklist_add" => {
                 let name = self
                     .gui_state
@@ -1581,6 +1593,11 @@ impl GameUi {
                 _ => self.chat.event(event, sim, hero),
             }
         }
+        // What was said, kept for the chat log (CChatLog's lines).
+        let log = &mut self.gui_state.chat_log;
+        log.extend((self.chat.said.drain(..)).map(|(k, l)| (k.to_owned(), l)));
+        let over = log.len().saturating_sub(gui_data::CHAT_LOG_KEEP);
+        log.drain(..over);
     }
 
     /// Draws the UI over `view.rect` and returns what the player asked for.

@@ -302,7 +302,7 @@ impl Gui {
             if let Some([l, t, r, b]) = control.src {
                 return Some(Vec2::new((r - l) as f32, (b - t) as f32));
             }
-            let frames = self.skin.frames(&control.ani);
+            let frames = control.frames(&self.skin, &control.ani);
             let path = frames.get(control.frame).or(frames.first())?;
             textures.image(ctx, path).map(|(_, size)| size)
         };
@@ -495,10 +495,10 @@ impl Painter<'_, '_> {
         at: Pos2,
         size: Option<Vec2>,
     ) -> Option<Vec2> {
-        if section.is_empty() {
+        if section.is_empty() && control.file.is_empty() {
             return None;
         }
-        let frames = self.skin.frames(section);
+        let frames = control.frames(self.skin, section);
         let frame = match control.animate {
             0 => control.frame,
             ms => {
@@ -563,13 +563,16 @@ impl Painter<'_, '_> {
         let origin = Pos2::new(at.x as f32, at.y as f32);
         let size = Vec2::new(at.w.max(0) as f32, at.h.max(0) as f32);
         let rect = Rect::from_min_size(self.screen(origin.x, origin.y), size * self.place.scale);
+        if let Some([r, g, b]) = control.back {
+            (self.ui.painter()).rect_filled(rect, 0.0, Color32::from_rgb(r, g, b));
+        }
         match control.kind {
             ControlKind::Dialog => {
                 self.picture(control, &control.ani, origin, None);
             }
             ControlKind::Image => self.image(control, origin, size, data, events),
             ControlKind::Button | ControlKind::Check => {
-                let frames = self.skin.frames(&control.ani);
+                let frames = control.frames(self.skin, &control.ani);
                 let id = self
                     .ui
                     .scope_id()
@@ -801,9 +804,29 @@ impl Painter<'_, '_> {
                 let scale = self.place.scale;
                 let font = crate::fonts::font(control.size * scale);
                 let laid = list_rows(self.ui.ctx(), control, &rows, size.x);
+                // A log shows its end, the wheel going back as far as its first row.
+                let lift = match control.tail {
+                    true => {
+                        let total = laid.last().map_or(0.0, |l| l.bottom());
+                        let over = (total - size.y).max(0.0);
+                        let id = (self.ui.scope_id()).with(("gui log", control.parent, control.id));
+                        let mut back: f32 = self.ui.data(|d| d.get_temp(id)).unwrap_or(0.0);
+                        if self.live && self.ui.rect_contains_pointer(rect) {
+                            back += self.ui.input(|i| i.smooth_scroll_delta.y) / scale;
+                        }
+                        back = back.clamp(0.0, over);
+                        self.ui.data_mut(|d| d.insert_temp(id, back));
+                        over - back
+                    }
+                    false => 0.0,
+                };
                 for (index, (row, at)) in rows.iter().zip(laid).enumerate() {
+                    let at = at.translate(Vec2::new(0.0, -lift));
                     let line =
                         Rect::from_min_size(rect.min + at.min.to_vec2() * scale, at.size() * scale);
+                    if line.top() < rect.top() - 0.5 {
+                        continue;
+                    }
                     if line.bottom() > rect.bottom() + 0.5 {
                         break;
                     }

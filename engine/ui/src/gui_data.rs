@@ -73,6 +73,8 @@ pub(crate) struct GuiState {
     pub chat_colors: Vec<(String, usize)>,
     /// The emotions the chat look has (the picker's).
     pub emotes: usize,
+    /// The lines said this session with their channels' keys (the chat log's).
+    pub chat_log: Vec<(String, String)>,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -93,6 +95,15 @@ fn world_mentor<'a>(data: &HeroData<'a>) -> Option<&'a c3_game::Mentorship> {
 fn exp_balls(time: i64) -> String {
     let hundredths = time.max(0) * 1000 / 600 / 10;
     format!("{}.{:02}", hundredths / 100, hundredths % 100)
+}
+
+/// The lines the chat log keeps.
+pub(crate) const CHAT_LOG_KEEP: usize = 1000;
+
+/// Whether the chat log showing `shown` (a channel's key; empty or `all`: every one) shows
+/// a line of channel `key` (CChatLog::TestLine).
+pub(crate) fn log_shows(shown: &str, key: &str) -> bool {
+    matches!(shown, "" | "all") || shown == key
 }
 
 /// The emotions a page of the picker shows (CDlgTalkAct: 32).
@@ -1062,6 +1073,7 @@ impl GuiData for HeroData<'_> {
                     _ => String::new(),
                 })
             }
+            "chatlog.date" => Some(chrono::Local::now().format("%Y-%-m-%-d").to_string()),
             "word.text" | "board.text" | "black.name" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
@@ -1307,6 +1319,15 @@ impl GuiData for HeroData<'_> {
                     .collect();
                 let picked = (self.state.views.get("hotkey_pick")).and_then(|v| v.parse().ok());
                 (rows, picked)
+            }
+            // The chat log's lines of the channel shown (`view:chatlog:whisper`).
+            "chatlog.rows" => {
+                let shown = self.state.views.get("chatlog").map_or("", String::as_str);
+                let rows = (self.state.chat_log.iter())
+                    .filter(|(k, _)| log_shows(shown, k))
+                    .map(|(_, l)| l.clone())
+                    .collect();
+                (rows, None)
             }
             // The names whose lines are never heard (the blacklist).
             "blacklist.rows" => {

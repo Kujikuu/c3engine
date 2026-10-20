@@ -1108,7 +1108,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] UI 148 CDlgListBox (whisper-name history): the 3 audit mismatches fixed (opened by 145-1185, Dialog24 at -3,-4, names bound and picked); what is left is under 145
   - [ ] UI 139 CDlgChat (chat options: filters and colours): 9 of 11 audit mismatches fixed
     - [x] Dialog36 with Image36; a check per channel (G/B/D/H/S/Z, on at first) hiding its lines, SF whispers from friends only; each channel's colour (Image36N, talk 7, the rest 6) opening the eight swatches, one picked colouring its lines (`ChatFilter`, `ChatLook::palette`); Sift to 239; closes
-    - [ ] Record 1336 (opens 218, missing); help 1667; the action channel's lines (the engine has none yet)
+    - [x] Record 1336 opens the chat log (218)
+    - [ ] help 1667; the action channel's lines (the engine has none yet)
   - [ ] UI 239 CDlgBlack (blacklist): 7 of 8 audit mismatches fixed
     - [x] Dialog36 with Image37's two frames; the names listed, the name typed (15), Add asked first (StrRes 11017 in 158), Del the picked one; a blacklisted name's lines unheard; closes back to 139
     - [ ] help 1667
@@ -1119,7 +1120,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] title Image371-373 by mode; tabs with frame 2 on the one chosen (`chosen=`); list, write and read modes; Send (StrRes 10362), Watch (10363 when none picked), Del, Up/Down/Refresh; OK posts (lines made one), Cancel Button7 / Button2; a row double-clicked whispers its author
     - [ ] the dim block behind the edit in write and read modes (ShowBlock 0x99000000), the list arrows [240-1]/[240-2], Help
   - [ ] UI 5326 CDlgNorMsg (chat-log line handles): missing, 3 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 218 CDlgLog (chat history viewer): missing, all mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 218 CDlgLog (chat history viewer): the session's log
+    - [x] the Win32 dialog's bitmaps as they are (`file=`): LogBk.bmp centred, Close, Delete (the channel shown) and Delete All, a tab per channel (Talk, Whisper, Guild, Friend, Team, All); the day shown; the lines said (`[Talk]Ann speaks to All: hi[h:m]`) on the edit's brush (`back=`), the newest last, the wheel going back (`tail=1`); opened by 139's Record
+    - [ ] a log file a day (Record 1654 and its LogRecord setting, the date list's other days, LoadLog), the Win32 scroll bar, the chosen tab's look (its Click bitmaps are missing from 5065's data), Chat.dll's whisper/team windows choosing the channel
   - [ ] UI 2232 / 2233 / 2234 native private chat windows and tray: missing, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] Broadcasts (adapters spec §4, Pigeon.dll): `gameplay.broadcast` (Conquer: 5 CPs from level 50, 80 letters, 5 waiting each, a minute apart, 15 CPs to the front, 5 up 5 places); one queue on the world state that every map tells when due (ChatChannel::Broadcast); the Conquer front carries MsgPigeon 2050 / MsgPigeonInfo 2051 and MsgTalk 2500
     - [x] engine, UI and front

@@ -124,6 +124,8 @@ pub(crate) struct Chat {
     opening: bool,
     /// What the player chose to see.
     pub filter: ChatFilter,
+    /// Lines said since they were last taken, with their channels' keys (the chat log's).
+    pub said: Vec<(&'static str, String)>,
 }
 
 impl Chat {
@@ -264,6 +266,7 @@ impl Chat {
                     .and_then(|i| look.palette.get(i).copied())
                     .unwrap_or(look.color);
                 let line = format!("{prefix}{name}{}{to}{}{text}{clock}", look.to, look.says);
+                self.said.push((key, line.clone()));
                 self.push_said(line, Color32::from_rgb(r, g, b));
                 return;
             }
@@ -283,7 +286,9 @@ impl Chat {
                     c3_game::ChatChannel::Board(_) => "[Board] ",
                     c3_game::ChatChannel::Broadcast => "[Broadcast] ",
                 };
-                Some((format!("{tag}{name}: {text}"), style::TEXT))
+                let line = format!("{tag}{name}: {text}");
+                self.said.push((channel_key(*channel), line.clone()));
+                Some((line, style::TEXT))
             }
             Event::CommandReply { player, ok, text } if *player == hero => {
                 Some((text.clone(), if *ok { style::GOOD } else { style::WARN }))

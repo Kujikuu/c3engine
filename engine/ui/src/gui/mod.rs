@@ -195,8 +195,10 @@ pub struct Control {
     pub parent: u32,
     pub id: u32,
     pub kind: ControlKind,
-    /// The skin section it shows.
+    /// The skin section it shows, or an image file shown as it is (`file=`; TQ's Win32
+    /// dialogs' bitmaps).
     pub ani: String,
+    pub file: String,
     pub frame: usize,
     /// Its frames played in turn, one each this many milliseconds (`animate=300`); 0: still.
     pub animate: u32,
@@ -260,6 +262,11 @@ pub struct Control {
     /// A stacked control beside the one before it, at its height (`beside=1`; a button by
     /// its edit).
     pub beside: bool,
+    /// A colour filled under it (`back=rrggbb`; a Win32 edit's brush).
+    pub back: Option<[u8; 3]>,
+    /// A list shown from its end, the newest rows lowest, the mouse wheel going back (`tail=1`;
+    /// a log).
+    pub tail: bool,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
     /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
@@ -328,6 +335,14 @@ pub struct Control {
 }
 
 impl Control {
+    /// The frames it shows: its file, else skin section `section`'s.
+    pub fn frames<'a>(&'a self, skin: &'a Skin, section: &str) -> &'a [String] {
+        match self.file.is_empty() {
+            true => skin.frames(section),
+            false => std::slice::from_ref(&self.file),
+        }
+    }
+
     /// `value` as the names file's key, by the control's map (unchanged when it has none).
     pub fn map_value(&self, value: &str) -> String {
         let mut other = None;
@@ -385,6 +400,7 @@ impl Control {
             id,
             kind: ControlKind::parse(section.get("type")?)?,
             ani: text("ani"),
+            file: text("file"),
             frame: section.int("frame").unwrap_or(0).max(0) as usize,
             animate: section.int("animate").unwrap_or(0).max(0) as u32,
             src,
@@ -421,6 +437,8 @@ impl Control {
             min_y: section.int("min_y").unwrap_or(0),
             travel: section.int("travel").unwrap_or(0).max(0),
             beside: section.int("beside").is_some_and(|b| b != 0),
+            back: section.get("back").map(|_| rgb("back")),
+            tail: section.int("tail").is_some_and(|t| t != 0),
             open: text("open"),
             slot: text("slot"),
             clears: text("clears"),
