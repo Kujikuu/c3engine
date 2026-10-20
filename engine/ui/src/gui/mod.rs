@@ -230,6 +230,8 @@ pub struct Control {
     pub map: String,
     /// Text colour, `rrggbb`.
     pub color: [u8; 3],
+    /// A text's edge colour, drawn a pixel round it (`edge=000000`; TQ's edged strings).
+    pub edge: Option<[u8; 3]>,
     /// Where text sits in its width (`align=center|right`; TQ's statics' position types).
     pub align: Align,
     pub size: f32,
@@ -446,6 +448,7 @@ impl Control {
             map: text("map"),
             place: section.int("place").and_then(|p| u32::try_from(p).ok()),
             color,
+            edge: section.get("edge").map(|_| rgb("edge")),
             align: match section.get("align") {
                 Some("center") => Align::Center,
                 Some("right") => Align::Right,

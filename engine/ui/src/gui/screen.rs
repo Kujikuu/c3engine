@@ -792,10 +792,11 @@ impl Painter<'_, '_> {
                     text = name.clone();
                 }
                 if !control.fill_in.is_empty() {
-                    // Each blank in turn (`fill_in={a}||{b}`).
+                    // Each blank in turn (`fill_in={a}||{b}`), then printf's `%%`.
                     for part in control.fill_in.split("||") {
                         text = fill_first(&text, &expand(part, data));
                     }
+                    text = text.replace("%%", "%");
                 }
                 if control.commas {
                     text = with_commas(&text);
@@ -809,6 +810,14 @@ impl Painter<'_, '_> {
                 } else {
                     f32::INFINITY
                 };
+                let edged = control.edge.map(|[r, g, b]| {
+                    (self.ui.painter()).layout(
+                        text.clone(),
+                        font.clone(),
+                        Color32::from_rgb(r, g, b),
+                        wrap,
+                    )
+                });
                 let galley =
                     (self.ui.painter()).layout(text, font, Color32::from_rgb(r, g, b), wrap);
                 let left = match control.align {
@@ -816,7 +825,18 @@ impl Painter<'_, '_> {
                     super::Align::Center => rect.center().x - galley.size().x / 2.0,
                     super::Align::Right => rect.right() - galley.size().x,
                 };
-                (self.ui.painter()).galley(Pos2::new(left, rect.top()), galley, Color32::WHITE);
+                let at = Pos2::new(left, rect.top());
+                if let Some(edge) = edged {
+                    for d in [
+                        Vec2::new(-1.0, 0.0),
+                        Vec2::new(1.0, 0.0),
+                        Vec2::new(0.0, -1.0),
+                        Vec2::new(0.0, 1.0),
+                    ] {
+                        (self.ui.painter()).galley(at + d, edge.clone(), Color32::WHITE);
+                    }
+                }
+                (self.ui.painter()).galley(at, galley, Color32::WHITE);
             }
             ControlKind::Slider => {
                 let max: f32 = (control.max.parse().ok())

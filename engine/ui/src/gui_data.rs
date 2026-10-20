@@ -19,6 +19,8 @@ pub(crate) struct GuiState {
     pub auto_team: bool,
     /// The `pointed=` of the control under the pointer.
     pub pointed: Option<String>,
+    /// The hero's last exp gain and when it came (shown 2 s, CGameMap::ShowExp).
+    pub exp_gain: Option<(u64, std::time::Instant)>,
     /// Screen move is on.
     pub screen_move: bool,
     /// The radar's mode, showing, and grow or shrink; whether it was set from the player's
@@ -600,6 +602,14 @@ impl GuiData for HeroData<'_> {
             "hero.mana_max" => p.stats.max_mana.into(),
             "hero.exp" => p.exp as f64,
             "hero.exp_next" => need()? as f64,
+            // The control under the pointer is `pointed=<v>` (`pointed.exp`).
+            _ if key.starts_with("pointed.") => f64::from(u8::from(
+                self.state.pointed.as_deref() == key.strip_prefix("pointed."),
+            )),
+            // An exp gain in the last 2 s.
+            "hero.exp_gained" => (self.state.exp_gain)
+                .filter(|(_, at)| at.elapsed().as_secs_f32() < 2.0)
+                .map_or(0.0, |(n, _)| n as f64),
             "hero.money" => p.money as f64,
             // The hero's money of currency `<name>` (Conquer's CPs: `hero.wallet.CPs`).
             _ if key.starts_with("hero.wallet.") => {
@@ -1127,6 +1137,11 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // How far into its level the hero is, in percent to three places.
+            "hero.exp_rate" => {
+                let next = self.number("hero.exp_next").filter(|n| *n > 0.0)?;
+                Some(format!("{:.3}", self.player.exp as f64 * 100.0 / next))
+            }
             // Who asked the question shown, and its kind.
             "prompt.name" => Some(self.state.prompt.as_ref()?.name.clone()),
             "prompt.kind" => Some(self.state.prompt.as_ref()?.kind.clone()),

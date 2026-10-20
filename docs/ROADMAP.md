@@ -826,7 +826,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] PK button image by PK mode (Button47/49/48/412)
     - [x] hover tooltips (`tip=` on buttons, checks and meters; CMyShellDlg::ShowMsgDlg): run 10070, map 10072, view equipment 10370, the XP, mana and life orbs as current/most (Button40-46's 10741-10750 aren't in 5065's StrRes, so none)
     - [x] screen move's tip 10073 / 10074 by its state (`tip=` reads bindings in its key)
-    - [ ] the exp strip's detailed overlay on hover (SetShowExpFlag)
+    - [x] the exp strip's overlay while pointed at (CGameMap::ShowExp): StrRes 100135's rate to three places at [ExpShowPos] 275,675 and the last gain at 365,675 for 2 s, green with a black edge (`pointed=`, `edge=`)
+    - [ ] a cursed hero's 10483 in its place (no curse status yet)
     - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
     - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
     - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts

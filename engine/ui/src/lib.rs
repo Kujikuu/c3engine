@@ -2028,6 +2028,13 @@ impl GameUi {
 
     /// Feedback for what the simulation did (`now`: UI time in seconds).
     pub fn events(&mut self, events: &[Event], sim: &Sim, hero: EntityId, now: f64) {
+        for event in events {
+            if let Event::ExpGained { player, amount } = *event
+                && player == hero
+            {
+                self.gui_state.exp_gain = Some((amount, std::time::Instant::now()));
+            }
+        }
         // A script opening one of the game UI's dialogs for the hero: the one answering to
         // that window number, else the dialog of that id.
         for event in events {
