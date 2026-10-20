@@ -193,10 +193,12 @@ fn clicked(control: &Control, events: &mut Vec<GuiEvent>) {
 
 /// Whether one of `control`'s `when` bindings (`|` between them) is set (not 0).
 fn set(control: &Control, data: &dyn GuiData) -> bool {
-    (control.when.split('|').filter(|w| !w.is_empty())).any(|w| match w.strip_prefix('!') {
+    // Alternatives between `|`, each of terms all holding between `&`.
+    let holds = |w: &str| match w.strip_prefix('!') {
         Some(w) => data.number(w).is_none_or(|v| v == 0.0),
         None => data.number(w).is_some_and(|v| v != 0.0),
-    })
+    };
+    (control.when.split('|').filter(|w| !w.is_empty())).any(|w| w.split('&').all(holds))
 }
 
 /// Where a dialog's origin lands: scaled, and kept to its side of the screen.

@@ -71,6 +71,32 @@ pub(crate) struct HeroData<'a> {
     pub state: &'a GuiState,
 }
 
+impl HeroData<'_> {
+    /// The attribute `hero.attr_at.<prefix>.<low>-<high>.<n>[+<group>]` names: its number and
+    /// value.
+    fn attr_entry(&self, key: &str) -> Option<(i64, i64)> {
+        let spec = key.split_once('.')?.1.split_once('.')?.1;
+        let (prefix, rest) = spec.split_once('.')?;
+        let (range, n) = rest.split_once('.')?;
+        let (low, high) = range.split_once('-')?;
+        let (low, high): (i64, i64) = (low.parse().ok()?, high.parse().ok()?);
+        let (n, group) = n.split_once('+').map_or((n, None), |(n, g)| (n, Some(g)));
+        let offset = group
+            .and_then(|g| self.state.views.get(g))
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        let n = n.parse::<usize>().ok()? + offset;
+        let mut found: Vec<(i64, i64)> = (self.player.attributes.iter())
+            .filter_map(|(name, &value)| {
+                let number: i64 = name.strip_prefix(prefix)?.parse().ok()?;
+                ((low..=high).contains(&number) && value > 0).then_some((number, value))
+            })
+            .collect();
+        found.sort_unstable();
+        found.get(n).copied()
+    }
+}
+
 impl GuiData for HeroData<'_> {
     fn number(&self, key: &str) -> Option<f64> {
         let p = self.player;
@@ -119,6 +145,17 @@ impl GuiData for HeroData<'_> {
             _ if key.starts_with("view.") => {
                 let (group, name) = key.strip_prefix("view.")?.split_once('.')?;
                 u8::from(self.state.views.get(group).is_some_and(|v| v == name)).into()
+            }
+            // The `n`th of the hero's attributes named `<prefix><number>` with the number in
+            // `low-high` and above 0: its number (`hero.attr_at.<prefix>.<low>-<high>.<n>`) or
+            // its value (`hero.attr_val...`); `n` may add a view group's number (`3+page`).
+            _ if key.starts_with("hero.attr_at.") || key.starts_with("hero.attr_val.") => {
+                let (number, value) = self.attr_entry(key)?;
+                (if key.starts_with("hero.attr_at.") {
+                    number
+                } else {
+                    value
+                }) as f64
             }
             // A number the game shows of the hero (`hero.shown.<name>`, its rules' `shown`).
             _ if key.starts_with("hero.shown.") => {
@@ -191,6 +228,14 @@ impl GuiData for HeroData<'_> {
         match key {
             "hero.bag" => self.player.bag.iter().map(|i| i.kind).collect(),
             "hero.equipment" => self.player.equipment.iter().map(|i| i.kind).collect(),
+            // What the hero wears in slot `n` (`hero.worn.<n>`).
+            _ if key.starts_with("hero.worn.") => {
+                let slot: Option<u8> = key.strip_prefix("hero.worn.").and_then(|s| s.parse().ok());
+                (self.player.equipment.iter())
+                    .filter(|i| slot.is_some() && self.view.sim.slot_of(i) == slot)
+                    .map(|i| i.kind)
+                    .collect()
+            }
             // What the partner offers, and what the hero does.
             "trade.theirs" => self
                 .state

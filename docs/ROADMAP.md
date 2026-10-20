@@ -712,7 +712,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
         (`view:` actions, `!` in `when`, the rules' `shown`: attack and magic with Dragon and
         Phoenix gems), adding points (`spend:`, `Input::SpendPoints`, MsgAllot 1024)
         (screenshot)
-  - [ ] Status: the weapon skill and equipment pages' contents
+  - [x] Status: the weapon skills page (three classes of six, `Weapon<type>` icons and levels from the hero's `weapon_<type>` attributes; `hero.attr_at`, `place=`, `&` in `when`) and the equipment page (`hero.worn.<slot>`, a click takes an item off) (screenshot); item icons found as the client finds them (`Item<type>` in ItemMinIcon.Ani, else ItemDefault)
+  - [ ] Status: a weapon skill picked shows its name, level and progress
   - [x] Dialogs the game opens (`when=<binding>`, in place of the engine's window): an
         NPC's shop (152) with its wares (`shop.items`, a click buys) and the bag beside it;
         bag clicks use, wear or sell (screenshot: shop and bag); GM `/shop NPC`

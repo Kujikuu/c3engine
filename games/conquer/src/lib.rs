@@ -49,6 +49,8 @@ pub struct Content {
     catalog: GameMapCatalog,
     tables: Tables,
     npc_tables: npc::NpcTables,
+    /// `ani/ItemMinIcon.Ani`, read when an item's icon is first wanted.
+    item_icons: std::sync::OnceLock<Option<Ani>>,
 }
 
 /// Lookup tables from `ini/`.
@@ -168,6 +170,7 @@ impl Content {
             catalog,
             tables,
             npc_tables,
+            item_icons: std::sync::OnceLock::new(),
         })
     }
 
@@ -361,6 +364,16 @@ impl Content {
 
     /// The minimap of the first of `map_ids` the client has (see `ConquerModule::minimap`).
     /// The radar's picture for mark `kind` (see [`RADAR_MARKS`]).
+    /// An item type's icon as the client finds it (`CGameDataSet::GetItemMinIcon`): its
+    /// `Item<type>` section of `ItemMinIcon.Ani`, else `ItemDefault`.
+    pub fn item_icon(&self, kind: u32) -> Option<Image> {
+        let ani = (self.item_icons)
+            .get_or_init(|| Ani::parse(&self.fs.read(ITEM_ICON_ANI)?).ok())
+            .as_ref()?;
+        let section = ani.get(&format!("Item{kind}")).or_else(|| ani.get("ItemDefault"))?;
+        self.load_image(&section.frame_str(0)?)
+    }
+
     pub fn radar_mark(&self, kind: &str) -> Option<Image> {
         let (_, file, section) = RADAR_MARKS.iter().find(|(k, _, _)| *k == kind)?;
         let ani = Ani::parse(&self.fs.read(file)?).ok()?;
@@ -404,6 +417,7 @@ impl c3_render::SceneAssets for Content {
 
 /// The client's minimaps, by map id.
 const MINIMAP_ANI: &str = "ani/MiniMap.Ani";
+const ITEM_ICON_ANI: &str = "ani/ItemMinIcon.Ani";
 /// The radar's marks, as CRadar draws them: the hero (MiniMap.ani), players and team
 /// leaders (common.ani).
 const RADAR_MARKS: [(&str, &str, &str); 3] = [

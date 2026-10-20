@@ -190,6 +190,9 @@ pub struct Control {
     /// A file of `value,name` (or `value=name`) lines (TQ's `ProfessionalName.ini`,
     /// `StrRes.ini`): the text, worked out, is shown as the name it maps to.
     pub names: String,
+    /// The control of its dialog whose layout place it takes (`place=<id>`; a set of
+    /// controls shown in turn where one control is laid out).
+    pub place: Option<u32>,
     /// `value:key` pairs between spaces turning the text into the names file's key first
     /// (`*:key` for any other value).
     pub map: String,
@@ -278,6 +281,7 @@ impl Control {
             text: text("text"),
             names: text("names"),
             map: text("map"),
+            place: section.int("place").and_then(|p| u32::try_from(p).ok()),
             color,
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
@@ -460,7 +464,9 @@ impl Gui {
 
     /// Where `control` sits: the layout's place, else its own.
     pub fn rect(&self, control: &Control) -> GuiRect {
-        let laid = self.layout.rect(control.parent, control.id);
+        let laid = self
+            .layout
+            .rect(control.parent, control.place.unwrap_or(control.id));
         let placed = if control.fixed {
             control.rect.or(laid)
         } else {

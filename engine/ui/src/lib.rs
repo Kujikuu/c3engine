@@ -42,6 +42,14 @@ fn grid_click(
             .and_then(|s| s.get(index))
             .map(|i| i.id)
     };
+    // A worn item clicked is taken off (`hero.worn.<slot>`).
+    if let Some(slot) = list
+        .strip_prefix("hero.worn.")
+        .and_then(|s| s.parse::<u8>().ok())
+    {
+        let item = (player.equipment.iter()).find(|i| data.view.sim.slot_of(i) == Some(slot))?;
+        return Some(UiAction::Game(c3_game::Input::Unequip(item.id)));
+    }
     // Trading, a bag item clicked is offered.
     if data.state.trade.is_some() && list == "hero.bag" {
         let item = player.bag.get(index)?.id;

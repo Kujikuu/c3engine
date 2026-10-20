@@ -338,13 +338,7 @@ impl GameModule for ConquerModule {
     }
 
     fn item_icon(&self, kind: u32) -> Option<Image> {
-        // Icons are drawn for one quality digit (5 for weapons, 0 for most).
-        [kind, kind / 10 * 10 + 5, kind / 10 * 10]
-            .iter()
-            .find_map(|k| {
-                self.content
-                    .load_image(&format!("data/ItemMinIcon/{k}.dds"))
-            })
+        self.content.item_icon(kind)
     }
 
     fn slot_names(&self) -> Vec<(u8, String)> {
