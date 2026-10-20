@@ -276,4 +276,66 @@ mod tests {
             "the game's rules are found"
         );
     }
+    /// A game's rules answering every hook that has a default in a way the default doesn't.
+    struct Probe;
+
+    impl Rules for Probe {
+        fn monster(&self, _: u32) -> Option<&MonsterType> {
+            None
+        }
+        fn item(&self, _: u32) -> Option<&ItemType> {
+            None
+        }
+        fn player_stats(&self, _: &StatsFor) -> Stats {
+            Stats::default()
+        }
+        fn level_exp(&self, _: u32) -> Option<u64> {
+            None
+        }
+        fn hit(&self, _: &Fighter, _: &Fighter, _: &mut Rng) -> u32 {
+            0
+        }
+        fn hit_exp(&self, _: &Fighter, _: &Fighter, _: u32) -> u64 {
+            0
+        }
+        fn kill_exp(&self, _: &Fighter, _: &Fighter) -> u64 {
+            0
+        }
+        fn drops(&self, _: u32, _: &mut Rng) -> Vec<Drop> {
+            Vec::new()
+        }
+        fn shop(&self, _: u32) -> &[u32] {
+            &[]
+        }
+        fn shop_currency(&self, _: u32, _: u32) -> Option<&str> {
+            Some("CPs")
+        }
+        fn sell_price(&self, _: u32) -> u64 {
+            77
+        }
+        fn shown(&self, _: &Fighter) -> Vec<(String, i64)> {
+            vec![("attack".into(), 5)]
+        }
+        fn may_marry(&self, _: &Fighter, _: &Fighter) -> bool {
+            false
+        }
+        fn team_exp(&self, _: &Fighter, _: &Fighter, _: u64, _: bool, _: bool) -> u64 {
+            42
+        }
+        fn protects_work(&self, _: u32, _: usize) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn the_games_hooks_are_answered_through_the_formulas() {
+        let rules = FormulaRules::new(Box::new(Probe), Formulas::compile("").unwrap());
+        let f = Fighter::default();
+        assert_eq!(rules.shop_currency(1, 1), Some("CPs"));
+        assert_eq!(rules.sell_price(1), 77);
+        assert_eq!(rules.shown(&f), [("attack".to_owned(), 5)]);
+        assert!(!rules.may_marry(&f, &f));
+        assert_eq!(rules.team_exp(&f, &f, 100, false, false), 42);
+        assert!(rules.protects_work(1, 0));
+    }
 }
