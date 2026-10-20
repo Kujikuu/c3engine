@@ -1046,6 +1046,29 @@ impl ConquerClient {
                     _ => Vec::new(),
                 }
             }
+            // A proposal to the hero: MsgInteract Court from the proposer.
+            Event::Proposed { player, from } if Some(*player) == hero => {
+                let Some(f) = self.client_id(*from, ids) else {
+                    return Vec::new();
+                };
+                let cell = cell16(self.state_cell(*from).unwrap_or_default());
+                vec![pk::interact(interact::COURT, f, self.hero_id(), cell, 0)]
+            }
+            // A wedding: fireworks over the bride or groom, the spouse's name to each.
+            Event::Married { player, spouse } => {
+                let mut out = Vec::new();
+                if let Some(id) = self.client_id(*player, ids) {
+                    out.push(pk::item_action(id, 0xFF, pk::item::FIREWORKS));
+                }
+                for (me, other) in [(*player, *spouse), (*spouse, *player)] {
+                    if Some(me) == hero
+                        && let Some(name) = sim.player(other).map(|p| p.name.clone())
+                    {
+                        out.push(pk::name(pk::NAME_MATE, self.hero_id(), &name));
+                    }
+                }
+                out
+            }
             Event::ClientCueText {
                 player,
                 name,
@@ -1239,6 +1262,16 @@ impl ConquerClient {
             } => {
                 self.steps_to = None;
                 inputs.extend(self.cast_input(ts, target, cell, data, ids));
+            }
+            Request::Interact { kind, target, .. }
+                if kind == interact::COURT || kind == interact::MARRY =>
+            {
+                if let Some(e) = ids.entity(target) {
+                    inputs.push(match kind {
+                        interact::COURT => Input::Propose(e),
+                        _ => Input::AcceptProposal(e),
+                    });
+                }
             }
             Request::Interact { kind, target, .. }
                 if kind == interact::ATTACK || kind == interact::SHOOT =>

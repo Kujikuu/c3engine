@@ -175,6 +175,16 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// `from` proposed marriage to `player`.
+    Proposed {
+        player: EntityId,
+        from: EntityId,
+    },
+    /// `player` and `spouse` married.
+    Married {
+        player: EntityId,
+        spouse: EntityId,
+    },
     /// A client cue with a text for player `player`'s client alone.
     ClientCueText {
         player: EntityId,

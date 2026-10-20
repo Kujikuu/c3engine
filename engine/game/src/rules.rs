@@ -363,6 +363,11 @@ pub trait Rules: std::any::Any {
         skill.power
     }
 
+    /// Whether `a` may marry `b` (both single and near, which the engine checks).
+    fn may_marry(&self, _a: &Fighter, _b: &Fighter) -> bool {
+        true
+    }
+
     /// Whether `player` may wear `item` (beyond its level, which the engine checks).
     fn can_wear(&self, _player: &Fighter, _item: &ItemType) -> bool {
         true

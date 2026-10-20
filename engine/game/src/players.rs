@@ -461,6 +461,7 @@ impl Sim {
         let mut facts = self.attributes_of(p);
         facts.insert("monster".into(), 0);
         facts.insert("profession".into(), i64::from(p.profession));
+        facts.insert("body".into(), i64::from(p.look.body));
         // The clock's seconds, as scripts' clock() (timed bonuses end by it).
         let clock = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

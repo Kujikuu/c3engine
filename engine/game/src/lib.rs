@@ -12,6 +12,7 @@ mod event;
 mod guilds;
 mod index;
 mod input;
+mod marriage;
 mod monster_ai;
 mod monsters;
 mod npc_fights;

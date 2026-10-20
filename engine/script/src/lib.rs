@@ -36,8 +36,8 @@ mod tables;
 
 pub use conversation::{Conversation, Step};
 pub use dialog::{
-    BountyView, DialogOption, DialogPage, Effect, GuildView, HeldItem, MapCopyView, NpcInfo,
-    PlayerState, PoliceView, Reply, WantedView, WorldChange,
+    BountyView, Delivery, DialogOption, DialogPage, Effect, GuildView, HeldItem, MapCopyView,
+    NpcInfo, PlayerState, PoliceView, Reply, WantedView, WorldChange,
 };
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
@@ -81,6 +81,10 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "deliver_text(to, name, value) / deliver_item(to, kind)",
+        "For player `to`, online on any map or not: its text variable `name` set to `value`, an item of `kind` given (when it is next on a map)",
+    ),
     (
         "teleport_team(map, x, y, range)",
         "The team the player leads follows it to `map` at (x, y): its living members within `range` cells",

@@ -51,6 +51,9 @@ pub enum Input {
         item: u32,
         target: u32,
     },
+    /// Propose marriage to player `target`; accept the proposal of player `from`.
+    Propose(EntityId),
+    AcceptProposal(EntityId),
     /// Place what the player was asked to place (`PlacementAsked`) at `cell`, facing
     /// `direction`.
     Place {
@@ -148,6 +151,8 @@ impl Sim {
             Input::Wear { item, slot } => self.wear_in(id, item, slot),
             Input::UseOn { item, target } => self.use_item_on(id, item, target),
             Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
+            Input::Propose(target) => self.propose(id, target),
+            Input::AcceptProposal(from) => self.accept_proposal(id, from),
             Input::Place { cell, direction } => self.place_asked(id, cell, direction),
             Input::Store { npc, item } => self.store(id, npc, item),
             Input::OpenStorage(npc) => self.open_storage(id, npc),

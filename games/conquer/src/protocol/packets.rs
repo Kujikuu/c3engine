@@ -53,6 +53,8 @@ pub fn guild(action: u16, id: u32) -> Vec<u8> {
 }
 /// MsgName kind naming a guild (`data` its id).
 pub const NAME_GUILD: u8 = 3;
+/// MsgName of the player's spouse (NAMEACT_MATE).
+pub const NAME_MATE: u8 = 6;
 
 /// The hero's guild (id 0: none).
 pub struct GuildInfo<'a> {
@@ -204,6 +206,9 @@ pub mod attr {
 /// MsgInteract kinds.
 pub mod interact {
     pub const ATTACK: u16 = 2;
+    /// A proposal of marriage, and its acceptance (the proposer as the target).
+    pub const COURT: u16 = 8;
+    pub const MARRY: u16 = 9;
     pub const KILL: u16 = 14;
     /// A spell cast: its type, level, target and cell come scrambled (packets spec 1022).
     pub const MAGIC: u16 = 21;
@@ -270,6 +275,8 @@ pub mod item {
     pub const ENCHANT: u16 = 28;
     /// A bag item (id) repaired at a blacksmith.
     pub const REPAIR: u16 = 14;
+    /// Fireworks over a player (data 0xFF), as a wedding has.
+    pub const FIREWORKS: u16 = 26;
 }
 
 /// The client cues Conquer's front sends (`client_cue`): a MsgAction of an action type (with

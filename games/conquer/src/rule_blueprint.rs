@@ -144,6 +144,7 @@ pub fn rules_blueprint() -> Blueprint {
     skill_hit(&mut bp.events, next_lane(700.0));
     exp(&mut bp.events, next_lane(450.0));
     can_wear(&mut bp.events, next_lane(500.0));
+    may_marry(&mut bp.events, next_lane(200.0));
     level_up(&mut bp.events, next_lane(300.0));
     death(&mut bp.events, next_lane(700.0));
     revive(&mut bp.events, next_lane(200.0));
@@ -508,6 +509,18 @@ fn exp(g: &mut Graph, top: f32) {
             }
             names.write(w, EXP)
         },
+    );
+}
+
+/// TQ's Court (social §4): only a man and a woman may marry (male bodies are 3 and 4).
+fn may_marry(g: &mut Graph, top: f32) {
+    formula(
+        g,
+        top,
+        "formula.may_marry",
+        &["a", "b"],
+        None,
+        |w, names| names.write(w, "if(if(a.body > 2, 1, 2) != if(b.body > 2, 1, 2), 1, 0)"),
     );
 }
 

@@ -63,6 +63,8 @@ const WANTED_BOUNTY: &str = "wanted_bounty";
 pub(crate) const WANTED_ORDER: &str = "wanted_order";
 /// The player variable holding the spouse's name (empty: single).
 pub(crate) const MATE: &str = "mate";
+/// What a divorce leaves the ex-spouse (TQ's MeteorTear).
+const METEOR_TEAR: i64 = 1_088_002;
 /// The middle of the world variables a guild-war pole keeps each guild's damage in
 /// (`npc<id>.score.<guild>`).
 pub(crate) const SCORE: &str = ".score.";
@@ -1534,9 +1536,28 @@ impl<'a> Builder<'a> {
                 if a.kind == 1025 {
                     return Self::branch(g, married, column);
                 }
+                // The ex-spouse, here or not, forgets too and gets a MeteorTear (social §4).
+                let ex = g.node(
+                    "player.deliver_text",
+                    &[("name", txt(MATE)), ("value", txt(""))],
+                    column,
+                );
+                g.data(mate, ex, "to");
+                let tear = g.node("player.deliver_item", &[("kind", num(METEOR_TEAR))], column);
+                g.data(mate, tear, "to");
                 let values = [("name", txt(MATE)), ("text", txt(""))];
                 let forget = g.node("player.set_text_var", &values, column);
-                self.guarded(g, &[married], None, &[forget], column)
+                let me = g.node("player.name", &[], column);
+                let a_and = g.node("text.join", &[("b", txt(" and "))], column);
+                g.data(me, a_and, "a");
+                let both = g.node("text.join", &[], column);
+                g.data(a_and, both, "a");
+                g.data(mate, both, "b");
+                let line = g.node("text.join", &[("b", txt(" got divorced!"))], column);
+                g.data(both, line, "a");
+                let told = g.node("world.announce", &[], column);
+                g.data(line, told, "text");
+                self.guarded(g, &[married], None, &[ex, tear, told, forget], column)
             }
             1088 | 1089 => Self::plain(g, "flow.reroute_exec", &[], column),
             // The merchant status (TQ's `business`), kept as the player's attribute.

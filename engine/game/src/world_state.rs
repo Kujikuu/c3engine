@@ -52,6 +52,9 @@ pub struct WorldState {
     /// The maps' names by game id (the host's list).
     #[serde(default, skip_serializing)]
     pub map_names: BTreeMap<u32, String>,
+    /// What waits for players (by name) until they are on a map.
+    #[serde(default)]
+    pub deliveries: BTreeMap<String, Vec<c3_script::Delivery>>,
     /// The guild and PK points of each name on the police list.
     #[serde(default)]
     pub police_info: BTreeMap<String, (String, i64)>,
@@ -179,6 +182,15 @@ impl WorldState {
                     };
                     self.wanted.insert(id, entry);
                 }
+            }
+            WorldChange::Deliver { to, delivery } => {
+                self.deliveries
+                    .entry(to.clone())
+                    .or_default()
+                    .push(delivery.clone());
+            }
+            WorldChange::Delivered { to } => {
+                self.deliveries.remove(to);
             }
             WorldChange::Online { name, map } => match u32::try_from(*map) {
                 Ok(map) if map != 0 => {
@@ -340,6 +352,7 @@ impl Sim {
             self.world.apply(change);
         }
         self.world_flags = self.world.flags.clone();
+        self.deliver_waiting();
     }
 
     /// The changes this map made to the shared state since the last call, for the host.
@@ -351,6 +364,10 @@ impl Sim {
     pub(crate) fn change_world(&mut self, change: WorldChange) {
         self.world.apply(&change);
         self.world_flags = self.world.flags.clone();
+        let delivery = matches!(change, WorldChange::Deliver { .. });
         self.world_changes.push(change);
+        if delivery {
+            self.deliver_waiting();
+        }
     }
 }

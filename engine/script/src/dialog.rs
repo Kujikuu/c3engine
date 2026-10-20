@@ -159,6 +159,14 @@ pub struct WantedView {
     pub bounty: i64,
 }
 
+/// Something waiting for a player who may be elsewhere or offline: a text variable set, an
+/// item given.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Delivery {
+    Text { name: String, value: String },
+    Item { kind: i64 },
+}
+
 /// A name on the police wanted list as scripts see it: its guild, level and PK points.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PoliceView {
@@ -264,6 +272,15 @@ pub enum WorldChange {
         guild: String,
         #[serde(default)]
         pk: i64,
+    },
+    /// `delivery` waiting for player `to` until it is on a map.
+    Deliver {
+        to: String,
+        delivery: Delivery,
+    },
+    /// What waited for player `to` given.
+    Delivered {
+        to: String,
     },
     /// Player `name` online on map `map` (0: logged out).
     Online {

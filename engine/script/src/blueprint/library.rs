@@ -217,6 +217,22 @@ pub fn returns(function: &str) -> Option<PinType> {
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
     action(
+        "player.deliver_text",
+        "Set another player's text",
+        "Player",
+        &[("to", Text), ("name", Text), ("value", Text)],
+        &[],
+        "deliver_text({to}, {name}, {value});",
+    ),
+    action(
+        "player.deliver_item",
+        "Give another player an item",
+        "Player",
+        &[("to", Text), ("kind", Item)],
+        &[],
+        "deliver_item({to}, {kind});",
+    ),
+    action(
         "team.teleport",
         "Team follows to",
         "Team",
@@ -916,6 +932,12 @@ pub const NODES: &[NodeDef] = &[
         "Healing of a skill",
         "skill_heal",
         &[("healer", Record), ("skill", Record)],
+    ),
+    formula(
+        "formula.may_marry",
+        "May marry (1 yes, 0 no)",
+        "may_marry",
+        &[("a", Record), ("b", Record)],
     ),
     formula(
         "formula.can_wear",

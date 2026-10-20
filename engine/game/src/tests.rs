@@ -2002,3 +2002,53 @@ fn a_team_leader_s_near_teammates_follow_it() {
     assert_eq!(at(&sim, cid), (30, 30), "too far to follow");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn proposals_marry_and_a_divorce_reaches_the_ex_spouse() {
+    let dir = std::env::temp_dir().join(format!("c3-game-marry-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn divorce() { deliver_text(text_var(\"mate\"), \"mate\", \"\"); set_text_var(\"mate\", \"\"); }
+",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 6);
+    let mut settings = sim.settings().clone();
+    settings.spouse_text = "mate".into();
+    sim.set_settings(settings);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let ann = sim.add_saved_player(&crate::PlayerSave::new("Ann", (5, 5)));
+    let bob = sim.add_saved_player(&crate::PlayerSave::new("Bob", (6, 6)));
+    let mate = |sim: &Sim, id| {
+        sim.player(id)
+            .unwrap()
+            .texts
+            .get("mate")
+            .cloned()
+            .unwrap_or_default()
+    };
+    // Accepting with no proposal does nothing.
+    sim.input(bob, Input::AcceptProposal(ann));
+    assert_eq!(mate(&sim, bob), "");
+    sim.input(ann, Input::Propose(bob));
+    assert!(sim.take_events().contains(&Event::Proposed {
+        player: bob,
+        from: ann
+    }));
+    sim.input(bob, Input::AcceptProposal(ann));
+    assert_eq!(
+        (mate(&sim, ann), mate(&sim, bob)),
+        ("Bob".into(), "Ann".into())
+    );
+    // Bob logs out; Ann divorces; Bob forgets when he is back.
+    let save = sim.save_player(bob).unwrap();
+    sim.remove_player(bob);
+    sim.script_event(ann, "divorce", Vec::new());
+    assert_eq!(mate(&sim, ann), "");
+    assert_eq!(sim.world_state().deliveries.len(), 1, "waits for Bob");
+    let bob = sim.add_saved_player(&save);
+    assert_eq!(mate(&sim, bob), "");
+    assert!(sim.world_state().deliveries.is_empty());
+    let _ = std::fs::remove_dir_all(dir);
+}

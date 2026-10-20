@@ -1065,6 +1065,13 @@ impl Rules for DataRules {
         }
     }
 
+    fn may_marry(&self, a: &Fighter, b: &Fighter) -> bool {
+        self.formula("may_marry", |f| {
+            f.int("may_marry", (fighter_map(a), fighter_map(b)))
+        })
+        .is_none_or(|ok| ok != 0)
+    }
+
     fn can_wear(&self, player: &Fighter, item: &ItemType) -> bool {
         self.formula("can_wear", |f| {
             f.int("can_wear", (fighter_map(player), item_map(item)))

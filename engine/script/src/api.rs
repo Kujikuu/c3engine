@@ -607,6 +607,27 @@ fn more(engine: &mut Engine, shared: &Shared) {
         },
     );
     let s = shared.clone();
+    engine.register_fn("deliver_text", move |to: &str, name: &str, value: &str| {
+        with(&s, |c| {
+            let delivery = crate::dialog::Delivery::Text {
+                name: name.to_owned(),
+                value: value.to_owned(),
+            };
+            let to = to.to_owned();
+            c.effects
+                .push(Effect::World(WorldChange::Deliver { to, delivery }));
+        })
+    });
+    let s = shared.clone();
+    engine.register_fn("deliver_item", move |to: &str, kind: i64| {
+        with(&s, |c| {
+            let delivery = crate::dialog::Delivery::Item { kind };
+            let to = to.to_owned();
+            c.effects
+                .push(Effect::World(WorldChange::Deliver { to, delivery }));
+        })
+    });
+    let s = shared.clone();
     engine.register_fn("player_where", move |name: &str| {
         with(&s, |c| {
             c.player.online.get(name).cloned().unwrap_or_default()
@@ -1910,7 +1931,9 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Police { .. }
         | WorldChange::GuildLeader { .. }
         | WorldChange::MapCopy { .. }
-        | WorldChange::Online { .. } => {}
+        | WorldChange::Online { .. }
+        | WorldChange::Deliver { .. }
+        | WorldChange::Delivered { .. } => {}
     }
 }
 
