@@ -323,6 +323,9 @@ pub struct Control {
     /// Dialogs that keep it from opening while they show (`blocked=152,161`: the status not
     /// over a shop or warehouse, as OnMainQuery checks the right part's owner).
     pub blocked: Vec<u32>,
+    /// The dialogs of its part it may open over (`over=160,269`: the status only over the
+    /// friends' pages, as OnMainQuery admits); any other there keeps it shut.
+    pub over: Vec<u32>,
     /// A dialog as wide as a count of what it shows (`stretch=skill_count.magic,50,18,10`:
     /// that many at most, `step` each, `pad` more) and against the layout's right edge (TQ's
     /// skill strips, MoveWindow by their skill count).
@@ -504,6 +507,7 @@ impl Control {
             commas: section.int("commas").is_some_and(|c| c != 0),
             fill_in: text("fill_in"),
             blocked: ids("blocked"),
+            over: ids("over"),
             pick: section.int("pick").is_some_and(|p| p != 0),
             offset: text("offset"),
             stretch: Stretch::parse(section.get("stretch").unwrap_or_default()),
@@ -698,6 +702,29 @@ impl Gui {
         if dialog.blocked.iter().any(|&b| self.showing(b)) {
             return;
         }
+        let held = |d: &Control| d.id != id && d.slot == dialog.slot && self.showing(d.id);
+        if !dialog.over.is_empty()
+            && self
+                .dialogs()
+                .any(|d| held(d) && !dialog.over.contains(&d.id))
+        {
+            return;
+        }
+        self.take_place(id);
+        self.open.insert(id);
+        self.dismissed.remove(&id);
+        let opens = self.dialogs().find(|d| d.id == id).map(|d| d.opens.clone());
+        for with in opens.unwrap_or_default() {
+            self.open(with);
+        }
+    }
+
+    /// Closes the dialogs in the part of the screen dialog `id` takes and in the parts it
+    /// clears (TQ's CloseCurDlg).
+    fn take_place(&mut self, id: u32) {
+        let Some(dialog) = self.dialogs().find(|d| d.id == id) else {
+            return;
+        };
         let cleared: Vec<&str> = std::iter::once(dialog.slot.as_str())
             .chain(dialog.clears.split(',').map(str::trim))
             .filter(|p| !p.is_empty())
@@ -709,14 +736,8 @@ impl Gui {
             })
             .map(|d| d.id)
             .collect();
-        let opens = dialog.opens.clone();
         for other in taken {
             self.shut(other);
-        }
-        self.open.insert(id);
-        self.dismissed.remove(&id);
-        for with in opens {
-            self.open(with);
         }
     }
 
@@ -749,9 +770,18 @@ impl Gui {
             .map(|d| d.id)
             .collect();
         self.dismissed.retain(|id| shown.contains(id));
-        // A dialog its `when` no longer shows closes those it hides (a booth's cry).
+        // A dialog its `when` starts showing takes its part and opens its company (a shop
+        // and the bag); one it no longer shows closes those it hides (a booth's cry).
+        let came: Vec<u32> = shown.difference(&self.when_shown).copied().collect();
         let gone: Vec<u32> = self.when_shown.difference(&shown).copied().collect();
         self.when_shown = shown;
+        for id in came {
+            self.take_place(id);
+            let opens = (self.dialogs().find(|d| d.id == id)).map(|d| d.opens.clone());
+            for with in opens.unwrap_or_default() {
+                self.open(with);
+            }
+        }
         for id in gone {
             let hides = (self.dialogs().find(|d| d.id == id)).map(|d| d.hides.clone());
             for other in hides.unwrap_or_default() {
@@ -1033,6 +1063,50 @@ type=dialog
         gui.open(1);
         assert_eq!(opened(&gui), [1, 2]);
         gui.close(1);
+        assert!(opened(&gui).is_empty());
+    }
+
+    #[test]
+    fn a_dialog_opens_only_over_those_it_lists() {
+        let controls = b"[0-1]
+type=dialog
+slot=right
+over=2
+[0-2]
+type=dialog
+slot=right
+[0-3]
+type=dialog
+slot=right
+";
+        let mut gui = Gui::new(b"", b"", controls);
+        gui.open(3);
+        gui.open(1);
+        assert_eq!(opened(&gui), [3]);
+        gui.open(2);
+        gui.open(1);
+        assert_eq!(opened(&gui), [1]);
+    }
+
+    #[test]
+    fn a_shop_its_when_shows_brings_the_bag() {
+        let controls = b"[0-1]
+type=dialog
+slot=right
+when=shop
+opens=2
+hides=2
+[0-2]
+type=dialog
+[0-3]
+type=dialog
+slot=right
+";
+        let mut gui = Gui::new(b"", b"", controls);
+        gui.open(3);
+        gui.update_shown(&Shop(1.0));
+        assert_eq!(opened(&gui), [2]);
+        gui.update_shown(&Shop(0.0));
         assert!(opened(&gui).is_empty());
     }
 

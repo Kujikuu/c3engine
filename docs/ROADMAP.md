@@ -779,8 +779,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] dialogs own a part of the screen (`slot=left|middle|right`, from CDlgMain::CloseCurDlg) and clear others as they open (`clears=`); the overlap rule is gone, so HUD strips and child dialogs no longer close each other
     - [x] Esc closes the right part and the bag (`esc=1`) as CMyShellDlg::CloseCurDlg does, after a question, the menu and an NPC talk
     - [x] the generator (scripts/conquer_controls.py) writes the same slots into drafts
-    - [ ] openers gated as the client gates them: status only over friends/enemy/mentor/business, shops/depot/compose not while trading, item lock only over its list
-    - [ ] opening a shop, depot, oven, enchant or compose also shows the bag, and closing them hides it
+    - [x] openers gated as the client gates them: status only over friends/enemy/mentor/business, item lock only over the status, friends, guild and statue (`over=`); shops, depot and workbenches not while trading (`blocked=137`, `!hero.trading`)
+    - [x] opening a shop, depot, oven, enchant or compose also shows the bag, and closing them hides it (`opens=` / `hides=`; a dialog its `when` shows takes its part and brings its company)
     - [ ] Esc with nothing left to close asks to leave (EXIT_CONFIRM); Esc while trading refused (StrRes 10026)
   - [ ] UI engine: a yes/no prompt (CDlgConfirm 158)
     - [x] one question at a time (`prompt.*` bindings, `prompt_yes`/`prompt_no`, `ask:<kind>:<actions>` for the player's own actions); trade and team asks lapse after 10 s; a second trade ask is turned away (StrRes 10433)
@@ -1257,7 +1257,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] opened by the main bar's view button (130-1016, `pick:view_equip`) and a player clicked; Dialog42 on the right; the nine worn items in their places with their tips; Image160 at +90,+302; name, spouse; its rank image (nob_*64); its battle power (`GameView::viewed_power`); the one looked at told (`Input::Observe`; the front's MsgAction 117 / 310)
     - [x] the player as a figure, feet at +120,+295 (`viewed.model`: the session's figure of whom the UI shows, drawn by the client like the statue's)
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
-    - [ ] the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; closed when other right-side dialogs open; the spouse over the network (players' texts aren't sent)
+    - [x] closed when other right-side dialogs open (`slot=right`)
+    - [ ] the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; the spouse over the network (players' texts aren't sent)
     - [x] help (CDlgHelp 215)
   - [ ] UI 241 CDlgEffigy (statue placement): 8 of 9 audit mismatches fixed
     - [x] opened when the game asks for a statue (`gameplay.statues.kind`; Conquer 9, the front's EVENT_LAYNPC); Dialog38 on the left with the hero's figure drawn into it (`effigy.rs`, the session's LookPreview, the client's own target; GUI `type=model` `effigy.model`); the eight poses (230 / 210 / 170 / 150 / 160 / 1 / 190 / 200), play / pause (Button381 / Button380), turning (382 / 383), help 33, Button5 and Button333 close
