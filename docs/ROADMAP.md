@@ -850,7 +850,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] inline #NN emoticons in the line (MyCombo.cpp 98)
     - [x] Clear 1092 clears every message area (system, GM) and resets banner 295 (`pigeon.banner`)
     - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
-    - [ ] clicking the bar focuses the line; 1094 as one image changed by the channel
+    - [x] clicking the bar focuses the line; 1094 as one image changed by the channel (images, no button frames)
     - [x] the log as g_objGameMsg draws it: said lines `[Talk]Ann speaks to All: hi[h:m]` in yellow, 6 up from 130 above the bottom, shadowed; system notes ([System]) at the top left, 3, gone after 15 s (`GameModule::chat_look`, StrRes prefixes)
     - [ ] the GM area (2011) mid-left; Alt for clickable names
     - [x] the log's line count dragged (the line slider, 5326)
