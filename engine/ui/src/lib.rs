@@ -2061,11 +2061,17 @@ impl GameUi {
             if let Some(line) = ask_line(kind, &name) {
                 self.system(line, style::GOLD);
             }
-        } else if kind.starts_with("team_") {
-            // No refuses (CDlgConfirm::OnConfirmBtnCancel5065, modes 1 and 2).
-            if let Some(p) = &mut self.gui_state.prompt {
-                p.no = Some(Input::Team(T::Refuse(from)));
-            }
+        } else if let Some(p) = &mut self.gui_state.prompt {
+            // No tells the asker (CDlgConfirm::OnConfirmBtnCancel5065's team modes 1 / 2 and
+            // business reject; CDlgMentorConfirm5065::OnReject).
+            p.no = match kind {
+                "team_invite" | "team_apply" => Some(Input::Team(T::Refuse(from))),
+                "partner" => Some(Input::Partner(c3_game::PartnerAction::Refuse(from))),
+                "mentor_offer" | "mentor_ask" => {
+                    Some(Input::Mentor(c3_game::MentorAction::Refuse(from)))
+                }
+                _ => None,
+            };
         }
     }
 

@@ -1311,7 +1311,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] Trade partners (social spec §3): asked and asked back, 20 at most, on trial for `partner_probation_secs` (Conquer's 3 days), ended by either side (an offline one told by leave words), leave words to partners; the Conquer front lists them with their trial minutes and online state (MsgBusiness 2046) and takes asks, refusals and ends
     - [x] engine, UI and front
     - [ ] what a formal partnership grants: trading no-trade items, a spouse's NPC storage (needs item monopoly flags and NPC-owned storages)
-    - [ ] refusing an ask tells the asker from the game UI (the prompt's No sends nothing yet)
+    - [x] refusing an ask tells the asker from the game UI (the prompt's No sends `PartnerAction::Refuse`; mentor asks `MentorAction::Refuse`)
   - [ ] UI 326 CDlgBusiness (trade partners): 6 of 7 audit mismatches fixed
     - [x] GeneralBG and its title, the partners in yellow (online first), assessment icons by hours of trial left, a row opening 327 and double-click whisper / leave words, Add under 20 (StrRes 11145), friend / enemy / mentor pages
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
