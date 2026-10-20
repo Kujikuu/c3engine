@@ -1193,16 +1193,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] The guild member list (MsgName 11: pages of 10, name, level and online, by rank and level; levels kept on the world state) and applying to a guild's leader or deputy (MsgSyndicate 1, `GuildAction::Apply`; deputies of rank 90 invite; TQ's 100,000 fund and 800 members)
   - [ ] Each of the above checked with the real Conquer.exe
 
-## M13: Any game of the kind (Eudemons-like or the user's own)
-- [ ] Social and companion systems as engine modules a game switches on and shapes with data:
-      teams, trade, guilds, friends, mail, pets and companions (summon, fight, level, evolve,
-      equip), mounts, crafting, events and schedules
-- [ ] Prove it: a second, small sample game made only in the Studio from its own art (no TQ
-      files), with pets
-- [ ] Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), the sample
-      game, a getting-started guide in the Studio, tooltips, errors that say how to fix them
-
-## M14: Ship
+## M13: Ship
 - [ ] Build from the Studio: package a playable client and server from a project (assets
       packed, settings applied), with per-platform build settings
 - [ ] Platforms: Windows, macOS and Linux desktop clients; Android and iOS clients (wgpu on
@@ -1217,3 +1208,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
 - [ ] Launcher and patcher
 - [ ] glTF export (Blender pipeline); exporters back to the classic client where useful (today
       only DMap is exported: no C3, ANI, PUL-from-scene, DDS or WDF repack from engine content)
+
+## M14: Any game of the kind (Eudemons-like or the user's own)
+- [ ] Social and companion systems as engine modules a game switches on and shapes with data:
+      teams, trade, guilds, friends, mail, pets and companions (summon, fight, level, evolve,
+      equip), mounts, crafting, events and schedules
+- [ ] Prove it: a second, small sample game made only in the Studio from its own art (no TQ
+      files), with pets
+- [ ] Easy for indies: New Project templates (Conquer-like, Eudemons-like, empty), the sample
+      game, a getting-started guide in the Studio, tooltips, errors that say how to fix them
