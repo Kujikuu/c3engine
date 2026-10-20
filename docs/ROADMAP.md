@@ -844,7 +844,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Log 1095 toggles 139; Action 1096 toggles 274 and closes 191 (`close:N`)
     - [ ] broadcast (ad_channel) mode: tip 11034, placeholder 11023, level 50 / 5 CPs / 80 bytes, prompt 296; and 174's [174-1549]
     - [x] friend channel (2009): friends and enemies in the game (`FriendAction`, `WorldChange::Friendship`/`Enemy`, a killer kept as the victim's enemy)
-    - [ ] service channel (2014, 20 s cooldown StrRes 10444)
+    - [x] service channel (2014, 20 s cooldown StrRes 10444): `ChatChannel::Service` to the game masters online on any map, [Service] (100157) in the log; the front's 2014 both ways
     - [x] taking a listed name off asks first (CDlgConfirm 158: `ask:unlist:chat_list`)
     - [ ] 148: kept between sessions, hidden when the mouse leaves, its arrows [148-1]/[148-2]
     - [ ] inline #NN emoticons in the line (MyCombo.cpp 98)

@@ -26,8 +26,9 @@ pub struct ChatLook {
     pub team: String,
     pub guild: String,
     pub friend: String,
-    /// Before words a friend left (TQ's [Message]).
+    /// Before words a friend left (TQ's [Message]), and a line to the game masters.
     pub leave_word: String,
+    pub service: String,
     pub system: String,
     /// Between the speaker and the hearer; after the hearer; the hearer of a line to all.
     pub to: String,
@@ -95,7 +96,7 @@ pub struct ChatFilter {
 }
 
 /// The key a chat channel's options go by: `talk`, `whisper`, `team`, `guild`, `friend`,
-/// `leave_word`, `board`, `broadcast`.
+/// `leave_word`, `board`, `broadcast`, `service`.
 pub fn channel_key(channel: c3_game::ChatChannel) -> &'static str {
     use c3_game::ChatChannel as C;
     match channel {
@@ -107,6 +108,7 @@ pub fn channel_key(channel: c3_game::ChatChannel) -> &'static str {
         C::LeaveWord => "leave_word",
         C::Board(_) => "board",
         C::Broadcast => "broadcast",
+        C::Service => "service",
     }
 }
 
@@ -255,6 +257,7 @@ impl Chat {
                     C::Guild => (&look.guild, &look.everyone),
                     C::Friend => (&look.friend, &look.everyone),
                     C::LeaveWord => (&look.leave_word, hearer),
+                    C::Service => (&look.service, &look.everyone),
                     // Board posts are read on their board, broadcasts on the game's banner.
                     C::Board(_) | C::Broadcast => return,
                 };
@@ -293,6 +296,7 @@ impl Chat {
                     c3_game::ChatChannel::LeaveWord => "[Message] ",
                     c3_game::ChatChannel::Board(_) => "[Board] ",
                     c3_game::ChatChannel::Broadcast => "[Broadcast] ",
+                    c3_game::ChatChannel::Service => "[Service] ",
                 };
                 let line = format!("{tag}{name}: {text}");
                 self.said.push((channel_key(*channel), line.clone()));

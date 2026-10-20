@@ -27,6 +27,8 @@ pub enum ChatChannel {
     Board(u8),
     /// A paid line told to every player (the settings' `broadcast`).
     Broadcast,
+    /// The game masters online, on any map (TQ's service channel).
+    Service,
 }
 
 /// How long a player waits between leaving words (TQ's 60 s, social spec §5).
@@ -116,6 +118,16 @@ impl Sim {
                 friends
             }
             ChatChannel::LeaveWord | ChatChannel::Board(_) | ChatChannel::Broadcast => return,
+            ChatChannel::Service => {
+                let here = self.players.values().map(|p| p.name.clone());
+                let online: Vec<String> = (self.world.online.keys().cloned())
+                    .chain(here)
+                    .filter(|n| *n != name && self.settings.is_gm(n))
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect();
+                online
+            }
             ChatChannel::Guild => {
                 let Some((guild, _)) = self.world.guild_of(&name) else {
                     self.message(id, "You are in no guild.");

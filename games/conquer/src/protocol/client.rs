@@ -1802,6 +1802,7 @@ impl ConquerClient {
                     c3_game::ChatChannel::Team => (channel::TEAM, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Guild => (channel::GUILD, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Friend => (channel::FRIEND, "ALLUSERS".to_owned()),
+                    c3_game::ChatChannel::Service => (channel::SERVICE, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::LeaveWord => (
                         channel::LEAVE_WORD,
                         self.me.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
@@ -2675,6 +2676,7 @@ impl ConquerClient {
                     channel::TEAM => Some(C::Team),
                     channel::GUILD => Some(C::Guild),
                     channel::FRIEND => Some(C::Friend),
+                    channel::SERVICE => Some(C::Service),
                     channel::LEAVE_WORD => Some(C::LeaveWord),
                     channel::BROADCAST => Some(C::Broadcast),
                     // A post on a message board (2201 trade .. 2205 other).

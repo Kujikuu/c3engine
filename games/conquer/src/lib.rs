@@ -459,6 +459,7 @@ impl Content {
             guild: s("100010"),
             friend: s("100014"),
             leave_word: s("100119"),
+            service: s("100157"),
             system: s("100006"),
             to: s("100017"),
             says: s("100018"),

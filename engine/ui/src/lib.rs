@@ -970,6 +970,20 @@ impl GameUi {
                     "team" => C::Team,
                     "guild" => C::Guild,
                     "friend" => C::Friend,
+                    // The game masters, a line each 20 s.
+                    "service" => {
+                        if self
+                            .gui_state
+                            .chat_bar
+                            .served_too_soon(std::time::Instant::now())
+                        {
+                            let text = "The message has been sent! You can`t send another \
+                                message on the GM channel for 2 minutes!";
+                            self.system(text, style::GOLD);
+                            return;
+                        }
+                        C::Service
+                    }
                     // A broadcast: checked for the hero's level, then asked (CDlgPigeonPrompt).
                     "broadcast" => {
                         self.gui_state.broadcast = Some(text);

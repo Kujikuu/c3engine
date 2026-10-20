@@ -16,6 +16,9 @@ const RECENT: usize = 5;
 /// The least time between two lines.
 const GAP: Duration = Duration::from_millis(500);
 
+/// How long a line to the game masters waits for the next (TQ's 20 s).
+const SERVICE_GAP: Duration = Duration::from_millis(20_000);
+
 #[derive(Debug, Default)]
 pub(crate) struct ChatBar {
     /// Lines said, the latest first.
@@ -28,9 +31,24 @@ pub(crate) struct ChatBar {
     recent: VecDeque<(String, String)>,
     recent_at: usize,
     last: Option<Instant>,
+    /// When a line last went to the game masters.
+    served: Option<Instant>,
 }
 
 impl ChatBar {
+    /// Whether a line to the game masters now comes within 20 s of the last; else it
+    /// counts as sent now (CDlgTalk's W_CLICK).
+    pub fn served_too_soon(&mut self, now: Instant) -> bool {
+        if self
+            .served
+            .is_some_and(|t| now.duration_since(t) <= SERVICE_GAP)
+        {
+            return true;
+        }
+        self.served = Some(now);
+        false
+    }
+
     /// Whether a line now comes too soon after the last; else it counts as said now.
     pub fn too_soon(&mut self, now: Instant) -> bool {
         if self.last.is_some_and(|t| now.duration_since(t) <= GAP) {

@@ -470,6 +470,8 @@ pub mod channel {
     pub const TEAM: u16 = 2003;
     pub const GUILD: u16 = 2004;
     pub const FRIEND: u16 = 2009;
+    /// The game masters (_TXTATR_SERVE).
+    pub const SERVICE: u16 = 2014;
     /// A guild's announcement, set by its leader and told to its members (_TXTATR_SYNANNOUNCEG).
     pub const GUILD_NOTICE: u16 = 2111;
     /// Words left for an offline friend (_TXTATR_LEAVEWORD; social spec §5).

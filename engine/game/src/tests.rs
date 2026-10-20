@@ -1046,7 +1046,10 @@ fn a_pk_victim_loses_exp_and_mana_and_its_killer_gains_some() {
     let victim = sim.player(b).unwrap();
     assert_eq!(victim.exp, 4900, "2% lost");
     let killer = sim.player(a).unwrap();
-    assert!(killer.level > 1 || killer.exp > 0, "the killer's share of it");
+    assert!(
+        killer.level > 1 || killer.exp > 0,
+        "the killer's share of it"
+    );
 }
 
 #[test]
@@ -2288,6 +2291,34 @@ fn players_apply_to_a_guild_s_officer_and_are_taken_in() {
     sim.input(deputy, Input::Guild(GuildAction::Invite(comer)));
     assert_eq!(sim.world_state().guild_of("Comer").map(|g| g.0), Some(7));
     let _ = lead;
+}
+
+#[test]
+fn the_service_channel_reaches_the_game_masters() {
+    use crate::{ChatChannel, Input};
+    let mut sim = Sim::new(Grid::new(40, 40), vec![], vec![], rules(), 7);
+    let mut settings = sim.settings().clone();
+    settings.gm_accounts = vec!["Gm".into()];
+    settings.gm_everyone = false;
+    sim.set_settings(settings);
+    let ann = sim.add_saved_player(&crate::PlayerSave::new("Ann", (5, 5)));
+    let bob = sim.add_saved_player(&crate::PlayerSave::new("Bob", (6, 5)));
+    let gm = sim.add_saved_player(&crate::PlayerSave::new("Gm", (30, 30)));
+    sim.take_events();
+    let chat = Input::Chat {
+        channel: ChatChannel::Service,
+        to: String::new(),
+        text: "help".into(),
+    };
+    sim.input(ann, chat);
+    let to: Vec<Option<EntityId>> = (sim.take_events().into_iter())
+        .filter_map(|e| match e {
+            Event::Chat { to, .. } => Some(to),
+            _ => None,
+        })
+        .collect();
+    assert!(to.contains(&Some(gm)) && to.contains(&Some(ann)), "{to:?}");
+    assert!(!to.contains(&Some(bob)), "not another player");
 }
 
 #[test]
