@@ -216,6 +216,19 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    action(
+        "team.teleport",
+        "Team follows to",
+        "Team",
+        &[
+            ("map", Map),
+            ("x", Number),
+            ("y", Number),
+            ("range", Number),
+        ],
+        &[],
+        "teleport_team({map}, {x}, {y}, {range});",
+    ),
     pure(
         "player.where",
         "Where a player is",

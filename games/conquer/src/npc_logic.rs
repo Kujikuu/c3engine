@@ -1306,7 +1306,15 @@ impl<'a> Builder<'a> {
                 g.data(home, go, "map");
                 g.data(x, go, "x");
                 g.data(y, go, "y");
-                self.guarded(g, &[there], None, &[go], column)
+                if a.kind == 1035 {
+                    return self.guarded(g, &[there], None, &[go], column);
+                }
+                // The team the player leads follows from within 5 cells.
+                let team = g.node("team.teleport", &[("range", num(5))], column);
+                g.data(home, team, "map");
+                g.data(x, team, "x");
+                g.data(y, team, "y");
+                self.guarded(g, &[there], None, &[team, go], column)
             }
             // A map's attributes (306 `field op n [map]`) on a map made while playing (a home):
             // its level (`res_lev`), portal and map doc; a map doc compared (the player's map).

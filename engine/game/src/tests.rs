@@ -1974,3 +1974,31 @@ fn the_world_knows_who_is_online_where() {
     sim.remove_player(hero);
     assert!(sim.world_state().online.is_empty(), "gone at logout");
 }
+
+#[test]
+fn a_team_leader_s_near_teammates_follow_it() {
+    let dir = std::env::temp_dir().join(format!("c3-game-follow-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("events.rhai"),
+        "fn go_home() { teleport_team(0, 20, 20, 5); teleport(0, 20, 21); }
+",
+    )
+    .unwrap();
+    let mut sim = Sim::new(Grid::new(40, 40), vec![], vec![], rules(), 3);
+    sim.set_scripts(c3_script::ScriptHost::new(&dir, None), vec![]);
+    let ann = sim.add_saved_player(&crate::PlayerSave::new("Ann", (5, 5)));
+    let bob = sim.add_saved_player(&crate::PlayerSave::new("Bob", (6, 6)));
+    let cid = sim.add_saved_player(&crate::PlayerSave::new("Cid", (30, 30)));
+    sim.input(ann, Input::Say("/team create".into()));
+    for who in [(bob, "Bob"), (cid, "Cid")] {
+        sim.input(ann, Input::Say(format!("/team invite {}", who.1)));
+        sim.input(who.0, Input::Say("/team join Ann".into()));
+    }
+    assert_eq!(sim.team_members(ann).len(), 3);
+    sim.script_event(ann, "go_home", Vec::new());
+    let at = |sim: &Sim, id| sim.player(id).unwrap().cell;
+    assert_eq!((at(&sim, ann), at(&sim, bob)), ((20, 21), (20, 20)));
+    assert_eq!(at(&sim, cid), (30, 30), "too far to follow");
+    let _ = std::fs::remove_dir_all(dir);
+}

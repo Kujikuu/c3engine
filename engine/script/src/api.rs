@@ -594,6 +594,19 @@ fn more(engine: &mut Engine, shared: &Shared) {
         with(&s, |c| c.effects.push(Effect::Loot { item: 0, money }))
     });
     let s = shared.clone();
+    engine.register_fn(
+        "teleport_team",
+        move |map: i64, x: i64, y: i64, range: i64| {
+            with(&s, |c| {
+                c.effects.push(Effect::TeleportTeam {
+                    map,
+                    cell: (x, y),
+                    range,
+                })
+            })
+        },
+    );
+    let s = shared.clone();
     engine.register_fn("player_where", move |name: &str| {
         with(&s, |c| {
             c.player.online.get(name).cloned().unwrap_or_default()

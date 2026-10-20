@@ -525,6 +525,13 @@ pub enum Effect {
     Announce(String),
     /// Open the game UI's dialog `id` for the player.
     OpenWindow(i64),
+    /// The team the player leads following it to `map` at `cell`: its living members within
+    /// `range` cells of the player.
+    TeleportTeam {
+        map: i64,
+        cell: (i64, i64),
+        range: i64,
+    },
     /// A client cue `name` with a number and a text, for the player's client alone.
     ClientCueText {
         name: String,

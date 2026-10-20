@@ -183,6 +183,28 @@ impl Sim {
                     self.travel(id, to);
                 }
             }
+            Effect::TeleportTeam { map, cell, range } => {
+                let to = c3_scene::PortalTarget {
+                    map: u32::try_from(map).unwrap_or(0),
+                    cell: (cell.0 as i32, cell.1 as i32),
+                };
+                let Some(lead) = self.players.get(&id).filter(|p| p.team == Some(id)) else {
+                    return;
+                };
+                let at = lead.cell;
+                let near: Vec<EntityId> = (self.team_members(id).into_iter())
+                    .filter(|&m| m != id)
+                    .filter(|m| {
+                        (self.players.get(m)).is_some_and(|p| {
+                            p.is_alive() && i64::from(distance(p.cell, at)) <= range
+                        })
+                    })
+                    .collect();
+                for m in near {
+                    self.close_dialogue(m);
+                    self.travel(m, to);
+                }
+            }
             Effect::OpenShop => {
                 if self.rules.shop(npc).is_empty() {
                     self.message(id, "This NPC has nothing to sell.");

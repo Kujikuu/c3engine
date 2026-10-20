@@ -647,7 +647,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
         1033 makes the home (`home_id`), 1034/1035 enter it or the spouse's, 306 reads and
         sets its level, portal and map doc, 2007 puts its item box in (play-tested: the
         House Admin sells a house to a married player; the server serves a copy in a test)
-  - [ ] Homes: teammates following into a home (1034), the team's visits
+  - [x] Homes: the team its leader takes home follows from within 5 cells (1034, `teleport_team`; the team visits the home with it)
   - [x] Married (1025), divorce (1024) and the couple's team (1102 `mate`) on the spouse's
         name kept with the player (`mate`; teammates' names in scripts)
   - [ ] Marrying (the client's proposal), the spouse told of a divorce
