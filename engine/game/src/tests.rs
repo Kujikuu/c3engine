@@ -2052,3 +2052,56 @@ fn proposals_marry_and_a_divorce_reaches_the_ex_spouse() {
     assert!(sim.world_state().deliveries.is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn a_killer_s_loot_is_its_own_and_its_team_s_as_the_team_shares() {
+    let mut sim = Sim::new(
+        Grid::new(60, 60),
+        vec![],
+        vec![spawn(1, SLIME, (20, 20), (20, 20), 1)],
+        rules(),
+        2,
+    );
+    let mut settings = sim.settings().clone();
+    settings.loot_protection_seconds = 30.0;
+    sim.set_settings(settings);
+    let ann = sim.add_player("Ann", (19, 19), 1);
+    let bob = sim.add_player("Bob", (21, 21), 1);
+    let slime = sim.monsters().next().unwrap().id;
+    sim.attack(ann, slime);
+    assert!(run_until(&mut sim, 30_000, |s| !s
+        .monster(slime)
+        .unwrap()
+        .is_alive()));
+    let loot: Vec<(EntityId, bool)> = sim
+        .ground_items()
+        .map(|i| (i.id, i.kind.is_none()))
+        .collect();
+    assert_eq!(loot.len(), 2, "money and a potion");
+    let (money, potion) = (
+        loot.iter().find(|l| l.1).unwrap().0,
+        loot.iter().find(|l| !l.1).unwrap().0,
+    );
+    // A stranger can't; a teammate takes the money but not the potion (items aren't shared).
+    sim.pick_up(bob, money);
+    sim.advance(3_000);
+    assert!(sim.ground_item(money).is_some());
+    sim.input(ann, Input::Say("/team create".into()));
+    sim.input(ann, Input::Say("/team invite Bob".into()));
+    sim.input(bob, Input::Say("/team join Ann".into()));
+    sim.pick_up(bob, money);
+    assert!(run_until(&mut sim, 5_000, |s| s
+        .ground_item(money)
+        .is_none()));
+    sim.pick_up(bob, potion);
+    sim.advance(3_000);
+    assert!(
+        sim.ground_item(potion).is_some(),
+        "the team keeps its items"
+    );
+    sim.input(bob, Input::Team(TeamAction::ShareItems));
+    sim.pick_up(bob, potion);
+    assert!(run_until(&mut sim, 5_000, |s| s
+        .ground_item(potion)
+        .is_none()));
+}

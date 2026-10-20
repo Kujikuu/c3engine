@@ -315,7 +315,7 @@ impl Sim {
         }
         let drops = self.rules.drops(kind, &mut self.rng);
         for drop in drops {
-            self.drop_at(cell, drop);
+            self.drop_owned(cell, drop, killer);
         }
     }
 
@@ -368,11 +368,16 @@ impl Sim {
             return;
         };
         let item = self.players.get_mut(&id).expect("found").bag.remove(at);
-        self.lay(spot, 0, Some(item.kind), Some(item));
+        let _ = self.lay(spot, 0, Some(item.kind), Some(item));
     }
 
     /// Lays `drop` on the free cell nearest `cell`.
     pub(crate) fn drop_at(&mut self, cell: CellPos, drop: Drop) {
+        self.drop_owned(cell, drop, None);
+    }
+
+    /// `drop` near `cell`, `owner`'s loot for a while.
+    fn drop_owned(&mut self, cell: CellPos, drop: Drop, owner: Option<EntityId>) {
         let Some(spot) = self.free_spot_near(cell) else {
             return;
         };
@@ -380,7 +385,14 @@ impl Sim {
             Drop::Money(m) => (m, None),
             Drop::Item(k) => (0, Some(k)),
         };
-        self.lay(spot, money, kind, None);
+        let id = self.lay(spot, money, kind, None);
+        let protection = ms(self.settings.loot_protection_seconds);
+        if let (Some(owner), true) = (owner, protection > 0)
+            && let Some(item) = self.items.get_mut(&id)
+        {
+            item.owner = Some(owner);
+            item.protected_until_ms = self.now_ms + protection;
+        }
     }
 
     /// The walkable cell nearest `cell` (within 2) with nothing lying on it.
@@ -399,8 +411,14 @@ impl Sim {
         })
     }
 
-    /// A ground item at `spot`.
-    fn lay(&mut self, spot: CellPos, money: u64, kind: Option<u32>, item: Option<crate::Item>) {
+    /// A ground item at `spot`; its id.
+    fn lay(
+        &mut self,
+        spot: CellPos,
+        money: u64,
+        kind: Option<u32>,
+        item: Option<crate::Item>,
+    ) -> EntityId {
         let id = self.new_entity();
         self.items.insert(
             id,
@@ -411,10 +429,13 @@ impl Sim {
                 kind,
                 item,
                 expires_ms: self.now_ms + ms(self.settings.item_life_seconds),
+                owner: None,
+                protected_until_ms: 0,
             },
         );
         self.index.insert(id, spot);
         self.events.push(Event::Appeared(id));
+        id
     }
 
     pub(crate) fn expire_items(&mut self) {

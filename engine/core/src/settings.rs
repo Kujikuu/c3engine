@@ -316,6 +316,18 @@ impl Default for NewCharacter {
     }
 }
 
+/// The money cut: a teammate below level `picker_below` picking up the money of a teammate of
+/// level `owner_from` or more, at least `gap` levels above it, gives the owner `percent` of it
+/// (0: none).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TeamMoneyCut {
+    pub percent: u32,
+    pub picker_below: u32,
+    pub owner_from: u32,
+    pub gap: u32,
+}
+
 /// The names of the NPC extra values that make an NPC one to hit: an NPC with a `max_life`
 /// value above 0 can be hit; empty names: no NPC can.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -370,6 +382,16 @@ pub struct GameplaySettings {
     pub ghosts_walk: bool,
     /// How long a drop stays on the ground.
     pub item_life_seconds: f64,
+    /// How long a killer's loot is its own (and its spouse's and team's, as the team shares);
+    /// 0: anyone's at once.
+    #[serde(default)]
+    pub loot_protection_seconds: f64,
+    /// Item types a team never shares while protected (Conquer: DragonBalls and Meteors).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub team_never_shared: Vec<u32>,
+    /// A share of the money a low-level teammate picks up from a high-level one's loot.
+    #[serde(default)]
+    pub team_money_cut: TeamMoneyCut,
     /// Items a bag holds.
     pub bag_size: u32,
     /// The money's name, as players see it.
@@ -470,6 +492,9 @@ impl Default for GameplaySettings {
             storage_size: storage_size(),
             guild_member_rank: guild_member_rank(),
             team_exp_range: 0,
+            loot_protection_seconds: 0.0,
+            team_never_shared: Vec::new(),
+            team_money_cut: TeamMoneyCut::default(),
             npc_combat: NpcCombatSettings::default(),
             spouse_text: String::new(),
             socket_item_base: 0,

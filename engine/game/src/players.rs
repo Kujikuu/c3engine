@@ -867,6 +867,70 @@ impl Sim {
         (1, center)
     }
 
+    /// Whether player `id` may pick up `ground`: anyone's once unprotected; while protected,
+    /// its owner's, the owner's spouse's, and its team's as the team shares (money unless the
+    /// team keeps it, items when the team shares them, never the types no team shares).
+    fn may_pick_up(&self, id: EntityId, ground: &crate::GroundItem) -> bool {
+        let Some(owner) = ground
+            .owner
+            .filter(|_| self.now_ms < ground.protected_until_ms)
+        else {
+            return true;
+        };
+        if owner == id {
+            return true;
+        }
+        let owner_name = self.players.get(&owner).map(|p| p.name.clone());
+        let spouse = (self.players.get(&id))
+            .and_then(|p| p.texts.get(&self.settings.spouse_text))
+            .is_some_and(|s| !s.is_empty() && Some(s) == owner_name.as_ref());
+        if spouse {
+            return true;
+        }
+        let Some(leader) = self.players.get(&id).and_then(|p| p.team) else {
+            return false;
+        };
+        if !self.team_members(id).contains(&owner) {
+            return false;
+        }
+        match ground.kind {
+            None => !self.teams_keeping_money.contains(&leader),
+            Some(kind) => {
+                self.teams_sharing_items.contains(&leader)
+                    && !self.settings.team_never_shared.contains(&kind)
+            }
+        }
+    }
+
+    /// What of `money` player `id` picks up from teammate `owner`'s loot goes to the owner
+    /// (the settings' team money cut); given to it.
+    fn team_money_cut(&mut self, id: EntityId, owner: Option<EntityId>, money: u64) -> u64 {
+        let cut = self.settings.team_money_cut;
+        let Some(owner) = owner.filter(|&o| o != id && cut.percent > 0 && money > 0) else {
+            return 0;
+        };
+        let (Some(picker), Some(lead)) = (self.players.get(&id), self.players.get(&owner)) else {
+            return 0;
+        };
+        let applies = picker.level < cut.picker_below
+            && lead.level >= cut.owner_from
+            && picker.level + cut.gap <= lead.level
+            && self.team_members(id).contains(&owner);
+        let share = money * u64::from(cut.percent) / 100;
+        if !applies || share == 0 {
+            return 0;
+        }
+        let name = picker.name.clone();
+        if let Some(lead) = self.players.get_mut(&owner) {
+            lead.money += share;
+        }
+        self.message(
+            owner,
+            format!("{name} picked up your loot: {share} silver is yours."),
+        );
+        share
+    }
+
     fn walk_to_item(&mut self, id: EntityId, item: EntityId) {
         let Some(cell) = self.items.get(&item).map(|i| i.cell) else {
             self.players.get_mut(&id).expect("ticking").task = Task::Idle;
@@ -886,6 +950,11 @@ impl Sim {
         let Some(ground) = self.items.get(&item) else {
             return;
         };
+        if !self.may_pick_up(id, ground) {
+            self.message(id, "Someone else's loot can't be picked up yet.");
+            return;
+        }
+        let owner = ground.owner;
         let (money, kind, dropped) = (ground.money, ground.kind, ground.item);
         let bag_size = self.bag_size();
         let taken = match (dropped, kind) {
@@ -906,6 +975,7 @@ impl Sim {
         }
         let ground = self.items.remove(&item).expect("checked above");
         self.index.remove(item, ground.cell);
+        let money = money - self.team_money_cut(id, owner, money);
         let p = self.players.get_mut(&id).expect("picking up");
         p.money += money;
         self.events.push(Event::PickedUp {

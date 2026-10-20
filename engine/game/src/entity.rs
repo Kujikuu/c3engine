@@ -293,4 +293,9 @@ pub struct GroundItem {
     #[serde(default)]
     pub(crate) item: Option<Item>,
     pub(crate) expires_ms: u64,
+    /// Whose loot it is, and until when only it (its spouse, its team) may pick it up.
+    #[serde(default)]
+    pub(crate) owner: Option<EntityId>,
+    #[serde(default)]
+    pub(crate) protected_until_ms: u64,
 }

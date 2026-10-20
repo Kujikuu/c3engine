@@ -172,6 +172,17 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.guild_member_rank = 50;
     // Teammates within 32 cells of a kill share it (battle §4); a spouse is `mate`.
     s.gameplay.team_exp_range = 32;
+    // A killer's loot is its own for 30 s (monsters §6.9); teams never share DragonBalls or
+    // Meteors; a teammate under 70 picking up the money of one of 70 or more, 20 levels above
+    // it, gives it a fifth (social §6.5).
+    s.gameplay.loot_protection_seconds = 30.0;
+    s.gameplay.team_never_shared = vec![1_088_000, 1_088_001];
+    s.gameplay.team_money_cut = c3_core::settings::TeamMoneyCut {
+        percent: 20,
+        picker_below: 70,
+        owner_from: 70,
+        gap: 20,
+    };
     // Dynamic NPCs with life (training goals, the guild-war pole and gates) can be hit; a
     // goal's level is its `data3`; at 0 life the `linkid` chain runs (sort bit 0x10).
     s.gameplay.npc_combat = c3_core::settings::NpcCombatSettings {

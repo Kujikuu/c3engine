@@ -45,6 +45,12 @@ pub enum TeamAction {
     /// A leader closes its team to newcomers, or opens it again.
     Close,
     Open,
+    /// A member keeps the team's money from each other or shares it; shares the team's items
+    /// or keeps them (TQ's 10 to 13; money is shared at first, items are not).
+    KeepMoney,
+    ShareMoney,
+    KeepItems,
+    ShareItems,
     Leave,
     Kick(EntityId),
 }
@@ -93,6 +99,19 @@ impl Sim {
 
     /// Player `id` acts on teams; told how it went.
     pub fn team(&mut self, id: EntityId, action: TeamAction) {
+        // What the team shares of loot: a word and on or off.
+        let sharing = match action {
+            TeamAction::KeepMoney => Some(["money", "off"]),
+            TeamAction::ShareMoney => Some(["money", "on"]),
+            TeamAction::KeepItems => Some(["items", "off"]),
+            TeamAction::ShareItems => Some(["items", "on"]),
+            _ => None,
+        };
+        if let Some(words) = sharing {
+            let text = self.team_command(id, &words).unwrap_or_else(|why| why);
+            self.events.push(Event::Notice { player: id, text });
+            return;
+        }
         let (word, other) = match action {
             TeamAction::Create => ("create", None),
             TeamAction::Invite(e) => ("invite", Some(e)),
@@ -103,6 +122,10 @@ impl Sim {
             TeamAction::Open => ("open", None),
             TeamAction::Leave => ("leave", None),
             TeamAction::Kick(e) => ("kick", Some(e)),
+            TeamAction::KeepMoney
+            | TeamAction::ShareMoney
+            | TeamAction::KeepItems
+            | TeamAction::ShareItems => return,
         };
         let name = other.map(|e| self.name_of(e));
         let words: Vec<&str> = std::iter::once(word).chain(name.as_deref()).collect();
@@ -306,6 +329,29 @@ impl Sim {
                 self.set_member_team(other, Some(id));
                 self.tell_team(id, &format!("{name} joined the team."));
                 Ok(format!("{name} joined the team."))
+            }
+            // Any member sets what its team shares of loot (TQ has no leader check).
+            "money" | "items" => {
+                let Some(leader) = my_team else {
+                    return Err("You aren't in a team.".into());
+                };
+                let on = words.get(1) == Some(&"on");
+                let (set, what) = match words[0] {
+                    "money" => (&mut self.teams_keeping_money, "money"),
+                    _ => (&mut self.teams_sharing_items, "items"),
+                };
+                let keeps = (words[0] == "money") != on;
+                if keeps {
+                    set.insert(leader);
+                } else {
+                    set.remove(&leader);
+                }
+                let line = match on {
+                    true => format!("The team shares its {what} now."),
+                    false => format!("The team keeps its {what} now."),
+                };
+                self.tell_team(leader, &line);
+                Ok(line)
             }
             "close" | "open" => {
                 if !lead {

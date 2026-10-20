@@ -571,7 +571,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     portal links into 130 maps' populations, merged with the project's own NPCs and scripts;
     the 8 data tables; `import_report.txt` says what was left out (8 maps the 5065 client has
     no file for; rows of player homes, maps made while playing)
-- [ ] NPC behaviour: TQ's NPC logic (`cq_action` / `cq_task` chains) converted into
+- [x] NPC behaviour: TQ's NPC logic (`cq_action` / `cq_task` chains) converted into
       blueprints (user choice, 2026-10-19: blueprints, not dialogue graphs), editable in the
       Blueprints panel; the converter reports what it can't convert
   - Done so far (2026-10-19): the import makes each NPC's tasks one blueprint (`tq/npc_<task>`):
@@ -786,7 +786,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Teams: MsgTeam 1023 (create, invite, accept, leave, dismiss, kick) and the member
         list MsgTeamMember 1026 with each member's life
   - [x] Teams: TQ's apply-to-join (1, 5) and closing a team to newcomers (8, 9)
-  - [ ] Teams: the money and item pick-up locks (10 to 13)
+  - [x] Teams: the money and item pick-up locks (10 to 13): a killer's loot is its own for 30 s, its spouse's and its team's as the team shares (money unless kept, items when shared, never DragonBalls or Meteors), TQ's 20% team money cut (`[gameplay]` loot settings)
   - [x] Guilds shown: each player's guild and rank in MsgPlayer, the hero's guild
         (MsgSyndicateAttributeInfo 1106), guild names (MsgName 3, asked by MsgSyndicate 6)
   - [x] Guild actions (engine `GuildAction`, MsgSyndicate 1, 2, 3, 4, 7 to 11): the

@@ -80,6 +80,10 @@ pub struct Sim {
     /// Who was invited into which guild.
     pub(crate) guild_invites: BTreeMap<EntityId, u32>,
     pub(crate) closed_teams: std::collections::BTreeSet<EntityId>,
+    /// Teams (by leader) whose members keep their money from each other, and those sharing
+    /// items.
+    pub(crate) teams_keeping_money: std::collections::BTreeSet<EntityId>,
+    pub(crate) teams_sharing_items: std::collections::BTreeSet<EntityId>,
     /// Players on the host's other maps, for teams across maps.
     pub(crate) elsewhere: BTreeMap<EntityId, crate::teams::Mate>,
     /// What teams asked of players on other maps, for the host to carry.
@@ -147,6 +151,8 @@ impl Sim {
             team_applies: BTreeMap::new(),
             guild_invites: BTreeMap::new(),
             closed_teams: std::collections::BTreeSet::new(),
+            teams_keeping_money: std::collections::BTreeSet::new(),
+            teams_sharing_items: std::collections::BTreeSet::new(),
             elsewhere: BTreeMap::new(),
             team_ops: Vec::new(),
             npc_moves: Vec::new(),

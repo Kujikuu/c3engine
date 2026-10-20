@@ -85,6 +85,11 @@ pub mod team {
     pub const KICK: u16 = 7;
     pub const CLOSE: u16 = 8;
     pub const OPEN: u16 = 9;
+    /// The team's money kept from each other or shared; its items kept or shared.
+    pub const KEEP_MONEY: u16 = 10;
+    pub const SHARE_MONEY: u16 = 11;
+    pub const KEEP_ITEMS: u16 = 12;
+    pub const SHARE_ITEMS: u16 = 13;
 }
 /// A team's members, the list replacing the client's (MsgTeamMember 1026).
 pub const TEAM_MEMBER: u16 = 1026;
