@@ -222,6 +222,12 @@ pub struct Control {
     /// Its own place wins over the layout's (the client's code moves it, as TQ's does for
     /// screens it lays out per resolution).
     pub fixed: bool,
+    /// A control stacked under the dialog's stacked control before it, as tall as what it
+    /// shows (`stack=1`; an NPC's words, then its answers).
+    pub stack: bool,
+    /// A dialog that fits its height to its stacked controls: its least height (`fit=104`),
+    /// its picture stretched to it.
+    pub fit: i32,
 }
 
 impl Control {
@@ -293,6 +299,8 @@ impl Control {
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
+            stack: section.int("stack").is_some_and(|s| s != 0),
+            fit: section.int("fit").unwrap_or(0).max(0),
             fixed: section.int("fixed").is_some_and(|f| f != 0),
         })
     }

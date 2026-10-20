@@ -22,6 +22,10 @@ pub trait Textures: Icons + GuiImages {}
 
 impl<T: Icons + GuiImages> Textures for T {}
 
+/// Space between stacked controls, and under the last in a fitted dialog.
+const STACK_GAP: i32 = 4;
+const FIT_PAD: i32 = 10;
+
 /// What bindings (`hero.life`) read.
 pub trait GuiData {
     fn number(&self, key: &str) -> Option<f64>;
@@ -87,7 +91,7 @@ impl Gui {
         let shown = |d: &Control| d.screen == self.screen && !d.when.is_empty() && set(d, data);
         for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
             let place = self.place(dialog, area);
-            let r = self.rect(dialog);
+            let r = self.fitted(ctx, dialog, data).0;
             let size = Vec2::new(r.w.max(0) as f32, r.h.max(0) as f32) * place.scale;
             egui::Area::new(egui::Id::unique(("gui dialog", dialog.id)))
                 .fixed_pos(place.origin)
@@ -131,13 +135,18 @@ impl Gui {
             place,
             live,
         };
-        painter.picture(dialog, &dialog.ani, Pos2::ZERO, None);
+        let (fitted, stacked) = self.fitted(painter.ui.ctx(), dialog, data);
+        let stretch = (dialog.fit > 0).then(|| Vec2::new(fitted.w as f32, fitted.h as f32));
+        painter.picture(dialog, &dialog.ani, Pos2::ZERO, stretch);
         for control in (self.controls.iter()).filter(|c| c.parent == dialog.id) {
             // A control with `when` shows only while one of its bindings is set.
             if control.kind != ControlKind::Dialog
                 && (control.when.is_empty() || set(control, data))
             {
-                painter.control(control, self.rect(control), data, &mut events);
+                let rect = (stacked.iter())
+                    .find(|(id, _)| *id == control.id)
+                    .map_or_else(|| self.rect(control), |(_, r)| *r);
+                painter.control(control, rect, data, &mut events);
             }
         }
         // The page that shows, drawn where the dialog places it.
@@ -150,6 +159,48 @@ impl Gui {
             events.extend(self.paint_dialog(painter.ui, page, inner, data, painter.textures, live));
         }
         events
+    }
+
+    /// `dialog`'s place and its stacked controls' (`stack=1`, each under the one before,
+    /// as tall as what it shows: wrapped text, list rows, an edit while shown); a `fit`
+    /// dialog's height follows them, 10 below the last, `fit` at least.
+    pub fn fitted(
+        &self,
+        ctx: &egui::Context,
+        dialog: &Control,
+        data: &dyn GuiData,
+    ) -> (GuiRect, Vec<(u32, GuiRect)>) {
+        let mut place = self.rect(dialog);
+        let mut stacked = Vec::new();
+        let mut next: Option<i32> = None;
+        for control in (self.controls.iter()).filter(|c| c.parent == dialog.id && c.stack) {
+            let shows = control.when.is_empty() || set(control, data);
+            let mut r = self.rect(control);
+            r.y = next.unwrap_or(r.y);
+            r.h = match (shows, control.kind) {
+                (false, _) => 0,
+                (true, ControlKind::Text) => {
+                    let text = expand(&control.text, data);
+                    let wrap = if r.w > 0 { r.w as f32 } else { f32::INFINITY };
+                    let font = crate::fonts::font(control.size);
+                    let galley = ctx.fonts_mut(|f| f.layout(text, font, Color32::WHITE, wrap));
+                    galley.size().y.ceil() as i32
+                }
+                (true, ControlKind::List) => {
+                    let rows = data.rows(&control.value).0.len();
+                    let cols = control.cols.max(1) as usize;
+                    (rows.div_ceil(cols) as f32 * (control.size + 6.0)).ceil() as i32
+                }
+                (true, _) => r.h,
+            };
+            next = Some(r.y + r.h + if r.h > 0 { STACK_GAP } else { 0 });
+            stacked.push((control.id, r));
+        }
+        if dialog.fit > 0 {
+            let bottom = stacked.iter().map(|(_, r)| r.y + r.h).max().unwrap_or(0);
+            place.h = (bottom + FIT_PAD).max(dialog.fit);
+        }
+        (place, stacked)
     }
 
     /// The screen rectangle `control` covers in a dialog placed at `place`: its layout size,
