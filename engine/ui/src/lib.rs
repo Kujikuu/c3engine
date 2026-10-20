@@ -157,6 +157,10 @@ pub struct ControlsView<'a> {
     pub prefs: c3_core::settings::PlayerPrefs,
 }
 
+/// The game UI's chat line and whisper name fields.
+const CHAT_TEXT: &str = "chat.text";
+const CHAT_NAME: &str = "chat.name";
+
 /// A line for the host's console (script output, data problems).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogLine {
@@ -438,6 +442,38 @@ impl GameUi {
                 actions.push(UiAction::Game(c3_game::Input::Team(action)));
             }
             "team_auto" => self.gui_state.auto_team ^= true,
+            // The chat bar: its line said on the picked channel (`view:chat:<channel>`;
+            // talk when none), a whisper to the name typed; the shown lines cleared.
+            "chat_send" => {
+                let text = self.gui_state.fields.remove(CHAT_TEXT).unwrap_or_default();
+                if text.trim().is_empty() {
+                    return;
+                }
+                let to = self
+                    .gui_state
+                    .fields
+                    .get(CHAT_NAME)
+                    .cloned()
+                    .unwrap_or_default();
+                use c3_game::ChatChannel as C;
+                let channel = match self.gui_state.views.get("chat").map(String::as_str) {
+                    None | Some("talk") => Some(C::Local),
+                    Some("whisper") => Some(C::Whisper),
+                    Some("team") => Some(C::Team),
+                    Some("guild") => Some(C::Guild),
+                    Some(_) => None,
+                };
+                match channel {
+                    _ if text.starts_with('/') => {
+                        actions.push(UiAction::Game(c3_game::Input::Say(text)));
+                    }
+                    Some(channel) => {
+                        actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }))
+                    }
+                    None => self.system("That channel isn't open yet.", style::BAD),
+                }
+            }
+            "chat_clear" => self.chat.clear(),
             "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
@@ -481,9 +517,12 @@ impl GameUi {
         self.quests_open ^= true;
     }
 
-    /// Starts typing a chat line.
+    /// Starts typing a chat line: in the game UI's chat bar when it has one.
     pub fn open_chat(&mut self) {
-        self.chat.open();
+        match &self.gui {
+            Some(gui) if gui.edits(CHAT_TEXT) => self.gui_state.focus = Some(CHAT_TEXT.into()),
+            _ => self.chat.open(),
+        }
     }
 
     /// Opens or closes the game menu.
@@ -667,6 +706,8 @@ impl GameUi {
                         other => others.push(other),
                     }
                 }
+                // The edit asked to take the keyboard has had this frame to.
+                self.gui_state.focus = None;
                 let bench = &mut self.gui_state.work;
                 for (put, id) in work {
                     if !put {

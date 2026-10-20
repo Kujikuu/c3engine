@@ -385,6 +385,15 @@ impl Gui {
     }
 
     /// Whether `dialog` shows: on the screen shown, open from the start or opened.
+    /// Whether an open dialog has an edit of `field` (the game's own chat line).
+    pub fn edits(&self, field: &str) -> bool {
+        (self.controls.iter())
+            .filter(|c| c.kind == ControlKind::Edit && c.value == field)
+            .any(|c| {
+                (self.controls.iter()).any(|d| d.id == c.parent && d.parent == 0 && self.is_open(d))
+            })
+    }
+
     pub fn is_open(&self, dialog: &Control) -> bool {
         dialog.screen == self.screen
             && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))

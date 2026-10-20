@@ -109,6 +109,11 @@ impl Chat {
         }
     }
 
+    /// Clears the lines shown.
+    pub fn clear(&mut self) {
+        self.lines.clear();
+    }
+
     /// Starts typing a line.
     pub fn open(&mut self) {
         self.typing = true;

@@ -18,6 +18,8 @@ pub(crate) struct GuiState {
     pub guild_tab: String,
     /// Invites and asks to join a team are taken at once (the team dialog's auto check).
     pub auto_team: bool,
+    /// The field whose edit takes the keyboard next frame.
+    pub focus: Option<String>,
     /// Each view group's view (`view:<group>:<name>`; a status page's base or details).
     pub views: std::collections::HashMap<String, String>,
 }
@@ -100,6 +102,10 @@ impl HeroData<'_> {
 }
 
 impl GuiData for HeroData<'_> {
+    fn focus(&self) -> Option<&str> {
+        self.state.focus.as_deref()
+    }
+
     fn number(&self, key: &str) -> Option<f64> {
         let p = self.player;
         let need = || self.view.sim.rules().level_exp(p.level);

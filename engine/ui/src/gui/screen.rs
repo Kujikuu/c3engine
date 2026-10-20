@@ -44,6 +44,10 @@ pub trait GuiData {
     fn image(&self, _key: &str) -> Option<TextureId> {
         None
     }
+    /// The field whose edit should take the keyboard now (the chat line on Enter).
+    fn focus(&self) -> Option<&str> {
+        None
+    }
     /// The rows of a list control and which one is picked.
     fn rows(&self, _key: &str) -> (Vec<String>, Option<usize>) {
         (Vec::new(), None)
@@ -501,11 +505,20 @@ impl Painter<'_, '_> {
                     .font(font)
                     .text_color(Color32::from_rgb(r, g, b))
                     .interactive(self.live);
-                if self.ui.put(rect, edit).changed() {
+                let response = self.ui.put(rect, edit);
+                if self.live && data.focus() == Some(control.value.as_str()) {
+                    response.request_focus();
+                }
+                if response.changed() {
                     events.push(GuiEvent::Edited {
                         field: control.value.clone(),
                         text,
                     });
+                }
+                // Enter in an edit with an action runs it (the chat line sends).
+                let entered = self.ui.input(|i| i.key_pressed(egui::Key::Enter));
+                if self.live && !control.action.is_empty() && response.lost_focus() && entered {
+                    clicked(control, events);
                 }
             }
             ControlKind::List => {
