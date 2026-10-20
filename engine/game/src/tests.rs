@@ -2737,3 +2737,25 @@ fn a_locked_item_stays_until_its_unlocking_day() {
     sim.input(ann, Input::Drop(armor));
     assert!(lock(&sim).is_none());
 }
+
+#[test]
+fn what_waits_for_a_player_is_taken_into_its_wallet() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 5);
+    let ann = sim.add_player("Ann", (3, 3), 1);
+    for amount in [300, 200] {
+        sim.change_world(c3_script::WorldChange::Deposit {
+            name: "Ann".into(),
+            currency: "CPs".into(),
+            amount,
+        });
+    }
+    sim.take_events();
+    sim.input(ann, Input::Withdraw);
+    assert_eq!(sim.player(ann).unwrap().wallet.get("CPs"), Some(&500));
+    assert!(sim.world_state().deposits.is_empty(), "taken once");
+    let told = (sim.take_events().into_iter())
+        .any(|e| matches!(e, Event::Withdrawn { player, amount: 500, .. } if player == ann));
+    assert!(told);
+    sim.input(ann, Input::Withdraw);
+    assert_eq!(sim.player(ann).unwrap().wallet.get("CPs"), Some(&500));
+}

@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /wallet CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -33,6 +33,27 @@ impl Sim {
             "Raised {name} {} {} {}.",
             args[0], args[1], args[2]
         ))
+    }
+
+    /// `/deposit NAME CURRENCY N` (game masters): leaves N of a currency for player NAME to take.
+    fn deposit_command(&mut self, id: EntityId, words: &[&str]) -> Result<String, String> {
+        let gm = (self.players.get(&id)).is_some_and(|p| self.settings.is_gm(&p.name));
+        if !gm {
+            return Err("Only game masters can use commands.".into());
+        }
+        let [name, currency, amount] = words else {
+            return Err("Usage: /deposit NAME CURRENCY N".into());
+        };
+        let amount: u64 = (amount.parse()).map_err(|_| format!("\"{amount}\" is not a number"))?;
+        if amount == 0 {
+            return Err("Leave something.".into());
+        }
+        self.change_world(c3_script::WorldChange::Deposit {
+            name: (*name).to_owned(),
+            currency: (*currency).to_owned(),
+            amount,
+        });
+        Ok(format!("{amount} {currency} wait for {name}."))
     }
 
     /// `/wallet CURRENCY N` (game masters): sets how much of a currency the player has.
@@ -70,6 +91,12 @@ impl Sim {
             .is_some_and(|w| w.eq_ignore_ascii_case("wallet"))
         {
             return self.wallet_command(id, &all[1..]);
+        }
+        if all
+            .first()
+            .is_some_and(|w| w.eq_ignore_ascii_case("deposit"))
+        {
+            return self.deposit_command(id, &all[1..]);
         }
         let mut words = line.trim_start_matches('/').split_whitespace();
         let name = words.next().unwrap_or_default().to_lowercase();

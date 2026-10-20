@@ -450,6 +450,10 @@ pub mod interact {
     /// A spell cast: its type, level, target and cell come scrambled (packets spec 1022).
     pub const MAGIC: u16 = 21;
     pub const SHOOT: u16 = 25;
+    /// CPs wait for the account (the withdraw button shows), and taking them (the reply
+    /// carries how many).
+    pub const WITHDRAW_READY: u16 = 31;
+    pub const WITHDRAW: u16 = 32;
 }
 
 /// Magic whose level word is scrambled once more (packets spec 1022 MAGICATTACK).

@@ -774,6 +774,11 @@ impl GuiData for HeroData<'_> {
                 };
                 (lines.saturating_sub(1) as f32 * self.state.chat_line_px) as f64
             }
+            // Something waits for the hero to take (its deposits).
+            "deposit.ready" => {
+                let waiting = self.view.sim.world_state().deposits.get(&self.player.name);
+                u8::from(waiting.is_some_and(|w| !w.is_empty())).into()
+            }
             "chat.choosing" => u8::from(self.state.views.contains_key("chat_color_for")).into(),
             // The faces the hero may take, and the one picked on the page (`view:face_pick`).
             "faces.count" => self.faces().len() as f64,

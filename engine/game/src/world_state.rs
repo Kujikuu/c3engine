@@ -70,6 +70,9 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// What waits for each player to take (currency, amount), by name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub deposits: BTreeMap<String, BTreeMap<String, u64>>,
     /// What each player gave for nobility, by name.
     #[serde(default)]
     pub donations: BTreeMap<String, crate::Donation>,
@@ -171,6 +174,19 @@ impl WorldState {
                     self.friends.remove(&pair);
                 }
             }
+            WorldChange::Deposit {
+                name,
+                currency,
+                amount,
+            } => match amount {
+                0 => {
+                    self.deposits.remove(name);
+                }
+                n => {
+                    let waiting = self.deposits.entry(name.clone()).or_default();
+                    *waiting.entry(currency.clone()).or_default() += n;
+                }
+            },
             WorldChange::Donation { name, total, level } => {
                 let level = u32::try_from(*level).unwrap_or(0);
                 let donation = crate::Donation {

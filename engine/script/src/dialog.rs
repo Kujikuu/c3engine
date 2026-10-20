@@ -297,6 +297,13 @@ pub enum WorldChange {
         #[serde(default)]
         pk: i64,
     },
+    /// `amount` of `currency` waits for player `name` (bought outside the game; TQ's emoney
+    /// withdraw), or (`amount` 0) all that waited was taken.
+    Deposit {
+        name: String,
+        currency: String,
+        amount: u64,
+    },
     /// Player `name` (of `level`) has given `total` for nobility.
     Donation {
         name: String,

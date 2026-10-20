@@ -1949,6 +1949,7 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Mentorship { .. }
         | WorldChange::Broadcast { .. }
         | WorldChange::Donation { .. }
+        | WorldChange::Deposit { .. }
         | WorldChange::MentorGift { .. }
         | WorldChange::Delivered { .. } => {}
     }

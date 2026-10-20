@@ -281,6 +281,12 @@ pub enum Event {
         player: EntityId,
         npc: u32,
     },
+    /// `player` took `amount` of `currency` that waited for it.
+    Withdrawn {
+        player: EntityId,
+        currency: String,
+        amount: u64,
+    },
     /// `player`'s item `item` was locked, set unlocking, or freed.
     ItemLocked {
         player: EntityId,

@@ -483,6 +483,8 @@ pub struct ConquerClient {
     booth_asked: Option<EntityId>,
     /// The player whose equipment the client asked to see.
     observe_asked: Option<EntityId>,
+    /// Whether the client was told CPs wait for it (MsgInteract 31, once a login).
+    withdraw_told: bool,
     /// The sash whose items the client asked for, and the item whose unlock day.
     chest_asked: Option<u32>,
     lock_asked: Option<u32>,
@@ -968,6 +970,17 @@ impl ConquerClient {
         let mut out = Vec::new();
         if self.entered {
             out.extend(self.nobility(sim));
+        }
+        // CPs bought outside the game waiting: the withdraw button (once, after entering).
+        if self.entered && !self.withdraw_told {
+            self.withdraw_told = true;
+            let name = (self.hero)
+                .and_then(|h| sim.player(h))
+                .map(|p| p.name.clone());
+            if name.is_some_and(|n| sim.world_state().deposits.contains_key(&n)) {
+                let id = self.hero_id();
+                out.push(pk::interact(interact::WITHDRAW_READY, id, id, (0, 0), 0));
+            }
         }
         if let Some((action, data)) = self.pigeon_asked.take() {
             out.extend(self.pigeon_reply(sim, ids, action, data));
@@ -1924,6 +1937,12 @@ impl ConquerClient {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
             // The warehouse as it is now, and the money kept.
+            // CPs that waited taken (MsgInteract 32 with how many: StrRes 11200).
+            Event::Withdrawn { player, amount, .. } if Some(*player) == hero => {
+                let id = self.hero_id();
+                let amount = u32::try_from(*amount).unwrap_or(u32::MAX);
+                vec![pk::interact(interact::WITHDRAW, id, id, (0, 0), amount)]
+            }
             // An item locked, set unlocking or freed (MsgEquipLock 2048).
             Event::ItemLocked { player, item } if Some(*player) == hero => {
                 self.item_lock(*item, false, sim).into_iter().collect()
@@ -2087,6 +2106,10 @@ impl ConquerClient {
                 self.steps_to = None;
                 inputs.extend(self.cast_input(ts, target, cell, data, ids));
             }
+            Request::Interact {
+                kind: interact::WITHDRAW,
+                ..
+            } => inputs.push(Input::Withdraw),
             Request::Interact { kind, target, .. }
                 if kind == interact::COURT || kind == interact::MARRY =>
             {

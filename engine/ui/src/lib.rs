@@ -1038,6 +1038,7 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            "withdraw" => actions.push(UiAction::Game(c3_game::Input::Withdraw)),
             // Too slow: out of full screen, and the game left to be started again.
             "low_fps_restart" => {
                 self.gui_state.views.remove(LOW_FPS);
@@ -1773,6 +1774,14 @@ impl GameUi {
                 }
                 Event::StorageOpened { player, npc } if *player == hero => {
                     self.gui_state.storage = Some(*npc);
+                }
+                // What waited taken: told in an OK-only prompt (TQ's StrRes 11200).
+                Event::Withdrawn { player, amount, .. } if *player == hero => {
+                    let mut told = prompt::Prompt::confirm("withdrawn:");
+                    if let Some(p) = &mut told {
+                        p.name = amount.to_string();
+                    }
+                    self.gui_state.prompt = told;
                 }
                 // A bag chest opened (CDlgPortableChest5065).
                 Event::ChestOpened { player, chest } if *player == hero => {

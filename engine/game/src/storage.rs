@@ -68,6 +68,32 @@ impl Sim {
         self.events.push(Event::StorageChanged { player: id, npc });
     }
 
+    /// Takes everything that waits for player `id` (its deposits) into its wallet.
+    pub fn withdraw(&mut self, id: EntityId) {
+        let Some(name) = self.players.get(&id).map(|p| p.name.clone()) else {
+            return;
+        };
+        let Some(waiting) = self.world_state().deposits.get(&name).cloned() else {
+            return;
+        };
+        self.change_world(c3_script::WorldChange::Deposit {
+            name,
+            currency: String::new(),
+            amount: 0,
+        });
+        let p = self.players.get_mut(&id).expect("checked above");
+        for (currency, amount) in &waiting {
+            *p.wallet.entry(currency.clone()).or_default() += amount;
+        }
+        for (currency, amount) in waiting {
+            self.events.push(Event::Withdrawn {
+                player: id,
+                currency,
+                amount,
+            });
+        }
+    }
+
     /// Moves `amount` of money into storage (`save`) or out of it, at NPC `npc`.
     pub fn move_money(&mut self, id: EntityId, npc: u32, amount: u64, save: bool) {
         if !self.near_npc(id, npc) || amount == 0 {

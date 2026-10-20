@@ -104,6 +104,7 @@ impl Event {
             | Event::Observed { player, .. }
             | Event::ChestOpened { player, .. }
             | Event::ItemLocked { player, .. }
+            | Event::Withdrawn { player, .. }
             | Event::ChestChanged { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {

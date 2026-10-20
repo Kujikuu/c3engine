@@ -134,6 +134,8 @@ pub enum Input {
     Partner(crate::PartnerAction),
     /// Booths: opening one, setting out wares, buying from one.
     Booth(crate::BoothAction),
+    /// Take what waits for the player (its deposits).
+    Withdraw,
     /// Lock item `0` (a worn kind, carried), or start unlocking it.
     Lock(u32),
     Unlock(u32),
@@ -206,6 +208,7 @@ impl Sim {
             Input::Booth(action) => self.booth_action(id, action),
             Input::ChestPut { chest, item } => self.chest_put(id, chest, item),
             Input::Lock(item) => self.lock_item(id, item),
+            Input::Withdraw => self.withdraw(id),
             Input::Unlock(item) => self.unlock_item(id, item),
             Input::ChestTake { chest, item } => self.chest_take(id, chest, item),
             Input::Observe(target) => {
