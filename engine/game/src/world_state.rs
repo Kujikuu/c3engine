@@ -70,6 +70,9 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// What each player gave for nobility, by name.
+    #[serde(default)]
+    pub donations: BTreeMap<String, crate::Donation>,
     /// Broadcast lines, waiting and told (the latest 50), by the time each is told.
     #[serde(default)]
     pub broadcasts: Vec<crate::Broadcast>,
@@ -167,6 +170,14 @@ impl WorldState {
                 } else {
                     self.friends.remove(&pair);
                 }
+            }
+            WorldChange::Donation { name, total, level } => {
+                let level = u32::try_from(*level).unwrap_or(0);
+                let donation = crate::Donation {
+                    total: *total,
+                    level,
+                };
+                self.donations.insert(name.clone(), donation);
             }
             WorldChange::Broadcast {
                 id,

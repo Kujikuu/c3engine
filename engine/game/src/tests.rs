@@ -2546,3 +2546,41 @@ fn a_paid_broadcast_is_told_to_every_player_and_the_next_waits_its_turn() {
         "the next waits a minute"
     );
 }
+
+#[test]
+fn donations_buy_noble_ranks_by_place_and_by_value() {
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 3);
+    let nobility = c3_core::settings::NobilitySettings {
+        min_level: 70,
+        min_donation: 3_000_000,
+        board_size: 3,
+        by_place: vec![[1, 12]],
+        by_value: vec![[30_000_000, 1]],
+        notices: vec![(12, "All hail %s!".into())],
+        ..Default::default()
+    };
+    sim.set_settings(GameplaySettings {
+        nobility: nobility.clone(),
+        ..GameplaySettings::default()
+    });
+    let rich = |name: &str| {
+        let mut save = crate::PlayerSave::new(name, (5, 5));
+        save.level = 80;
+        save.money = 100_000_000;
+        save
+    };
+    let a = sim.add_saved_player(&rich("Ann"));
+    let b = sim.add_saved_player(&rich("Bob"));
+    sim.input(a, Input::Donate(1_000_000));
+    assert!(sim.world_state().donations.is_empty(), "too little");
+    sim.take_events();
+    sim.input(a, Input::Donate(40_000_000));
+    let hailed = (sim.take_events().into_iter())
+        .any(|e| matches!(e, Event::Notice { player, ref text } if player == b && text == "All hail Ann!"));
+    assert!(hailed, "the first place is a 12, told to all");
+    sim.input(b, Input::Donate(35_000_000));
+    let world = sim.world_state();
+    assert_eq!(world.noble_rank(&nobility, "Ann"), (12, Some(0)));
+    assert_eq!(world.noble_rank(&nobility, "Bob"), (1, Some(1)));
+    assert_eq!(sim.player(a).unwrap().money, 60_000_000);
+}

@@ -468,6 +468,10 @@ pub struct ConquerClient {
     mentors_told: Option<(String, Vec<String>)>,
     mentors_asked: bool,
     prize_asked: bool,
+    /// A nobility request answered with the next update, and the hero's standing as last
+    /// told (donation, rank, place).
+    peerage_asked: Option<(u16, u64)>,
+    noble_told: Option<(u64, u32, i64)>,
     /// A broadcast request answered with the next update: its action and data.
     pigeon_asked: Option<(u8, u32)>,
     /// The trade partners the client was told of: online or not (`None`: none told yet).
@@ -492,6 +496,61 @@ impl ConquerClient {
             _ => None,
         });
         (seen.chain(self.me.as_ref())).find(|p| p.booth.is_some() && booth_id(p.id) == id)
+    }
+
+    /// Nobility for the client (MsgPeerage, adapters spec §2.3): the hero's standing when it
+    /// changed, and the answer to what it asked.
+    fn nobility(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
+        use pk::peerage as p;
+        let Some(me) = self.me.as_ref() else {
+            return Vec::new();
+        };
+        let (world, n) = (sim.world_state(), &sim.settings().nobility);
+        if n.min_level == 0 {
+            return Vec::new();
+        }
+        let id = self.hero_id();
+        let mine = world.donations.get(&me.name).map_or(0, |d| d.total);
+        let (rank, place) = world.noble_rank(n, &me.name);
+        let place = place.map_or(-1, |p| p as i64);
+        let mut out = Vec::new();
+        if self.noble_told != Some((mine, rank, place)) {
+            self.noble_told = Some((mine, rank, place));
+            let line = format!("{id} {mine} {rank} {place}");
+            out.push(pk::peerage(p::UPDATE, u64::from(id), &[&line]));
+        }
+        match self.peerage_asked.take() {
+            Some((p::DONATE, amount)) => {
+                let line = format!("{id} {rank} {amount} {mine} {place}");
+                out.push(pk::peerage(p::DONATE, u64::from(id), &[&line]));
+            }
+            Some((p::PAGE, page)) => {
+                let nobles = world.nobles(n);
+                let pages = nobles.len().min(50).div_ceil(p::PAGE_SIZE) as u64;
+                let first = page as usize * p::PAGE_SIZE;
+                let lines: Vec<String> = (nobles.iter().enumerate().skip(first).take(p::PAGE_SIZE))
+                    .map(|(at, noble)| {
+                        let online = sim.players().any(|q| q.name == noble.name);
+                        let user = self.contact_id_of(&noble.name);
+                        let (name, total, rank) = (&noble.name, noble.total, noble.rank);
+                        format!("{user} {} 0 {name} {total} {rank} {at}", u8::from(online))
+                    })
+                    .collect();
+                let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+                out.push(pk::peerage(p::PAGE, page | pages << 16, &refs));
+            }
+            Some((p::QUERY_RANK, wanted)) => {
+                let price = world.noble_price(n, u32::try_from(wanted).unwrap_or(0), mine);
+                out.push(pk::peerage(p::QUERY_RANK, price, &[]));
+            }
+            _ => {}
+        }
+        out
+    }
+
+    /// The id the client knows a player by when it may be offline (a contact id).
+    fn contact_id_of(&self, name: &str) -> u32 {
+        self.contact_ids.get(name).copied().unwrap_or(0)
     }
 
     /// A broadcast request's answer: a page of the waiting lines (all, or the hero's), or
@@ -840,6 +899,9 @@ impl ConquerClient {
     /// Shows the client what changed around its hero.
     pub fn update(&mut self, update: &WorldUpdate, sim: &Sim, ids: &mut Ids) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
+        if self.entered {
+            out.extend(self.nobility(sim));
+        }
         if let Some((action, data)) = self.pigeon_asked.take() {
             out.extend(self.pigeon_reply(sim, ids, action, data));
         }
@@ -2111,6 +2173,13 @@ impl ConquerClient {
                 inputs.extend(input.map(Input::Mentor));
             }
             Request::MentorMembers => self.mentors_asked = true,
+            // Nobility: a donation (answered with its result), the board, a rank's price.
+            Request::Peerage { action: a, data } => {
+                if a == pk::peerage::DONATE {
+                    inputs.push(Input::Donate(data));
+                }
+                self.peerage_asked = Some((a, data));
+            }
             // A broadcast paid for or moved forward, the waiting lines asked for.
             Request::Pigeon {
                 action: a,

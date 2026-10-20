@@ -216,6 +216,51 @@ pub fn conquer_settings() -> ProjectSettings {
         bless_status: 9876,
         item: 730_001,
     };
+    // Nobility (adapters spec §2): from level 70, at least 3,000,000 silver (or a CP for each
+    // 50,000), a board of 60: the first 3 Kings, to 15 Princes, to 50 Dukes, the rest Earls
+    // from 200,000,000, Barons from 100,000,000, Knights from 30,000,000 (En_Res notices).
+    s.gameplay.nobility = c3_core::settings::NobilitySettings {
+        min_level: 70,
+        min_donation: 3_000_000,
+        max_donation: 1_000_000_000,
+        currency: CONQUER_POINTS.into(),
+        rate: 50_000,
+        board_size: 60,
+        by_place: vec![[3, 12], [15, 9], [50, 7]],
+        by_value: vec![[200_000_000, 5], [100_000_000, 3], [30_000_000, 1]],
+        notices: vec![
+            (
+                12,
+                "Hear ye, hear ye! All hail his majesty, %s! King of Conquer!".into(),
+            ),
+            (
+                9,
+                "Hear ye, hear ye! A new Prince has arrived! Hail, %s! Prince!".into(),
+            ),
+            (7, "Hear ye, hear ye! Rejoice for the new Duke, %s!".into()),
+            (5, "Hear ye, hear ye! Welcome to our new Earl, %s!".into()),
+            (
+                3,
+                "Hear ye, hear ye! Greetings to our new Baron, %s!".into(),
+            ),
+            (
+                1,
+                "Hear ye, hear ye! Knight %s has just been appointed!".into(),
+            ),
+        ],
+        // StrRes 11100-11107.
+        titles: [
+            (12, "King"),
+            (9, "Prince"),
+            (7, "Duke"),
+            (5, "Earl"),
+            (3, "Baron"),
+            (1, "Knight"),
+            (0, "Commoner"),
+        ]
+        .map(|(rank, title)| (rank, title.to_owned()))
+        .to_vec(),
+    };
     // Broadcasts (adapters spec §4): 5 CPs a line from level 50, 80 letters, 5 waiting each,
     // a minute apart; 15 CPs to the front, 5 CPs up 5 places.
     s.gameplay.broadcast = c3_core::settings::BroadcastSettings {

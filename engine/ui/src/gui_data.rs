@@ -62,6 +62,8 @@ pub(crate) struct GuiState {
     pub broadcast: Option<String>,
     pub broadcasts_heard: Vec<(String, String)>,
     pub pigeon_move: Option<(String, usize)>,
+    /// The nobility page's Contribute was pressed.
+    pub donating: bool,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -82,6 +84,22 @@ fn world_mentor<'a>(data: &HeroData<'a>) -> Option<&'a c3_game::Mentorship> {
 fn exp_balls(time: i64) -> String {
     let hundredths = time.max(0) * 1000 / 600 / 10;
     format!("{}.{:02}", hundredths / 100, hundredths % 100)
+}
+
+/// The nobility board's rows a page shows.
+const NOBLE_PAGE: usize = 10;
+
+/// The images of noble rank `rank` (CDlgNobility's RankImages): its icon and title.
+fn noble_images(rank: u32) -> (&'static str, &'static str) {
+    match rank {
+        1 => ("nob_Guard16", "nob_GuardFont32"),
+        3 => ("nob_Nobility16", "nob_NobilityFont32"),
+        5 => ("nob_Uncle16", "nob_UncleFont32"),
+        7 => ("nob_Marquis16", "nob_MarquisFont32"),
+        9 => ("nob_Father16", "nob_FatherFont32"),
+        12 => ("nob_Infante16", "nob_InfanteFont32"),
+        _ => ("nob_White16", "nob_WhiteFont32"),
+    }
 }
 
 /// The broadcast board's rows a page shows (CDlgBroadcast5065's 10).
@@ -586,6 +604,16 @@ impl GuiData for HeroData<'_> {
                 u8::from(row.1 != self.player.name).into()
             }
             "pigeon.mode" => self.view_number("pigeon") as f64,
+            // The hero's noble rank and the rank picked to ask about (`view:nobility_query`).
+            "nobility.rank" => {
+                let sim = self.view.sim;
+                f64::from(
+                    sim.world_state()
+                        .noble_rank(&sim.settings().nobility, &p.name)
+                        .0,
+                )
+            }
+            "nobility.query" => self.view_number("nobility_query") as f64,
             "pigeon.rows" => self.pigeon_rows().len() as f64,
             "pigeon.heard" => self.state.broadcasts_heard.len() as f64,
             // The message board: its posts, the mode (0 list, 1 writing, 2 reading), the tab
@@ -763,6 +791,12 @@ impl GuiData for HeroData<'_> {
             // Who asked the question shown, and its kind.
             "prompt.name" => Some(self.state.prompt.as_ref()?.name.clone()),
             "prompt.kind" => Some(self.state.prompt.as_ref()?.kind.clone()),
+            // A part of the asker's name holding several values (`a||b`: `prompt.part.1`).
+            _ if key.starts_with("prompt.part.") => {
+                let n: usize = key.strip_prefix("prompt.part.")?.parse().ok()?;
+                let name = &self.state.prompt.as_ref()?.name;
+                Some(name.split("||").nth(n).unwrap_or_default().to_owned())
+            }
             // The hero's mentor's name; what its students gave, as CDlgMentorContribution
             // words it (time as exp balls of 600, item points as hundredths); the top giver of
             // each kind (`mentor.top.0.name`) and its share.
@@ -808,6 +842,70 @@ impl GuiData for HeroData<'_> {
             "word.to" => Some(self.state.word_to.clone()),
             "word.from" => Some(self.word_shown().map(|w| w.0.clone()).unwrap_or_default()),
             "word.said" => Some(self.word_shown().map(|w| w.1.clone()).unwrap_or_default()),
+            // Nobility: the hero's donation and place, what the rank asked about needs, and
+            // the board's rows (`nobility.row.0.name`; on the page `view:nobility_page`).
+            "nobility.donation" | "nobility.place" | "nobility.need" => {
+                let sim = self.view.sim;
+                let (world, n) = (sim.world_state(), &sim.settings().nobility);
+                let mine = world
+                    .donations
+                    .get(&self.player.name)
+                    .map_or(0, |d| d.total);
+                Some(match key {
+                    "nobility.donation" => mine.to_string(),
+                    "nobility.place" => match world.noble_rank(n, &self.player.name).1 {
+                        Some(place) => (place + 1).to_string(),
+                        None => "--".to_owned(),
+                    },
+                    _ => {
+                        let rank = u32::try_from(self.view_number("nobility_query")).unwrap_or(0);
+                        world.noble_price(n, rank, mine).to_string()
+                    }
+                })
+            }
+            _ if key.starts_with("nobility.row.") => {
+                let (n, field) = key.strip_prefix("nobility.row.")?.split_once('.')?;
+                let at =
+                    self.view_number("nobility_page") * NOBLE_PAGE + n.parse::<usize>().ok()?;
+                let sim = self.view.sim;
+                let nobles = sim.world_state().nobles(&sim.settings().nobility);
+                let Some(noble) = nobles.get(at) else {
+                    return Some(String::new());
+                };
+                let (icon, title) = noble_images(noble.rank);
+                Some(match field {
+                    "place" => (at + 1).to_string(),
+                    "icon" => icon.to_owned(),
+                    "title" => title.to_owned(),
+                    "name" => noble.name.clone(),
+                    "money" => noble.total.to_string(),
+                    _ => return None,
+                })
+            }
+            "nobility.pages" => {
+                let sim = self.view.sim;
+                let count = sim.world_state().nobles(&sim.settings().nobility).len();
+                let pages = count.div_ceil(NOBLE_PAGE).max(1);
+                Some(format!("{}/{pages}", self.view_number("nobility_page") + 1))
+            }
+            "nobility.amount" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
+            // The hero's rank title and icon, and the title of the rank asked about.
+            "nobility.rank_name" | "nobility.query_name" | "nobility.icon" => {
+                let sim = self.view.sim;
+                let n = &sim.settings().nobility;
+                let rank = match key {
+                    "nobility.query_name" => {
+                        u32::try_from(self.view_number("nobility_query")).unwrap_or(0)
+                    }
+                    _ => sim.world_state().noble_rank(n, &self.player.name).0,
+                };
+                Some(match key {
+                    "nobility.icon" => noble_images(rank).0.to_owned(),
+                    _ => (n.titles.iter())
+                        .find(|(r, _)| *r == rank)
+                        .map_or_else(String::new, |(_, t)| t.clone()),
+                })
+            }
             // The broadcast banner's latest line, and the board's rows (`pigeon.0.name`).
             "pigeon.last.name" | "pigeon.last.text" => {
                 let (name, text) = self.state.broadcasts_heard.last()?;

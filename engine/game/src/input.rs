@@ -121,6 +121,8 @@ pub enum Input {
         #[serde(default)]
         author: String,
     },
+    /// Give this much money for nobility.
+    Donate(u64),
     /// Broadcasts: paying for a line, moving a waiting one forward.
     Broadcast(crate::BroadcastAction),
     /// Mentors and students: teaching, learning, leaving, sending away, claiming.
@@ -184,6 +186,7 @@ impl Sim {
             Input::Partner(action) => self.partner_action(id, action),
             Input::Mentor(action) => self.mentor_action(id, action),
             Input::Broadcast(action) => self.broadcast_action(id, action),
+            Input::Donate(amount) => self.donate(id, amount),
             Input::TakeDown { board, author } => self.take_down(id, board, &author),
             Input::Emote(emote) => {
                 if self.players.get(&id).is_some_and(|p| p.is_alive()) {

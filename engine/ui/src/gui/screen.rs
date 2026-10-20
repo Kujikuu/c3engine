@@ -658,7 +658,10 @@ impl Painter<'_, '_> {
                     text = name.clone();
                 }
                 if !control.fill_in.is_empty() {
-                    text = fill_first(&text, &expand(&control.fill_in, data));
+                    // Each blank in turn (`fill_in={a}||{b}`).
+                    for part in control.fill_in.split("||") {
+                        text = fill_first(&text, &expand(part, data));
+                    }
                 }
                 if control.commas {
                     text = with_commas(&text);
@@ -1015,7 +1018,9 @@ fn named(text: &str, names: Option<&std::collections::HashMap<String, String>>) 
             break;
         };
         let key = &rest[open + 2..open + close];
-        out.push_str(names.and_then(|n| n.get(key)).map_or("", String::as_str));
+        // TQ's strings break lines with a written `\n`.
+        let found = names.and_then(|n| n.get(key)).map_or("", String::as_str);
+        out.push_str(&found.replace("\\n", "\n"));
         rest = &rest[open + close + 1..];
     }
     out.push_str(rest);
@@ -1072,6 +1077,14 @@ type=text",
     fn digits_take_commas() {
         assert_eq!(with_commas("1234567 and 12"), "1,234,567 and 12");
         assert_eq!(with_commas("999"), "999");
+    }
+
+    #[test]
+    fn fill_first_fills_printf_blanks_in_turn() {
+        let text = "To be %s, you need to donate %s silver at least.";
+        let once = fill_first(text, "Prince");
+        assert_eq!(fill_first(&once, "300"), "To be Prince, you need to donate 300 silver at least.");
+        assert_eq!(fill_first("EXP = %0.2f EXP Ball", "1.5"), "EXP = 1.5 EXP Ball");
     }
 
     #[test]

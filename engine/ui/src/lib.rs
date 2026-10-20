@@ -850,6 +850,9 @@ impl GameUi {
                     self.gui_state.pigeon_move = Some((kind.to_owned(), row));
                 }
             }
+            // Nobility: the amount typed given (in the other currency when the money falls short,
+            // asked first, StrRes 11090; less than the least: 11098).
+            "nobility_donate" => self.gui_state.donating = true,
             "words_clear" => {
                 self.gui_state.words.clear();
                 self.gui_state.views.remove("word");
@@ -1034,6 +1037,24 @@ impl GameUi {
                     self.gui_state.views.insert("chat".into(), "whisper".into());
                     self.gui_state.focus = Some(CHAT_TEXT.into());
                 }
+            }
+        }
+        if std::mem::take(&mut self.gui_state.donating) {
+            let typed = self.gui_state.fields.remove("nobility.amount");
+            let amount: u64 = typed.and_then(|t| t.trim().parse().ok()).unwrap_or(0);
+            let n = &view.sim.settings().nobility;
+            let rate = n.rate.max(1);
+            let in_currency = player.wallet.get(&n.currency).copied().unwrap_or(0);
+            let give = c3_game::Input::Donate(amount);
+            if amount < n.min_donation {
+                self.system("You need to donate at least 3,000,000 silver.", style::BAD);
+            } else if amount <= player.money {
+                actions.push(UiAction::Game(give));
+            } else if amount / rate <= in_currency {
+                let ask = format!("{amount}||{}", amount / rate);
+                self.ask("nobility_cps", &ask, give);
+            } else {
+                self.system("Sorry, you don`t have enough silver.", style::BAD);
             }
         }
         if let Some(text) = self.gui_state.broadcast.take() {

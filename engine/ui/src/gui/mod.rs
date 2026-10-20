@@ -503,7 +503,10 @@ impl Gui {
             let table = (String::from_utf8_lossy(&bytes).lines())
                 .filter_map(|line| {
                     let line = line.trim();
-                    let (value, name) = line.split_once(',').or_else(|| line.split_once('='))?;
+                    // `key=name` (StrRes.ini) or `key,name`: whichever comes first (a
+                    // StrRes line's text may hold commas).
+                    let at = line.find([',', '='])?;
+                    let (value, name) = (&line[..at], &line[at + 1..]);
                     Some((value.trim().to_owned(), name.trim().to_owned()))
                 })
                 .collect();

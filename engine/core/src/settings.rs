@@ -323,6 +323,28 @@ impl Default for NewCharacter {
 /// The money cut: a teammate below level `picker_below` picking up the money of a teammate of
 /// level `owner_from` or more, at least `gap` levels above it, gives the owner `percent` of it
 /// (0: none).
+/// Nobility (TQ's Peerage.dll, adapters spec §2).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NobilitySettings {
+    /// The level a player donates from (0: no nobility), the least and most at a time.
+    pub min_level: u32,
+    pub min_donation: u64,
+    pub max_donation: u64,
+    /// The other currency a donation may be paid in, and how much money one unit is worth.
+    pub currency: String,
+    pub rate: u64,
+    /// The places on the board; the ranks the top places hold (`[places, rank]`: the first 3
+    /// a 12); the ranks donations earn by themselves (`[least, rank]`).
+    pub board_size: usize,
+    pub by_place: Vec<[u32; 2]>,
+    pub by_value: Vec<[u64; 2]>,
+    /// What everyone is told when a player rises to a rank (`%s` its name), and each rank's
+    /// title.
+    pub notices: Vec<(u32, String)>,
+    pub titles: Vec<(u32, String)>,
+}
+
 /// Paid broadcasts (TQ's Pigeon.dll, adapters spec §4).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -453,6 +475,9 @@ pub struct GameplaySettings {
     /// Paid broadcasts to every player (off while `cost` is 0).
     #[serde(default)]
     pub broadcast: BroadcastSettings,
+    /// Nobility bought by donations (off while `min_level` is 0).
+    #[serde(default)]
+    pub nobility: NobilitySettings,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -585,6 +610,7 @@ impl Default for GameplaySettings {
             pk: PkSettings::default(),
             mentor: MentorSettings::default(),
             broadcast: BroadcastSettings::default(),
+            nobility: NobilitySettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),

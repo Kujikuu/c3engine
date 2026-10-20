@@ -180,6 +180,29 @@ pub fn pigeon_info(page: u32, lines: &[PigeonLine]) -> Vec<u8> {
     })
 }
 
+/// MsgPeerage (2064): a nobility action, its data (an amount, or the page and pages) and its
+/// lines (MsgPeerage.h: 0x10 bytes before the strings).
+pub fn peerage(action: u16, data: u64, lines: &[&str]) -> Vec<u8> {
+    packet(PEERAGE, |w| {
+        w.u16(action)
+            .u16(0)
+            .u32(data as u32)
+            .u32((data >> 32) as u32);
+        strings(w, lines);
+    })
+}
+
+pub const PEERAGE: u16 = 2064;
+/// MsgPeerage actions: a donation's result, a page of the board, the hero's standing, what a
+/// rank needs.
+pub mod peerage {
+    pub const DONATE: u16 = 1;
+    pub const PAGE: u16 = 2;
+    pub const UPDATE: u16 = 3;
+    pub const QUERY_RANK: u16 = 4;
+    pub const PAGE_SIZE: usize = 10;
+}
+
 pub const PIGEON: u16 = 2050;
 pub const PIGEON_INFO: u16 = 2051;
 /// MsgPigeon actions (MsgPigeon.h).
@@ -1023,6 +1046,11 @@ pub fn dialog_with(action: u8, index: u8, data: u16, text: &str) -> Vec<u8> {
 /// What a client asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
+    /// Nobility (2064): donating, a page of the board, the hero's standing, a rank's price.
+    Peerage {
+        action: u16,
+        data: u64,
+    },
     /// A broadcast asked about or paid for (2050): the action, its data and the line.
     Pigeon {
         action: u8,
@@ -1348,6 +1376,16 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             }
         }
         MENTOR_MEMBER => Request::MentorMembers,
+        PEERAGE => {
+            let action = r.u16()?;
+            r.skip(2)?;
+            let low = u64::from(r.u32()?);
+            let high = u64::from(r.u32()?);
+            Request::Peerage {
+                action,
+                data: low | high << 32,
+            }
+        }
         PIGEON => {
             let action = r.u8()?;
             r.skip(3)?;

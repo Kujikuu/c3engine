@@ -297,6 +297,12 @@ pub enum WorldChange {
         #[serde(default)]
         pk: i64,
     },
+    /// Player `name` (of `level`) has given `total` for nobility.
+    Donation {
+        name: String,
+        total: u64,
+        level: i64,
+    },
     /// Broadcast line `id` by `author` told at `at` (unix seconds), queued or moved.
     Broadcast {
         id: u32,

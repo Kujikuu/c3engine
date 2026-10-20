@@ -1213,10 +1213,20 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 331 CDlgBusinessTip5065: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 332 CDlgBusinessConfirm: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 333 CDlgBusinessShare5065: draft only, 3 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 307 CDlgNobilityMain: draft only, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 308 CDlgNobilityConfirm: draft only, 4 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 309 CDlgNobilityRanking: draft only, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 310 CDlgNobilityCompact: draft only, 3 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Nobility (adapters spec §2, Peerage.dll): `gameplay.nobility` (Conquer: from level 70, 3,000,000 at least or a CP each 50,000, a board of 60: 3 Kings, to 15 Princes, to 50 Dukes, then Earls / Barons / Knights by amount); donations on the world state, ranks by place then amount, a rise announced (En_Res notices); the Conquer front carries MsgPeerage 2064 (donation result, board pages, the hero's standing, a rank's price)
+    - [x] engine, UI and front
+    - [ ] Queens and female notices (the engine keeps no sex), the battle power a rank gives (no battle power yet), the rank shown on others
+  - [ ] UI 307 CDlgNobilityMain: 5 of 6 audit mismatches fixed
+    - [x] checont_checontribute at (-5,-5), the amount and Contribute (in CPs asked first, 308), the six rank buttons (frame 2 on the one asked about, disabled at or below the hero's rank) and what that rank needs (11094); closing hides 310; opened by the hero's rank icon from level 70
+    - [ ] the King / Queen art by sex, help
+  - [x] UI 308 CDlgNobilityConfirm: Dialog15, 11090 with the silver and CPs, OK gives, ReInput goes back to the amount, Close drops it
+  - [ ] UI 309 CDlgNobilityRanking: 4 of 5 audit mismatches fixed
+    - [x] checont_exploitbead, ten places a page (place, icon, title, name, donation with commas), the page and its arrows, the donation block from level 70; opened by the rank icon below level 70 and 310's More
+    - [ ] the eleventh row, King art by sex
+  - [x] UI 310 CDlgNobilityCompact: che_checontribute2 at (-5,-5), the top five, More opens 309
+  - [ ] The nobility status icon (StatusTips5065.cpp 595-604): stood in for by an always-shown rank icon at the top left; its tip (11095) and place among the status tips
+  - [x] UI engine: names files split `key=text` at the first `=` or `,` (StrRes texts with commas showed nothing); `fill_in` fills printf blanks (`%d`, `%u`, `%0.2f`), several in turn (`a||b`); TQ's written `
+` breaks lines; `chosen=` tab frames; `double=` list actions; `wrap=1` multi-line edits
 - [ ] The 5065 front at parity: skills, items and equipment, shops, teams, trade, guilds,
       warehouse, cross-map travel; checked with the real Conquer.exe (still unchecked there:
       jump, teleport, items and equipment, shop buy/sell, other players)
