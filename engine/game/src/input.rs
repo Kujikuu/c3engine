@@ -137,6 +137,8 @@ pub enum Input {
     Partner(crate::PartnerAction),
     /// Booths: opening one, setting out wares, buying from one.
     Booth(crate::BoothAction),
+    /// Applying for a merchant account, or calling it off.
+    Merchant(crate::merchants::MerchantAction),
     /// A dice table: sitting down, leaving, a chip, taking the bets back.
     Dice(crate::dice::DiceAction),
     /// Offline training: asking, starting, what it trained, claiming.
@@ -224,6 +226,7 @@ impl Sim {
             Input::Withdraw => self.withdraw(id),
             Input::Training(action) => self.training_action(id, action),
             Input::Dice(action) => self.dice_action(id, action),
+            Input::Merchant(action) => self.merchant_action(id, action),
             Input::Unlock(item) => self.unlock_item(id, item),
             Input::ChestTake { chest, item } => self.chest_take(id, chest, item),
             Input::Observe(target) => {

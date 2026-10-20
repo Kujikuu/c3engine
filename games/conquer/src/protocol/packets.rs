@@ -518,6 +518,8 @@ pub mod attr {
     pub const XP: u32 = 28;
     /// The money kept in storage.
     pub const SAVED_MONEY: u32 = 10;
+    /// The merchant state (0, the YYYYMMDD it is granted, 255).
+    pub const BUSINESS: u32 = 39;
 }
 
 /// MsgInteract kinds.
@@ -534,6 +536,11 @@ pub mod interact {
     /// carries how many).
     pub const WITHDRAW_READY: u16 = 31;
     pub const WITHDRAW: u16 = 32;
+    /// A merchant account: applied for (C) / offered or granted (S, data2 0 / 255), called off
+    /// (C), waiting so many days (S).
+    pub const BUSINESS_APPLY: u16 = 33;
+    pub const BUSINESS_REVOKE: u16 = 34;
+    pub const BUSINESS_STATE: u16 = 35;
 }
 
 /// Magic whose level word is scrambled once more (packets spec 1022 MAGICATTACK).
@@ -1037,6 +1044,21 @@ pub fn magic_effect(caster: u32, at: u32, kind: u16, level: u16, hits: &[(u32, u
         for (role, damage) in hits {
             w.u32(*role).u32(*damage).i32(0);
         }
+    })
+}
+
+/// MsgInteract with its second datum (wire 28) set: a merchant notice.
+pub fn interact_notice(kind: u16, id: u32, data2: u32) -> Vec<u8> {
+    packet(INTERACT, |w| {
+        w.u32(0)
+            .u32(id)
+            .u32(id)
+            .u16(0)
+            .u16(0)
+            .u16(kind)
+            .u16(0)
+            .u32(0)
+            .u32(data2);
     })
 }
 

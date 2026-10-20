@@ -655,6 +655,10 @@ pub struct GameplaySettings {
     /// (TQ's 3 days).
     #[serde(default, skip_serializing_if = "is_zero_i64")]
     pub partner_probation_secs: i64,
+    /// Days a merchant account application waits (0: no merchant accounts), and the maps
+    /// where it is granted at once (TQ's business state).
+    pub merchant_days: u32,
+    pub merchant_now_maps: Vec<u32>,
     /// The faces a player may pick by its body (`[first body, last body, first face, last
     /// face]`), and what a change costs (TQ's face NPC: 500 silver).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -779,6 +783,8 @@ impl Default for GameplaySettings {
             faces: Vec::new(),
             face_cost: 0,
             partner_probation_secs: 0,
+            merchant_days: 0,
+            merchant_now_maps: Vec::new(),
             boards: Vec::new(),
             guild_board: None,
             board_min_level: 0,

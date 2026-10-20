@@ -636,6 +636,19 @@ impl Painter<'_, '_> {
                 None => return,
             },
         };
+        // The frame a binding reads.
+        let bound;
+        let control = match control.frame_by.is_empty() {
+            true => control,
+            false => {
+                let frame = data.number(&control.frame_by).unwrap_or(0.0).max(0.0) as usize;
+                bound = Control {
+                    frame,
+                    ..control.clone()
+                };
+                &bound
+            }
+        };
         // A bound picture fills the control's place (as the login scales server art).
         let sized = (!control.value.is_empty() && size.x > 0.0 && size.y > 0.0).then_some(size);
         let Some(drawn) = self.picture(control, &section, at, sized) else {

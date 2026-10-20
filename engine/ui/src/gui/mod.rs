@@ -200,6 +200,8 @@ pub struct Control {
     pub ani: String,
     pub file: String,
     pub frame: usize,
+    /// An image shown on the frame a binding reads (`frame_by=merchant.days_frame`).
+    pub frame_by: String,
     /// Its frames played in turn, one each this many milliseconds (`animate=300`); 0: still.
     pub animate: u32,
     /// The part of the image drawn: left, top, right, bottom.
@@ -435,6 +437,7 @@ impl Control {
             ani: text("ani"),
             file: text("file"),
             frame: section.int("frame").unwrap_or(0).max(0) as usize,
+            frame_by: text("frame_by"),
             animate: section.int("animate").unwrap_or(0).max(0) as u32,
             src,
             rect,

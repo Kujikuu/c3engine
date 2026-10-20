@@ -110,6 +110,7 @@ impl Event {
             | Event::Withdrawn { player, .. }
             | Event::Training { player, .. }
             | Event::Dice { player, .. }
+            | Event::Merchant { player, .. }
             | Event::ChestChanged { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {

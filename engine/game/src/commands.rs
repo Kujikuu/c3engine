@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /lay LOOK · /hear NAME WORDS · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /merchant 0|255|DAYS · /lay LOOK · /hear NAME WORDS · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -182,6 +182,17 @@ impl Sim {
                 Ok(format!("Place NPC look {look}."))
             }
             // Away training this many minutes already, its credit full (as on coming back).
+            // The merchant state: 0 none, 255 one, else waiting so many days; told as at login.
+            "merchant" => {
+                let n = u32::try_from(arg(0)?.max(0)).unwrap_or(0);
+                let state = match n {
+                    0 | crate::MERCHANT => n,
+                    days => crate::merchants::day(days),
+                };
+                self.players.get_mut(&id).expect("checked above").merchant = state;
+                self.merchant_login(id);
+                Ok(format!("Merchant state {state}."))
+            }
             "train" => {
                 let minutes = arg(0)?.max(0);
                 let most = self.settings.offline_training.most_credit;

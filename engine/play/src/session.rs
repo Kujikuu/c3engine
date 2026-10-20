@@ -756,8 +756,14 @@ impl Session {
         let action = (action.replace("{hero}", &self.hero.0.to_string()))
             .replace("{cell}", &format!("{x},{y}"));
         // Dropping the `n`th bag item as a drag to the ground would (`drop_bag:0`).
-        if let Some(n) = action.strip_prefix("drop_bag:").and_then(|n| n.parse::<usize>().ok()) {
-            let item = self.sim.player(self.hero).and_then(|p| Some(p.bag.get(n)?.id));
+        if let Some(n) = action
+            .strip_prefix("drop_bag:")
+            .and_then(|n| n.parse::<usize>().ok())
+        {
+            let item = self
+                .sim
+                .player(self.hero)
+                .and_then(|p| Some(p.bag.get(n)?.id));
             if let Some(item) = item {
                 self.act(UiAction::Game(Input::Drop(item)));
             }

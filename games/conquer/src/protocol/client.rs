@@ -1979,6 +1979,26 @@ impl ConquerClient {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
             // The warehouse as it is now, and the money kept.
+            // Merchant account news (business spec §2.4, §2.5): attribute 39 with the state,
+            // and MsgInteract 33 (offered 0, granted 255) or 35 (days waiting).
+            Event::Merchant { player, news } if Some(*player) == hero => {
+                use c3_game::MerchantNews as N;
+                let id = self.hero_id();
+                let state = |v: u32| pk::attributes(id, &[(attr::BUSINESS, u64::from(v))]);
+                match *news {
+                    N::Offered => vec![pk::interact_notice(interact::BUSINESS_APPLY, id, 0)],
+                    N::Applied { until } => vec![state(until)],
+                    N::Pending { days } => {
+                        vec![pk::interact_notice(interact::BUSINESS_STATE, id, days)]
+                    }
+                    N::Became => vec![
+                        state(c3_game::MERCHANT),
+                        pk::interact_notice(interact::BUSINESS_APPLY, id, c3_game::MERCHANT),
+                    ],
+                    N::Is => vec![state(c3_game::MERCHANT)],
+                    N::Cancelled => vec![state(0)],
+                }
+            }
             // A dice table's news (MsgName 17/18/19, MsgDice 1113; dice spec §2.4). The seat
             // offer is the client's own question for a type-19 NPC.
             Event::Dice { player, npc, news } if Some(*player) == hero => {
@@ -2181,6 +2201,15 @@ impl ConquerClient {
                 kind: interact::WITHDRAW,
                 ..
             } => inputs.push(Input::Withdraw),
+            // Applying for a merchant account, calling it off (332's buttons).
+            Request::Interact {
+                kind: interact::BUSINESS_APPLY,
+                ..
+            } => inputs.push(Input::Merchant(c3_game::MerchantAction::Apply)),
+            Request::Interact {
+                kind: interact::BUSINESS_REVOKE,
+                ..
+            } => inputs.push(Input::Merchant(c3_game::MerchantAction::Cancel)),
             Request::Interact { kind, target, .. }
                 if kind == interact::COURT || kind == interact::MARRY =>
             {

@@ -23,6 +23,11 @@ pub(crate) struct GuiState {
     pub exp_gain: Option<(u64, std::time::Instant)>,
     /// Screen move is on.
     pub screen_move: bool,
+    /// The merchant box's mode (TQ's CDlgBusinessConfirm: 1 apply, 2 waiting, 3 dissolve),
+    /// kept after it closes, the days waited, and whether it shows.
+    pub merchant_mode: u8,
+    pub merchant_days: u32,
+    pub merchant_shown: bool,
     /// The protection tip shown: what was refused, and whom a partnership may be offered.
     pub protect_tip: Option<(crate::ProtectionTip, Option<c3_game::EntityId>)>,
     /// The radar's mode, showing, and grow or shrink; whether it was set from the player's
@@ -621,6 +626,10 @@ impl GuiData for HeroData<'_> {
             "hero.running" => f64::from(u8::from(p.running)),
             "ui.radar" => f64::from(u8::from(self.state.radar.visible)),
             "ui.screen_move" => f64::from(u8::from(self.state.screen_move)),
+            // The merchant box: shown, its mode, the days' picture (BusinessNum frame N-1).
+            "merchant.open" => f64::from(u8::from(self.state.merchant_shown)),
+            "merchant.mode" => f64::from(self.state.merchant_mode),
+            "merchant.days_frame" => f64::from(self.state.merchant_days.saturating_sub(1)),
             // The protection tip: shown, its mode (TQ's 0-6), whether it offers a partnership.
             "protect.open" => f64::from(u8::from(self.state.protect_tip.is_some())),
             "protect.mode" => {

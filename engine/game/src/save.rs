@@ -220,6 +220,7 @@ impl Sim {
         self.add_saved_player_as(save, id);
         self.unlock_due(id);
         self.training_login(id);
+        self.merchant_login(id);
         id
     }
 

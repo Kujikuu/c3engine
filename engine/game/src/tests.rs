@@ -2989,3 +2989,27 @@ fn protected_items_stay_unless_a_merchant() {
     sim.input(hero, Input::Drop(charm));
     assert!(sim.player(hero).unwrap().bag.is_empty(), "dropped");
 }
+
+#[test]
+fn merchant_accounts_wait_then_come_at_login() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 9);
+    sim.set_settings(GameplaySettings {
+        merchant_days: 5,
+        ..sim.settings().clone()
+    });
+    let hero = sim.add_player("Hero", (3, 3), 1);
+    sim.take_events();
+    sim.input(hero, Input::Merchant(crate::MerchantAction::Apply));
+    let until = sim.player(hero).unwrap().merchant;
+    assert!(until > 20_000_000 && until != crate::MERCHANT);
+    assert!(sim.take_events().contains(&Event::Merchant {
+        player: hero,
+        news: crate::MerchantNews::Applied { until },
+    }));
+    // Its day come, the next login makes it one.
+    sim.players.get_mut(&hero).unwrap().merchant = 20_000_101;
+    sim.merchant_login(hero);
+    assert_eq!(sim.player(hero).unwrap().merchant, crate::MERCHANT);
+    sim.input(hero, Input::Merchant(crate::MerchantAction::Cancel));
+    assert_eq!(sim.player(hero).unwrap().merchant, 0);
+}

@@ -281,6 +281,11 @@ pub enum Event {
         player: EntityId,
         npc: u32,
     },
+    /// Merchant account news for `player`.
+    Merchant {
+        player: EntityId,
+        news: crate::merchants::MerchantNews,
+    },
     /// Dice table `npc`'s news for `player`.
     Dice {
         player: EntityId,

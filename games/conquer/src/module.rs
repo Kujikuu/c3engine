@@ -363,6 +363,8 @@ pub fn conquer_settings() -> ProjectSettings {
             reach: 4,
         };
     }
+    // Merchant accounts wait 5 days (FUN_00429094; the maps that grant at once aren't known).
+    s.gameplay.merchant_days = 5;
     // Jumps climb at most 200 above where the hero stands (CHero::m_nHeightCanJump).
     s.gameplay.jump_height = 200;
     // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,

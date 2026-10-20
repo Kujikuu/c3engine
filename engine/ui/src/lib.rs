@@ -574,7 +574,11 @@ impl GameUi {
     /// A protected item was held back from what it was asked for: the game UI's tip (mode
     /// `protect.mode`, offering a partnership with `offer`), else a line in chat.
     pub fn protection_tip(&mut self, tip: ProtectionTip, offer: Option<EntityId>) {
-        if self.gui.as_ref().is_some_and(|g| g.shows_while("protect.open")) {
+        if self
+            .gui
+            .as_ref()
+            .is_some_and(|g| g.shows_while("protect.open"))
+        {
             self.gui_state.protect_tip = Some((tip, offer));
         } else {
             self.system("That item is protected: it can't go.", style::BAD);
@@ -1220,6 +1224,18 @@ impl GameUi {
             "effigy_close" => actions.push(UiAction::Effigy(EffigyAction::Close)),
             // The protection tip: OK, or offering the trade's other side a partnership.
             "protect_ok" => self.gui_state.protect_tip = None,
+            // The merchant box: apply, call off, close; each hides it, keeping its mode.
+            "merchant_apply" | "merchant_cancel" | "merchant_close" => {
+                self.gui_state.merchant_shown = false;
+                let asked = match action {
+                    "merchant_apply" => Some(c3_game::MerchantAction::Apply),
+                    "merchant_cancel" => Some(c3_game::MerchantAction::Cancel),
+                    _ => None,
+                };
+                if let Some(asked) = asked {
+                    actions.push(UiAction::Game(c3_game::Input::Merchant(asked)));
+                }
+            }
             "protect_partner" => {
                 if let Some((_, Some(other))) = self.gui_state.protect_tip.take() {
                     let ask = c3_game::PartnerAction::Ask(other);
@@ -2165,6 +2181,32 @@ impl GameUi {
                             self.gui_state.prompt = prompt::Prompt::confirm("train_denied:")
                         }
                         N::Claimed => self.gui_state.training = None,
+                    }
+                }
+                // Merchant account news (CDlgBusinessConfirm 332, business spec §4.2): the box in
+                // its mode (none while a mode is kept and the box closed), the notices 11308 and
+                // 11311.
+                Event::Merchant { player, news } if *player == hero => {
+                    use c3_game::MerchantNews as N;
+                    let show = |state: &mut gui_data::GuiState, mode: u8, days: u32| {
+                        if state.merchant_mode == 0 || state.merchant_shown {
+                            (state.merchant_mode, state.merchant_days) = (mode, days);
+                            state.merchant_shown = true;
+                        }
+                    };
+                    match *news {
+                        N::Offered => show(&mut self.gui_state, 1, 0),
+                        N::Pending { days } => show(&mut self.gui_state, 2, days),
+                        N::Is => show(&mut self.gui_state, 3, 0),
+                        N::Applied { .. } => {}
+                        N::Became => {
+                            self.gui_state.prompt = prompt::Prompt::confirm("merchant_now:")
+                        }
+                        N::Cancelled if matches!(self.gui_state.merchant_mode, 2 | 3) => {
+                            self.gui_state.merchant_mode = 0;
+                            self.gui_state.prompt = prompt::Prompt::confirm("merchant_off:");
+                        }
+                        N::Cancelled => {}
                     }
                 }
                 Event::Withdrawn { player, amount, .. } if *player == hero => {
