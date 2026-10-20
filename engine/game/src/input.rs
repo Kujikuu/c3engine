@@ -107,6 +107,13 @@ pub enum Input {
     Unequip(u32),
     /// A chat line; lines starting with `/` are commands.
     Say(String),
+    /// Say `text` on `channel` (to player `to` when whispering).
+    Chat {
+        channel: crate::ChatChannel,
+        #[serde(default)]
+        to: String,
+        text: String,
+    },
     /// Come back to life (once the wait is over), when the game waits to be asked.
     Revive,
     /// Get up as a ghost (dead, when ghosts walk).
@@ -179,17 +186,8 @@ impl Sim {
                     text,
                 });
             }
-            Input::Say(line) => {
-                let text: String = line.trim().chars().take(MAX_CHAT).collect();
-                if let Some(p) = self.players.get(&id).filter(|_| !text.is_empty()) {
-                    let name = p.name.clone();
-                    self.events.push(Event::Chat {
-                        player: id,
-                        name,
-                        text,
-                    });
-                }
-            }
+            Input::Say(line) => self.chat(id, crate::ChatChannel::Local, "", &line),
+            Input::Chat { channel, to, text } => self.chat(id, channel, &to, &text),
         }
     }
 }

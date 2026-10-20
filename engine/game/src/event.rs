@@ -141,6 +141,9 @@ pub enum Event {
         player: EntityId,
         name: String,
         text: String,
+        /// Its channel, and the one player it is for (none: everyone near the speaker).
+        channel: crate::ChatChannel,
+        to: Option<EntityId>,
     },
     /// The answer to the player's chat command (`ok`: it worked).
     CommandReply {

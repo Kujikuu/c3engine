@@ -85,7 +85,20 @@ impl Chat {
             }
             Event::Message { player, text } if *player == hero => Some((text.clone(), style::WARN)),
             Event::Notice { player, text } if *player == hero => Some((text.clone(), style::GOLD)),
-            Event::Chat { name, text, .. } => Some((format!("{name}: {text}"), style::TEXT)),
+            Event::Chat {
+                name,
+                text,
+                channel,
+                ..
+            } => {
+                let tag = match channel {
+                    c3_game::ChatChannel::Local => "",
+                    c3_game::ChatChannel::Whisper => "[Whisper] ",
+                    c3_game::ChatChannel::Team => "[Team] ",
+                    c3_game::ChatChannel::Guild => "[Guild] ",
+                };
+                Some((format!("{tag}{name}: {text}"), style::TEXT))
+            }
             Event::CommandReply { player, ok, text } if *player == hero => {
                 Some((text.clone(), if *ok { style::GOOD } else { style::WARN }))
             }

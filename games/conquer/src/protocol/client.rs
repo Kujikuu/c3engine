@@ -1055,8 +1055,24 @@ impl ConquerClient {
             Event::LeveledUp { player, .. } if Some(*player) == hero => {
                 vec![pk::action(self.hero_id(), action::LEVEL_UP, 0, (0, 0), 0)]
             }
-            Event::Chat { player, name, text } if Some(*player) != hero => {
-                vec![pk::talk(channel::TALK, name, "ALLUSERS", text, WHITE)]
+            // The client shows its own lines itself.
+            Event::Chat {
+                player,
+                name,
+                text,
+                channel: on,
+                ..
+            } if Some(*player) != hero => {
+                let (code, hearer) = match on {
+                    c3_game::ChatChannel::Local => (channel::TALK, "ALLUSERS".to_owned()),
+                    c3_game::ChatChannel::Whisper => (
+                        channel::WHISPER,
+                        self.me.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
+                    ),
+                    c3_game::ChatChannel::Team => (channel::TEAM, "ALLUSERS".to_owned()),
+                    c3_game::ChatChannel::Guild => (channel::GUILD, "ALLUSERS".to_owned()),
+                };
+                vec![pk::talk(code, name, &hearer, text, WHITE)]
             }
             Event::Message { text, .. }
             | Event::Notice { text, .. }
@@ -1513,8 +1529,27 @@ impl ConquerClient {
                 }
             }),
             Request::Ping(packet) => out.push(packet),
-            Request::Talk { words, .. } if !words.trim().is_empty() => {
-                inputs.push(Input::Say(words))
+            Request::Talk {
+                channel: code,
+                hearer,
+                words,
+            } if !words.trim().is_empty() => {
+                use c3_game::ChatChannel as C;
+                let on = match code {
+                    channel::WHISPER => Some(C::Whisper),
+                    channel::TEAM => Some(C::Team),
+                    channel::GUILD => Some(C::Guild),
+                    _ => None,
+                };
+                inputs.push(match on {
+                    // Commands and talk go as they are.
+                    Some(on) if !words.starts_with('/') => Input::Chat {
+                        channel: on,
+                        to: hearer,
+                        text: words,
+                    },
+                    _ => Input::Say(words),
+                });
             }
             _ => {}
         }

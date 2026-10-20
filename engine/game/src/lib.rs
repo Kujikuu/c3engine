@@ -5,6 +5,7 @@
 //! ranges, timings, the bag) from the project's [`GameplaySettings`]; the engine keeps the
 //! world, movement, timing and order (see docs/DECISIONS.md: a typed world, no ECS).
 
+mod chat;
 mod commands;
 mod dialogue;
 mod entity;
@@ -41,6 +42,7 @@ pub use teams::{Mate, TEAM_SIZE, TeamAction, TeamOp};
 pub use world_state::{GUILD_RELATIONS, Guild, WorldState};
 
 pub use c3_core::settings::GameplaySettings;
+pub use chat::{ChatChannel, ChatLine};
 pub use commands::HELP as COMMAND_HELP;
 pub use entity::{GroundItem, Item, Monster, NameMark, Player, PlayerLook, Task};
 pub use event::Event;

@@ -73,6 +73,8 @@ pub struct Sim {
     pub(crate) world_timers: Vec<(u64, String)>,
     /// Team invitations: the invited player → the inviting leader.
     pub(crate) team_invites: BTreeMap<EntityId, EntityId>,
+    /// Chat lines for players on other maps, by name (the host carries them).
+    pub(crate) chat_out: Vec<(String, crate::ChatLine)>,
     /// Proposals of marriage: who proposed to whom.
     pub(crate) courting: BTreeMap<EntityId, EntityId>,
     /// Who asked to join which leader's team, and the teams closed to newcomers.
@@ -150,6 +152,7 @@ impl Sim {
             world_timers: Vec::new(),
             team_invites: BTreeMap::new(),
             courting: BTreeMap::new(),
+            chat_out: Vec::new(),
             team_applies: BTreeMap::new(),
             guild_invites: BTreeMap::new(),
             guild_applies: BTreeMap::new(),

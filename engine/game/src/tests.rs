@@ -2151,3 +2151,88 @@ fn players_apply_to_a_guild_s_officer_and_are_taken_in() {
     assert_eq!(sim.world_state().guild_of("Comer").map(|g| g.0), Some(7));
     let _ = lead;
 }
+
+#[test]
+fn chat_reaches_its_channel() {
+    use crate::{ChatChannel, Input};
+    use c3_script::WorldChange;
+    let mut sim = Sim::new(Grid::new(40, 40), vec![], vec![], rules(), 7);
+    let mut settings = sim.settings().clone();
+    settings.guild_chat_min_fund = 1000;
+    sim.set_settings(settings);
+    let ann = sim.add_saved_player(&crate::PlayerSave::new("Ann", (5, 5)));
+    let bob = sim.add_saved_player(&crate::PlayerSave::new("Bob", (30, 30)));
+    sim.take_events();
+    let heard = |sim: &mut Sim| -> Vec<(EntityId, Option<EntityId>, ChatChannel)> {
+        (sim.take_events().into_iter())
+            .filter_map(|e| match e {
+                Event::Chat {
+                    player,
+                    to,
+                    channel,
+                    ..
+                } => Some((player, to, channel)),
+                _ => None,
+            })
+            .collect()
+    };
+    let say = |sim: &mut Sim, channel, to: &str| {
+        sim.input(
+            ann,
+            Input::Chat {
+                channel,
+                to: to.into(),
+                text: "hi".into(),
+            },
+        );
+    };
+    say(&mut sim, ChatChannel::Whisper, "Bob");
+    let w = heard(&mut sim);
+    assert!(w.contains(&(ann, Some(bob), ChatChannel::Whisper)), "{w:?}");
+    assert!(
+        w.contains(&(ann, Some(ann), ChatChannel::Whisper)),
+        "the speaker sees it"
+    );
+    // Someone not online is told so; one on another map waits for the host.
+    say(&mut sim, ChatChannel::Whisper, "Nobody");
+    assert!(heard(&mut sim).is_empty());
+    sim.change_world(WorldChange::Online {
+        name: "Cid".into(),
+        map: 1002,
+        level: 1,
+    });
+    say(&mut sim, ChatChannel::Whisper, "Cid");
+    assert_eq!(sim.take_chat_out().len(), 1);
+    heard(&mut sim);
+    // Team: only in one.
+    say(&mut sim, ChatChannel::Team, "");
+    assert!(heard(&mut sim).is_empty());
+    sim.input(ann, Input::Say("/team create".into()));
+    sim.input(ann, Input::Say("/team invite Bob".into()));
+    sim.input(bob, Input::Say("/team join Ann".into()));
+    sim.take_events();
+    say(&mut sim, ChatChannel::Team, "");
+    assert!(heard(&mut sim).contains(&(ann, Some(bob), ChatChannel::Team)));
+    // Guild: a poor guild's channel is shut.
+    sim.change_world(WorldChange::CreateGuild {
+        id: 3,
+        name: "Wolves".into(),
+        leader: "Ann".into(),
+        rank: 100,
+        fund: 0,
+        master: 0,
+    });
+    sim.change_world(WorldChange::Member {
+        guild: 3,
+        name: "Bob".into(),
+        rank: 50,
+    });
+    say(&mut sim, ChatChannel::Guild, "");
+    assert!(heard(&mut sim).is_empty());
+    sim.change_world(WorldChange::GuildFund {
+        guild: 3,
+        amount: 5000,
+    });
+    say(&mut sim, ChatChannel::Guild, "");
+    assert!(heard(&mut sim).contains(&(ann, Some(bob), ChatChannel::Guild)));
+}

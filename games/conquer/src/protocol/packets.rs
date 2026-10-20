@@ -159,6 +159,10 @@ pub const DIALOG: u16 = 2032;
 
 /// Chat channels.
 pub mod channel {
+    /// TQ's _TXTATR_*: whisper, team, guild (NetworkDef.h).
+    pub const WHISPER: u16 = 2001;
+    pub const TEAM: u16 = 2003;
+    pub const GUILD: u16 = 2004;
     pub const TALK: u16 = 2007;
     pub const SYSTEM: u16 = 2005;
     pub const ENTRANCE: u16 = 2101;
@@ -791,6 +795,8 @@ pub enum Request {
     },
     Talk {
         channel: u16,
+        /// Who it is for (a whisper's name; `ALLUSERS` otherwise).
+        hearer: String,
         words: String,
     },
     /// A gem set in (`remove` false) or taken from socket `pos` of `item`.
@@ -1018,6 +1024,7 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             }
             Request::Talk {
                 channel,
+                hearer: list.get(1).cloned().unwrap_or_default(),
                 words: list.get(3).cloned().unwrap_or_default(),
             }
         }
@@ -1088,6 +1095,7 @@ mod tests {
             parse(&chat).unwrap(),
             Request::Talk {
                 channel: channel::TALK,
+                hearer: "ALL".into(),
                 words: "hi there".into()
             }
         );

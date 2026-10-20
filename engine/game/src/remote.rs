@@ -94,6 +94,9 @@ impl Event {
             | Event::ClientCue { player, .. }
             | Event::ClientCueText { player, .. }
             | Event::Proposed { player, .. }
+            | Event::Chat {
+                to: Some(player), ..
+            }
             | Event::StorageOpened { player, .. }
             | Event::Trade { player, .. }
             | Event::TeamInvited { player, .. }
@@ -130,7 +133,9 @@ impl Event {
             | Event::PickedUp { player, .. }
             | Event::Used { player, .. }
             | Event::Dressed { player }
-            | Event::Chat { player, .. } => vec![player],
+            | Event::Chat {
+                player, to: None, ..
+            } => vec![player],
             Event::Effect { entity, .. } | Event::Sound { entity, .. } => vec![entity],
             Event::RoomCue { player, .. } | Event::RoomCueText { player, .. } => vec![player],
             _ => Vec::new(),

@@ -214,6 +214,7 @@ impl GameServer {
             }
         }
         self.carry_team_ops();
+        self.carry_chat();
         self.carry_npc_moves();
         self.share_world();
         for (from, hero, map, cell) in travels {
@@ -250,6 +251,20 @@ impl GameServer {
         }
         for map in &mut self.maps {
             map.sim.set_map_population(population.clone());
+        }
+    }
+
+    /// Carries chat lines to the players on other maps they are for.
+    fn carry_chat(&mut self) {
+        let lines: Vec<_> = (self.maps.iter_mut())
+            .flat_map(|m| m.sim.take_chat_out())
+            .collect();
+        for (name, line) in lines {
+            for map in &mut self.maps {
+                if map.sim.hear(&name, &line) {
+                    break;
+                }
+            }
         }
     }
 

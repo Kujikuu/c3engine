@@ -439,6 +439,9 @@ pub struct GameplaySettings {
     /// alone).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub guild_invite_rank: u32,
+    /// The fund a guild needs for its members to talk on its channel (0: none).
+    #[serde(default)]
+    pub guild_chat_min_fund: i64,
     /// The fund a guild needs to take a member in (0: none).
     #[serde(default)]
     pub guild_join_min_fund: i64,
@@ -515,6 +518,7 @@ impl Default for GameplaySettings {
             points_attribute: String::new(),
             point_attributes: Vec::new(),
             guild_join_min_fund: 0,
+            guild_chat_min_fund: 0,
             guild_max_members: 0,
             team_exp_range: 0,
             loot_protection_seconds: 0.0,

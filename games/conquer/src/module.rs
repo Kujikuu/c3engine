@@ -181,6 +181,8 @@ pub fn conquer_settings() -> ProjectSettings {
     // 800 at most (syndicate §2).
     s.gameplay.guild_invite_rank = 90;
     s.gameplay.guild_join_min_fund = 100_000;
+    // A guild under 100,000 can't talk on its channel either (packets 1004, 2004).
+    s.gameplay.guild_chat_min_fund = 100_000;
     s.gameplay.guild_max_members = 800;
     // Teammates within 32 cells of a kill share it (battle §4); a spouse is `mate`.
     s.gameplay.team_exp_range = 32;
