@@ -16,6 +16,8 @@ pub(crate) struct GuiState {
     pub work: Vec<u32>,
     /// What the guild list shows: `members` (also when empty), `allies`, `enemies`.
     pub guild_tab: String,
+    /// Invites and asks to join a team are taken at once (the team dialog's auto check).
+    pub auto_team: bool,
     /// Each view group's view (`view:<group>:<name>`; a status page's base or details).
     pub views: std::collections::HashMap<String, String>,
 }
@@ -141,6 +143,27 @@ impl GuiData for HeroData<'_> {
             // The NPC whose shop is open (0: none).
             "hero.shop" => p.shop.unwrap_or(0).into(),
             "hero.profession" => p.profession.into(),
+            // The hero's team: in one, member `n` there, its options, auto-joining.
+            "team.in" => u8::from(p.team.is_some()).into(),
+            "team.leads" => u8::from(p.team == Some(p.id)).into(),
+            _ if key.starts_with("team.has.") => {
+                let n: usize = key.strip_prefix("team.has.")?.parse().ok()?;
+                let count = match p.mates.is_empty() {
+                    true => self.view.sim.team_mates(p.id).len(),
+                    false => p.mates.len(),
+                };
+                u8::from(n < count).into()
+            }
+            "team.closed" | "team.shares_money" | "team.shares_items" => {
+                let (closed, keeps, shares) = self.view.sim.team_options(p.team?);
+                u8::from(match key {
+                    "team.closed" => closed,
+                    "team.shares_money" => !keeps,
+                    _ => shares,
+                })
+                .into()
+            }
+            "team.auto" => u8::from(self.state.auto_team).into(),
             // 1 while view group `<group>` shows view `<name>` (`view.<group>.<name>`).
             _ if key.starts_with("view.") => {
                 let (group, name) = key.strip_prefix("view.")?.split_once('.')?;
@@ -174,6 +197,11 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // Team member `n`'s face (1, Conquer's heroes'), none past the team's end.
+            _ if key.starts_with("team.face.") => {
+                let n = key.strip_prefix("team.face.")?;
+                (self.number(&format!("team.has.{n}")) == Some(1.0)).then(|| "1".to_owned())
+            }
             // The hero's text variable `<name>` (its spouse: `hero.text.mate`).
             _ if key.starts_with("hero.text.") => {
                 let name = key.strip_prefix("hero.text.")?;

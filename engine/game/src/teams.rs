@@ -141,6 +141,16 @@ impl Sim {
 
     /// The members of player `id`'s team on every map (the leader first); empty when it
     /// has none.
+    /// The options of the team led by `leader`: closed to newcomers, its members keeping
+    /// their money, sharing their items.
+    pub fn team_options(&self, leader: EntityId) -> (bool, bool, bool) {
+        (
+            self.closed_teams.contains(&leader),
+            self.teams_keeping_money.contains(&leader),
+            self.teams_sharing_items.contains(&leader),
+        )
+    }
+
     pub fn team_members(&self, id: EntityId) -> Vec<EntityId> {
         match self.team_of_any(id) {
             Some(leader) => self.in_team(leader),

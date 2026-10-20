@@ -846,7 +846,8 @@ pub struct UiSettings {
     pub layout: String,
     /// The images controls show (`Control.Ani` form).
     pub skin: String,
-    /// More images (the same form) for sections the skin hasn't: server pictures.
+    /// More images (the same form) for sections the skin hasn't: server pictures;
+    /// `path#Prefix` names a file's sections `Prefix<name>`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub skins: Vec<String>,
     /// Each control's kind, image, binding and action.

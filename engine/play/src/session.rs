@@ -986,15 +986,14 @@ pub fn game_gui(
     if !ui.from_data() {
         return None;
     }
-    // The skins one after another: the first section of a name wins.
+    // The skins one after another: the first section of a name wins; `path#Prefix` puts
+    // `Prefix` before each of that file's section names (two files naming theirs alike).
     let mut skin = Vec::new();
-    for path in std::iter::once(&ui.skin).chain(&ui.skins) {
+    for entry in std::iter::once(&ui.skin).chain(&ui.skins) {
+        let (path, prefix) = entry.split_once('#').unwrap_or((entry.as_str(), ""));
         if let Some(bytes) = (!path.is_empty()).then(|| game.read_file(path)).flatten() {
-            skin.extend_from_slice(&bytes);
-            skin.extend_from_slice(
-                b"
-",
-            );
+            skin.extend_from_slice(&prefixed_sections(&bytes, prefix));
+            skin.extend_from_slice(b"\n");
         }
     }
     let mut gui = c3_ui::gui::Gui::new(
@@ -1009,6 +1008,25 @@ pub fn game_gui(
         click: ui.sound_click.clone(),
     };
     Some(gui)
+}
+
+/// Ani text with `prefix` put before each section name (`[Face1]` → `[PlayerFace1]`).
+fn prefixed_sections(bytes: &[u8], prefix: &str) -> Vec<u8> {
+    if prefix.is_empty() {
+        return bytes.to_vec();
+    }
+    let mut out = Vec::with_capacity(bytes.len());
+    for line in bytes.split_inclusive(|&b| b == b'\n') {
+        match line.strip_prefix(b"[") {
+            Some(rest) => {
+                out.push(b'[');
+                out.extend_from_slice(prefix.as_bytes());
+                out.extend_from_slice(rest);
+            }
+            None => out.extend_from_slice(line),
+        }
+    }
+    out
 }
 
 /// How long joining a server may take.

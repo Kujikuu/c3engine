@@ -237,6 +237,10 @@ pub struct GameUi {
     chat: chat::Chat,
     /// The simulation asked the hero where to place an NPC (answered next frame).
     placing: bool,
+    /// Inputs the UI makes by itself (auto-joining a team), sent next frame.
+    auto_inputs: Vec<c3_game::Input>,
+    /// The hero's team's options as last drawn (closed, keeping money, sharing items).
+    team_options: (bool, bool, bool),
     overlay: hud::Overlay,
     bag_open: bool,
     quests_open: bool,
@@ -419,6 +423,21 @@ impl GameUi {
             "team_leave" => actions.push(UiAction::Game(c3_game::Input::Team(
                 c3_game::TeamAction::Leave,
             ))),
+            // The team menu's checks (MenuGroup): each turns its option the other way.
+            "team_close" | "team_money" | "team_items" => {
+                let (closed, keeps, shares) = self.team_options;
+                use c3_game::TeamAction as T;
+                let action = match action {
+                    "team_close" if closed => T::Open,
+                    "team_close" => T::Close,
+                    "team_money" if keeps => T::ShareMoney,
+                    "team_money" => T::KeepMoney,
+                    _ if shares => T::KeepItems,
+                    _ => T::ShareItems,
+                };
+                actions.push(UiAction::Game(c3_game::Input::Team(action)));
+            }
+            "team_auto" => self.gui_state.auto_team ^= true,
             "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
@@ -543,6 +562,20 @@ impl GameUi {
             {
                 self.placing = true;
             }
+            // Auto-joining: an invite joins, a leader takes in whoever asks.
+            if self.gui_state.auto_team {
+                use c3_game::{Input, TeamAction};
+                match *event {
+                    Event::TeamInvited { player, leader } if player == hero => {
+                        self.auto_inputs.push(Input::Team(TeamAction::Join(leader)));
+                    }
+                    Event::TeamApplied { player, applicant } if player == hero => {
+                        self.auto_inputs
+                            .push(Input::Team(TeamAction::Accept(applicant)));
+                    }
+                    _ => {}
+                }
+            }
         }
         for event in events {
             self.overlay.event(event, hero, now);
@@ -585,6 +618,10 @@ impl GameUi {
         let Some(player) = view.player() else {
             return actions;
         };
+        actions.extend(self.auto_inputs.drain(..).map(UiAction::Game));
+        self.team_options = (player.team)
+            .map(|leader| view.sim.team_options(leader))
+            .unwrap_or_default();
         // A placement asked for: where the hero stands, as it faces.
         if std::mem::take(&mut self.placing) {
             actions.push(UiAction::Game(c3_game::Input::Place {

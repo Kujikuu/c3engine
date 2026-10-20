@@ -737,8 +737,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Picking a player: a `pick:<what>` action arms it, the next click on a player trades
         with, invites, kicks or asks to join (the main bar's Trade, the team's invite and
         kick)
-  - [ ] Team: the
-        members' faces, the auto-join and pick-up options
+  - [x] Team: the members' faces (PlayerFace.Ani as a prefixed skin, `path#Prefix`), the
+        buttons by the hero's place (Create/Join, Invite/Dismiss, Leave), the options menu
+        (MenuGroup 268: closed, money, items, as the team's), the auto check taking invites
+        and asks (screenshot)
   - [x] The guild (CDlgKnightage 133): its name, leader, the hero's rank, members, fund and
         member list bound from the shared world state, Quit leaves (layout screenshot)
   - [x] Guild tabs: Status, Allies and Enemies switch the list (members, allied and enemy

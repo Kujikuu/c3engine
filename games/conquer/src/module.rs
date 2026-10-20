@@ -216,6 +216,8 @@ pub fn conquer_settings() -> ProjectSettings {
         "ani/Server.ani".into(),
         "ani/NpcFace.Ani".into(),
         "ani/Magic.Ani".into(),
+        // Players' faces (PlayerFace.Ani names them Face<n> too, as NpcFace.Ani does).
+        "ani/PlayerFace.Ani#Player".into(),
     ];
     // The client's dialog sounds (DXPlaySound in its dialogs).
     s.ui.sound_open = "sound/DlgOpen.wav".into();
