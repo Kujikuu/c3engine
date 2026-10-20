@@ -160,11 +160,12 @@ pub struct WantedView {
 }
 
 /// Something waiting for a player who may be elsewhere or offline: a text variable set, an
-/// item given.
+/// item given, words a friend left.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Delivery {
     Text { name: String, value: String },
     Item { kind: i64 },
+    Word { from: String, text: String },
 }
 
 /// A name on the police wanted list as scripts see it: its guild, level and PK points.

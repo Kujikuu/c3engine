@@ -44,6 +44,16 @@ pub(crate) struct GuiState {
     pub held: Option<(String, usize)>,
     /// The other player whose booth the hero was shown.
     pub booth: Option<c3_game::EntityId>,
+    /// Words friends left for the hero this session: who and what (TQ's leave-word log).
+    pub words: Vec<(String, String)>,
+    /// Whom the leave-word dialog writes to.
+    pub word_to: String,
+    /// A contact list's row double-clicked: whisper an online friend, leave words for an
+    /// offline one (in that dialog).
+    pub contact_word: Option<(String, u32)>,
+    /// A whisper waiting to be checked: sent, or (to an offline friend) asked to be left as
+    /// words.
+    pub whisper: Option<(String, String)>,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -236,6 +246,19 @@ impl HeroData<'_> {
     pub(crate) fn booth_ware(&self, whose: &str, n: usize) -> Option<&c3_game::Ware> {
         let first = self.view_number(&format!("booth_{whose}_page"));
         self.booth_wares(whose).get(first + n)
+    }
+
+    /// The words picked in the received-words dialog (`view:word`): who left them and what.
+    fn word_shown(&self) -> Option<&(String, String)> {
+        self.state.words.get(self.view_number("word"))
+    }
+
+    /// Whether `name` is the hero's friend and offline (words may be left for it).
+    pub(crate) fn offline_friend(&self, name: &str) -> bool {
+        let world = self.view.sim.world_state();
+        world.are_friends(&self.player.name, name)
+            && !world.online.contains_key(name)
+            && self.view.sim.players().all(|p| p.name != name)
     }
 
     /// A booth slot binding `booth.<whose>.<field>.<n>`: whose booth and the slot.
@@ -447,6 +470,16 @@ impl GuiData for HeroData<'_> {
             }
             // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
             "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
+            // Words left for the hero: how many, whether there are words before or after
+            // those shown, and whether their sender may be answered (an offline friend).
+            "words.count" => self.state.words.len() as f64,
+            "word.prev" => u8::from(self.view_number("word") > 0).into(),
+            "word.next" => u8::from(self.view_number("word") + 1 < self.state.words.len()).into(),
+            "word.can_reply" => u8::from(
+                self.word_shown()
+                    .is_some_and(|(from, _)| self.offline_friend(from)),
+            )
+            .into(),
             // The hero keeps a booth; it was shown another's, still open.
             "booth.mine" | "booth.theirs" => {
                 let open = match key {
@@ -566,6 +599,11 @@ impl GuiData for HeroData<'_> {
             // Who asked the question shown, and its kind.
             "prompt.name" => Some(self.state.prompt.as_ref()?.name.clone()),
             "prompt.kind" => Some(self.state.prompt.as_ref()?.kind.clone()),
+            // The leave-word dialog's friend and the words shown in the received ones.
+            "word.to" => Some(self.state.word_to.clone()),
+            "word.from" => Some(self.word_shown().map(|w| w.0.clone()).unwrap_or_default()),
+            "word.said" => Some(self.word_shown().map(|w| w.1.clone()).unwrap_or_default()),
+            "word.text" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
             // A booth slot's price (`booth.theirs.price.0`), empty when the slot is.
             _ if Self::booth_slot(key, "price").is_some() => {
                 let (whose, n) = Self::booth_slot(key, "price")?;

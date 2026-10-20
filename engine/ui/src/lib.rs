@@ -261,6 +261,8 @@ pub(crate) const CHAT_NAME: &str = "chat.name";
 const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
+/// The words typed for a friend in the leave-word dialog.
+const WORD_TEXT: &str = "word.text";
 /// What the hero's booth cries out, as typed.
 const BOOTH_CRY: &str = "booth.cry";
 /// The chat bar's list of names (TQ's CDlgListBox, hidden once a name is picked).
@@ -702,6 +704,10 @@ impl GameUi {
                     }
                 };
                 self.gui_state.chat_bar.said(&text, &picked, &to);
+                if channel == C::Whisper && self.gui.is_some() {
+                    self.gui_state.whisper = Some((to, text));
+                    return;
+                }
                 actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }));
             }
             // The name typed listed, or taken off when it is (the Add button).
@@ -764,6 +770,33 @@ impl GameUi {
                 actions.push(UiAction::Game(close));
             }
             "booth_leave" => self.gui_state.booth = None,
+            // Leave words: sent to the dialog's friend; the sender of those shown answered;
+            // those received forgotten; a contact row double-clicked (`contact_word:<list>:
+            // <dialog>`: whisper it online, leave it words in that dialog offline).
+            "word_send" => {
+                let text = self.gui_state.fields.remove(WORD_TEXT).unwrap_or_default();
+                let to = self.gui_state.word_to.clone();
+                if !text.trim().is_empty() && !to.is_empty() {
+                    let channel = c3_game::ChatChannel::LeaveWord;
+                    actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }));
+                }
+            }
+            "word_reply" => {
+                let at = (self.gui_state.views.get("word")).and_then(|v| v.parse().ok());
+                if let Some((from, _)) = at.and_then(|at: usize| self.gui_state.words.get(at)) {
+                    self.gui_state.word_to = from.clone();
+                }
+            }
+            "words_clear" => {
+                self.gui_state.words.clear();
+                self.gui_state.views.remove("word");
+            }
+            _ if action.starts_with("contact_word:") => {
+                let mut parts = action["contact_word:".len()..].splitn(2, ':');
+                let list = parts.next().unwrap_or_default().to_owned();
+                let dialog = parts.next().and_then(|d| d.parse().ok()).unwrap_or(0);
+                self.gui_state.contact_word = Some((list, dialog));
+            }
             _ if action.starts_with("booth_remove:") || action.starts_with("booth_buy:") => {
                 let (kind, n) = action.split_once(':').expect("checked");
                 let whose = if kind == "booth_buy" {
@@ -888,6 +921,55 @@ impl GameUi {
                     }
                 }
             }
+        }
+    }
+
+    /// A contact row double-clicked (TQ's ON_FRIEND_CHAT / ON_FRIEND_LEAVE): an online friend
+    /// is whispered, an offline one gets the leave-word dialog; and a whisper typed: sent, or
+    /// to an offline friend asked to be left as words (StrRes 11022, CDlgOfflineMessage).
+    fn contact_word(&mut self, view: &GameView, player: &Player, actions: &mut Vec<UiAction>) {
+        let data = gui_data::HeroData {
+            view,
+            player,
+            state: &self.gui_state,
+        };
+        let double = (self.gui_state.contact_word.as_ref())
+            .and_then(|(list, dialog)| Some((data.picked_contact(list)?, *dialog)))
+            .map(|(name, dialog)| (data.offline_friend(&name), name, dialog));
+        let whisper = (self.gui_state.whisper.as_ref())
+            .map(|(to, text)| (data.offline_friend(to), to.clone(), text.clone()));
+        self.gui_state.contact_word = None;
+        self.gui_state.whisper = None;
+        match double {
+            Some((true, name, dialog)) => {
+                self.gui_state.word_to = name;
+                if let Some(gui) = &mut self.gui {
+                    gui.open(dialog);
+                }
+            }
+            Some((false, name, _)) => {
+                self.gui_state.fields.insert(CHAT_NAME.into(), name);
+                self.gui_state.views.insert("chat".into(), "whisper".into());
+                self.gui_state.focus = Some(CHAT_TEXT.into());
+            }
+            None => {}
+        }
+        use c3_game::{ChatChannel as C, Input};
+        match whisper {
+            Some((true, to, text)) => {
+                let word = Input::Chat {
+                    channel: C::LeaveWord,
+                    to: to.clone(),
+                    text,
+                };
+                self.ask("offline_word", &to, word);
+            }
+            Some((false, to, text)) => actions.push(UiAction::Game(Input::Chat {
+                channel: C::Whisper,
+                to,
+                text,
+            })),
+            None => {}
         }
     }
 
@@ -1161,6 +1243,17 @@ impl GameUi {
                     if *owner != hero {
                         self.gui_state.booth = Some(*owner);
                     }
+                }
+                // Words a friend left for the hero, kept for the received-words dialog.
+                Event::Chat {
+                    name,
+                    text,
+                    channel: c3_game::ChatChannel::LeaveWord,
+                    to: Some(to),
+                    ..
+                } if *to == hero => {
+                    self.gui_state.words.push((name.clone(), text.clone()));
+                    self.chat.event(event, sim, hero);
                 }
                 // A free booth spot: whether to open a booth there (TQ's StrRes 10364).
                 Event::BoothOffered { player, spot } if *player == hero => {
@@ -1449,6 +1542,7 @@ impl GameUi {
                 for event in others {
                     self.gui_event(event, &mut actions);
                 }
+                self.contact_word(view, player, &mut actions);
                 // What the hero offers shows in its side of the trade.
                 if let Some(trade) = &mut self.gui_state.trade {
                     for action in &actions {

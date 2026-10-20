@@ -247,6 +247,8 @@ pub struct Control {
     pub cell: i32,
     pub wrap: bool,
     pub hover: Option<[u8; 3]>,
+    /// What a list row double-clicked asks for (`double=`; TQ's CMyList OnLButtonDblClk).
+    pub double: String,
     /// How far a slider's thumb travels, in layout pixels (`travel=80`).
     pub travel: i32,
     /// A stacked control comes no higher than this (`min_y=`; under an NPC's face).
@@ -404,6 +406,7 @@ impl Control {
             cell: section.int("cell").unwrap_or(0).max(0),
             wrap: section.int("wrap").is_some_and(|w| w != 0),
             hover: section.get("hover").map(|_| rgb("hover")),
+            double: text("double"),
             min_y: section.int("min_y").unwrap_or(0),
             travel: section.int("travel").unwrap_or(0).max(0),
             beside: section.int("beside").is_some_and(|b| b != 0),

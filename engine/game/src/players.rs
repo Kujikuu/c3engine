@@ -82,6 +82,7 @@ impl Sim {
                 mark: crate::NameMark::Good,
                 crime_until: 0,
                 next_decay_ms: 0,
+                word_left_ms: None,
                 attributes: std::collections::BTreeMap::new(),
                 record: None,
                 running: false,

@@ -92,6 +92,15 @@ impl Sim {
                             p.texts.insert(name, value);
                         }
                     }
+                    // Words a friend left while it was offline, as a line said to it.
+                    Delivery::Word { from, text } => self.events.push(Event::Chat {
+                        player: id,
+                        name: from,
+                        text,
+                        channel: crate::ChatChannel::LeaveWord,
+                        to: Some(id),
+                        hearer: name.clone(),
+                    }),
                     Delivery::Item { kind } => {
                         if let Ok(kind) = u32::try_from(kind) {
                             self.give_items(id, kind, 1);

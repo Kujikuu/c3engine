@@ -26,6 +26,8 @@ pub struct ChatLook {
     pub team: String,
     pub guild: String,
     pub friend: String,
+    /// Before words a friend left (TQ's [Message]).
+    pub leave_word: String,
     pub system: String,
     /// Between the speaker and the hearer; after the hearer; the hearer of a line to all.
     pub to: String,
@@ -155,6 +157,7 @@ impl Chat {
                     C::Team => (&look.team, &look.everyone),
                     C::Guild => (&look.guild, &look.everyone),
                     C::Friend => (&look.friend, &look.everyone),
+                    C::LeaveWord => (&look.leave_word, hearer),
                 };
                 let clock = match look.clock {
                     true => {
@@ -181,6 +184,7 @@ impl Chat {
                     c3_game::ChatChannel::Team => "[Team] ",
                     c3_game::ChatChannel::Guild => "[Guild] ",
                     c3_game::ChatChannel::Friend => "[Friend] ",
+                    c3_game::ChatChannel::LeaveWord => "[Message] ",
                 };
                 Some((format!("{tag}{name}: {text}"), style::TEXT))
             }

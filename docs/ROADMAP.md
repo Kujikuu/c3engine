@@ -1101,7 +1101,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 2232 / 2233 / 2234 native private chat windows and tray: missing, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 294 CDlgBroadcast5065 (pigeon broadcast board): draft only, 9 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 296 CDlgPigeonPrompt5065 (broadcast prompts): draft only, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 293 CDlgOfflineMessage5065 (whisper to an offline friend): draft only, 4 mismatches (docs/conquer_ui_audit.md)
+  - [x] UI 293 CDlgOfflineMessage5065 (whisper to an offline friend): a whisper to an offline friend asks (StrRes 11022, Dialog15 at -5,-5) whether to leave it as words; OK leaves them, Cancel drops it
   - [ ] UI 229 CDlgEmbed (gem sockets): 5 of 13 audit mismatches fixed
     - [x] opened by a gem NPC (`gameplay.npc_windows`: an NPC kind opening a window in place of a dialogue)
     - [x] the bag opened with it
@@ -1152,8 +1152,15 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 235 CDlgHawk (booth cry-out): 2 of 3 audit mismatches fixed
     - [x] opened by the booth's Hawk, a 64-letter edit, Agree sets the cry and closes (DlgHawk.cpp 98-167)
     - [ ] the text filtered and the edit cleared on show
-  - [ ] UI 232 CDlgMsgSend (leave a word): draft only, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 238 CDlgMsgReceive (received words): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Leave words (social spec §5): words for an offline friend wait on the world state and come at its next login (ChatChannel::LeaveWord, one a minute, STR_MSG_SENT / STR_MSG_FAILED); the Conquer front carries them on MsgTalk 2110 and holds them until the client has loaded its map
+    - [x] engine, UI and front
+    - [ ] trade partners may get words too (no trade partners yet), words kept 31 days, the received words logged to disk as the client's chat log does
+  - [ ] UI 232 CDlgMsgSend (leave a word): 5 of 6 audit mismatches fixed
+    - [x] opened by double-clicking an offline friend (CMyList OnLButtonDblClk) and by Reply in 238; the friend's name, a 256-letter multi-line edit (`wrap=1` edits), Send leaves the words and closes, View All only with words received
+    - [ ] Help (1667) once the help dialog lands
+  - [ ] UI 238 CDlgMsgReceive (received words): 5 of 6 audit mismatches fixed
+    - [x] who left the words and what; Previous / Next enabled as there are more; Reply only to an offline friend; Delete All
+    - [ ] Help (1667)
   - [ ] UI 290 CDlgItemPurchase5065 (+292 CDlgBuyMessage5065) (CP buy amount): draft only, 10 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 330 CDlgEmoneyWithdraw5065 (CP withdraw button): draft only, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 277 CDlgPortableChest5065 (portable chest): missing, 6 mismatches (docs/conquer_ui_audit.md)

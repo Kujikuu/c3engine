@@ -196,6 +196,9 @@ pub struct Player {
     /// When (game ms) it next loses a PK point.
     #[serde(skip)]
     pub(crate) next_decay_ms: u64,
+    /// When (game ms) it last left a friend words.
+    #[serde(skip)]
+    pub(crate) word_left_ms: Option<u64>,
     /// The game's numbers (the settings' `attributes`) that differ from their default.
     #[serde(default)]
     pub attributes: BTreeMap<String, i64>,

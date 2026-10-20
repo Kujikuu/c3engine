@@ -463,6 +463,9 @@ pub struct ConquerClient {
     seen_guilds: HashMap<EntityId, u32>,
     /// The owner of the booth whose goods the client asked for.
     booth_asked: Option<EntityId>,
+    /// Words friends left, given before the client loaded its map (shown once it has, as
+    /// TQ gives them on MsgAction 76).
+    held_words: Vec<Vec<u8>>,
 }
 
 impl ConquerClient {
@@ -623,6 +626,7 @@ impl ConquerClient {
             pk::attributes(id, &Self::stats(me, self.points)),
         ];
         out.extend(self.surroundings());
+        out.append(&mut self.held_words);
         out
     }
 
@@ -839,6 +843,22 @@ impl ConquerClient {
                 } else {
                     out.extend(self.event(event, ids, sim));
                 }
+            }
+        } else {
+            let words = (update.events.iter())
+                .filter(|e| {
+                    matches!(
+                        e,
+                        Event::Chat {
+                            channel: c3_game::ChatChannel::LeaveWord,
+                            ..
+                        }
+                    )
+                })
+                .collect::<Vec<_>>();
+            for event in words {
+                let packets = self.event(event, ids, sim);
+                self.held_words.extend(packets);
             }
         }
         out
@@ -1324,14 +1344,14 @@ impl ConquerClient {
             Event::LeveledUp { player, .. } if Some(*player) == hero => {
                 vec![pk::action(self.hero_id(), action::LEVEL_UP, 0, (0, 0), 0)]
             }
-            // The client shows its own lines itself.
+            // The client shows its own lines itself; words left for the hero come as said to it.
             Event::Chat {
                 player,
                 name,
                 text,
                 channel: on,
                 ..
-            } if Some(*player) != hero => {
+            } if Some(*player) != hero || *on == c3_game::ChatChannel::LeaveWord => {
                 let (code, hearer) = match on {
                     c3_game::ChatChannel::Local => (channel::TALK, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Whisper => (
@@ -1341,8 +1361,16 @@ impl ConquerClient {
                     c3_game::ChatChannel::Team => (channel::TEAM, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Guild => (channel::GUILD, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Friend => (channel::FRIEND, "ALLUSERS".to_owned()),
+                    c3_game::ChatChannel::LeaveWord => (
+                        channel::LEAVE_WORD,
+                        self.me.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
+                    ),
                 };
-                vec![pk::talk(code, name, &hearer, text, WHITE)]
+                let colour = match on {
+                    c3_game::ChatChannel::LeaveWord => 0,
+                    _ => WHITE,
+                };
+                vec![pk::talk(code, name, &hearer, text, colour)]
             }
             Event::Message { text, .. }
             | Event::Notice { text, .. }
@@ -1896,6 +1924,7 @@ impl ConquerClient {
                     channel::TEAM => Some(C::Team),
                     channel::GUILD => Some(C::Guild),
                     channel::FRIEND => Some(C::Friend),
+                    channel::LEAVE_WORD => Some(C::LeaveWord),
                     _ => None,
                 };
                 inputs.push(match on {

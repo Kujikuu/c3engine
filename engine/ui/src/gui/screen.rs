@@ -719,7 +719,12 @@ impl Painter<'_, '_> {
                     0 => usize::MAX,
                     n => n,
                 };
-                let edit = egui::TextEdit::singleline(&mut text)
+                // A `wrap` edit takes several lines (TQ's SetMultiLine).
+                let edit = match control.wrap {
+                    true => egui::TextEdit::multiline(&mut text).desired_width(rect.width()),
+                    false => egui::TextEdit::singleline(&mut text),
+                };
+                let edit = edit
                     .id_salt(("gui edit", control.parent, control.id))
                     .char_limit(limit)
                     .password(control.password)
@@ -746,7 +751,13 @@ impl Painter<'_, '_> {
                 }
                 // Enter in an edit with an action runs it (the chat line sends).
                 let entered = self.ui.input(|i| i.key_pressed(egui::Key::Enter));
-                if self.live && !control.action.is_empty() && response.lost_focus() && entered {
+                let one_line = !control.wrap;
+                if self.live
+                    && one_line
+                    && !control.action.is_empty()
+                    && response.lost_focus()
+                    && entered
+                {
                     clicked(control, events);
                 }
             }
@@ -812,6 +823,9 @@ impl Painter<'_, '_> {
                         if !control.action.is_empty() {
                             clicked(control, events);
                         }
+                    }
+                    if response.double_clicked() && !control.double.is_empty() {
+                        events.push(GuiEvent::Action(control.double.clone()));
                     }
                 }
             }

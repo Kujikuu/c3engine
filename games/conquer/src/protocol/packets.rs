@@ -195,6 +195,8 @@ pub mod channel {
     pub const FRIEND: u16 = 2009;
     /// A guild's announcement, set by its leader and told to its members (_TXTATR_SYNANNOUNCEG).
     pub const GUILD_NOTICE: u16 = 2111;
+    /// Words left for an offline friend (_TXTATR_LEAVEWORD; social spec §5).
+    pub const LEAVE_WORD: u16 = 2110;
     /// A booth's cry (_TXTATR_CRYOUT).
     pub const CRY: u16 = 2104;
     pub const TALK: u16 = 2007;

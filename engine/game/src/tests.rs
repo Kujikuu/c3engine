@@ -2366,3 +2366,32 @@ fn a_booth_sells_its_wares_and_closes_when_its_owner_walks() {
         "walking off closes it"
     );
 }
+
+#[test]
+fn words_left_for_an_offline_friend_wait_until_it_comes() {
+    use crate::{ChatChannel as C, FriendAction as F};
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let a = sim.add_player("Ann", (5, 5), 1);
+    let b = sim.add_player("Bob", (6, 5), 1);
+    sim.input(a, Input::Friend(F::Ask(b)));
+    sim.input(b, Input::Friend(F::Accept(a)));
+    let word = |text: &str| Input::Chat {
+        channel: C::LeaveWord,
+        to: "Bob".into(),
+        text: text.into(),
+    };
+    sim.input(a, word("while you're here"));
+    assert!(sim.world_state().deliveries.is_empty(), "Bob is online");
+    sim.remove_player(b);
+    sim.take_events();
+    sim.input(a, word("see you"));
+    sim.input(a, word("too soon"));
+    assert_eq!(sim.world_state().deliveries["Bob"].len(), 1, "one a minute");
+    let b = sim.add_saved_player(&crate::PlayerSave::new("Bob", (6, 5)));
+    let given = (sim.take_events().into_iter()).any(|e| {
+        matches!(e, Event::Chat { channel: C::LeaveWord, to: Some(to), ref name, ref text, .. }
+            if to == b && name == "Ann" && text == "see you")
+    });
+    assert!(given, "Bob gets Ann's words when he comes");
+    assert!(sim.world_state().deliveries.is_empty());
+}

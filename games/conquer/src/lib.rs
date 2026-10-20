@@ -435,6 +435,7 @@ impl Content {
             team: s("100009"),
             guild: s("100010"),
             friend: s("100014"),
+            leave_word: s("100119"),
             system: s("100006"),
             to: s("100017"),
             says: s("100018"),

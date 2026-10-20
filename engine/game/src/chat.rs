@@ -21,7 +21,12 @@ pub enum ChatChannel {
     Guild,
     /// The speaker's friends, on any map.
     Friend,
+    /// Words left for a friend who is offline, given when it next comes (TQ's leave words).
+    LeaveWord,
 }
+
+/// How long a player waits between leaving words (TQ's 60 s, social spec §5).
+const WORD_WAIT_MS: u64 = 60_000;
 
 /// A chat line on its way to a player on another map.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +48,9 @@ impl Sim {
         };
         if text.is_empty() {
             return;
+        }
+        if channel == ChatChannel::LeaveWord {
+            return self.leave_word(id, &name, to.trim(), &text);
         }
         let hearer = match channel {
             ChatChannel::Whisper => to.trim().to_owned(),
@@ -97,6 +105,7 @@ impl Sim {
                 }
                 friends
             }
+            ChatChannel::LeaveWord => return,
             ChatChannel::Guild => {
                 let Some((guild, _)) = self.world.guild_of(&name) else {
                     self.message(id, "You are in no guild.");
@@ -124,6 +133,31 @@ impl Sim {
                 None => self.chat_out.push((hearer, line.clone())),
             }
         }
+    }
+
+    /// Player `id` (`name`) leaves `text` for friend `to`, who must be offline; it waits on
+    /// the world state for it (social spec §5: one a minute).
+    fn leave_word(&mut self, id: EntityId, name: &str, to: &str, text: &str) {
+        let online = self.world.online.contains_key(to) || self.player_by_name(to).is_some();
+        if online || !self.world.are_friends(name, to) {
+            return;
+        }
+        let now = self.now_ms;
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        if p.word_left_ms.is_some_and(|t| now < t + WORD_WAIT_MS) {
+            let text = "You`ve left too many messages. Please try again later.";
+            return self.message(id, text);
+        }
+        p.word_left_ms = Some(now);
+        let delivery = c3_script::Delivery::Word {
+            from: name.to_owned(),
+            text: text.to_owned(),
+        };
+        let to = to.to_owned();
+        self.change_world(c3_script::WorldChange::Deliver { to, delivery });
+        self.message(id, "The message has been sent.");
     }
 
     /// Chat lines for players on other maps, by their names (the host carries them).
