@@ -45,16 +45,6 @@ pub struct GuiRect {
     pub h: i32,
 }
 
-impl GuiRect {
-    /// Whether it and `other` share any pixel.
-    pub fn overlaps(&self, other: &GuiRect) -> bool {
-        self.x < other.x + other.w
-            && other.x < self.x + self.w
-            && self.y < other.y + other.h
-            && other.y < self.y + self.h
-    }
-}
-
 /// Where dialogs and controls sit (`GUI.ini`).
 #[derive(Debug, Clone, Default)]
 pub struct Layout {
@@ -215,6 +205,13 @@ pub struct Control {
     pub rows: u32,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
+    /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
+    /// opening it closes the one there. None: it closes nothing (the HUD strips).
+    pub slot: String,
+    /// Other parts a dialog clears as it opens (`clears=right`; a trade).
+    pub clears: String,
+    /// Esc closes the dialog too, with the right part's (the bag).
+    pub esc: bool,
     /// Bindings (`|` between them): a dialog shows while one is set (not 0), as the game opens
     /// it (a shop: `hero.shop`), in place of the engine's own window; a control in a dialog
     /// shows only then (a text box a page asks for).
@@ -314,6 +311,9 @@ impl Control {
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
             open: text("open"),
+            slot: text("slot"),
+            clears: text("clears"),
+            esc: section.int("esc").is_some_and(|e| e != 0),
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
@@ -432,23 +432,39 @@ impl Gui {
             .any(|d| d.when.split('|').any(|w| w == binding))
     }
 
-    /// Opens dialog `id`, closing the opened dialogs it would cover (as TQ's side panels
-    /// take each other's place); those open from the start stay.
+    /// Opens dialog `id`, closing the dialog in the part of the screen it takes and in the
+    /// parts it clears (TQ's CloseCurDlg); a dialog without a part closes nothing.
     pub fn open(&mut self, id: u32) {
         let Some(dialog) = self.dialogs().find(|d| d.id == id) else {
             self.open.insert(id);
             return;
         };
-        let at = self.rect(dialog);
-        let covered: Vec<u32> = (self.dialogs())
+        let parts: Vec<&str> = std::iter::once(dialog.slot.as_str())
+            .chain(dialog.clears.split(',').map(str::trim))
+            .filter(|p| !p.is_empty())
+            .collect();
+        let taken: Vec<u32> = (self.dialogs())
             .filter(|d| d.id != id && self.open.contains(&d.id))
-            .filter(|d| self.rect(d).overlaps(&at))
+            .filter(|d| parts.contains(&d.slot.as_str()))
             .map(|d| d.id)
             .collect();
-        for other in covered {
+        for other in taken {
             self.open.remove(&other);
         }
         self.open.insert(id);
+    }
+
+    /// Esc: closes the right part's dialog and those Esc closes with it (the bag), as TQ's
+    /// shell does; whether one was open.
+    pub fn escape(&mut self) -> bool {
+        let closing: Vec<u32> = (self.dialogs())
+            .filter(|d| self.open.contains(&d.id) && (d.slot == "right" || d.esc))
+            .map(|d| d.id)
+            .collect();
+        for id in &closing {
+            self.open.remove(id);
+        }
+        !closing.is_empty()
     }
 
     /// Whether an open dialog shows a control bound to something starting with `prefix`
@@ -561,44 +577,56 @@ mod tests {
 }
 
 #[cfg(test)]
-mod overlap_tests {
+mod window_tests {
     use super::*;
 
+    fn opened(gui: &Gui) -> Vec<u32> {
+        (gui.dialogs()).filter(|d| gui.is_open(d)).map(|d| d.id).collect()
+    }
+
     #[test]
-    fn a_dialog_opened_closes_those_it_covers() {
-        let layout = b"[0-1]
-x=0
-y=0
-w=100
-h=100
-[0-2]
-x=50
-y=50
-w=100
-h=100
-[0-3]
-x=500
-y=0
-w=10
-h=10
-";
+    fn a_dialog_closes_the_one_in_its_part_and_those_it_clears() {
         let controls = b"[0-1]
 type=dialog
+slot=right
 [0-2]
 type=dialog
+slot=right
 [0-3]
 type=dialog
+[0-4]
+type=dialog
+slot=left
+clears=right
 ";
-        let mut gui = Gui::new(layout, b"", controls);
+        let mut gui = Gui::new(b"", b"", controls);
         gui.open(1);
         gui.open(3);
         gui.toggle(2);
-        let open: Vec<u32> = gui
-            .dialogs()
-            .filter(|d| gui.is_open(d))
-            .map(|d| d.id)
-            .collect();
-        assert_eq!(open, [2, 3]);
+        assert_eq!(opened(&gui), [2, 3]);
+        gui.open(4);
+        assert_eq!(opened(&gui), [3, 4]);
+    }
+
+    #[test]
+    fn escape_closes_the_right_part_and_the_bag() {
+        let controls = b"[0-1]
+type=dialog
+slot=right
+[0-2]
+type=dialog
+esc=1
+[0-3]
+type=dialog
+slot=middle
+";
+        let mut gui = Gui::new(b"", b"", controls);
+        for id in [1, 2, 3] {
+            gui.open(id);
+        }
+        assert!(gui.escape());
+        assert_eq!(opened(&gui), [3]);
+        assert!(!gui.escape());
     }
 }
 

@@ -775,7 +775,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] The minimap's tutor and student marks; Unequip.wav apart from equipping; Dlg_Ok (Dlg_Ok.wav isn't in
         its sound folder); sounds on the login screens
   - Audit 2026-10-20 (docs/conquer_ui_audit.md): every dialog the 5065 client creates, checked against its code; each one below is open until it matches.
-  - [ ] UI engine: the client's window model (CloseCurDlg's left/middle/right owners in place of the overlap rule), Esc closing dialogs
+  - [ ] UI engine: the client's window model
+    - [x] dialogs own a part of the screen (`slot=left|middle|right`, from CDlgMain::CloseCurDlg) and clear others as they open (`clears=`); the overlap rule is gone, so HUD strips and child dialogs no longer close each other
+    - [x] Esc closes the right part and the bag (`esc=1`) as CMyShellDlg::CloseCurDlg does, after a question, the menu and an NPC talk
+    - [x] the generator (scripts/conquer_controls.py) writes the same slots into drafts
+    - [ ] openers gated as the client gates them: status only over friends/enemy/mentor/business, shops/depot/compose not while trading, item lock only over its list
+    - [ ] opening a shop, depot, oven, enchant or compose also shows the bag, and closing them hides it
+    - [ ] Esc with nothing left to close asks to leave (EXIT_CONFIRM); Esc while trading refused (StrRes 10026)
   - [ ] UI engine: a yes/no prompt (CDlgConfirm 158)
     - [x] one question at a time (`prompt.*` bindings, `prompt_yes`/`prompt_no`, `ask:<kind>:<actions>` for the player's own actions); trade and team asks lapse after 10 s; a second trade ask is turned away (StrRes 10433)
     - [x] trade, team invite/apply, guild invite/apply and marriage asks put to the hero; leaving a guild and taking a chat name off asked first

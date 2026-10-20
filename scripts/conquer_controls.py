@@ -29,6 +29,37 @@ KINDS = {
     "CMyGrid": "grid",
 }
 
+# The screen part each dialog takes, as CDlgMain::CloseCurDlg closes them (DlgMain.cpp
+# 1410-1602): opening one closes the dialog in its part.
+SLOTS = {
+    "left": [137, 233, 234, 242],
+    "middle": [138, 211, 212, 229, 232, 238, 340, 341, 342, 343, 346, 349, 350, 366],
+    "right": [105, 131, 133, 152, 160, 161, 241, 258, 269, 275, 278, 312, 326, 329],
+}
+# The parts a dialog also clears as it opens: trade the right (MyShellDlg.cpp 8836), the
+# message board the middle (OnMainLeaveWord), improve / faces / gems / booths all three.
+CLEARS = {
+    137: "right",
+    240: "middle",
+    211: "left,right",
+    212: "left,right",
+    229: "left,right",
+    233: "middle,right",
+    234: "middle,right",
+}
+# Dialogs Esc closes with the right part's (CMyShellDlg::CloseCurDlg: the bag).
+ESC = {153}
+
+
+def window_lines(number):
+    """A dialog's place in the window model."""
+    out = [f"slot={part}" for part, ids in SLOTS.items() if number in ids]
+    if number in CLEARS:
+        out.append(f"clears={CLEARS[number]}")
+    if number in ESC:
+        out.append("esc=1")
+    return out
+
 
 def read(path):
     return Path(path).read_text(encoding="utf-8", errors="replace")
@@ -132,6 +163,7 @@ def lines_of(name, number, background, controls):
     out = [f"\n// {name} (dialog {number}).", f"[0-{number}]\ntype=dialog"]
     if background:
         out.append(f"ani={background}")
+    out.extend(window_lines(number))
     for control, member, entry in controls:
         out.append(f"\n[{number}-{control}]")
         if "Close" in member and entry["type"] == "button":
