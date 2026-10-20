@@ -863,16 +863,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] overview and full modes with Button01/Button02; MapModeRecord kept
     - [ ] the hero mark animated (all its frames); the spouse mark (PlayerFlag frame 2), the leader mark only for 8 s after MsgAction 101, Friend mark 6 s
     - [ ] maps with fewer than 4 minimap frames drawn as ShowFallback
-  - [ ] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): the 3 audit mismatches fixed
-    - [x] always shown under the radar, path_auto, toggles 303
-    - [ ] 303 CDlgAutoRun itself (auto-path to a picked place) is a draft
+  - [x] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): the 3 audit mismatches fixed (303 itself is its own item)
   - [ ] UI 325 mentor HUD button: 3 of 5 audit mismatches fixed
     - [x] always shown, btn-dssy alone (no Dialog531 frame, no Button532)
     - [ ] its click opens the mentor contribution 319 (needs the mentor system)
     - [ ] tooltip StrRes 100220
-  - [ ] UI 328 CDlgEquipTie5065 (item-lock button): the 2 audit mismatches fixed
-    - [x] always shown; toggles the lock list 329 with the bag
-    - [ ] 329 itself (locking items) is a draft
+  - [x] UI 328 CDlgEquipTie5065 (item-lock button): the 2 audit mismatches fixed (329 itself is its own item)
   - [ ] UI 272 CDlgInsHelp (instant help): 1 of 8 audit mismatches fixed
     - [x] the folded Button490 always shown
     - [ ] its click unfolds the 494x288 Dialog49 help with Tip/PageUp/PageDown/More and folds back on close
