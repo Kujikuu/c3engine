@@ -10,6 +10,7 @@
 mod bag;
 mod chat;
 mod chat_bar;
+mod prompt;
 mod dialogue;
 pub mod fonts;
 pub mod front;
@@ -294,6 +295,15 @@ impl GameUi {
             gui.open(id);
         }
     }
+    /// Runs a game UI action as a click would (`;` between several); what it asks the game.
+    pub fn run_gui_action(&mut self, action: &str) -> Vec<UiAction> {
+        let mut actions = Vec::new();
+        for part in action.split(';') {
+            self.run_action(part, &mut actions);
+        }
+        actions
+    }
+
     /// Carries out what the player clicked on the data-driven UI. Actions name the engine's
     /// windows (`bag`, `quests`, `menu`, `chat`), a game input (`run`, `sound`), or open a
     /// dialog of the UI (`toggle:<dialog id>`) or show one of a dialog's pages
@@ -500,6 +510,21 @@ impl GameUi {
                 (self.gui_state.chat_bar).toggle_listed(name.unwrap_or_default().trim());
             }
             "chat_clear" => self.chat.clear(),
+            // The question shown answered: Yes does what it asks, No drops it.
+            "prompt_yes" => match self.gui_state.prompt.take().map(|p| p.yes) {
+                Some(prompt::Yes::Game(input)) => actions.push(UiAction::Game(input)),
+                Some(prompt::Yes::Actions(then)) => {
+                    for part in then.split(';') {
+                        self.run_action(part, actions);
+                    }
+                }
+                None => {}
+            },
+            "prompt_no" => self.gui_state.prompt = None,
+            // An action asked first (`ask:<kind>:<actions>`; leaving a guild).
+            _ if action.starts_with("ask:") => {
+                self.gui_state.prompt = prompt::Prompt::confirm(&action["ask:".len()..]);
+            }
             "trade_close" => actions.push(UiAction::Game(c3_game::Input::TradeClose)),
             "bag" => self.toggle_bag(),
             "quests" => self.toggle_quests(),
@@ -530,6 +555,49 @@ impl GameUi {
                 }
             }
         }
+    }
+
+    /// Another player's ask of the hero (`event`) put to it as a question.
+    fn ask_event(&mut self, event: &Event, sim: &Sim, hero: EntityId) {
+        use c3_game::{GuildAction as G, Input, TeamAction as T};
+        let (kind, from, input) = match *event {
+            Event::TeamInvited { player, leader } if player == hero => {
+                ("team_invite", leader, Input::Team(T::Join(leader)))
+            }
+            Event::TeamApplied { player, applicant } if player == hero => {
+                ("team_apply", applicant, Input::Team(T::Accept(applicant)))
+            }
+            Event::GuildInvited { player, inviter } if player == hero => {
+                ("guild_invite", inviter, Input::Guild(G::Join(inviter)))
+            }
+            Event::GuildApplied { player, applicant } if player == hero => {
+                ("guild_apply", applicant, Input::Guild(G::Invite(applicant)))
+            }
+            Event::Proposed { player, from } if player == hero => {
+                ("marriage", from, Input::AcceptProposal(from))
+            }
+            _ => return,
+        };
+        let name = sim.player(from).map_or("", |p| p.name.as_str()).to_owned();
+        self.ask(kind, &name, input);
+    }
+
+    /// Puts `name`'s ask of `kind` to the hero when the game UI has a prompt; whether it
+    /// did. A trade asked while another is asked is turned away (StrRes 10433).
+    fn ask(&mut self, kind: &str, name: &str, input: c3_game::Input) -> bool {
+        if !self.gui.as_ref().is_some_and(|g| g.shows_while("prompt.open")) {
+            return false;
+        }
+        if kind == "trade" && self.gui_state.prompt.as_ref().is_some_and(|p| p.kind == "trade") {
+            self.system(
+                "You received another trade request! Close this one first.",
+                style::BAD,
+            );
+            return true;
+        }
+        let now = std::time::Instant::now();
+        self.gui_state.prompt = Some(prompt::Prompt::asked(kind, name, input, now));
+        true
     }
 
     /// The chat bar's channel picked (`view:chat:<channel>`; talk at first).
@@ -662,6 +730,10 @@ impl GameUi {
             {
                 self.placing = true;
             }
+            // Asks of the hero, put to it when the game UI has a prompt (and not auto-taken).
+            if !self.gui_state.auto_team {
+                self.ask_event(event, sim, hero);
+            }
             // Auto-joining: an invite joins, a leader takes in whoever asks.
             if self.gui_state.auto_team {
                 use c3_game::{Input, TeamAction};
@@ -690,7 +762,9 @@ impl GameUi {
                 } if *player == hero => {
                     if let c3_game::TradeNews::Asked = news {
                         let name = sim.player(*partner).map_or("Someone", |p| &p.name);
-                        self.system(format!("{name} asks to trade with you."), style::GOLD);
+                        if !self.ask("trade", name, c3_game::Input::TradeAsk(*partner)) {
+                            self.system(format!("{name} asks to trade with you."), style::GOLD);
+                        }
                     }
                     self.gui_state.trade_news(*partner, news);
                 }
@@ -728,6 +802,10 @@ impl GameUi {
                 cell: player.cell,
                 direction: player.direction,
             }));
+        }
+        // An ask not answered in time goes.
+        if (self.gui_state.prompt.as_ref()).is_some_and(|p| p.lapsed(std::time::Instant::now())) {
+            self.gui_state.prompt = None;
         }
         let typing = self.chat.typing;
         let free_keys = !typing && !ui.ctx().egui_wants_keyboard_input();

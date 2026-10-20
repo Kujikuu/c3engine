@@ -319,6 +319,8 @@ struct Args {
     /// Chat lines said at the start, in turn (`/` commands too).
     say: Vec<String>,
     open: Vec<u32>,
+    /// Game UI actions run at the start (`--act ask:guild_leave:guild_leave`).
+    act: Vec<String>,
 }
 
 fn parse_args() -> Args {
@@ -358,6 +360,10 @@ fn parse_args() -> Args {
         open: (args.windows(2))
             .filter(|w| w[0] == "--dialog")
             .filter_map(|w| w[1].parse().ok())
+            .collect(),
+        act: (args.windows(2))
+            .filter(|w| w[0] == "--act")
+            .map(|w| w[1].clone())
             .collect(),
     }
 }
@@ -413,6 +419,7 @@ fn main() {
             front: args.front,
             say: args.say,
             open: args.open,
+            act: args.act,
         };
         if let Err(e) = game::run(game) {
             eprintln!("error: {e}");

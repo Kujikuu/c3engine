@@ -44,6 +44,8 @@ pub struct GameArgs {
     pub say: Vec<String>,
     /// Dialogs of the game's UI open from the start.
     pub open: Vec<u32>,
+    /// Game UI actions run at the start, in turn (as clicked).
+    pub act: Vec<String>,
 }
 
 /// Opens the game window and plays until it is closed.
@@ -93,6 +95,9 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         }
         for &dialog in &args.open {
             session.open_dialog(dialog);
+        }
+        for action in &args.act {
+            session.gui_action(action);
         }
         Phase::Game(Box::new(GameScreen::new(
             session,

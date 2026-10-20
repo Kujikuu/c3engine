@@ -26,6 +26,8 @@ pub(crate) struct GuiState {
     pub views: std::collections::HashMap<String, String>,
     /// The chat bar's lines said, listed names and recent channels.
     pub chat_bar: crate::chat_bar::ChatBar,
+    /// The yes/no question shown.
+    pub prompt: Option<crate::prompt::Prompt>,
 }
 
 /// The most items a workbench holds.
@@ -175,6 +177,12 @@ impl GuiData for HeroData<'_> {
                 .into()
             }
             "team.auto" => u8::from(self.state.auto_team).into(),
+            // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
+            "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
+            _ if key.starts_with("prompt.kind.") => {
+                let kind = key.strip_prefix("prompt.kind.")?;
+                u8::from(self.state.prompt.as_ref().is_some_and(|p| p.kind == kind)).into()
+            }
             // The name typed in the chat bar is listed / can be (the Add button's state).
             "chat.listed" | "chat.can_list" => {
                 let name = self.state.fields.get(crate::CHAT_NAME);
@@ -223,6 +231,9 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // Who asked the question shown, and its kind.
+            "prompt.name" => Some(self.state.prompt.as_ref()?.name.clone()),
+            "prompt.kind" => Some(self.state.prompt.as_ref()?.kind.clone()),
             // Team member `n`'s face (1, Conquer's heroes'), none past the team's end.
             _ if key.starts_with("team.face.") => {
                 let n = key.strip_prefix("team.face.")?;

@@ -201,6 +201,8 @@ pub struct Control {
     pub map: String,
     /// Text colour, `rrggbb`.
     pub color: [u8; 3],
+    /// Text centred in its width (`align=center`; TQ's centred statics).
+    pub centered: bool,
     pub size: f32,
     /// What a click asks the game for.
     pub action: String,
@@ -304,6 +306,7 @@ impl Control {
             map: text("map"),
             place: section.int("place").and_then(|p| u32::try_from(p).ok()),
             color,
+            centered: section.get("align") == Some("center"),
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
             sound: text("sound"),

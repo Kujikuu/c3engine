@@ -511,11 +511,12 @@ impl Painter<'_, '_> {
                 }
             }
             ControlKind::Text => {
-                let mut text = expand(&control.text, data);
+                let names = self.names.get(&control.names);
+                let mut text = expand(&named(&control.text, names), data);
                 // Shown as its name when the control names a file of them (the value first
                 // turned into the file's key by the control's map).
                 let key = control.map_value(&text);
-                if let Some(name) = self.names.get(&control.names).and_then(|t| t.get(&key)) {
+                if let Some(name) = names.and_then(|t| t.get(&key)) {
                     text = name.clone();
                 }
                 let [r, g, b] = control.color;
@@ -528,7 +529,11 @@ impl Painter<'_, '_> {
                 };
                 let galley =
                     (self.ui.painter()).layout(text, font, Color32::from_rgb(r, g, b), wrap);
-                self.ui.painter().galley(rect.min, galley, Color32::WHITE);
+                let left = match control.centered {
+                    true => rect.center().x - galley.size().x / 2.0,
+                    false => rect.left(),
+                };
+                (self.ui.painter()).galley(Pos2::new(left, rect.top()), galley, Color32::WHITE);
             }
             ControlKind::Model => {
                 if let Some(texture) = data.image(&control.value) {
@@ -675,6 +680,24 @@ impl Painter<'_, '_> {
 }
 
 /// `text` with each `{binding}` replaced by what it reads.
+/// `text` with each `{=key}` turned into that key's name in `names` (a string of the game's
+/// own, `{=10001}` from TQ's StrRes.ini).
+fn named(text: &str, names: Option<&std::collections::HashMap<String, String>>) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find("{=") {
+        out.push_str(&rest[..open]);
+        let Some(close) = rest[open..].find('}') else {
+            break;
+        };
+        let key = &rest[open + 2..open + close];
+        out.push_str(names.and_then(|n| n.get(key)).map_or("", String::as_str));
+        rest = &rest[open + close + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
 pub(super) fn expand(text: &str, data: &dyn GuiData) -> String {
     let mut out = String::new();
     let mut rest = text;

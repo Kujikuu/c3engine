@@ -713,6 +713,13 @@ impl Session {
         self.ui.open_dialog(id);
     }
 
+    /// Runs a game UI action as a click would (a question asked: `ask:guild_leave:...`).
+    pub fn gui_action(&mut self, action: &str) {
+        for action in self.ui.run_gui_action(action) {
+            self.act(action);
+        }
+    }
+
     /// Says `line` in chat, as typed (`/` commands run).
     pub fn say(&mut self, line: &str) {
         self.act(UiAction::Say(line.to_owned()));
