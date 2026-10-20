@@ -190,10 +190,14 @@ impl Gui {
         let mut place = self.rect(dialog);
         let mut stacked = Vec::new();
         let mut next: Option<i32> = None;
+        let mut last_y: Option<i32> = None;
         for control in (self.controls.iter()).filter(|c| c.parent == dialog.id && c.stack) {
             let shows = control.when.is_empty() || set(control, data);
             let mut r = self.rect(control);
-            r.y = next.unwrap_or(r.y);
+            r.y = match (control.beside, last_y) {
+                (true, Some(y)) => y,
+                _ => next.map_or(r.y, |n| n.max(control.min_y)),
+            };
             r.h = match (shows, control.kind) {
                 (false, _) => 0,
                 (true, ControlKind::Text) => {
@@ -204,13 +208,17 @@ impl Gui {
                     galley.size().y.ceil() as i32
                 }
                 (true, ControlKind::List) => {
-                    let rows = data.rows(&control.value).0.len();
-                    let cols = control.cols.max(1) as usize;
-                    (rows.div_ceil(cols) as f32 * (control.size + 6.0)).ceil() as i32
+                    let rows = data.rows(&control.value).0;
+                    let laid = list_rows(ctx, control, &rows, r.w as f32);
+                    laid.iter().map(|l| l.bottom()).fold(0.0, f32::max).ceil() as i32
                 }
                 (true, _) => r.h,
             };
-            next = Some(r.y + r.h + if r.h > 0 { STACK_GAP } else { 0 });
+            let below = r.y + r.h + if r.h > 0 { STACK_GAP } else { 0 };
+            next = Some(next.map_or(below, |n| n.max(below)));
+            if r.h > 0 {
+                last_y = Some(r.y);
+            }
             stacked.push((control.id, r));
         }
         if dialog.fit > 0 {
@@ -569,6 +577,10 @@ impl Painter<'_, '_> {
                 }
             }
             ControlKind::Edit => {
+                // Its box (TQ's edit background: Edit230).
+                if !control.ani.is_empty() {
+                    self.picture(control, &control.ani, origin, Some(size));
+                }
                 let mut text = data.text(&control.value).unwrap_or_default();
                 let marked = !control.mark.is_empty()
                     && data.number(&control.mark).is_some_and(|v| v != 0.0);
@@ -578,10 +590,13 @@ impl Painter<'_, '_> {
                     control.color
                 };
                 let font = crate::fonts::font(control.size * self.place.scale);
-                let limit = if control.limit > 0 {
-                    control.limit
-                } else {
-                    usize::MAX
+                let bound = (!control.limit_of.is_empty())
+                    .then(|| data.number(&control.limit_of))
+                    .flatten()
+                    .map(|n| n.max(0.0) as usize);
+                let limit = match bound.unwrap_or(control.limit) {
+                    0 => usize::MAX,
+                    n => n,
                 };
                 let edit = egui::TextEdit::singleline(&mut text)
                     .id_salt(("gui edit", control.parent, control.id))
@@ -612,19 +627,15 @@ impl Painter<'_, '_> {
             }
             ControlKind::List => {
                 let (rows, picked) = data.rows(&control.value);
-                let height = (control.size + 6.0) * self.place.scale;
-                let font = crate::fonts::font(control.size * self.place.scale);
-                let [r, g, b] = control.color;
-                // Rows fill `cols` columns, left to right.
-                let cols = control.cols.max(1) as usize;
-                let width = rect.width() / cols as f32;
-                for (index, row) in rows.iter().enumerate() {
-                    let top = rect.top() + (index / cols) as f32 * height;
-                    if top + height > rect.bottom() + 0.5 {
+                let scale = self.place.scale;
+                let font = crate::fonts::font(control.size * scale);
+                let laid = list_rows(self.ui.ctx(), control, &rows, size.x);
+                for (index, (row, at)) in rows.iter().zip(laid).enumerate() {
+                    let line =
+                        Rect::from_min_size(rect.min + at.min.to_vec2() * scale, at.size() * scale);
+                    if line.bottom() > rect.bottom() + 0.5 {
                         break;
                     }
-                    let left = rect.left() + (index % cols) as f32 * width;
-                    let line = Rect::from_min_size(Pos2::new(left, top), Vec2::new(width, height));
                     let id =
                         self.ui
                             .scope_id()
@@ -635,24 +646,37 @@ impl Painter<'_, '_> {
                         egui::Sense::hover()
                     };
                     let response = self.ui.interact(line, id, sense);
+                    let lit = self.live && response.hovered();
                     if picked == Some(index) {
                         self.ui.painter().rect_filled(
                             line,
                             2.0,
                             Color32::from_rgba_unmultiplied(255, 220, 120, 60),
                         );
-                    } else if self.live && response.hovered() {
+                    } else if lit && control.hover.is_none() {
                         self.ui
                             .painter()
                             .rect_filled(line, 2.0, Color32::from_white_alpha(20));
                     }
-                    self.ui.painter().text(
-                        line.left_center() + Vec2::new(4.0, 0.0),
-                        egui::Align2::LEFT_CENTER,
-                        row,
+                    let [r, g, b] = match control.hover {
+                        Some(color) if lit => color,
+                        _ => control.color,
+                    };
+                    let wrap = match control.wrap {
+                        true => line.width() - 4.0 * scale,
+                        false => f32::INFINITY,
+                    };
+                    let galley = (self.ui.painter()).layout(
+                        row.clone(),
                         font.clone(),
                         Color32::from_rgb(r, g, b),
+                        wrap,
                     );
+                    let at = Pos2::new(
+                        line.left() + 4.0 * scale,
+                        line.center().y - galley.size().y / 2.0,
+                    );
+                    self.ui.painter().galley(at, galley, Color32::WHITE);
                     if response.clicked() {
                         events.push(GuiEvent::Item {
                             list: control.value.clone(),
@@ -707,6 +731,49 @@ impl Painter<'_, '_> {
 }
 
 /// `text` with each `{binding}` replaced by what it reads.
+/// Where a list's rows sit, from its corner in layout pixels: row `i` in column `i % cols`,
+/// `step` apart (else `width` shared), `cell` wide (else the step); each line of columns as
+/// tall as its tallest row, a row as tall as its text wrapped in the cell (`wrap`). At most
+/// `limit` rows.
+fn list_rows(ctx: &egui::Context, control: &Control, rows: &[String], width: f32) -> Vec<Rect> {
+    let cols = control.cols.max(1) as usize;
+    let step = match control.step {
+        0 => width / cols as f32,
+        s => s as f32,
+    };
+    let cell = match control.cell {
+        0 => step,
+        c => c as f32,
+    };
+    let line = control.size + 6.0;
+    let shown = match control.limit {
+        0 => rows.len(),
+        n => rows.len().min(n),
+    };
+    let heights: Vec<f32> = (rows[..shown].iter())
+        .map(|row| match control.wrap {
+            true => {
+                let font = crate::fonts::font(control.size);
+                let galley =
+                    ctx.fonts_mut(|f| f.layout(row.clone(), font, Color32::WHITE, cell - 4.0));
+                (galley.size().y + 6.0).max(line)
+            }
+            false => line,
+        })
+        .collect();
+    let mut out = Vec::new();
+    let mut top = 0.0;
+    for chunk in heights.chunks(cols) {
+        let tall = chunk.iter().copied().fold(0.0, f32::max);
+        for col in 0..chunk.len() {
+            let corner = Pos2::new(col as f32 * step, top);
+            out.push(Rect::from_min_size(corner, Vec2::new(cell, tall)));
+        }
+        top += tall;
+    }
+    out
+}
+
 /// `text` with each `{=key}` turned into that key's name in `names` (a string of the game's
 /// own, `{=10001}` from TQ's StrRes.ini).
 fn named(text: &str, names: Option<&std::collections::HashMap<String, String>>) -> String {
@@ -759,8 +826,13 @@ mod when_tests {
     fn holds(when: &str) -> bool {
         let control = Control {
             when: when.into(),
-            ..Control::parse(&super::super::ini::parse(b"[1-2]
-type=text")[0]).unwrap()
+            ..Control::parse(
+                &super::super::ini::parse(
+                    b"[1-2]
+type=text",
+                )[0],
+            )
+            .unwrap()
         };
         set(&control, &Hero)
     }

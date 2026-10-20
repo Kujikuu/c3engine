@@ -203,6 +203,19 @@ pub struct Control {
     /// A grid's columns and rows.
     pub cols: u32,
     pub rows: u32,
+    /// A list's columns: this far apart (`step=`; 0: its width shared) and this wide
+    /// (`cell=`; 0: the step); its rows wrapped within the cell (`wrap=1`), and their text
+    /// in this colour under the pointer (`hover=rrggbb`) in place of a lit box. A list shows
+    /// `limit` rows at most.
+    pub step: i32,
+    pub cell: i32,
+    pub wrap: bool,
+    pub hover: Option<[u8; 3]>,
+    /// A stacked control comes no higher than this (`min_y=`; under an NPC's face).
+    pub min_y: i32,
+    /// A stacked control beside the one before it, at its height (`beside=1`; a button by
+    /// its edit).
+    pub beside: bool,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
     /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
@@ -221,8 +234,9 @@ pub struct Control {
     pub screen: String,
     /// An edit hides what is typed.
     pub password: bool,
-    /// The most characters an edit takes (0: any).
+    /// The most characters an edit takes (0: any), or a binding that says (`limit_of=`).
     pub limit: usize,
+    pub limit_of: String,
     /// A binding: while it is set, the text shows in `mark_color` (a listed name in red).
     pub mark: String,
     pub mark_color: [u8; 3],
@@ -310,6 +324,12 @@ impl Control {
             window: section.int("window").map_or(0, |w| w.max(0) as u32),
             cols: section.int("cols").unwrap_or(1).max(1) as u32,
             rows: section.int("rows").unwrap_or(1).max(1) as u32,
+            step: section.int("step").unwrap_or(0).max(0),
+            cell: section.int("cell").unwrap_or(0).max(0),
+            wrap: section.int("wrap").is_some_and(|w| w != 0),
+            hover: section.get("hover").map(|_| rgb("hover")),
+            min_y: section.int("min_y").unwrap_or(0),
+            beside: section.int("beside").is_some_and(|b| b != 0),
             open: text("open"),
             slot: text("slot"),
             clears: text("clears"),
@@ -318,6 +338,7 @@ impl Control {
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
             limit: section.int("limit").unwrap_or(0).max(0) as usize,
+            limit_of: text("limit_of"),
             mark: text("mark"),
             mark_color: rgb("mark_color"),
             stack: section.int("stack").is_some_and(|s| s != 0),
@@ -581,7 +602,10 @@ mod window_tests {
     use super::*;
 
     fn opened(gui: &Gui) -> Vec<u32> {
-        (gui.dialogs()).filter(|d| gui.is_open(d)).map(|d| d.id).collect()
+        (gui.dialogs())
+            .filter(|d| gui.is_open(d))
+            .map(|d| d.id)
+            .collect()
     }
 
     #[test]

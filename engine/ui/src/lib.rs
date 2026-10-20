@@ -76,6 +76,16 @@ fn grid_click(
             let kind = *gui::GuiData::items(data, list).get(index)?;
             Some(UiAction::Buy { npc, kind })
         }
+        // Of the answers picked by a click, the `index`th.
+        ("dialogue.choices", _) => {
+            let page = &player.dialogue.as_ref()?.page;
+            let options = page
+                .options
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.input.is_none());
+            Some(UiAction::Answer(options.map(|(i, _)| i).nth(index)?))
+        }
         // An answer that is typed sends what is in the text box.
         ("dialogue.answers", _) => {
             let page = &player.dialogue.as_ref()?.page;
@@ -96,6 +106,14 @@ fn grid_click(
         }
         _ => None,
     }
+}
+
+/// The typed answer of the NPC's page, when something is typed (CDlgTask sends none empty).
+fn typed_answer(state: &gui_data::GuiState, player: &Player) -> Option<UiAction> {
+    let page = &player.dialogue.as_ref()?.page;
+    let index = page.options.iter().position(|o| o.input.is_some())?;
+    let text = state.fields.get("dialogue.typed")?.trim().to_owned();
+    (!text.is_empty()).then_some(UiAction::Game(c3_game::Input::AnswerText { index, text }))
 }
 
 /// What the player asked the game for.
@@ -525,6 +543,8 @@ impl GameUi {
                 None => {}
             },
             "prompt_no" => self.gui_state.prompt = None,
+            // The typed answer sent (its button, Enter in its box).
+            "answer_typed" => self.gui_state.answering = true,
             // The hero's skill `n` picked for the right button (`pick_skill:<n>`).
             _ if action.starts_with("pick_skill:") => {
                 self.gui_state.picking = action["pick_skill:".len()..].parse().ok();
@@ -901,6 +921,9 @@ impl GameUi {
                 }
                 // The edit asked to take the keyboard has had this frame to.
                 self.gui_state.focus = None;
+                if std::mem::take(&mut self.gui_state.answering) {
+                    actions.extend(typed_answer(&self.gui_state, player));
+                }
                 if let Some(n) = self.gui_state.picking.take() {
                     self.gui_state.picked_skill = player.skills.get(n).copied();
                 }

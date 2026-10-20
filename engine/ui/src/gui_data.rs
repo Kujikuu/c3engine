@@ -32,6 +32,8 @@ pub(crate) struct GuiState {
     /// skills (`pick_skill:<n>`).
     pub picked_skill: Option<u32>,
     pub picking: Option<usize>,
+    /// The typed answer's button was pressed.
+    pub answering: bool,
 }
 
 /// The most items a workbench holds.
@@ -152,6 +154,11 @@ impl GuiData for HeroData<'_> {
             "trade.agreed" => u8::from(self.state.trade.as_ref().is_some_and(|t| t.agreed)).into(),
             // 1 while the hero talks with an NPC.
             "hero.talking" => u8::from(p.dialogue.is_some()).into(),
+            // The most characters the typed answer takes.
+            "dialogue.input_limit" => {
+                let page = &p.dialogue.as_ref()?.page;
+                page.options.iter().find_map(|o| o.input)?.into()
+            }
             // 1 when an answer of the NPC's page is typed (a text box).
             "dialogue.typing" => {
                 let page = &p.dialogue.as_ref()?.page;
@@ -299,6 +306,19 @@ impl GuiData for HeroData<'_> {
                 .map(|p| p.name.clone()),
             // What the NPC says now, a line each.
             "dialogue.text" => (self.player.dialogue.as_ref()).map(|c| c.page.lines.join("\n")),
+            // The question a typed answer answers (its option's label).
+            "dialogue.question" => {
+                let page = &self.player.dialogue.as_ref()?.page;
+                Some(
+                    page.options
+                        .iter()
+                        .find(|o| o.input.is_some())?
+                        .label
+                        .clone(),
+                )
+            }
+            // The page's lines run together, as TQ's client joins an NPC's text packets.
+            "dialogue.said" => (self.player.dialogue.as_ref()).map(|c| c.page.lines.concat()),
             _ => self.number(key).map(|n| format!("{n}")),
         }
     }
@@ -415,6 +435,15 @@ impl GuiData for HeroData<'_> {
                     _ => g.members.keys().cloned().collect(),
                 };
                 (rows, None)
+            }
+            // The answers picked by a click (not typed), as TQ's CDlgTask lists them.
+            "dialogue.choices" => {
+                let page = self.player.dialogue.as_ref().map(|c| &c.page);
+                let picked = page.into_iter().flat_map(|p| &p.options);
+                let rows = picked
+                    .filter(|o| o.input.is_none())
+                    .map(|o| o.label.clone());
+                (rows.collect(), None)
             }
             // The answers the NPC offers.
             "dialogue.answers" => {

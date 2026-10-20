@@ -874,7 +874,15 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 289 CDlgEmoneyShop5065 (CP-Mall button): 1 of 2 audit mismatches fixed
     - [x] shown from level 70, after a second rebirth or with CPs, as RefreshEmoneyShopVisibility5065
     - [ ] its click opens the CP shop (2888) and plays BtnClick
-  - [ ] UI 173 CDlgTask (NPC talk): partial, 16 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 173 CDlgTask (NPC talk): 11 of 16 audit mismatches fixed
+    - [x] words run together (`dialogue.said`) and wrapped at 420
+    - [x] answers in two columns at 20 and 282, 210 wide, wrapped, from y 104 at least, 8 at most (`step`, `cell`, `wrap`, `limit`, `min_y` on lists)
+    - [x] answer text red under the mouse (`hover=`), no lit box
+    - [x] the typed answer: a yellow title, an Edit230 box sized by the page's limit (`limit_of`), Button230 1549 beside it (`beside=1`); not a list row; an empty answer not sent
+    - [x] Esc closes it, as the shell's CloseCurDlg does first (DlgTask's own IDCANCEL is swallowed)
+    - [ ] the typed box in the column of its answer index (x 40 or 282) and its 44 px slot; password typing from the server's data
+    - [ ] fit=104 only when there are answers or a box
+    - [ ] centred on the real screen width rather than the 1024 layout
   - [ ] UI 153 CDlgMpcGoods (bag): partial, 14 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 131 CDlgQuery (status): partial, 11 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 132 CDlgQuery_Role (role page): partial, 5 mismatches (docs/conquer_ui_audit.md)
