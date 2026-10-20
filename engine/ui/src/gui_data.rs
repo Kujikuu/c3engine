@@ -128,6 +128,11 @@ impl GuiData for HeroData<'_> {
             "hero.exp" => p.exp as f64,
             "hero.exp_next" => need()? as f64,
             "hero.money" => p.money as f64,
+            // The hero's money of currency `<name>` (Conquer's CPs: `hero.wallet.CPs`).
+            _ if key.starts_with("hero.wallet.") => {
+                let name = key.strip_prefix("hero.wallet.")?;
+                p.wallet.get(name).copied().unwrap_or(0) as f64
+            }
             "hero.running" => f64::from(u8::from(p.running)),
             "ui.radar" => f64::from(u8::from(!self.state.radar_hidden)),
             "hero.bag_count" => p.bag.len() as f64,

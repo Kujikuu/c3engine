@@ -289,14 +289,41 @@ fn edit_keys(ui: &egui::Ui, field: &str, events: &mut Vec<GuiEvent>) {
     }
 }
 
-/// Whether one of `control`'s `when` bindings (`|` between them) is set (not 0).
+/// Whether `control`'s `when` holds: alternatives between `|`, each of terms all holding
+/// between `&`; a term is a binding set (not 0), `!` one unset, or a comparison of a binding
+/// with a number or another binding (`hero.level>=70`).
 fn set(control: &Control, data: &dyn GuiData) -> bool {
-    // Alternatives between `|`, each of terms all holding between `&`.
-    let holds = |w: &str| match w.strip_prefix('!') {
-        Some(w) => data.number(w).is_none_or(|v| v == 0.0),
-        None => data.number(w).is_some_and(|v| v != 0.0),
+    let holds = |w: &str| match compare(w, data) {
+        Some(holds) => holds,
+        None => match w.strip_prefix('!') {
+            Some(w) => data.number(w).is_none_or(|v| v == 0.0),
+            None => data.number(w).is_some_and(|v| v != 0.0),
+        },
     };
     (control.when.split('|').filter(|w| !w.is_empty())).any(|w| w.split('&').all(holds))
+}
+
+/// A comparison term (`a>=b`, `<=`, `!=`, `>`, `<`, `=`), each side a number or a binding
+/// (unknown: 0); none when the term has no comparison.
+fn compare(term: &str, data: &dyn GuiData) -> Option<bool> {
+    const OPS: [&str; 6] = [">=", "<=", "!=", ">", "<", "="];
+    let (at, op) = OPS
+        .iter()
+        .filter_map(|op| term.find(op).filter(|&i| i > 0).map(|i| (i, *op)))
+        .min_by_key(|(i, op)| (*i, std::cmp::Reverse(op.len())))?;
+    let value = |side: &str| {
+        let side = side.trim();
+        (side.parse().ok()).unwrap_or_else(|| data.number(side).unwrap_or(0.0))
+    };
+    let (a, b) = (value(&term[..at]), value(&term[at + op.len()..]));
+    Some(match op {
+        ">=" => a >= b,
+        "<=" => a <= b,
+        "!=" => a != b,
+        ">" => a > b,
+        "<" => a < b,
+        _ => a == b,
+    })
 }
 
 /// Where a dialog's origin lands: scaled, and kept to its side of the screen.
@@ -712,4 +739,40 @@ pub(super) fn expand(text: &str, data: &dyn GuiData) -> String {
     }
     out.push_str(rest);
     out
+}
+
+#[cfg(test)]
+mod when_tests {
+    use super::*;
+
+    struct Hero;
+    impl GuiData for Hero {
+        fn number(&self, key: &str) -> Option<f64> {
+            match key {
+                "level" => Some(70.0),
+                "cps" => Some(0.0),
+                _ => None,
+            }
+        }
+    }
+
+    fn holds(when: &str) -> bool {
+        let control = Control {
+            when: when.into(),
+            ..Control::parse(&super::super::ini::parse(b"[1-2]
+type=text")[0]).unwrap()
+        };
+        set(&control, &Hero)
+    }
+
+    #[test]
+    fn terms_compare_bindings_with_numbers() {
+        assert!(holds("level>=70"));
+        assert!(!holds("level>70"));
+        assert!(holds("level>69&cps=0"));
+        assert!(holds("cps>0|level!=1"));
+        assert!(!holds("cps"));
+        assert!(holds("!cps"));
+        assert!(holds("level>=cps"));
+    }
 }

@@ -559,6 +559,8 @@ impl GameUi {
                         gui.show_page(page);
                     } else if let Some(dialog) = id("close:") {
                         gui.close(dialog);
+                    } else if let Some(dialog) = id("open:") {
+                        gui.open(dialog);
                     }
                 }
             }

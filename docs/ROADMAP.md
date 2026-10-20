@@ -790,7 +790,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT)
     - [ ] the engine's own UI (no game dialog) still turns asks into chat lines
   - [ ] UI engine: item drag and drop, right-click use and buy, tooltips, +N and quality overlays, grid paging
-  - [ ] UI engine: disabled and latched button frames, images picked by a binding, sliders, multi-line edits, comparisons in `when`
+  - [ ] UI engine: control states and kinds
+    - [x] comparisons in `when` (`hero.level>=70`, `<=`, `!=`, `>`, `<`, `=`, against numbers or bindings); `hero.wallet.<currency>`
+    - [x] images picked by a binding (an image's section from its value: the picked skill)
+    - [ ] disabled and latched button frames
+    - [ ] sliders and multi-line edits
   - [ ] UI engine: the dialogs the server opens (window numbers and events) wired for every dialog that has one
   - [ ] UI engine: the engine's own widgets (skill bar, radar circle, chat log, quest windows) hidden where the game draws its own
   - [ ] UI 130 CDlgMain (main bar): 6 of 19 audit mismatches fixed (docs/conquer_ui_audit.md)
@@ -852,12 +856,24 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] overview and full modes with Button01/Button02; MapModeRecord kept
     - [ ] the hero mark animated (all its frames); the spouse mark (PlayerFlag frame 2), the leader mark only for 8 s after MsgAction 101, Friend mark 6 s
     - [ ] maps with fewer than 4 minimap frames drawn as ShowFallback
-  - [ ] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): draft only, 3 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 325 CDlgBigmap = mentor HUD button (IDD_DIALOG_MENTOR_HUD_5065): draft only (wrong), 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 328 CDlgEquipTie5065 (item-lock button on the HUD): draft only, 2 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 272 CDlgInsHelp (instant help): draft only, 8 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): the 3 audit mismatches fixed
+    - [x] always shown under the radar, path_auto, toggles 303
+    - [ ] 303 CDlgAutoRun itself (auto-path to a picked place) is a draft
+  - [ ] UI 325 mentor HUD button: 3 of 5 audit mismatches fixed
+    - [x] always shown, btn-dssy alone (no Dialog531 frame, no Button532)
+    - [ ] its click opens the mentor contribution 319 (needs the mentor system)
+    - [ ] tooltip StrRes 100220
+  - [ ] UI 328 CDlgEquipTie5065 (item-lock button): the 2 audit mismatches fixed
+    - [x] always shown; toggles the lock list 329 with the bag
+    - [ ] 329 itself (locking items) is a draft
+  - [ ] UI 272 CDlgInsHelp (instant help): 1 of 8 audit mismatches fixed
+    - [x] the folded Button490 always shown
+    - [ ] its click unfolds the 494x288 Dialog49 help with Tip/PageUp/PageDown/More and folds back on close
+    - [ ] flashing at milestone levels; help text bound
   - [ ] UI 295 CDlgPigeonBanner5065 (broadcast banner line): draft only, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 289 CDlgEmoneyShop5065 (floating CP-Mall button): draft only, 2 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 289 CDlgEmoneyShop5065 (CP-Mall button): 1 of 2 audit mismatches fixed
+    - [x] shown from level 70, after a second rebirth or with CPs, as RefreshEmoneyShopVisibility5065
+    - [ ] its click opens the CP shop (2888) and plays BtnClick
   - [ ] UI 173 CDlgTask (NPC talk): partial, 16 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 153 CDlgMpcGoods (bag): partial, 14 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 131 CDlgQuery (status): partial, 11 mismatches (docs/conquer_ui_audit.md)
