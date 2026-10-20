@@ -1056,11 +1056,16 @@ impl GameUi {
                     actions.push(UiAction::Game(c3_game::Input::Booth(add)));
                 }
             }
-            "booth_cry" => {
+            // The booth's cry typed, cried; `booth_cry:235` also closes the dialog when it goes
+            // (CDlgHawk::OnHawkBtnAgree does nothing with none typed).
+            _ if action == "booth_cry" || action.starts_with("booth_cry:") => {
                 let text = self.gui_state.fields.remove(BOOTH_CRY).unwrap_or_default();
                 if !text.trim().is_empty() {
                     let cry = c3_game::BoothAction::Cry(text);
                     actions.push(UiAction::Game(c3_game::Input::Booth(cry)));
+                    if let Some(dialog) = action.strip_prefix("booth_cry:") {
+                        self.run_action(&format!("close:{dialog}"), actions);
+                    }
                 }
             }
             "booth_close" => {

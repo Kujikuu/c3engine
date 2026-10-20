@@ -1234,9 +1234,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] shown when the hero comes to another's booth, from its first page: items, prices, coins, a Buy under each, paging; closing leaves it (DlgNpcBooth.cpp 213-522)
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
     - [x] help (CDlgHelp 215)
-  - [ ] UI 235 CDlgHawk (booth cry-out): 2 of 3 audit mismatches fixed
+  - [x] UI 235 CDlgHawk (booth cry-out): the 3 audit mismatches fixed
     - [x] opened by the booth's Hawk, a 64-letter edit, Agree sets the cry and closes (DlgHawk.cpp 98-167)
-    - [ ] the text filtered and the edit cleared on show
+    - [x] the text filtered (FilterSilentText5065: a no-op, 5065 has no Silent.dat) and the edit cleared on show; Agree does nothing until something is typed
   - [ ] Leave words (social spec §5): words for an offline friend wait on the world state and come at its next login (ChatChannel::LeaveWord, one a minute, STR_MSG_SENT / STR_MSG_FAILED); the Conquer front carries them on MsgTalk 2110 and holds them until the client has loaded its map
     - [x] engine, UI and front
     - [ ] trade partners may get words too (no trade partners yet), words kept 31 days, the received words logged to disk as the client's chat log does
