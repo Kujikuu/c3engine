@@ -260,8 +260,13 @@ fn items(engine: &mut Engine, shared: &Shared) {
 
 fn world(engine: &mut Engine, shared: &Shared) {
     let s = shared.clone();
+    // An empty line says nothing.
     engine.register_fn("message", move |text: &str| {
-        with(&s, |c| c.effects.push(Effect::Message(text.to_owned())))
+        with(&s, |c| {
+            if !text.is_empty() {
+                c.effects.push(Effect::Message(text.to_owned()))
+            }
+        })
     });
     let s = shared.clone();
     engine.register_fn("teleport", move |map: i64, x: i64, y: i64| {
@@ -588,6 +593,19 @@ fn more(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("loot_money", move |money: i64| {
         with(&s, |c| c.effects.push(Effect::Loot { item: 0, money }))
     });
+    let s = shared.clone();
+    engine.register_fn("player_where", move |name: &str| {
+        with(&s, |c| {
+            c.player.online.get(name).cloned().unwrap_or_default()
+        })
+    });
+    engine.register_fn(
+        "around",
+        |text: &str, before: &str, after: &str| match text {
+            "" => String::new(),
+            _ => format!("{before}{text}{after}"),
+        },
+    );
     let s = shared.clone();
     engine.register_fn("client_cue_text", move |name: &str, a: i64, text: &str| {
         with(&s, |c| {
@@ -1878,7 +1896,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Bounty { .. }
         | WorldChange::Police { .. }
         | WorldChange::GuildLeader { .. }
-        | WorldChange::MapCopy { .. } => {}
+        | WorldChange::MapCopy { .. }
+        | WorldChange::Online { .. } => {}
     }
 }
 

@@ -745,6 +745,12 @@ impl Sim {
             guilds: self.world.guild_views(),
             wanted: self.world.wanted_views(),
             bounties: self.world.bounty_views(),
+            online: (self.world.online.iter())
+                .map(|(name, map)| {
+                    let shown = self.world.map_names.get(map).cloned();
+                    (name.clone(), shown.unwrap_or_else(|| map.to_string()))
+                })
+                .collect(),
             police: (self.world.police.iter())
                 .map(|(name, level)| {
                     let (guild, pk) = self

@@ -224,6 +224,9 @@ impl ServerHandle {
                     save_every_ms: seconds_to_ms(settings.network.save_interval_seconds),
                     tick_ms: settings.gameplay.tick_ms,
                     load_map,
+                    map_names: (settings.maps.iter())
+                        .map(|m| (m.id, m.name.clone()))
+                        .collect(),
                 };
                 let fronts = fronts.into_iter().map(|f| f as Box<dyn Front>).collect();
                 let mut server = GameServer::new(fronts, worlds, config);

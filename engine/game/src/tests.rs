@@ -1960,3 +1960,17 @@ fn placements_asked_for_run_their_event_where_the_player_put_it() {
     assert_eq!((flags["px"], flags["py"]), (11, 12));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn the_world_knows_who_is_online_where() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 4);
+    sim.set_map_ids(vec![1002]);
+    let mut world = sim.world_state().clone();
+    world.map_names.insert(1002, "Twin City".into());
+    sim.set_world_state(world);
+    let hero = sim.add_saved_player(&crate::PlayerSave::new("Hero", (5, 5)));
+    assert_eq!(sim.world_state().online.get("Hero"), Some(&1002));
+    assert_eq!(sim.player_state(hero).online["Hero"], "Twin City");
+    sim.remove_player(hero);
+    assert!(sim.world_state().online.is_empty(), "gone at logout");
+}

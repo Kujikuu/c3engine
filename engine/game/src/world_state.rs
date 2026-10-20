@@ -46,6 +46,12 @@ pub struct WorldState {
     /// The police wanted list: names and levels, the highest level first.
     #[serde(default)]
     pub police: Vec<(String, i64)>,
+    /// The players online on every map, by name: the game map each is on.
+    #[serde(default, skip_serializing)]
+    pub online: BTreeMap<String, u32>,
+    /// The maps' names by game id (the host's list).
+    #[serde(default, skip_serializing)]
+    pub map_names: BTreeMap<u32, String>,
     /// The guild and PK points of each name on the police list.
     #[serde(default)]
     pub police_info: BTreeMap<String, (String, i64)>,
@@ -174,6 +180,14 @@ impl WorldState {
                     self.wanted.insert(id, entry);
                 }
             }
+            WorldChange::Online { name, map } => match u32::try_from(*map) {
+                Ok(map) if map != 0 => {
+                    self.online.insert(name.clone(), map);
+                }
+                _ => {
+                    self.online.remove(name);
+                }
+            },
             WorldChange::MapCopy { id, copy } => {
                 if let Ok(id) = u32::try_from(*id) {
                     self.map_copies.insert(id, copy.clone());

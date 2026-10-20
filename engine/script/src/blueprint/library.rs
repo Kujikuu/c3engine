@@ -216,6 +216,22 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    pure(
+        "player.where",
+        "Where a player is",
+        "Player",
+        &[("name", Text)],
+        Text,
+        "player_where({name})",
+    ),
+    pure(
+        "text.around",
+        "Text framed",
+        "Text",
+        &[("text", Text), ("before", Text), ("after", Text)],
+        Text,
+        "around({text}, {before}, {after})",
+    ),
     action(
         "player.client_cue_text",
         "Cue the client (text)",

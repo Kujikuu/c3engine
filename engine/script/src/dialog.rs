@@ -85,6 +85,8 @@ pub struct PlayerState {
     pub bounties: BTreeMap<i64, BountyView>,
     /// The police wanted list, the highest level first.
     pub police: Vec<PoliceView>,
+    /// The players online on every map: the name of the map each is on.
+    pub online: BTreeMap<String, String>,
     /// Maps made while playing (players' homes), by their new id.
     pub map_copies: BTreeMap<i64, MapCopyView>,
     /// The NPCs on the player's map: their names, kinds and distances from the player.
@@ -262,6 +264,11 @@ pub enum WorldChange {
         guild: String,
         #[serde(default)]
         pk: i64,
+    },
+    /// Player `name` online on map `map` (0: logged out).
+    Online {
+        name: String,
+        map: i64,
     },
     /// Bounty `id` set as `view` (`None`: removed).
     Bounty {

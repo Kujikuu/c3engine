@@ -82,6 +82,10 @@ impl Diagnostic {
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
     (
+        "player_where(name) / around(text, before, after)",
+        "The name of the map player `name` is on (\"\": not online); `text` between `before` and `after`, or \"\" when it is empty",
+    ),
+    (
         "client_cue_text(name, a, text)",
         "A client cue `name` with a number and a text for the player's client alone (Conquer: `name`, a MsgName of type `a`)",
     ),

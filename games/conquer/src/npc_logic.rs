@@ -1240,7 +1240,23 @@ impl<'a> Builder<'a> {
                 );
                 g.data(name, cue, "text");
                 let invalid = self.say(g, &[Part::Text(INVALID_WANTED_LINE)], column);
-                self.guarded_said(g, &[(there, invalid)], None, &[keep, cue], column)
+                // TQ's STR_POLICE_WANTED_ORDER: the target and the map it is on.
+                let at = g.node("player.where", &[], column);
+                g.data(name, at, "name");
+                let seen = g.node("text.around", &[("after", txt(" recently."))], column);
+                g.data(at, seen, "text");
+                let head = g.node(
+                    "text.join",
+                    &[("a", txt("Bounty Hunter Confirmation: The target "))],
+                    column,
+                );
+                g.data(name, head, "b");
+                let lead = g.node("text.join", &[("b", txt(" has been seen around "))], column);
+                g.data(head, lead, "a");
+                g.data(lead, seen, "before");
+                let told = g.node("player.message", &[], column);
+                g.data(seen, told, "text");
+                self.guarded_said(g, &[(there, invalid)], None, &[keep, cue, told], column)
             }
             3012 => {
                 let me = g.node("player.name", &[], column);
@@ -3155,11 +3171,29 @@ impl<'a> Builder<'a> {
                     ],
                     column,
                 );
+                // TQ's STR_WANTED_INFO, when the target is online.
+                let at = g.node("player.where", &[], column);
+                g.data(target, at, "name");
+                let seen = g.node(
+                    "text.around",
+                    &[
+                        (
+                            "before",
+                            txt("It is said that the wanted target appears around ["),
+                        ),
+                        ("after", txt("].")),
+                    ],
+                    column,
+                );
+                g.data(at, seen, "text");
+                let info = g.node("player.message", &[], column);
+                g.data(seen, info, "text");
+                let effects = [keep, cue, told, info];
                 self.guarded_said(
                     g,
                     &[(exists, invalid)],
                     Some((fee, short)),
-                    &[keep, cue, told],
+                    &effects,
                     column,
                 )
             }

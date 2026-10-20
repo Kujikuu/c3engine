@@ -54,6 +54,8 @@ pub struct ServerConfig {
     /// Loads the maps players go to that the server doesn't run yet; without it, the
     /// server runs only the maps it started with.
     pub load_map: Option<MapLoader>,
+    /// The maps' names by game id (scripts tell where players are).
+    pub map_names: BTreeMap<u32, String>,
 }
 
 /// A cell near `start` picked by `name`, so new characters don't all stand on one spot.
@@ -103,7 +105,9 @@ impl GameServer {
     pub fn new(fronts: Vec<Box<dyn Front>>, maps: Vec<MapWorld>, config: ServerConfig) -> Self {
         assert!(!maps.is_empty(), "a server needs a map");
         assert!(!fronts.is_empty(), "a server needs a front");
-        let world = Self::load_world(&config.accounts);
+        let mut world = Self::load_world(&config.accounts);
+        world.online.clear();
+        world.map_names = config.map_names.clone();
         let mut maps = maps;
         for (i, map) in maps.iter_mut().enumerate() {
             map.sim.set_world_events(i == 0);

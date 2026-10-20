@@ -198,6 +198,11 @@ impl Sim {
     /// player's id from map to map), which must not be one of this simulation's own.
     pub fn add_saved_player_as(&mut self, save: &PlayerSave, id: EntityId) {
         self.insert_player(id, save.name.clone(), save.cell, save.level.max(1));
+        let map = self.map_ids.first().copied().map_or(0, i64::from);
+        self.change_world(c3_script::WorldChange::Online {
+            name: save.name.clone(),
+            map,
+        });
         let bag: Vec<Item> = save.bag.iter().map(|&s| self.saved_item(s)).collect();
         let worn: Vec<Item> = save.equipment.iter().map(|&s| self.saved_item(s)).collect();
         let storage: BTreeMap<u32, Vec<Item>> = (save.storage.iter())
@@ -282,6 +287,9 @@ impl Sim {
     /// Takes player `id` out of the world (logged out).
     pub fn remove_player(&mut self, id: EntityId) {
         self.script_event(id, "on_logout", Vec::new());
+        if let Some(name) = self.players.get(&id).map(|p| p.name.clone()) {
+            self.change_world(c3_script::WorldChange::Online { name, map: 0 });
+        }
         // Logging out leaves the team.
         if let Some(leader) = self.players.get(&id).and_then(|p| p.team) {
             self.leave_team(id, leader);

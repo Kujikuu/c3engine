@@ -637,8 +637,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
         "You should offer a reward of 100000 silvers at least!"), the boards' lines
         (`%iter_wanted`, `%iter_police_wanted` with the guild and PK columns), taken off the
         police list at logout (`on_logout`)
-  - [ ] PK: where a wanted target is (STR_WANTED_INFO, the police order's map name), which
-        needs the online players of every map
+  - [x] PK: where a wanted target is (STR_WANTED_INFO, the police order's map name): the
+        shared world state knows who is online on which map (`player_where`, the host's map
+        names)
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
         node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)
   - [x] Player homes: maps made while playing on the shared world state (a copy of a map by

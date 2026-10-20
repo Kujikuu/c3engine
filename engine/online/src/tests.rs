@@ -112,6 +112,7 @@ fn server_in(dir: &std::path::Path, plain: Sim, load_map: Option<MapLoader>) -> 
         save_every_ms: 60_000,
         tick_ms: 50,
         load_map,
+        map_names: Default::default(),
     };
     GameServer::new(vec![Box::new(front)], maps, config)
 }
