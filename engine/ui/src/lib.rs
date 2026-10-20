@@ -531,6 +531,10 @@ impl GameUi {
                 match field.as_str() {
                     "prefs.music" => prefs.music = level,
                     "prefs.sound" => prefs.sound = level,
+                    // The chat line slider: its pixels, a line each `line_px` (TQ's LineRecord).
+                    "chat.lines_px" if self.gui_state.chat_line_px > 0.0 => {
+                        prefs.chat_lines = (value as f32 / self.gui_state.chat_line_px) as u32 + 1;
+                    }
                     _ => return,
                 }
                 self.prefs = prefs;
@@ -1653,6 +1657,8 @@ impl GameUi {
     pub fn set_chat_look(&mut self, look: Option<ChatLook>) {
         self.gui_state.chat_colors = look.as_ref().map(|l| l.colors.clone()).unwrap_or_default();
         self.gui_state.emotes = look.as_ref().map_or(0, |l| l.emotes);
+        self.gui_state.chat_line_px = look.as_ref().map_or(0.0, |l| l.line_px);
+        self.gui_state.chat_lines = look.as_ref().map_or(0, |l| l.lines);
         self.chat.set_look(look);
     }
 
@@ -1796,6 +1802,7 @@ impl GameUi {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
         self.prefs = view.controls.prefs;
+        self.chat.shown = (self.prefs.chat_lines > 0).then_some(self.prefs.chat_lines as usize);
         self.overlay.show(ui, view);
         let Some(player) = view.player() else {
             return actions;

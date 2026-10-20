@@ -257,6 +257,8 @@ pub struct Control {
     pub double: String,
     /// How far a slider's thumb travels, in layout pixels (`travel=80`).
     pub travel: i32,
+    /// A slider whose thumb rises from its place by its value (`vertical=1`: TQ's line slider).
+    pub vertical: bool,
     /// A stacked control comes no higher than this (`min_y=`; under an NPC's face).
     pub min_y: i32,
     /// A stacked control beside the one before it, at its height (`beside=1`; a button by
@@ -450,6 +452,7 @@ impl Control {
             double: text("double"),
             min_y: section.int("min_y").unwrap_or(0),
             travel: section.int("travel").unwrap_or(0).max(0),
+            vertical: section.int("vertical").is_some_and(|v| v != 0),
             beside: section.int("beside").is_some_and(|b| b != 0),
             back: section.get("back").map(|_| rgb("back")),
             tail: section.int("tail").is_some_and(|t| t != 0),

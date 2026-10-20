@@ -51,6 +51,8 @@ pub struct ChatLook {
     /// and its number; none when 0.
     pub emote_section: String,
     pub emotes: usize,
+    /// How tall a line is to the line slider (TQ's font and 2: lines = pixels / this + 1).
+    pub line_px: f32,
 }
 
 /// A frame of an emotion each this many seconds in the log (CMyBitmap::ShowString's 200 ms).
@@ -124,6 +126,8 @@ pub(crate) struct Chat {
     opening: bool,
     /// What the player chose to see.
     pub filter: ChatFilter,
+    /// The said lines shown when the player chose (none: the look's).
+    pub shown: Option<usize>,
     /// Lines said since they were last taken, with their channels' keys (the chat log's).
     pub said: Vec<(&'static str, String)>,
 }
@@ -377,7 +381,12 @@ impl Chat {
             y -= draw(text, note_color, y) + 2.0 * scale;
         }
         let mut y = rect.bottom() - look.bottom * scale;
-        for (text, color) in self.lines.iter().rev().take(look.lines) {
+        for (text, color) in self
+            .lines
+            .iter()
+            .rev()
+            .take(self.shown.unwrap_or(look.lines))
+        {
             y -= draw(text, *color, y) + 2.0 * scale;
         }
     }

@@ -922,6 +922,8 @@ pub struct PlayerPrefs {
     pub music: f32,
     pub sound: f32,
     pub fullscreen: bool,
+    /// The said lines the chat log shows (0: the game's own number).
+    pub chat_lines: u32,
 }
 
 impl Default for PlayerPrefs {
@@ -931,6 +933,7 @@ impl Default for PlayerPrefs {
             music: 1.0,
             sound: 1.0,
             fullscreen: false,
+            chat_lines: 0,
         }
     }
 }

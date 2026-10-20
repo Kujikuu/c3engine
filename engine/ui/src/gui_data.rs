@@ -73,6 +73,9 @@ pub(crate) struct GuiState {
     pub chat_colors: Vec<(String, usize)>,
     /// The emotions the chat look has (the picker's).
     pub emotes: usize,
+    /// The chat look's line slider: its pixels a line, and its own number of lines.
+    pub chat_line_px: f32,
+    pub chat_lines: usize,
     /// An item being bought several at once, and the asking's button pressed (worked out
     /// with the game's data).
     pub purchase: Option<crate::purchase::Purchase>,
@@ -761,6 +764,16 @@ impl GuiData for HeroData<'_> {
             }
             // The emotion picker's pages.
             "emote.pages" => self.state.emotes.div_ceil(EMOTE_PAGE) as f64,
+            // The chat line slider: the lines shown past the first, in its pixels.
+            "chat.lines_px" => {
+                let chosen = self.view.controls.prefs.chat_lines as usize;
+                let lines = if chosen > 0 {
+                    chosen
+                } else {
+                    self.state.chat_lines
+                };
+                (lines.saturating_sub(1) as f32 * self.state.chat_line_px) as f64
+            }
             "chat.choosing" => u8::from(self.state.views.contains_key("chat_color_for")).into(),
             // The faces the hero may take, and the one picked on the page (`view:face_pick`).
             "faces.count" => self.faces().len() as f64,

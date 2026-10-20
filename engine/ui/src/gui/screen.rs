@@ -714,8 +714,15 @@ impl Painter<'_, '_> {
                 };
                 let along = (value / max).clamp(0.0, 1.0) * travel;
                 let thumb_size = thumb.1 * self.place.scale;
-                let track =
-                    Rect::from_min_size(rect.min, Vec2::new(travel + thumb_size.x, thumb_size.y));
+                let track = match control.vertical {
+                    true => {
+                        Rect::from_min_max(rect.min - Vec2::new(0.0, travel), rect.min + thumb_size)
+                    }
+                    false => Rect::from_min_size(
+                        rect.min,
+                        Vec2::new(travel + thumb_size.x, thumb_size.y),
+                    ),
+                };
                 let id = (self.ui.scope_id()).with(("gui slider", control.parent, control.id));
                 let sense = if self.live {
                     egui::Sense::click_and_drag()
@@ -727,13 +734,20 @@ impl Painter<'_, '_> {
                     && (response.dragged() || response.clicked())
                     && travel > 0.0
                 {
-                    let x = (at.x - rect.left() - thumb_size.x / 2.0).clamp(0.0, travel);
+                    let moved = match control.vertical {
+                        true => rect.top() + thumb_size.y / 2.0 - at.y,
+                        false => at.x - rect.left() - thumb_size.x / 2.0,
+                    };
                     events.push(GuiEvent::Slid {
                         field: control.value.clone(),
-                        value: (x / travel * max).round() as u32,
+                        value: (moved.clamp(0.0, travel) / travel * max).round() as u32,
                     });
                 }
-                let at = origin + Vec2::new(along / self.place.scale, 0.0);
+                let shift = along / self.place.scale;
+                let at = match control.vertical {
+                    true => origin - Vec2::new(0.0, shift),
+                    false => origin + Vec2::new(shift, 0.0),
+                };
                 self.draw(thumb, at, None, None);
             }
             ControlKind::Model => {

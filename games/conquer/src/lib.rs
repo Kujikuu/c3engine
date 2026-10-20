@@ -472,6 +472,8 @@ impl Content {
             // The emotions (CGameDataSet::CreateEmotionInfo: a line `<n> <shortcut>` each,
             // drawn from EmotionIco.ani's ICON<n>).
             emote_section: "EmotionICON".into(),
+            // The line slider's pixels a line (MyShellDlg.cpp 10474-10480: font 12 and 2).
+            line_px: 14.0,
             emotes: (self.fs.read("ini/EmotionIco.ini"))
                 .map(|b| {
                     let text = String::from_utf8_lossy(&b).into_owned();

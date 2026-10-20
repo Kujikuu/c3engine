@@ -845,7 +845,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] Shift+click a player, Alt+click a log name and the friend/guild/business/leave-word/pigeon chat routes fill the name
     - [ ] clicking the bar focuses the line; 1094 as one image changed by the channel
     - [x] the log as g_objGameMsg draws it: said lines `[Talk]Ann speaks to All: hi[h:m]` in yellow, 6 up from 130 above the bottom, shadowed; system notes ([System]) at the top left, 3, gone after 15 s (`GameModule::chat_look`, StrRes prefixes)
-    - [ ] the GM area (2011) mid-left; the log's line count dragged by 5326; Alt for clickable names
+    - [ ] the GM area (2011) mid-left; Alt for clickable names
+    - [x] the log's line count dragged (the line slider, 5326)
     - [x] blacklist / channel filters (139, 239)
     - [x] 274 CDlgTalkAct (the emotion picker)
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
@@ -1126,7 +1127,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] title Image371-373 by mode; tabs with frame 2 on the one chosen (`chosen=`); list, write and read modes; Send (StrRes 10362), Watch (10363 when none picked), Del, Up/Down/Refresh; OK posts (lines made one), Cancel Button7 / Button2; a row double-clicked whispers its author
     - [ ] the dim block behind the edit in write and read modes (ShowBlock 0x99000000), the list arrows [240-1]/[240-2]
     - [x] help (CDlgHelp 215)
-  - [ ] UI 5326 CDlgNorMsg (chat-log line handles): missing, 3 mismatches (docs/conquer_ui_audit.md)
+  - [x] UI 5326 CDlgNorMsg (chat-log line handles): the 3 audit mismatches fixed: 5065 shows the shell's line slider (IDC_SLI_LINE, Slider0) instead; at the left, 152 above the bottom, its thumb rising with the said lines shown (14 pixels a line, 0-300; sliders take `vertical=1`); the number kept with the player's settings (`PlayerPrefs::chat_lines`, TQ's LineRecord); `ChatLook::line_px`
   - [ ] UI 218 CDlgLog (chat history viewer): the session's log
     - [x] the Win32 dialog's bitmaps as they are (`file=`): LogBk.bmp centred, Close, Delete (the channel shown) and Delete All, a tab per channel (Talk, Whisper, Guild, Friend, Team, All); the day shown; the lines said (`[Talk]Ann speaks to All: hi[h:m]`) on the edit's brush (`back=`), the newest last, the wheel going back (`tail=1`); opened by 139's Record
     - [ ] a log file a day (Record 1654 and its LogRecord setting, the date list's other days, LoadLog), the Win32 scroll bar, the chosen tab's look (its Click bitmaps are missing from 5065's data), Chat.dll's whisper/team windows choosing the channel
