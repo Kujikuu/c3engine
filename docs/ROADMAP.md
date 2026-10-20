@@ -1035,10 +1035,35 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] help 1667 (topic 8)
     - [ ] slide-in, sounds, y 58
   - [x] UI 257 CDlgFacState (guild member info): the 4 audit mismatches fixed (opened by a member clicked on 133's member page; name, level, rank title, contribution; closed with 133; no longer closes 133)
-  - [ ] UI 160 CDlgFriend (friends): draft only, 12 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 269 CDlgEnemy (enemies): draft only, 8 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 209 CDlgFrdState (friend info): draft only, 7 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 270 CDlgEnmState (enemy info): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 160 CDlgFriend (friends): 9 of 12 audit mismatches fixed
+    - [x] GeneralBG frame and the DialogFriend title image
+    - [x] the friends in yellow, online first
+    - [x] Add picks the player to ask (its ask put to the other as 158's friend question, StrRes 100101)
+    - [x] Enemy opens 269; mentor 312 and business 326 open (their dialogs are their own items)
+    - [x] a name clicked opens 209; closing hides 209
+    - [ ] whisper and leave-word row actions
+    - [ ] help 1667
+    - [ ] slide-in, sounds; list arrows [160-1]/[160-2]
+    - [ ] the Conquer front's MsgFriend (1019) so the real client sees friends
+    - [ ] online / offline notices to friends (StrRes 100103/100104)
+  - [ ] UI 269 CDlgEnemy (enemies): 6 of 8 audit mismatches fixed
+    - [x] GeneralBG and the title image; enemies listed (a killer kept)
+    - [x] Friend opens 160; mentor and business buttons
+    - [x] a name clicked opens 270
+    - [ ] help
+    - [ ] slide-in
+  - [ ] UI 209 CDlgFrdState (friend info): 5 of 7 audit mismatches fixed
+    - [x] opened by a friend clicked; no longer closes 160
+    - [x] name, level, profession, PK, guild, rank, spouse (what only a player here shows is empty elsewhere)
+    - [x] Delete asks first (10007) and lets the friend go
+    - [ ] face 1684 (the engine has no faces)
+    - [ ] view equipment 1209; nobility / business images; the frame a pixel down
+  - [ ] UI 270 CDlgEnmState (enemy info): 4 of 6 audit mismatches fixed
+    - [x] opened by an enemy clicked; no longer closes 269
+    - [x] its details as 209's
+    - [x] Delete asks first (10400) and forgets the enemy
+    - [ ] face 1427
+    - [ ] view equipment 1429; nobility / business images
   - [ ] UI 138 CDlgSetup (options): draft only (unreachable), 17 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 231 CDlgSetup_Hotkey (IDD_DIALOG_HOTKEY): draft only, 8 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 255 CDlgOther (setup "Other": furniture): draft only, 4 mismatches (docs/conquer_ui_audit.md)

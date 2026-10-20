@@ -264,6 +264,8 @@ pub struct Control {
     pub hides: Vec<u32>,
     /// Numbers in its text with thousands commas (`commas=1`; TQ's StringChange).
     pub commas: bool,
+    /// What a `%s` in its text (a names-file string) becomes (`fill_in={prompt.name}`).
+    pub fill_in: String,
     /// Dialogs that keep it from opening while they show (`blocked=152,161`: the status not
     /// over a shop or warehouse, as OnMainQuery checks the right part's owner).
     pub blocked: Vec<u32>,
@@ -405,6 +407,7 @@ impl Control {
             opens: ids("opens"),
             hides: ids("hides"),
             commas: section.int("commas").is_some_and(|c| c != 0),
+            fill_in: text("fill_in"),
             blocked: ids("blocked"),
             pick: section.int("pick").is_some_and(|p| p != 0),
             offset: text("offset"),

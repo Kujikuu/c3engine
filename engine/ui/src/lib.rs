@@ -391,6 +391,7 @@ impl GameUi {
             "team_kick" => Input::Team(T::Kick(player)),
             "guild_invite" => Input::Guild(G::Invite(player)),
             "guild_apply" => Input::Guild(G::Apply(player)),
+            "friend_add" => Input::Friend(c3_game::FriendAction::Ask(player)),
             _ => return None,
         };
         Some(UiAction::Game(input))
@@ -544,6 +545,10 @@ impl GameUi {
                 }
             }
             "guild_kick_picked" => self.gui_state.guild_kicking = true,
+            // The friend or enemy picked let go (`contact_drop:friends`, `contact_drop:enemies`).
+            _ if action.starts_with("contact_drop:") => {
+                self.gui_state.dropping = Some(action["contact_drop:".len()..].to_owned());
+            }
             // The money typed offered: none is refused (StrRes 10045).
             "trade_money" => {
                 let amount: u64 = (self.gui_state.fields.get("trade.amount"))
@@ -802,6 +807,11 @@ impl GameUi {
             Event::Proposed { player, from } if player == hero => {
                 ("marriage", from, Input::AcceptProposal(from))
             }
+            Event::FriendAsked { player, from } if player == hero => (
+                "friend",
+                from,
+                Input::Friend(c3_game::FriendAction::Accept(from)),
+            ),
             _ => return,
         };
         let name = sim.player(from).map_or("", |p| p.name.as_str()).to_owned();
@@ -1095,6 +1105,7 @@ impl GameUi {
                 let mut work = Vec::new();
                 let mut picked_target = None;
                 let mut picked_guild_row = None;
+                let mut picked_contact = None;
                 // What happens to the item held: picked up, put down (or dropped).
                 let mut held = data.state.held.clone();
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
@@ -1129,6 +1140,13 @@ impl GameUi {
                         gui::GuiEvent::Item { list, index } if list == "guild.member_rows" => {
                             picked_guild_row = Some(index);
                         }
+                        // A friend or enemy picked (its details open by the list's action).
+                        gui::GuiEvent::Item { list, index }
+                            if list == "friends.rows" || list == "enemies.rows" =>
+                        {
+                            let key = format!("{}_pick", list.trim_end_matches(".rows"));
+                            picked_contact = Some((key, index));
+                        }
                         // A listed name picked fills the chat bar's name; the list hides.
                         gui::GuiEvent::Item { list, index } if list == CHAT_TARGETS => {
                             picked_target = data.state.chat_bar.targets.get(index).cloned();
@@ -1154,6 +1172,22 @@ impl GameUi {
                     .collect();
                 self.gui_state.focus = None;
                 self.gui_state.held = held;
+                if let Some(list) = self.gui_state.dropping.take() {
+                    let data = gui_data::HeroData {
+                        view,
+                        player,
+                        state: &self.gui_state,
+                    };
+                    if let Some(name) = data.picked_contact(&list) {
+                        use c3_game::FriendAction as F;
+                        let drop = if list == "enemies" {
+                            F::Forget(name)
+                        } else {
+                            F::Remove(name)
+                        };
+                        actions.push(UiAction::Game(c3_game::Input::Friend(drop)));
+                    }
+                }
                 if std::mem::take(&mut self.gui_state.guild_kicking) {
                     let data = gui_data::HeroData {
                         view,
@@ -1202,6 +1236,9 @@ impl GameUi {
                         Some((s, _)) => self.gui_state.picked_skill = Some(s),
                         None => {}
                     }
+                }
+                if let Some((key, row)) = picked_contact {
+                    self.gui_state.views.insert(key, row.to_string());
                 }
                 if let Some(row) = picked_guild_row {
                     self.gui_state

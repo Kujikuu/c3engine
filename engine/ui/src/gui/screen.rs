@@ -623,6 +623,9 @@ impl Painter<'_, '_> {
                 if let Some(name) = names.and_then(|t| t.get(&key)) {
                     text = name.clone();
                 }
+                if !control.fill_in.is_empty() {
+                    text = text.replacen("%s", &expand(&control.fill_in, data), 1);
+                }
                 if control.commas {
                     text = with_commas(&text);
                 }

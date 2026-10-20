@@ -36,6 +36,8 @@ pub(crate) struct GuiState {
     /// The team dialog's Kick was pressed (for the member picked), and the guild's Delete.
     pub kicking: bool,
     pub guild_kicking: bool,
+    /// A friend or enemy to let go: which list's picked one.
+    pub dropping: Option<String>,
     /// The item picked up from a grid: its list and slot.
     pub held: Option<(String, usize)>,
     /// View-number steps asked for (`view_step:`): the group, the step and the binding that
@@ -123,6 +125,32 @@ impl HeroData<'_> {
         };
         let others = g.members.keys().filter(|m| **m != g.leader).cloned();
         std::iter::once(g.leader.clone()).chain(others).collect()
+    }
+
+    /// The hero's friends (online first) or enemies (`list`: `friends`, `enemies`), by name.
+    pub(crate) fn contacts(&self, list: &str) -> Vec<String> {
+        let world = self.view.sim.world_state();
+        let names = match list {
+            "friends" => world.friends_of(&self.player.name),
+            "enemies" => world.enemies_of(&self.player.name).to_vec(),
+            _ => return Vec::new(),
+        };
+        let online = |n: &String| {
+            world.online.contains_key(n) || self.view.sim.players().any(|p| &p.name == n)
+        };
+        let (on, off): (Vec<String>, Vec<String>) = names.into_iter().partition(online);
+        on.into_iter().chain(off).collect()
+    }
+
+    /// The friend or enemy picked in its list (`view:<list>_pick:<row>`), by name.
+    pub(crate) fn picked_contact(&self, list: &str) -> Option<String> {
+        let row: usize = self
+            .state
+            .views
+            .get(&format!("{list}_pick"))?
+            .parse()
+            .ok()?;
+        self.contacts(list).into_iter().nth(row)
     }
 
     /// The guild member picked on the member page (`view:guild_pick:<row>`), by name.
@@ -477,6 +505,33 @@ impl GuiData for HeroData<'_> {
                         .unwrap_or_default(),
                 )
             }
+            // The friend or enemy picked: `contact.<list>.<field>` (name, level, profession,
+            // pk, guild, rank, mate); what only a player here shows is empty elsewhere.
+            _ if key.starts_with("contact.") => {
+                let (list, field) = key.strip_prefix("contact.")?.split_once('.')?;
+                let name = self.picked_contact(list)?;
+                let world = self.view.sim.world_state();
+                let here = self.view.sim.players().find(|p| p.name == name);
+                let guild = world.guild_of(&name);
+                Some(match field {
+                    "name" => name.clone(),
+                    "level" => world
+                        .levels
+                        .get(&name)
+                        .map_or_else(String::new, u32::to_string),
+                    "profession" => here.map_or_else(String::new, |p| p.profession.to_string()),
+                    "pk" => here.map_or_else(String::new, |p| p.pk.to_string()),
+                    "guild" => (guild.and_then(|(g, _)| world.guilds.get(&g)))
+                        .map_or_else(String::new, |g| g.name.clone()),
+                    "rank" => guild.map_or_else(String::new, |(_, r)| r.to_string()),
+                    "mate" => {
+                        let spouse = &self.view.sim.settings().spouse_text;
+                        here.and_then(|p| p.texts.get(spouse).cloned())
+                            .unwrap_or_default()
+                    }
+                    _ => return None,
+                })
+            }
             // The hero's guild: its name, leader, the hero's rank, members and fund.
             _ if key.starts_with("guild.") => {
                 let world = self.view.sim.world_state();
@@ -597,6 +652,13 @@ impl GuiData for HeroData<'_> {
             // The names listed to talk to (the chat bar's list).
             "chat.targets" => (self.state.chat_bar.targets.clone(), None),
             // The hero's guild's members, or its allies or enemies (the guild tab picked).
+            // The hero's friends, online first, and its enemies.
+            "friends.rows" | "enemies.rows" => {
+                let list = key.trim_end_matches(".rows");
+                let picked =
+                    (self.state.views.get(&format!("{list}_pick"))).and_then(|v| v.parse().ok());
+                (self.contacts(list), picked)
+            }
             // The guild's members on the page shown (`view:guild_member_page`), 10 a page:
             // each name and level, as CDlgKnightage lists them; the one picked marked.
             "guild.member_rows" => {
