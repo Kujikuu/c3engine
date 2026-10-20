@@ -261,6 +261,9 @@ pub struct Control {
     pub password: bool,
     /// An edit takes digits only (`digits=1`; an amount of money).
     pub digits: bool,
+    /// A button that cannot be clicked while this `when`-style expression holds, drawn in
+    /// its frame 2 as TQ's disabled buttons (`disabled=!team.picked_member`).
+    pub disabled: String,
     /// The most characters an edit takes (0: any), or a binding that says (`limit_of=`).
     pub limit: usize,
     pub limit_of: String,
@@ -380,6 +383,7 @@ impl Control {
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
             digits: section.int("digits").is_some_and(|d| d != 0),
+            disabled: text("disabled"),
             limit: section.int("limit").unwrap_or(0).max(0) as usize,
             limit_of: text("limit_of"),
             mark: text("mark"),

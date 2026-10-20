@@ -30,6 +30,9 @@ pub struct Mate {
     pub team: Option<EntityId>,
     pub life: u32,
     pub max_life: u32,
+    /// Its body look (a face shows from it: Conquer's look ÷ 10,000).
+    #[serde(default)]
+    pub look: u32,
 }
 
 /// What a player does about teams (the same as `/team ...`).
@@ -74,6 +77,7 @@ impl Sim {
                 team: p.team,
                 life: p.life,
                 max_life: p.stats.max_life,
+                look: p.look.body,
             })
             .collect()
     }

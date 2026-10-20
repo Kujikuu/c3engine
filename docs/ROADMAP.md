@@ -799,7 +799,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI engine: control states and kinds
     - [x] comparisons in `when` (`hero.level>=70`, `<=`, `!=`, `>`, `<`, `=`, against numbers or bindings); `hero.wallet.<currency>`
     - [x] images picked by a binding (an image's section from its value: the picked skill)
-    - [ ] disabled and latched button frames
+    - [x] disabled button frames (`disabled=`: frame 2, no clicks)
+    - [ ] latched button frames
     - [ ] sliders and multi-line edits
   - [ ] UI engine: the dialogs the server opens (window numbers and events) wired for every dialog that has one
   - [ ] UI engine: the engine's own widgets (skill bar, radar circle, chat log, quest windows) hidden where the game draws its own
@@ -956,8 +957,22 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] bag-full / warehouse-full messages and the locked-item confirm
     - [ ] quality, +N, colour and reif on stored items
     - [ ] slide-in and sounds; refused while trading
-  - [ ] UI 141 CDlgGroup (team): partial, 13 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 268 CMenuGroup (team options): partial, 3 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 141 CDlgGroup (team): 8 of 13 audit mismatches fixed
+    - [x] faces only, no names; a face clicked is picked, with the focus frame
+    - [x] Kick sends out the member picked and is disabled (frame 2) until one who does not lead is (`disabled=`, a TQ button's disabled frame)
+    - [x] setup 1648 and Kick 1649 for the leader only; Help as Button444
+    - [x] the member's second button no longer leaves (Follow is not in the engine yet)
+    - [x] closing it closes the options 268 (`hides=`)
+    - [x] invite and apply asked with the yes/no prompt (158 modes 2/1)
+    - [ ] each member's own face (the engine has no faces: every hero wears face 1)
+    - [ ] Follow (TeamFollow) for a member
+    - [ ] help 1667 (CDlgHelp DLG_GROUP)
+    - [ ] the auto check's aura-team rules
+    - [ ] double-clicking a face starts a team whisper; living-player checks on Join/Invite picks
+  - [ ] UI 268 CMenuGroup (team options): 1 of 3 audit mismatches fixed
+    - [x] opened by the leader only, and closed with 141
+    - [ ] hidden when the team changes or the bag opens
+    - [ ] first show after creating a team sends Money on / Item off
   - [ ] UI 158 CDlgConfirm (generic yes/no prompt): 7 of 14 audit mismatches fixed
     - [x] opens while a question is asked; Dialog15 at -5,-5 (Dialog45 at -25,-25 for a proposal); centred yellow text from StrRes (name, 10000/10002-10005/10365, 10001; 10009, 10008); OK runs it, Cancel drops it
     - [x] modes 0-2 hide after 10 s; a second trade ask refused

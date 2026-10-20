@@ -538,8 +538,16 @@ impl Painter<'_, '_> {
                     }
                     _ => rect,
                 };
+                let disabled = !control.disabled.is_empty() && expression(&control.disabled, data);
+                let sense = if disabled {
+                    egui::Sense::hover()
+                } else {
+                    sense
+                };
                 let response = self.ui.interact(rect, id, sense);
-                let frame = if control.kind == ControlKind::Check {
+                let frame = if disabled {
+                    2
+                } else if control.kind == ControlKind::Check {
                     usize::from(expression(&control.value, data))
                 } else if response.is_pointer_button_down_on() {
                     1

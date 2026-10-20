@@ -34,6 +34,8 @@ pub(crate) struct GuiState {
     pub picking: Option<usize>,
     /// The typed answer's button was pressed.
     pub answering: bool,
+    /// The team dialog's Kick was pressed (for the member picked).
+    pub kicking: bool,
     /// The item picked up from a grid: its list and slot.
     pub held: Option<(String, usize)>,
     /// View-number steps asked for (`view_step:`): the group, the step and the binding that
@@ -96,6 +98,25 @@ impl HeroData<'_> {
     /// The hero's own items a list shows, in slot order: its bag, what it wears (all, or in
     /// slot `n`: `hero.worn.<n>`), what it offers in a trade, a workbench slot, the open
     /// warehouse; none for a list of item types (a shop's).
+    /// The hero's team, the leader first: as a server sends it, else as the local game has it.
+    pub(crate) fn team(&self) -> Vec<c3_game::Mate> {
+        match self.player.mates.is_empty() {
+            true => self.view.sim.team_mates(self.player.id),
+            false => self.player.mates.clone(),
+        }
+    }
+
+    /// The team member picked in the team dialog (`view:team_pick:<n>`), unless it leads.
+    pub(crate) fn picked_member(&self) -> Option<c3_game::Mate> {
+        let n = self.view_number("team_pick");
+        let picked = self
+            .state
+            .views
+            .get("team_pick")
+            .and(self.team().get(n).cloned())?;
+        (picked.team != Some(picked.id)).then_some(picked)
+    }
+
     pub(crate) fn own_items(&self, key: &str) -> Option<Vec<&c3_game::Item>> {
         let p = self.player;
         let sim = self.view.sim;
@@ -169,6 +190,13 @@ impl GuiData for HeroData<'_> {
     }
 
     fn number(&self, key: &str) -> Option<f64> {
+        // A binding divided, whole (`team.look.0/10000`: a Conquer face from its look).
+        if let Some((binding, by)) = key.rsplit_once('/')
+            && let Ok(by) = by.parse::<f64>()
+            && by != 0.0
+        {
+            return Some((self.number(binding)? / by).floor());
+        }
         let p = self.player;
         let need = || self.view.sim.rules().level_exp(p.level);
         Some(match key {
@@ -243,6 +271,12 @@ impl GuiData for HeroData<'_> {
                 .into()
             }
             "team.auto" => u8::from(self.state.auto_team).into(),
+            // Team member `n`'s look; a member is picked who does not lead.
+            _ if key.starts_with("team.look.") => {
+                let n: usize = key.strip_prefix("team.look.")?.parse().ok()?;
+                self.team().get(n)?.look.into()
+            }
+            "team.picked_member" => u8::from(self.picked_member().is_some()).into(),
             // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
             "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
             // The open shop's wares are priced in currency `<name>` (`shop.priced_in.CPs`; TQ's
@@ -356,15 +390,12 @@ impl GuiData for HeroData<'_> {
             // Team member `n`'s name (the leader first), empty past the team's end.
             _ if key.starts_with("team.member.") => {
                 let n: usize = key.strip_prefix("team.member.")?.parse().ok()?;
-                // A server sends the team; a local game asks its simulation.
-                let local;
-                let mates = if self.player.mates.is_empty() {
-                    local = self.view.sim.team_mates(self.player.id);
-                    &local
-                } else {
-                    &self.player.mates
-                };
-                Some(mates.get(n).map(|m| m.name.clone()).unwrap_or_default())
+                Some(
+                    self.team()
+                        .get(n)
+                        .map(|m| m.name.clone())
+                        .unwrap_or_default(),
+                )
             }
             // The hero's guild: its name, leader, the hero's rank, members and fund.
             _ if key.starts_with("guild.") => {

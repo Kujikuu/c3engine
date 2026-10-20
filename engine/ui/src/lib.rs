@@ -637,6 +637,8 @@ impl GameUi {
                     actions.push(UiAction::Game(c3_game::Input::DropMoney(amount)));
                 }
             }
+            // The member picked in the team dialog sent out.
+            "team_kick_picked" => self.gui_state.kicking = true,
             // The typed answer sent (its button, Enter in its box).
             "answer_typed" => self.gui_state.answering = true,
             // The hero's skill `n` picked for the right button (`pick_skill:<n>`).
@@ -1059,6 +1061,17 @@ impl GameUi {
                     .collect();
                 self.gui_state.focus = None;
                 self.gui_state.held = held;
+                if std::mem::take(&mut self.gui_state.kicking) {
+                    let data = gui_data::HeroData {
+                        view,
+                        player,
+                        state: &self.gui_state,
+                    };
+                    if let Some(mate) = data.picked_member() {
+                        let kick = c3_game::TeamAction::Kick(mate.id);
+                        actions.push(UiAction::Game(c3_game::Input::Team(kick)));
+                    }
+                }
                 if std::mem::take(&mut self.gui_state.answering) {
                     actions.extend(typed_answer(&self.gui_state, player));
                 }
