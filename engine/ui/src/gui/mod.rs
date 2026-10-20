@@ -142,6 +142,15 @@ impl ControlKind {
     }
 }
 
+/// Where a text control's text sits in its width.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Align {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
 /// Which way a progress bar fills.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Fill {
@@ -191,8 +200,8 @@ pub struct Control {
     pub map: String,
     /// Text colour, `rrggbb`.
     pub color: [u8; 3],
-    /// Text centred in its width (`align=center`; TQ's centred statics).
-    pub centered: bool,
+    /// Where text sits in its width (`align=center|right`; TQ's statics' position types).
+    pub align: Align,
     pub size: f32,
     /// What a click asks the game for.
     pub action: String,
@@ -250,6 +259,8 @@ pub struct Control {
     pub screen: String,
     /// An edit hides what is typed.
     pub password: bool,
+    /// An edit takes digits only (`digits=1`; an amount of money).
+    pub digits: bool,
     /// The most characters an edit takes (0: any), or a binding that says (`limit_of=`).
     pub limit: usize,
     pub limit_of: String,
@@ -338,7 +349,11 @@ impl Control {
             map: text("map"),
             place: section.int("place").and_then(|p| u32::try_from(p).ok()),
             color,
-            centered: section.get("align") == Some("center"),
+            align: match section.get("align") {
+                Some("center") => Align::Center,
+                Some("right") => Align::Right,
+                _ => Align::Left,
+            },
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
             sound: text("sound"),
@@ -364,6 +379,7 @@ impl Control {
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
+            digits: section.int("digits").is_some_and(|d| d != 0),
             limit: section.int("limit").unwrap_or(0).max(0) as usize,
             limit_of: text("limit_of"),
             mark: text("mark"),

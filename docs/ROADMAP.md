@@ -945,7 +945,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] a CP buy asks the amount (290); a valuable sold asks first (IMPTITEM_CONFIRM)
     - [ ] price rows in the tooltip; +N and colour on wares
     - [ ] slide-in and DlgOpen/DlgClose; refused while trading or with an NPC booth open
-  - [ ] UI 161 CDlgDepot (warehouse): partial, 14 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 161 CDlgDepot (warehouse): 8 of 14 audit mismatches fixed
+    - [x] page 1626 and page count 1627 (`view_page.`, `list_pages.` bindings)
+    - [x] page buttons only with more than one page, paging 20 at a time
+    - [x] money right-aligned with commas (`align=right`); the amount box 12 digits, digits only (`digits=1`)
+    - [x] store and take out by drag or the right button; tooltips
+    - [x] Esc closes the warehouse
+    - [ ] help 1667
+    - [ ] deposit only when 0 < amount <= money; live commas while typing; focus on open
+    - [ ] bag-full / warehouse-full messages and the locked-item confirm
+    - [ ] quality, +N, colour and reif on stored items
+    - [ ] slide-in and sounds; refused while trading
   - [ ] UI 141 CDlgGroup (team): partial, 13 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 268 CMenuGroup (team options): partial, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 158 CDlgConfirm (generic yes/no prompt): 7 of 14 audit mismatches fixed

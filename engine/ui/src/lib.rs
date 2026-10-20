@@ -847,6 +847,9 @@ impl GameUi {
         if player.is_some_and(|p| p.shop.is_some()) {
             return (true, Some(UiAction::CloseShop));
         }
+        if self.gui_state.storage.take().is_some() {
+            return (true, None);
+        }
         if self.gui.as_mut().is_some_and(gui::Gui::escape) {
             return (true, None);
         }

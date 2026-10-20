@@ -260,6 +260,19 @@ impl GuiData for HeroData<'_> {
                 });
                 u8::from(priced == Some(currency)).into()
             }
+            // The page view group `<group>` shows, `<per>` to a page, from 1
+            // (`view_page.20.depot_page`), and how many pages list `<list>` fills, 1 at least
+            // (`list_pages.20.storage.items`).
+            _ if key.starts_with("view_page.") => {
+                let (per, group) = key.strip_prefix("view_page.")?.split_once('.')?;
+                let per: usize = per.parse().ok().filter(|&p| p > 0)?;
+                (self.view_number(group) / per + 1) as f64
+            }
+            _ if key.starts_with("list_pages.") => {
+                let (per, list) = key.strip_prefix("list_pages.")?.split_once('.')?;
+                let per: usize = per.parse().ok().filter(|&p| p > 0)?;
+                self.items(list).len().div_ceil(per).max(1) as f64
+            }
             // How many items list `<list>` holds (`count.shop.items`).
             _ if key.starts_with("count.") => self.items(key.strip_prefix("count.")?).len() as f64,
             "skill.picked" => u8::from(self.state.picked_skill.is_some()).into(),

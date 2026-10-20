@@ -615,9 +615,10 @@ impl Painter<'_, '_> {
                 };
                 let galley =
                     (self.ui.painter()).layout(text, font, Color32::from_rgb(r, g, b), wrap);
-                let left = match control.centered {
-                    true => rect.center().x - galley.size().x / 2.0,
-                    false => rect.left(),
+                let left = match control.align {
+                    super::Align::Left => rect.left(),
+                    super::Align::Center => rect.center().x - galley.size().x / 2.0,
+                    super::Align::Right => rect.right() - galley.size().x,
                 };
                 (self.ui.painter()).galley(Pos2::new(left, rect.top()), galley, Color32::WHITE);
             }
@@ -662,6 +663,10 @@ impl Painter<'_, '_> {
                     response.request_focus();
                 }
                 if response.changed() {
+                    let text = match control.digits {
+                        true => text.chars().filter(char::is_ascii_digit).collect(),
+                        false => text,
+                    };
                     events.push(GuiEvent::Edited {
                         field: control.value.clone(),
                         text,
