@@ -71,6 +71,8 @@ pub(crate) struct GuiState {
     /// first colour (the game's look).
     pub chat_filter: crate::ChatFilter,
     pub chat_colors: Vec<(String, usize)>,
+    /// The emotions the chat look has (the picker's).
+    pub emotes: usize,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -92,6 +94,9 @@ fn exp_balls(time: i64) -> String {
     let hundredths = time.max(0) * 1000 / 600 / 10;
     format!("{}.{:02}", hundredths / 100, hundredths % 100)
 }
+
+/// The emotions a page of the picker shows (CDlgTalkAct: 32).
+pub(crate) const EMOTE_PAGE: usize = 32;
 
 /// The faces a page of the face NPC's window shows.
 pub(crate) const FACE_PAGE: usize = 6;
@@ -657,6 +662,8 @@ impl GuiData for HeroData<'_> {
                     .or(first)
                     .unwrap_or(0) as f64
             }
+            // The emotion picker's pages.
+            "emote.pages" => self.state.emotes.div_ceil(EMOTE_PAGE) as f64,
             "chat.choosing" => u8::from(self.state.views.contains_key("chat_color_for")).into(),
             // The faces the hero may take, and the one picked on the page (`view:face_pick`).
             "faces.count" => self.faces().len() as f64,
@@ -1077,6 +1084,12 @@ impl GuiData for HeroData<'_> {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // Team member `n`'s face (1, Conquer's heroes'), none past the team's end.
+            // The emotion in place `emote.N` of the picker's page, none past the last.
+            _ if key.starts_with("emote.") => {
+                let n: usize = key.strip_prefix("emote.")?.parse().ok()?;
+                let at = self.view_number("emote_page") * EMOTE_PAGE + n;
+                (at < self.state.emotes).then(|| at.to_string())
+            }
             // A team member's face (its own, else 1), none past the team's end.
             _ if key.starts_with("team.face.") => {
                 let n: usize = key.strip_prefix("team.face.")?.parse().ok()?;

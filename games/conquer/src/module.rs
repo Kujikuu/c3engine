@@ -328,6 +328,8 @@ pub fn conquer_settings() -> ProjectSettings {
         "ani/Magic.Ani".into(),
         // Players' faces (PlayerFace.Ani names them Face<n> too, as NpcFace.Ani does).
         "ani/PlayerFace.Ani#Player".into(),
+        // The chat's emotions (ICON<n>, as EmotionICON<n>).
+        "ani/EmotionIco.ani#Emotion".into(),
     ];
     // The client's dialog sounds (DXPlaySound in its dialogs).
     s.ui.sound_open = "sound/DlgOpen.wav".into();

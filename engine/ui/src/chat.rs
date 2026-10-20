@@ -47,6 +47,38 @@ pub struct ChatLook {
     /// (`[talk, 7]`: by channel key, see [`channel_key`]).
     pub palette: Vec<[u8; 3]>,
     pub colors: Vec<(String, usize)>,
+    /// The emotions a line may show (`#05`: the sixth), each the skin section `emote_section`
+    /// and its number; none when 0.
+    pub emote_section: String,
+    pub emotes: usize,
+}
+
+/// A frame of an emotion each this many seconds in the log (CMyBitmap::ShowString's 200 ms).
+const EMOTE_FRAME: f64 = 0.2;
+
+/// The emotions of `text` (`#` and two digits below `count`, as CMyBitmap::ShowString reads
+/// them): the text with each one's three letters made one space, and where each is (in
+/// letters of that text) with its number.
+fn emote_spots(text: &str, count: usize) -> (String, Vec<(usize, usize)>) {
+    let chars: Vec<char> = text.chars().collect();
+    let (mut out, mut spots) = (String::new(), Vec::new());
+    let mut i = 0;
+    while i < chars.len() {
+        let digits = (chars.get(i + 1).and_then(|c| c.to_digit(10)))
+            .zip(chars.get(i + 2).and_then(|c| c.to_digit(10)));
+        match digits.map(|(a, b)| (a * 10 + b) as usize) {
+            Some(n) if chars[i] == '#' && n < count => {
+                spots.push((out.chars().count(), n));
+                out.push(' ');
+                i += 3;
+            }
+            _ => {
+                out.push(chars[i]);
+                i += 1;
+            }
+        }
+    }
+    (out, spots)
 }
 
 /// What the player chose to see of the chat (TQ's chat options and blacklist): channels hidden
@@ -264,20 +296,66 @@ impl Chat {
     }
 
     /// The log in a game's look: system notes from the top left (going after 15 s), said
-    /// lines up from `bottom`, shadowed, wrapped to the screen's width.
-    fn show_look(&mut self, ui: &egui::Ui, rect: Rect, look: &ChatLook) {
+    /// lines up from `bottom` in their channels' colours, shadowed, wrapped to the screen's
+    /// width; emotions drawn in place of their `#NN`, a font and a half wide.
+    fn show_look(
+        &mut self,
+        ui: &egui::Ui,
+        rect: Rect,
+        look: &ChatLook,
+        skin: Option<&crate::gui::Skin>,
+        textures: &mut dyn crate::gui::Textures,
+    ) {
+        use egui::text::{CCursor, LayoutJob, TextFormat};
         let scale = (rect.width() / look.base[0]).min(rect.height() / look.base[1]);
         let painter = ui.painter_at(rect);
         let font = fonts::font(12.0 * scale);
         let [r, g, b] = look.color;
-        let color = Color32::from_rgb(r, g, b);
+        let note_color = Color32::from_rgb(r, g, b);
         let height = 14.0 * scale;
         let wrap = rect.width() - 16.0 * scale;
-        let draw = |text: &str, y: f32| -> f32 {
-            let shadow = painter.layout(text.to_owned(), font.clone(), Color32::BLACK, wrap);
-            let galley = painter.layout(text.to_owned(), font.clone(), color, wrap);
+        let cell = 18.0 * scale;
+        let space = (painter.layout_no_wrap(" ".into(), font.clone(), Color32::WHITE))
+            .size()
+            .x;
+        let frame = (self.now / EMOTE_FRAME) as usize;
+        let count = if skin.is_some() { look.emotes } else { 0 };
+        let mut draw = |text: &str, color: Color32, y: f32| -> f32 {
+            let (text, spots) = emote_spots(text, count);
+            let job = |color: Color32| {
+                let mut job = LayoutJob::default();
+                job.wrap.max_width = wrap;
+                let plain = TextFormat::simple(font.clone(), color);
+                let gap = TextFormat {
+                    extra_letter_spacing: cell - space,
+                    ..plain.clone()
+                };
+                let mut from = 0;
+                for (at, _) in &spots {
+                    let start = text.char_indices().nth(*at).map_or(text.len(), |(b, _)| b);
+                    job.append(&text[from..start], 0.0, plain.clone());
+                    job.append(" ", 0.0, gap.clone());
+                    from = start + 1;
+                }
+                job.append(&text[from..], 0.0, plain);
+                job
+            };
+            let shadow = painter.layout_job(job(Color32::BLACK));
+            let galley = painter.layout_job(job(color));
             let at = egui::pos2(rect.left() + 2.0 * scale, y - galley.size().y);
             painter.galley(at + egui::vec2(1.0, 1.0), shadow, Color32::BLACK);
+            for (letter, n) in &spots {
+                let place = galley.pos_from_cursor(CCursor::new(*letter));
+                let section = format!("{}{n}", look.emote_section);
+                let frames = skin.map_or(&[][..], |s| s.frames(&section));
+                let path = frames.get(frame % frames.len().max(1));
+                if let Some((texture, _)) = path.and_then(|p| textures.image(ui.ctx(), p)) {
+                    let middle = at + egui::vec2(place.left() + cell / 2.0, place.center().y);
+                    let square = Rect::from_center_size(middle, egui::vec2(cell, cell));
+                    let whole = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                    painter.image(texture, square, whole, Color32::WHITE);
+                }
+            }
             let tall = galley.size().y;
             painter.galley(at, galley, color);
             tall
@@ -287,11 +365,11 @@ impl Chat {
         // The system area: its newest note lowest, ending five lines down.
         let mut y = rect.top() + height * 5.0;
         for (text, _) in self.notes.iter().rev() {
-            y -= draw(text, y) + 2.0 * scale;
+            y -= draw(text, note_color, y) + 2.0 * scale;
         }
         let mut y = rect.bottom() - look.bottom * scale;
-        for (text, _) in self.lines.iter().rev().take(look.lines) {
-            y -= draw(text, y) + 2.0 * scale;
+        for (text, color) in self.lines.iter().rev().take(look.lines) {
+            y -= draw(text, *color, y) + 2.0 * scale;
         }
     }
 
@@ -308,11 +386,19 @@ impl Chat {
     }
 
     /// Draws the log and the line being typed, `lift` above its usual place (clear of the
-    /// skill bar).
-    pub fn show(&mut self, ui: &mut egui::Ui, rect: Rect, lift: f32, actions: &mut Vec<UiAction>) {
+    /// skill bar); a game's look draws its emotions from `skin`.
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        lift: f32,
+        skin: Option<&crate::gui::Skin>,
+        textures: &mut dyn crate::gui::Textures,
+        actions: &mut Vec<UiAction>,
+    ) {
         self.now = ui.input(|i| i.time);
         if let Some(look) = self.look.clone() {
-            self.show_look(ui, rect, &look);
+            self.show_look(ui, rect, &look, skin, textures);
             if !self.typing {
                 return;
             }
@@ -371,5 +457,17 @@ impl Chat {
                     self.typing = false;
                 }
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::emote_spots;
+
+    #[test]
+    fn emotions_are_hash_and_two_digits_below_the_count() {
+        let (text, spots) = emote_spots("hi #05 #7 #61 #60!", 61);
+        assert_eq!(text, "hi   #7 #61  !");
+        assert_eq!(spots, vec![(3, 5), (12, 60)]);
     }
 }

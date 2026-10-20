@@ -499,7 +499,14 @@ impl Painter<'_, '_> {
             return None;
         }
         let frames = self.skin.frames(section);
-        let texture = self.frame(frames, control.frame)?;
+        let frame = match control.animate {
+            0 => control.frame,
+            ms => {
+                let at = self.ui.input(|i| i.time) * 1000.0 / f64::from(ms);
+                at as usize % frames.len().max(1)
+            }
+        };
+        let texture = self.frame(frames, frame)?;
         let part = control.src.map(|[l, t, r, b]| {
             Rect::from_min_max(Pos2::new(l as f32, t as f32), Pos2::new(r as f32, b as f32))
         });

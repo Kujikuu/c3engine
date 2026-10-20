@@ -463,6 +463,21 @@ impl Content {
             ]
             .map(|(k, i)| (k.to_owned(), i))
             .to_vec(),
+            // The emotions (CGameDataSet::CreateEmotionInfo: a line `<n> <shortcut>` each,
+            // drawn from EmotionIco.ani's ICON<n>).
+            emote_section: "EmotionICON".into(),
+            emotes: (self.fs.read("ini/EmotionIco.ini"))
+                .map(|b| {
+                    let text = String::from_utf8_lossy(&b).into_owned();
+                    (text.lines())
+                        .filter(|l| {
+                            let mut words = l.split_whitespace();
+                            words.next().is_some_and(|n| n.parse::<u32>().is_ok())
+                                && words.next().is_some()
+                        })
+                        .count()
+                })
+                .unwrap_or(0),
         })
     }
 

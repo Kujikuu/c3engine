@@ -847,7 +847,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the log as g_objGameMsg draws it: said lines `[Talk]Ann speaks to All: hi[h:m]` in yellow, 6 up from 130 above the bottom, shadowed; system notes ([System]) at the top left, 3, gone after 15 s (`GameModule::chat_look`, StrRes prefixes)
     - [ ] the GM area (2011) mid-left; the log's line count dragged by 5326; Alt for clickable names
     - [x] blacklist / channel filters (139, 239)
-    - [ ] 274 CDlgTalkAct is still a draft
+    - [x] 274 CDlgTalkAct (the emotion picker)
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 188 CDlgMagic (normal-magic skill strip): 6 of 11 audit mismatches fixed
     - [x] a click picks the skill for the skill box and hides 188 and 214 (ON_MAGIC_CHOOSE)
@@ -1101,7 +1101,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] 1694 delete furniture (the delete-NPC cursor; needs furniture in homes)
     - [ ] help 1667
   - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 274 CDlgTalkAct (emotion icon picker): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 274 CDlgTalkAct (emotion icon picker): 5 of 6 audit mismatches fixed
+    - [x] Dialog50 at (+3,-5); 32 of EmotionIco.ani's icons a page in eight columns, a frame each 300 ms (`animate=`); one clicked put in the chat line as `#NN` (88 letters at most); Last / Next pages; Close
+    - [x] said lines draw their `#NN` emotions in place (CMyBitmap::ShowString: below EmotionIco.ini's count, a frame each 200 ms, a font and a half wide); the log's lines in their channels' colours
+    - [ ] the emotion put at the caret rather than the line's end; help 1719; emotions in the talk bubble over a speaker
   - [x] UI 148 CDlgListBox (whisper-name history): the 3 audit mismatches fixed (opened by 145-1185, Dialog24 at -3,-4, names bound and picked); what is left is under 145
   - [ ] UI 139 CDlgChat (chat options: filters and colours): 9 of 11 audit mismatches fixed
     - [x] Dialog36 with Image36; a check per channel (G/B/D/H/S/Z, on at first) hiding its lines, SF whispers from friends only; each channel's colour (Image36N, talk 7, the rest 6) opening the eight swatches, one picked colouring its lines (`ChatFilter`, `ChatLook::palette`); Sift to 239; closes

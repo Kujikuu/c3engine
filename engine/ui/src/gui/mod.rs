@@ -198,6 +198,8 @@ pub struct Control {
     /// The skin section it shows.
     pub ani: String,
     pub frame: usize,
+    /// Its frames played in turn, one each this many milliseconds (`animate=300`); 0: still.
+    pub animate: u32,
     /// The part of the image drawn: left, top, right, bottom.
     pub src: Option<[i32; 4]>,
     /// Its place when the layout has none.
@@ -384,6 +386,7 @@ impl Control {
             kind: ControlKind::parse(section.get("type")?)?,
             ani: text("ani"),
             frame: section.int("frame").unwrap_or(0).max(0) as usize,
+            animate: section.int("animate").unwrap_or(0).max(0) as u32,
             src,
             rect,
             value: text("value"),

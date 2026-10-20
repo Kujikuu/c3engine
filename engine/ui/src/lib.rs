@@ -929,6 +929,23 @@ impl GameUi {
                     self.chat.filter = self.gui_state.chat_filter.clone();
                 }
             }
+            // An emotion of the picker's page put in the chat line (CDlgTalk::InsertEmotion:
+            // `#NN`, the line kept within 88 letters).
+            _ if action.starts_with("emote:") => {
+                let page = self
+                    .gui_state
+                    .views
+                    .get("emote_page")
+                    .and_then(|p| p.parse().ok());
+                let at = page.unwrap_or(0) * gui_data::EMOTE_PAGE
+                    + action["emote:".len()..]
+                        .parse::<usize>()
+                        .unwrap_or(usize::MAX / 2);
+                let line = self.gui_state.fields.entry(CHAT_TEXT.into()).or_default();
+                if at < self.gui_state.emotes.min(100) && line.chars().count() + 3 <= 88 {
+                    line.push_str(&format!("#{at:02}"));
+                }
+            }
             "blacklist_add" => {
                 let name = self
                     .gui_state
@@ -1441,6 +1458,7 @@ impl GameUi {
     /// Shows the chat log in a game's look (TQ's CGameMsg), or the engine's.
     pub fn set_chat_look(&mut self, look: Option<ChatLook>) {
         self.gui_state.chat_colors = look.as_ref().map(|l| l.colors.clone()).unwrap_or_default();
+        self.gui_state.emotes = look.as_ref().map_or(0, |l| l.emotes);
         self.chat.set_look(look);
     }
 
@@ -1916,7 +1934,9 @@ impl GameUi {
         } else {
             hud::SKILL_ROW
         };
-        self.chat.show(ui, view.rect, lift, &mut actions);
+        let skin = self.gui.as_ref().map(|g| &g.skin);
+        self.chat
+            .show(ui, view.rect, lift, skin, icons, &mut actions);
         let shop = player.shop;
         let gui_shop = self
             .gui
