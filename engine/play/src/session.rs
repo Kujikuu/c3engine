@@ -746,6 +746,10 @@ impl Session {
         let (x, y) = self.sim.player(self.hero).map_or((0, 0), |p| p.cell);
         let action = (action.replace("{hero}", &self.hero.0.to_string()))
             .replace("{cell}", &format!("{x},{y}"));
+        // Talking to NPC `id` as a click on it would (`talk:9999`).
+        if let Some(npc) = action.strip_prefix("talk:").and_then(|n| n.parse().ok()) {
+            return self.input(Input::Talk(npc));
+        }
         // A jump from where the hero stands (`jump_by:6,-4`).
         if let Some((dx, dy)) = (action.strip_prefix("jump_by:"))
             .and_then(|d| d.split_once(','))

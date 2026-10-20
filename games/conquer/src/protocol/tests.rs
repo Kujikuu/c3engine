@@ -427,17 +427,28 @@ fn msg_mentor_member_puts_its_strings_at_0x44() {
 fn dice_tables_speak_msg_dice() {
     // Betting open with 50 s, no entries: 20 bytes, the seconds in the count.
     let open = pk::dice(pk::dice::BEGIN, 50, 7, &[]);
-    assert_eq!((open.len(), open[4], open[5], u32_at(&open, 8)), (20, 4, 50, 7));
+    assert_eq!(
+        (open.len(), open[4], open[5], u32_at(&open, 8)),
+        (20, 4, 50, 7)
+    );
     // Two chips: an 8-byte entry each and the trailing zero slot.
     let chips = pk::dice(pk::dice::CHIP_IN, 2, 7, &[(1, 1000), (5, 100)]);
     assert_eq!((chips.len(), chips[12], u32_at(&chips, 16)), (36, 1, 1000));
     assert_eq!((chips[20], u32_at(&chips, 24)), (5, 100));
     // The roll: the dice at 16..19.
     let roll = pk::dice_roll(7, [6, 5, 1, 1]);
-    assert_eq!((roll.len(), roll[4], roll[5], &roll[16..20]), (20, 6, 1, &[6, 5, 1, 1][..]));
+    assert_eq!(
+        (roll.len(), roll[4], roll[5], &roll[16..20]),
+        (20, 6, 1, &[6, 5, 1, 1][..])
+    );
     // A chip from the client: 10000 on Big.
     let mut w = Writer::new();
-    w.u16(20).u16(pk::DICE).u8(pk::dice::CHIP_IN).u8(1).u16(0).u32(7);
+    w.u16(20)
+        .u16(pk::DICE)
+        .u8(pk::dice::CHIP_IN)
+        .u8(1)
+        .u16(0)
+        .u32(7);
     w.u8(1).u8(0).u16(0).u32(10_000);
     assert_eq!(
         pk::parse(&w.into_bytes()).unwrap(),

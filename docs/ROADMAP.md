@@ -1255,10 +1255,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the front: MsgName 17 / 18 sit and leave, 17 / 18 / 19 told back (seated, gone, a win); MsgDice 1113 both ways (chips and their confirms, cancels, betting open with the seconds left and closed, the roll's four dice); STR_MISS_BET whispered by the table (channel 2000); the NPC's kind 19 in MsgNpcInfo for the client's own question
     - [x] a player gone at the roll loses its bets unpaid
     - [ ] the NPC's dice animation in the engine's own client (CDiceView: the three dice on the table, `_VAR_DICE0..2`)
-    - [ ] the countdown shown (CDlgDice's BeginCountDown)
-  - [ ] UI 262 CDlgDice: 7 of 9 audit mismatches fixed
+    - [ ] the countdown shown (DiceManager::Show: the seconds left in 3D effect digits, CImageStringEx, 150% yellow at 150 from the right, 450 down)
+  - [ ] UI 262 CDlgDice: 8 of 9 audit mismatches fixed
     - [x] seated by DiceKing's question (StrRes 10394; 10395 to leave); Dialog43 two down; each bet's chips as piles (`piles=`: Button435 / 434 / 433, CMyImage::ShowMoney); the chip picked (+4,+4) put on a bet clicked; the last bet's own and total (1420 / 1421) and the chip (1632); Exit (1415); the players (1422)
-    - [ ] the hover showing a bet's chips and the chip's size, Hide / Resume (1416 / 1633), the chip cursor, right-click cancel all
+    - [x] the pointed bet's own and total chips, else every bet's (1420 / 1421, DICE_VALUE_ALL), the pointed chip's size (1632) (`pointed=`); Hide / Resume (1416, then only Button436 at the top right, 1633); a right click takes every bet back (`right=`)
+    - [ ] the chip cursor (IDC_CURSOR_CHIP100 / 1000 / 10000 are Conquer.exe resources, not client files)
   - [x] UI 267 CDlgDiceList: the 3 audit mismatches fixed: opened by 1422; Dialog44 two down; who sits and what each last won (`%s  %d`) in yellow
   - [ ] Offline training (adapters spec §1, Training.dll): `gameplay.offline_training` (Conquer: 90 credits of 10 minutes, steps of 15, 1.25 level-time units a minute, for the heaven-blessed `blessing_until`); engine/game training.rs: minutes online bank the credit (saved), Start on leaving, `Query` (TQ's Window and Simulate through the levels table's `time`), `Claim` (levels raised, the rest banked); Esc asks the game's own exit question (StrRes 11000, `Gui::asks`) with OfflineTG; the front's MsgTraining 2044 / MsgTrainingInfo 2043; GMs `/train MINUTES`, `/attribute NAME N`
     - [x] engine, UI and front

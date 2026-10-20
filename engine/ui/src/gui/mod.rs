@@ -237,6 +237,11 @@ pub struct Control {
     pub action: String,
     /// A sound (an asset path) a click plays in place of the UI's click.
     pub sound: String,
+    /// What a right click on a dialog asks for (`right=dice_cancel`).
+    pub right: String,
+    /// What the UI reads while the pointer is over the control (`pointed=dice_bet:3`, read
+    /// as `ui.pointed`).
+    pub pointed: String,
     /// The window number the game opens this dialog by (0: none).
     pub window: u32,
     /// More window numbers it answers to (`window=2,3`: TQ's oven modes).
@@ -443,6 +448,8 @@ impl Control {
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
             sound: text("sound"),
+            right: text("right"),
+            pointed: text("pointed"),
             window: section.int("window").map_or(0, |w| w.max(0) as u32),
             windows: (section.get("window").unwrap_or_default().split(','))
                 .filter_map(|w| w.trim().parse().ok())

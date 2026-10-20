@@ -570,6 +570,7 @@ impl GameUi {
                 self.own_sound = true;
                 return;
             }
+            gui::GuiEvent::Pointed(_) => return,
             gui::GuiEvent::Action(action) => {
                 // The UI's click, unless the control played its own.
                 if let Some(gui) = &self.gui
@@ -1115,13 +1116,21 @@ impl GameUi {
                 if let (Some(d), Ok(bet)) = (&mut self.gui_state.dice, bet)
                     && d.chip > 0
                 {
-                    d.last = Some(usize::from(bet));
                     let chip = c3_game::DiceAction::Chip {
                         npc: d.npc,
                         bet,
                         money: d.chip,
                     };
                     actions.push(UiAction::Game(c3_game::Input::Dice(chip)));
+                }
+            }
+            // A right click on the table takes every bet back (the server's cancel-all;
+            // DlgDice.cpp OnRButtonDown); the chip is put down.
+            "dice_cancel" => {
+                if let Some(d) = &mut self.gui_state.dice {
+                    d.chip = 0;
+                    let cancel = c3_game::DiceAction::CancelAll(d.npc);
+                    actions.push(UiAction::Game(c3_game::Input::Dice(cancel)));
                 }
             }
             "dice_leave" => {
@@ -2218,7 +2227,13 @@ impl GameUi {
                 let mut repair = None;
                 // What happens to the item held: picked up, put down (or dropped).
                 let mut held = data.state.held.clone();
-                for event in gui.show(ui.ctx(), view.rect, &data, icons) {
+                let shown = gui.show(ui.ctx(), view.rect, &data, icons);
+                // What the pointer is over is worked out afresh each frame.
+                let pointed = (shown.iter()).find_map(|e| match e {
+                    gui::GuiEvent::Pointed(value) => Some(value.clone()),
+                    _ => None,
+                });
+                for event in shown {
                     match event {
                         // Repairing: the bag item clicked is repaired instead of picked up.
                         gui::GuiEvent::Pick { list, index }
@@ -2520,6 +2535,7 @@ impl GameUi {
                 for event in others {
                     self.gui_event(event, &mut actions);
                 }
+                self.gui_state.pointed = pointed;
                 self.contact_word(view, player, &mut actions);
                 self.purchase(view, player, &mut actions);
                 self.lock_bind(view, player);

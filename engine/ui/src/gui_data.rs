@@ -17,6 +17,8 @@ pub(crate) struct GuiState {
     pub work: Vec<u32>,
     /// Invites and asks to join a team are taken at once (the team dialog's auto check).
     pub auto_team: bool,
+    /// The `pointed=` of the control under the pointer.
+    pub pointed: Option<String>,
     /// The radar's mode, showing, and grow or shrink; whether it was set from the player's
     /// record yet.
     pub radar: crate::radar_box::RadarState,
@@ -779,16 +781,24 @@ impl GuiData for HeroData<'_> {
             // last chipped on (everyone's, the hero's), the chip picked.
             "dice.open" => u8::from(self.state.dice.is_some()).into(),
             "dice.chip" => self.state.dice.as_ref()?.chip as f64,
-            "dice.last_total" | "dice.last_mine" => {
+            // The pointed bet's own and everyone's chips, else every bet's (DlgDice's
+            // m_nShowChipIndex, DICE_VALUE_ALL); the pointed chip's size (1632).
+            "dice.shown_mine" | "dice.shown_total" => {
                 let d = self.state.dice.as_ref()?;
-                let at = d.last?;
-                let money = if key == "dice.last_total" {
-                    d.totals[at]
+                let money = if key == "dice.shown_mine" {
+                    &d.mine
                 } else {
-                    d.mine[at]
+                    &d.totals
                 };
-                money as f64
+                let bet = (self.state.pointed.as_deref())
+                    .and_then(|p| p.strip_prefix("dice_bet:")?.parse::<usize>().ok());
+                match bet {
+                    Some(at) => *money.get(at)? as f64,
+                    None => money.iter().sum::<u64>() as f64,
+                }
             }
+            "dice.pointed_chip" => (self.state.pointed.as_deref())
+                .and_then(|p| p.strip_prefix("dice_chip:")?.parse::<f64>().ok())?,
             _ if key.starts_with("dice.total.") => {
                 let n: usize = key["dice.total.".len()..].parse().ok()?;
                 *self.state.dice.as_ref()?.totals.get(n)? as f64

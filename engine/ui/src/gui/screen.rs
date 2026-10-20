@@ -71,6 +71,8 @@ pub trait GuiData {
 pub enum GuiEvent {
     /// A control with `action=` was clicked.
     Action(String),
+    /// The pointer is over a control with `pointed=` (its value).
+    Pointed(String),
     /// The clicked control's own sound (played in place of the UI's click).
     Sound(String),
     /// Slot `index` of grid list `list` (or row `index` of a list control) was clicked.
@@ -152,8 +154,12 @@ impl Gui {
                 .fixed_pos(place.origin)
                 .order(egui::Order::Middle)
                 .show(ctx, |ui| {
-                    // The dialog takes the pointer, so clicks on it don't reach the world.
-                    ui.allocate_exact_size(size, egui::Sense::click());
+                    // The dialog takes the pointer, so clicks on it don't reach the world; a
+                    // right click asks for its `right=`.
+                    let (_, response) = ui.allocate_exact_size(size, egui::Sense::click());
+                    if response.secondary_clicked() && !dialog.right.is_empty() {
+                        events.push(GuiEvent::Action(dialog.right.clone()));
+                    }
                     events.extend(self.paint_dialog(ui, dialog, place, data, textures, true));
                 });
         }
@@ -216,6 +222,14 @@ impl Gui {
                     .find(|(id, _)| *id == control.id)
                     .map_or_else(|| self.rect(control), |(_, r)| *r);
                 painter.control(control, rect, data, &mut events);
+                if live && !control.pointed.is_empty() {
+                    let at = place.screen(rect.x as f32, rect.y as f32);
+                    let size = Vec2::new(rect.w.max(0) as f32, rect.h.max(0) as f32) * place.scale;
+                    let pointer = painter.ui.input(|i| i.pointer.hover_pos());
+                    if pointer.is_some_and(|p| Rect::from_min_size(at, size).contains(p)) {
+                        events.push(GuiEvent::Pointed(control.pointed.clone()));
+                    }
+                }
             }
         }
         // The page that shows, drawn where the dialog places it.

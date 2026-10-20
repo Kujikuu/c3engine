@@ -13,9 +13,8 @@ pub struct DiceView {
     pub npc: u32,
     pub totals: [u64; BETS],
     pub mine: [u64; BETS],
-    /// The chip picked (0: none), and the bet last chipped on.
+    /// The chip picked (0: none).
     pub chip: u64,
-    pub last: Option<usize>,
     /// Who sits there and what each last won.
     pub players: Vec<(String, u64)>,
 }
@@ -27,7 +26,6 @@ impl DiceView {
             totals: [0; BETS],
             mine: [0; BETS],
             chip: 0,
-            last: None,
             players: Vec::new(),
         }
     }
