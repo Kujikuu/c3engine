@@ -251,7 +251,11 @@ mod tests {
     fn new(name: &str) -> Enter {
         Enter::New {
             name: name.into(),
-            look: PlayerLook { body: 2, hair: 7 },
+            look: PlayerLook {
+                body: 2,
+                hair: 7,
+                face: 0,
+            },
             profession: 10,
         }
     }

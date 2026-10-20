@@ -107,7 +107,12 @@ fn cell16(c: CellPos) -> (u16, u16) {
 }
 
 fn look_face(p: &Player, rules: &dyn Rules) -> u32 {
-    let face = FACE * 10_000 + 1000 + player_look(p).look;
+    let face = if p.look.face == 0 {
+        FACE
+    } else {
+        p.look.face % 1000
+    };
+    let face = face * 10_000 + 1000 + player_look(p).look;
     if let Some(t) = p.transform.and_then(|(m, _)| rules.monster(m)) {
         return face + (t.look % 1000) * 10_000_000;
     }
@@ -1951,6 +1956,7 @@ impl ConquerClient {
                 }
                 action::GHOST => inputs.push(Input::Ghost),
                 action::SET_PK_MODE => inputs.push(Input::SetPkMode(pk_mode(data))),
+                action::CHANGE_FACE => inputs.push(Input::ChangeFace(data)),
                 // A booth opened at the flag beside the hero, closed; a player's cry asked.
                 action::CREATE_BOOTH => {
                     let flags = (self.npcs.iter()).filter(|n| n.kind == BOOTH_FLAG);

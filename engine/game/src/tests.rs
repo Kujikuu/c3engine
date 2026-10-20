@@ -2584,3 +2584,30 @@ fn donations_buy_noble_ranks_by_place_and_by_value() {
     assert_eq!(world.noble_rank(&nobility, "Bob"), (1, Some(1)));
     assert_eq!(sim.player(a).unwrap().money, 60_000_000);
 }
+
+#[test]
+fn a_face_change_costs_and_takes_only_a_face_the_body_may_have() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    sim.set_settings(GameplaySettings {
+        faces: vec![[3, 4, 1, 102], [1, 2, 201, 290]],
+        face_cost: 500,
+        ..GameplaySettings::default()
+    });
+    let mut save = crate::PlayerSave::new("Ann", (5, 5));
+    save.money = 1000;
+    save.look.body = 3;
+    let a = sim.add_saved_player(&save);
+    sim.input(a, Input::ChangeFace(250));
+    assert_eq!(
+        sim.player(a).unwrap().look.face,
+        0,
+        "a female face for a male body"
+    );
+    sim.input(a, Input::ChangeFace(42));
+    let p = sim.player(a).unwrap();
+    assert_eq!(
+        (p.look.face, p.money),
+        (42, 0),
+        "paid both times, as TQ's server does"
+    );
+}

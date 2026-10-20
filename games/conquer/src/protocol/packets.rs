@@ -378,6 +378,8 @@ pub mod action {
     /// A booth opened in front of the hero (echoed with the booth's id), closed, and a
     /// player's booth cry asked (booth_trade spec §1.1).
     pub const CREATE_BOOTH: u16 = 111;
+    /// A face picked at the face NPC (data the face).
+    pub const CHANGE_FACE: u16 = 142;
     pub const DESTROY_BOOTH: u16 = 114;
     pub const QUERY_CRY: u16 = 115;
     pub const GET_ITEMS: u16 = 75;

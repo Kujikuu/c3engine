@@ -1151,7 +1151,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 278 CDlgOven (refine / fuse): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 105 CDlgEnchant: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 298 CDlgBrokenRepair5065: draft only, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 212 CDlgNpcFace (change avatar): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [x] Faces: `PlayerLook::face`, `gameplay.faces` by body and `face_cost` (Conquer: 102 male faces from 1, 90 female from 201, 500 silver, paid even for a wrong face as TQ's MsgAction 142); team faces and the Conquer look face use it
+  - [ ] UI 212 CDlgNpcFace (change avatar): 5 of 6 audit mismatches fixed
+    - [x] opened by face NPCs; Dialog27, six faces of the hero's body (PlayerFace), the clicked one framed (ImageFocus), Up / Down by six, OK takes it and closes
+    - [ ] the slide-in
   - [ ] Booths: players sell from booth spots (engine/game booths.rs, `gameplay.booth_spots`; Conquer's ShopFlag NPCs, kind 16)
     - [x] a free spot offers a booth (StrRes 10364, DlgConfirm mode 13); its owner stands beside it; wares from the bag at a price in money or another currency, up to 20; others who come to the spot see them and buy (the item and the money change hands); the booth closes when its owner closes it, walks, jumps or leaves
     - [x] TQ's placement: the owner two cells out from the spot along its facing, the booth one more; wares drop off when their items leave the bag; the owner told who paid (STR_BOOTH_BUY_sds)

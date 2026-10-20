@@ -274,6 +274,10 @@ pub fn conquer_settings() -> ProjectSettings {
         bump_cost: 5,
         bump_places: 5,
     };
+    // Faces (Common.ini Playerface: 102 male from 1, 90 female from 201; bodies 3-4 male,
+    // 1-2 female), 500 silver a change (packets spec MsgAction 142).
+    s.gameplay.faces = vec![[3, 4, 1, 102], [1, 2, 201, 290]];
+    s.gameplay.face_cost = 500;
     // Trade partners are on trial for 3 days (social spec §3, PROBATION 259200).
     s.gameplay.partner_probation_secs = 259_200;
     // The message boards (CDlgLevWord's tabs, channels 2201-2205); the guild's own is the

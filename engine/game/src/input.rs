@@ -123,6 +123,9 @@ pub enum Input {
     },
     /// Give this much money for nobility.
     Donate(u64),
+    /// Take face `0` (one of the settings' faces for the player's body), for the settings'
+    /// cost.
+    ChangeFace(u32),
     /// Broadcasts: paying for a line, moving a waiting one forward.
     Broadcast(crate::BroadcastAction),
     /// Mentors and students: teaching, learning, leaving, sending away, claiming.
@@ -187,6 +190,7 @@ impl Sim {
             Input::Mentor(action) => self.mentor_action(id, action),
             Input::Broadcast(action) => self.broadcast_action(id, action),
             Input::Donate(amount) => self.donate(id, amount),
+            Input::ChangeFace(face) => self.change_face(id, face),
             Input::TakeDown { board, author } => self.take_down(id, board, &author),
             Input::Emote(emote) => {
                 if self.players.get(&id).is_some_and(|p| p.is_alive()) {

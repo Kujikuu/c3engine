@@ -713,6 +713,32 @@ impl Sim {
         }
     }
 
+    /// Player `id` takes face `face` (TQ's MsgAction 142: the cost is paid even for a face
+    /// its body may not have).
+    pub(crate) fn change_face(&mut self, id: EntityId, face: u32) {
+        let cost = self.settings.face_cost;
+        let sets = self.settings.faces.clone();
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        if sets.is_empty() {
+            return;
+        }
+        if p.money < cost {
+            return self.message(id, "You don`t have enough money.");
+        }
+        p.money -= cost;
+        let body = p.look.body;
+        let set = (sets.iter())
+            .find(|[b0, b1, _, _]| (*b0..=*b1).contains(&body))
+            .or(sets.first());
+        let fits = set.is_some_and(|[_, _, f0, f1]| (*f0..=*f1).contains(&face));
+        if fits {
+            p.look.face = face;
+            self.events.push(Event::Dressed { player: id });
+        }
+    }
+
     /// What players call `currency` (empty: the money).
     pub fn currency_name<'a>(&'a self, currency: &'a str) -> &'a str {
         if currency.is_empty() {

@@ -62,8 +62,9 @@ pub(crate) struct GuiState {
     pub broadcast: Option<String>,
     pub broadcasts_heard: Vec<(String, String)>,
     pub pigeon_move: Option<(String, usize)>,
-    /// The nobility page's Contribute was pressed.
+    /// The nobility page's Contribute was pressed, and the face window's OK.
     pub donating: bool,
+    pub face_changing: bool,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -85,6 +86,9 @@ fn exp_balls(time: i64) -> String {
     let hundredths = time.max(0) * 1000 / 600 / 10;
     format!("{}.{:02}", hundredths / 100, hundredths % 100)
 }
+
+/// The faces a page of the face NPC's window shows.
+pub(crate) const FACE_PAGE: usize = 6;
 
 /// The nobility board's rows a page shows.
 const NOBLE_PAGE: usize = 10;
@@ -303,6 +307,17 @@ impl HeroData<'_> {
     /// The words picked in the received-words dialog (`view:word`): who left them and what.
     fn word_shown(&self) -> Option<&(String, String)> {
         self.state.words.get(self.view_number("word"))
+    }
+
+    /// The faces the hero's body may take (the settings' `faces`; a body none names, as the
+    /// game's usual look, the first set's).
+    pub(crate) fn faces(&self) -> Vec<u32> {
+        let body = self.player.look.body;
+        let sets = &self.view.sim.settings().faces;
+        let set = (sets.iter())
+            .find(|[b0, b1, _, _]| (*b0..=*b1).contains(&body))
+            .or(sets.first());
+        set.map_or_else(Vec::new, |[_, _, f0, f1]| (*f0..=*f1).collect())
     }
 
     /// The broadcast board's rows on the page shown (`view:pigeon`: 0 waiting, 1 the hero's
@@ -610,6 +625,15 @@ impl GuiData for HeroData<'_> {
                 u8::from(row.1 != self.player.name).into()
             }
             "pigeon.mode" => self.view_number("pigeon") as f64,
+            // The faces the hero may take, and the one picked on the page (`view:face_pick`).
+            "faces.count" => self.faces().len() as f64,
+            "face.pages" => self.faces().len().div_ceil(FACE_PAGE) as f64,
+            _ if key.starts_with("face_picked.") => {
+                let n: usize = key.strip_prefix("face_picked.")?.parse().ok()?;
+                let picked =
+                    (self.state.views.get("face_pick")).and_then(|v| v.parse::<usize>().ok());
+                u8::from(picked == Some(n)).into()
+            }
             // Battle power: the total, each part (`power.0` the level .. `power.6` other), the
             // detail page's mode (`view:power_mode`: 1 quality .. 5 other) and a row's score,
             // quality step (0 none, 1 Refined .. 4 Super) and whether it counts.
@@ -1020,9 +1044,22 @@ impl GuiData for HeroData<'_> {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // Team member `n`'s face (1, Conquer's heroes'), none past the team's end.
+            // A team member's face (its own, else 1), none past the team's end.
             _ if key.starts_with("team.face.") => {
-                let n = key.strip_prefix("team.face.")?;
-                (self.number(&format!("team.has.{n}")) == Some(1.0)).then(|| "1".to_owned())
+                let n: usize = key.strip_prefix("team.face.")?.parse().ok()?;
+                let mate = self.team().into_iter().nth(n)?;
+                let face = self.view.sim.player(mate.id).map_or(0, |p| p.look.face);
+                Some(if face == 0 { 1 } else { face }.to_string())
+            }
+            // The faces the hero's body may take, six a page (`view:face_page`): `face.0`.
+            _ if key.starts_with("face.") => {
+                let n: usize = key.strip_prefix("face.")?.parse().ok()?;
+                let at = self.view_number("face_page") * FACE_PAGE + n;
+                Some(
+                    self.faces()
+                        .get(at)
+                        .map_or_else(String::new, u32::to_string),
+                )
             }
             // The hero's text variable `<name>` (its spouse: `hero.text.mate`).
             _ if key.starts_with("hero.text.") => {

@@ -874,6 +874,8 @@ impl GameUi {
             // Nobility: the amount typed given (in the other currency when the money falls short,
             // asked first, StrRes 11090; less than the least: 11098).
             "nobility_donate" => self.gui_state.donating = true,
+            // The face picked taken (the face NPC's OK).
+            "face_change" => self.gui_state.face_changing = true,
             "words_clear" => {
                 self.gui_state.words.clear();
                 self.gui_state.views.remove("word");
@@ -1059,6 +1061,18 @@ impl GameUi {
                     self.gui_state.focus = Some(CHAT_TEXT.into());
                 }
             }
+        }
+        if std::mem::take(&mut self.gui_state.face_changing) {
+            let data = gui_data::HeroData {
+                view,
+                player,
+                state: &self.gui_state,
+            };
+            let first = gui::GuiData::view_number(&data, "face_page") * gui_data::FACE_PAGE;
+            let picked =
+                (self.gui_state.views.get("face_pick")).and_then(|v| v.parse::<usize>().ok());
+            let face = picked.and_then(|n| data.faces().get(first + n).copied());
+            actions.extend(face.map(|f| UiAction::Game(c3_game::Input::ChangeFace(f))));
         }
         if std::mem::take(&mut self.gui_state.donating) {
             let typed = self.gui_state.fields.remove("nobility.amount");

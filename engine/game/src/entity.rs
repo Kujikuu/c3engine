@@ -93,11 +93,14 @@ pub enum Task {
     },
 }
 
-/// A player's own look: the body and hair chosen when the character was made.
+/// A player's own look: the body and hair chosen when the character was made, and its face
+/// (0: the game's usual).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayerLook {
     pub body: u32,
     pub hair: u32,
+    #[serde(default)]
+    pub face: u32,
 }
 
 /// How a player's name shows: good, a criminal's (blue), or red or black for PK points (a

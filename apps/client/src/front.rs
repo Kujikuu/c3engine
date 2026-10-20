@@ -254,6 +254,7 @@ impl FrontPhase {
                 let profession =
                     (class.and_then(|c| self.classes.get(c))).map_or(0, |c| c.profession);
                 let look = (self.looks.get(look)).map_or(PlayerLook::default(), |l| PlayerLook {
+                    face: 0,
                     body: l.body,
                     hair: l.hair,
                 });
