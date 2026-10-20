@@ -573,12 +573,11 @@ impl GuiData for HeroData<'_> {
         self.state.focus.as_deref()
     }
 
-    /// The statue's figure (`effigy.model`).
+    /// A figure drawn for a model control (`effigy.model`, `viewed.model`).
     fn image(&self, key: &str) -> Option<egui::TextureId> {
-        match key {
-            "effigy.model" => self.view.effigy?.texture,
-            _ => None,
-        }
+        (self.view.models.iter())
+            .find(|(k, _)| *k == key)
+            .map(|(_, texture)| *texture)
     }
 
     fn number(&self, key: &str) -> Option<f64> {

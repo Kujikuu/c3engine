@@ -18,6 +18,24 @@ const LIFT: f32 = 50.0;
 /// Of the picture, how much the role fills on its longer side.
 const FILL: f32 = 0.85;
 
+/// A look drawn for one of the game UI's model controls: the binding it answers to
+/// (`effigy.model`), the figure, and its picture once the host has drawn it.
+pub struct UiModel {
+    pub key: &'static str,
+    pub preview: LookPreview,
+    pub texture: Option<egui::TextureId>,
+}
+
+impl UiModel {
+    pub fn new(key: &'static str, preview: LookPreview) -> Self {
+        Self {
+            key,
+            preview,
+            texture: None,
+        }
+    }
+}
+
 pub struct LookPreview {
     world: World,
     camera: Camera2d,

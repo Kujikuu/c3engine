@@ -408,6 +408,8 @@ pub struct GameView<'a> {
     pub destinations: &'a [Destination],
     /// A statue of the hero being posed.
     pub effigy: Option<EffigyView>,
+    /// The figures drawn for the game UI's model controls, by binding (`viewed.model`).
+    pub models: &'a [(&'a str, egui::TextureId)],
 }
 
 /// A player's battle power: what each part gives (the game's order: TQ's level, rebirths,

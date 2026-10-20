@@ -2,25 +2,22 @@
 //! the statue window, in a pose picked, played or paused and turned; placed on the nearest
 //! free statue slot its guild rank may take (`gameplay.statues`, CHero::CreateStatuty).
 
-use crate::preview::LookPreview;
+use crate::preview::{LookPreview, UiModel};
 use c3_core::settings::StatueSettings;
 use c3_scene::CellPos;
 
 pub use c3_ui::EffigyAction;
 
-/// The figure being posed and its picture.
+/// The figure being posed (`effigy.model`) and whether its pose plays.
 pub struct Effigy {
-    pub preview: LookPreview,
-    /// The picture as the UI shows it (set by the host that draws it).
-    pub texture: Option<egui::TextureId>,
+    pub model: UiModel,
     pub playing: bool,
 }
 
 impl Effigy {
     pub fn new(preview: LookPreview) -> Self {
         Self {
-            preview,
-            texture: None,
+            model: UiModel::new("effigy.model", preview),
             playing: true,
         }
     }

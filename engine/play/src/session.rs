@@ -127,6 +127,8 @@ pub struct Session {
     destinations: Vec<c3_ui::Destination>,
     /// A statue of the hero being posed (the host draws its picture).
     pub effigy: Option<crate::effigy::Effigy>,
+    /// The player whose equipment is shown, as a figure (`viewed.model`, CDlgNpcEquip).
+    viewed_model: Option<(EntityId, crate::preview::UiModel)>,
 }
 
 /// A map's minimap: the image until the UI uploads it, then its texture.
@@ -386,6 +388,7 @@ impl Session {
             weather: Default::default(),
             destinations,
             effigy: None,
+            viewed_model: None,
         })
     }
 
@@ -875,6 +878,30 @@ impl Session {
         }
     }
 
+    /// The figures the game UI's model controls show, for the host to draw each frame.
+    pub fn ui_models_mut(&mut self) -> Vec<&mut crate::preview::UiModel> {
+        (self.effigy.as_mut().map(|e| &mut e.model))
+            .into_iter()
+            .chain(self.viewed_model.as_mut().map(|(_, m)| m))
+            .collect()
+    }
+
+    /// Keeps the shown player's figure for whom the UI shows (made when it is first shown).
+    fn follow_viewed(&mut self) {
+        let viewed = self.ui.viewed();
+        if self.viewed_model.as_ref().map(|(id, _)| *id) == viewed {
+            return;
+        }
+        self.viewed_model = viewed.and_then(|id| {
+            let p = self.sim.player(id)?;
+            let game = Rc::clone(&self.world.game);
+            let look = game.looks().player(p);
+            let tilt = crate::settings::tilt_deg(&self.settings, &*game);
+            let preview = crate::preview::LookPreview::new(game, &look, tilt);
+            Some((id, crate::preview::UiModel::new("viewed.model", preview)))
+        });
+    }
+
     /// What the statue window asks: a pose (`Pose(0)` opens it standing), play or pause,
     /// turn, put the statue up (CHero::CreateStatuty), close.
     pub fn effigy_action(&mut self, action: crate::effigy::EffigyAction) {
@@ -895,17 +922,17 @@ impl Session {
         match action {
             A::Pose(0) => {}
             A::Pose(act) => {
-                effigy.preview.play(act);
+                effigy.model.preview.play(act);
                 effigy.playing = true;
             }
             A::PlayPause => {
                 effigy.playing = !effigy.playing;
-                effigy.preview.set_paused(!effigy.playing);
+                effigy.model.preview.set_paused(!effigy.playing);
             }
-            A::Turn(steps) => effigy.preview.turn(steps),
+            A::Turn(steps) => effigy.model.preview.turn(steps),
             A::Close => self.effigy = None,
             A::Place => {
-                let (direction, action, frame) = effigy.preview.pose();
+                let (direction, action, frame) = effigy.model.preview.pose();
                 let Some(p) = self.sim.player(self.hero) else {
                     return;
                 };
@@ -1065,6 +1092,12 @@ impl Session {
         hovered: Option<EntityId>,
         (hint, controls): (&str, &ControlsView),
     ) -> Vec<UiAction> {
+        self.follow_viewed();
+        let models: Vec<(&str, egui::TextureId)> = (self.effigy.as_ref().map(|e| &e.model))
+            .into_iter()
+            .chain(self.viewed_model.as_ref().map(|(_, m)| m))
+            .filter_map(|m| Some((m.key, m.texture?)))
+            .collect();
         let head = |id: EntityId| {
             let feet = self.view.feet(&self.world, id)?;
             let raise = if self.view.jumping(&self.world, id) {
@@ -1096,9 +1129,10 @@ impl Session {
         let view = GameView {
             destinations: &self.destinations,
             effigy: (self.effigy.as_ref()).map(|e| c3_ui::EffigyView {
-                texture: e.texture,
+                texture: e.model.texture,
                 playing: e.playing,
             }),
+            models: &models,
             power: power_of(self.hero),
             viewed_power: self.ui.viewed().and_then(power_of),
             sim: &self.sim,

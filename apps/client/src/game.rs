@@ -118,7 +118,7 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         last_frame: Instant::now(),
         quit: false,
         fullscreen: None,
-        effigy_renderer: None,
+        models_renderer: None,
     };
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     event_loop.run_app(&mut app).map_err(|e| e.to_string())
@@ -191,13 +191,13 @@ struct GameApp {
     quit: bool,
     /// The player's full-screen choice as last seen.
     fullscreen: Option<bool>,
-    /// Draws the statue being posed (its own: offscreen targets need the engine's color
-    /// format).
-    effigy_renderer: Option<c3_render::Renderer>,
+    /// Draws the figures of the game UI's model controls (its own: offscreen targets need the
+    /// engine's color format).
+    models_renderer: Option<c3_render::Renderer>,
 }
 
-/// The statue window's figure, in pixels.
-const EFFIGY_SIZE: [u32; 2] = [340, 480];
+/// A model control's figure, in pixels.
+const MODEL_SIZE: [u32; 2] = [340, 480];
 
 impl GameApp {
     fn redraw(&mut self) {
@@ -252,13 +252,13 @@ impl GameApp {
             screen.overlay(ui, rect, hovered);
         });
         screen.follow_map_change(&self.project, &self.maps, &mut gfx.renderer);
-        // The statue being posed, drawn for the statue window.
-        if let Some(effigy) = screen.session.effigy.as_mut() {
+        // The figures the game UI's model controls show (a statue posed, a player looked at).
+        for model in screen.session.ui_models_mut() {
             let (device, queue) = (gfx.renderer.device().clone(), gfx.renderer.queue().clone());
-            let renderer = (self.effigy_renderer)
+            let renderer = (self.models_renderer)
                 .get_or_insert_with(|| c3_render::Renderer::new(device.clone(), queue));
-            let target = effigy.preview.render(renderer, EFFIGY_SIZE, seconds);
-            effigy.texture = Some(ui.native_texture(&device, &target.display_view, effigy.texture));
+            let target = model.preview.render(renderer, MODEL_SIZE, seconds);
+            model.texture = Some(ui.native_texture(&device, &target.display_view, model.texture));
         }
         // The player's Settings page decides the window, once they change it.
         let fullscreen = screen.prefs().fullscreen;
