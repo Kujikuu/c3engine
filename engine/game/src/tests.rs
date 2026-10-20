@@ -18,6 +18,7 @@ const SUPERMAN: u32 = 13;
 const RAGE: u32 = 20;
 const POISON: u32 = 21;
 const STUN: u32 = 22;
+const CURSE: u32 = 23;
 
 struct TestRules {
     monsters: Vec<MonsterType>,
@@ -170,6 +171,13 @@ fn test_rules() -> TestRules {
                 name: "Stun".into(),
                 duration_ms: 1000,
                 stun: true,
+                ..StatusType::default()
+            },
+            StatusType {
+                id: CURSE,
+                name: "Cursed".into(),
+                duration_ms: 300_000,
+                no_exp: true,
                 ..StatusType::default()
             },
         ],
@@ -833,7 +841,11 @@ fn attributes_regenerate_faster_sitting_and_higher_blessed() {
     sim.set_settings(settings);
     let hero = sim.add_player("Hero", (5, 5), 5);
     let stamina = |sim: &Sim| sim.player(hero).unwrap().attributes["stamina"];
-    sim.players.get_mut(&hero).unwrap().attributes.insert("stamina".into(), 0);
+    sim.players
+        .get_mut(&hero)
+        .unwrap()
+        .attributes
+        .insert("stamina".into(), 0);
     sim.advance(4_000);
     assert_eq!(stamina(&sim), 6, "3 every 2 s");
     sim.input(hero, Input::Emote(250));
@@ -993,6 +1005,27 @@ fn players_fight_players_only_on_pk_maps() {
         sim.save_player(a).unwrap().pk_kills == 1,
         "kept in the save"
     );
+}
+
+#[test]
+fn killing_the_guarded_curses_and_the_cursed_gain_no_exp() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let mut settings = sim.settings().clone();
+    settings.pk.curse_status = CURSE;
+    settings.pk.curse_guard = "blessed_until".into();
+    sim.set_settings(settings);
+    sim.set_pk(true);
+    let a = sim.add_player("A", (5, 5), 1);
+    let b = sim.add_player("B", (6, 5), 1);
+    let until = chrono::Utc::now().timestamp() + 3600;
+    (sim.players.get_mut(&b).unwrap().attributes).insert("blessed_until".into(), until);
+    sim.attack(a, b);
+    sim.advance(60_000);
+    let killer = sim.player(a).unwrap();
+    assert!(killer.statuses.iter().any(|s| s.id == CURSE), "cursed");
+    let exp = killer.exp;
+    sim.gain_exp(a, 100);
+    assert_eq!(sim.player(a).unwrap().exp, exp, "no exp while cursed");
 }
 
 #[test]

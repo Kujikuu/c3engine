@@ -986,7 +986,8 @@ pub fn walk(id: u32, dir: u8, run: bool) -> Vec<u8> {
 pub struct Spawn<'a> {
     pub id: u32,
     pub look: u32,
-    pub status: u32,
+    /// The status bits (dwStatus[2]: 64 of them).
+    pub status: u64,
     /// Helmet, armor, right and left weapon types.
     pub gear: [u32; 4],
     pub life: u16,
@@ -1003,12 +1004,7 @@ pub struct Spawn<'a> {
 
 pub fn spawn(s: &Spawn) -> Vec<u8> {
     packet(PLAYER, |w| {
-        w.u32(s.id)
-            .u32(s.look)
-            .u32(s.status)
-            .u32(0)
-            .u32(s.guild)
-            .u32(0);
+        w.u32(s.id).u32(s.look).u64(s.status).u32(s.guild).u32(0);
         for g in s.gear {
             w.u32(g);
         }

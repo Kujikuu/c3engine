@@ -717,6 +717,13 @@ impl GuiData for HeroData<'_> {
             "hero.mana_max" => p.stats.max_mana.into(),
             // The hero has had mana this session (TQ's orb keeps life whole until then).
             "hero.mana_seen" => u8::from(self.state.mana_seen).into(),
+            // The hero bears a status that stops its experience (TQ's curse).
+            "hero.no_exp" => {
+                let rules = self.view.sim.rules();
+                let stopped =
+                    (p.statuses.iter()).any(|s| rules.status(s.id).is_some_and(|t| t.no_exp));
+                u8::from(stopped).into()
+            }
             // Milliseconds since an attribute last changed (`hero.attr_age.xp<500`: TQ's XP orb
             // flash); a long time when it hasn't.
             _ if key.starts_with("hero.attr_age.") => {

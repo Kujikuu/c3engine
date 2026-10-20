@@ -381,6 +381,9 @@ pub fn conquer_settings() -> ProjectSettings {
     }
     // Merchant accounts wait 5 days (FUN_00429094; the maps that grant at once aren't known).
     s.gameplay.merchant_days = 5;
+    // Killing the heaven-blessed unblessed curses (ProcessPk 00418ee3).
+    s.gameplay.pk.curse_status = (crate::rules::TQ_STATUS + crate::rules::CURSE) as u32;
+    s.gameplay.pk.curse_guard = "blessing_until".into();
     // Jumps climb at most 200 above where the hero stands (CHero::m_nHeightCanJump).
     s.gameplay.jump_height = 200;
     // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,

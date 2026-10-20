@@ -338,6 +338,7 @@ fn status_columns() -> Vec<Column> {
         ),
         int("stun", "1: its bearer can't act"),
         text("effect", "The effect shown on its bearer while it lasts"),
+        int("no_exp", "1: its bearer gains no experience"),
     ]
 }
 
@@ -346,6 +347,7 @@ fn status_rows() -> Vec<Vec<Value>> {
         let mut row = vec![Value::Int(id), Value::Text(name.into())];
         row.extend(ints(numbers));
         row.push(Value::Text(String::new()));
+        row.push(Value::Int(0));
         row
     };
     vec![
@@ -711,6 +713,7 @@ impl DataRules {
                 dodge_percent: percent(&row, "dodge_percent"),
                 speed_percent: percent(&row, "speed_percent"),
                 stun: row.int("stun") != 0,
+                no_exp: row.int("no_exp") != 0,
                 effect: row.text("effect").to_owned(),
                 facts: other_columns(t, &row, &known),
             };

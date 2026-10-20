@@ -879,6 +879,13 @@ pub struct PkSettings {
     /// The PK mode players enter the world in (TQ's client asks for arrest).
     #[serde(default)]
     pub start_mode: PkMode,
+    /// The status a killer bears for killing a player guarded by attribute `curse_guard` (a
+    /// time yet to come) when it isn't guarded itself (TQ's curse for killing the
+    /// heaven-blessed); 0: none.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub curse_status: u32,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub curse_guard: String,
 }
 
 /// Whom a player's attacks may hit among other players, where players may fight (TQ's PK
@@ -908,6 +915,8 @@ impl Default for PkSettings {
             black_at: 100,
             decay_seconds: 360.0,
             start_mode: PkMode::Free,
+            curse_status: 0,
+            curse_guard: String::new(),
         }
     }
 }

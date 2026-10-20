@@ -157,6 +157,23 @@ impl Sim {
     }
 
     /// `damage` from player `id` to player `target`; a kill counts against the killer.
+    /// A killer of a guarded player, not guarded itself, bears the curse (TQ's ProcessPk
+    /// 00418ee3: killing the heaven-blessed).
+    fn curse_killer(&mut self, killer: EntityId, victim: EntityId) {
+        let (curse, guard) = (self.settings.pk.curse_status, &self.settings.pk.curse_guard);
+        if curse == 0 || guard.is_empty() {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        let guarded = |id: EntityId| {
+            (self.players.get(&id))
+                .is_some_and(|p| p.attributes.get(guard).is_some_and(|t| *t > now))
+        };
+        if guarded(victim) && !guarded(killer) {
+            self.add_status(killer, curse, Some(victim));
+        }
+    }
+
     pub(crate) fn hurt_player(&mut self, id: EntityId, target: EntityId, damage: u32) {
         let victim_mark = self.mark_of(target);
         let crime = self.settings.pk.crime_seconds;
@@ -174,6 +191,7 @@ impl Sim {
         });
         if dead {
             self.note_enemy(target, id);
+            self.curse_killer(id, target);
             self.kill_player(target, Some(id));
             if let Some(killer) = self.players.get_mut(&id) {
                 killer.pk_kills += 1;

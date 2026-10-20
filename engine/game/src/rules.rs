@@ -233,6 +233,8 @@ pub struct StatusType {
     pub speed_percent: i32,
     /// Its bearer can't act (stunned, frozen).
     pub stun: bool,
+    /// Its bearer gains no experience (TQ's curse).
+    pub no_exp: bool,
     /// The effect shown on its bearer while it lasts.
     pub effect: String,
     /// The game's other numbers for it; a bearer's facts get `status_<name>`, summed over

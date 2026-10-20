@@ -146,23 +146,21 @@ fn stamina(p: &Player) -> u64 {
 }
 
 /// A player's status bits: dead, a ghost, a full XP bar, and its name's colour.
-fn status(p: &Player, rules: &dyn Rules) -> u32 {
+fn status(p: &Player, rules: &dyn Rules) -> u64 {
     let dead = if p.is_alive() { 0 } else { pk::STATUS_DEAD };
     // The client's effect bits of its statuses (TQ's, from their `client_bit`).
     let effects = (p.statuses.iter())
         .filter_map(|s| rules.status(s.id)?.facts.get("client_bit").copied())
-        .fold(0, |bits, bit| bits | u32::try_from(bit).unwrap_or(0));
+        .fold(0, |bits, bit| bits | u64::try_from(bit).unwrap_or(0));
     let ghost = if p.ghost { pk::STATUS_GHOST } else { 0 };
     let xp_full = if xp(p) >= 100 { pk::STATUS_XP_FULL } else { 0 };
-    dead | ghost
-        | effects
-        | xp_full
-        | match p.mark {
-            c3_game::NameMark::Good => 0,
-            c3_game::NameMark::Criminal => pk::STATUS_CRIME,
-            c3_game::NameMark::Red => pk::STATUS_RED,
-            c3_game::NameMark::Black => pk::STATUS_BLACK,
-        }
+    let mark = match p.mark {
+        c3_game::NameMark::Good => 0,
+        c3_game::NameMark::Criminal => pk::STATUS_CRIME,
+        c3_game::NameMark::Red => pk::STATUS_RED,
+        c3_game::NameMark::Black => pk::STATUS_BLACK,
+    };
+    u64::from(dead | ghost | xp_full | mark) | effects
 }
 
 /// Player `p`'s guild and rank (TQ's rank numbers, as the client shows them).
@@ -386,7 +384,7 @@ fn spawn(state: &EntityState, ids: &mut Ids, sim: &Sim) -> Vec<u8> {
             pk::spawn(&Spawn {
                 id,
                 look,
-                status: if m.is_alive() { 0 } else { pk::STATUS_DEAD },
+                status: if m.is_alive() { 0 } else { pk::STATUS_DEAD.into() },
                 gear: [0; 4],
                 life: m.life.min(u16::MAX.into()) as u16,
                 level: m.level as u16,
@@ -977,7 +975,7 @@ impl ConquerClient {
         {
             let pk_points = u64::try_from(new.pk.max(0)).unwrap_or(0);
             let values = [
-                (attr::STATUS, status(new, rules).into()),
+                (attr::STATUS, status(new, rules)),
                 (attr::PK, pk_points),
                 (attr::LOOK_FACE, look_face(new, rules).into()),
             ];
@@ -1081,7 +1079,7 @@ impl ConquerClient {
             {
                 out.push(pk::attributes(
                     client,
-                    &[(attr::STATUS, status(p, sim.rules()).into())],
+                    &[(attr::STATUS, status(p, sim.rules()))],
                 ));
             }
             if let EntityState::Player(p) = state

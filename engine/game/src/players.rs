@@ -1260,9 +1260,14 @@ impl Sim {
         if amount == 0 {
             return;
         }
+        // A status may stop it (TQ's curse).
+        let rules = &self.rules;
         let Some(p) = self.players.get_mut(&id) else {
             return;
         };
+        if (p.statuses.iter()).any(|s| rules.status(s.id).is_some_and(|t| t.no_exp)) {
+            return;
+        }
         p.exp += amount;
         self.events.push(Event::ExpGained { player: id, amount });
         self.share_exp(id, amount);

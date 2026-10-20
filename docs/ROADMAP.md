@@ -829,7 +829,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] hover tooltips (`tip=` on buttons, checks and meters; CMyShellDlg::ShowMsgDlg): run 10070, map 10072, view equipment 10370, the XP, mana and life orbs as current/most (Button40-46's 10741-10750 aren't in 5065's StrRes, so none)
     - [x] screen move's tip 10073 / 10074 by its state (`tip=` reads bindings in its key)
     - [x] the exp strip's overlay while pointed at (CGameMap::ShowExp): StrRes 100135's rate to three places at [ExpShowPos] 275,675 and the last gain at 365,675 for 2 s, green with a black edge (`pointed=`, `edge=`)
-    - [ ] a cursed hero's 10483 in its place (no curse status yet)
+    - [x] a cursed hero's 10483 in its place (`hero.no_exp`; the curse: `pk.curse_status` / `curse_guard`, a killer of the heaven-blessed unblessed cursed 300 s, a `no_exp` status stopping experience; the client's USERSTATUS_CURSED_5065 bit over a 64-bit status) (not screenshot-checked: pointing can't be scripted)
+    - [ ] the rest of TQ's PK kill (ProcessPk): the victim's experience and half its mana lost, none for the blessed
     - [x] trade 1010: the 10065 prompt (`note:`; 10712, the dead hero's refusal, isn't in 5065's StrRes, so the client shows nothing either); the friend and partner Add buttons' 10345 / 11145 the same way; `pick:` says nothing itself when the game has its own UI
     - [x] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024 (`sound=none`)
     - [x] actions 1009, PK 1013 and friends 1026 toggle 140 / 191 / 160 (OnMainAct, OnMainPk, OnMainFriend; the friends take the right part)

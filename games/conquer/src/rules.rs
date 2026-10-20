@@ -253,6 +253,16 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
             ("client_bit", int(client)),
         ]);
     }
+    // The curse: 300 s, no experience (PkSystem CurseSecs; AwardBattleExp), the client's
+    // USERSTATUS_CURSED_5065 bit.
+    statuses.row(&[
+        ("id", int(TQ_STATUS + CURSE)),
+        ("name", text("Cursed")),
+        ("duration_ms", int(300_000)),
+        ("tick_ms", int(1000)),
+        ("no_exp", int(1)),
+        ("client_bit", int(0x1_0000_0000)),
+    ]);
     let magic_types = rows(t).map(|r| (r.int("id"), r.int("type"))).collect();
     for r in rows(t).filter(|r| r.int("level") == 0) {
         let id = r.int("type");
@@ -307,6 +317,9 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
 /// a status `TQ_STATUS + bit`: its name, what it adds (TQ's power 200, added), and the
 /// client's effect bit (battle spec S3).
 pub const TQ_STATUS: i64 = 1_000_000_000;
+
+/// TQ's curse status (0x0800_0000), put on one who kills the heaven-blessed unblessed.
+pub const CURSE: i64 = 0x0800_0000;
 const TQ_STATUSES: [(i64, &str, i64, i64, i64); 5] = [
     (0x4, "Poison", 0, 0, 0x2),
     (0x40, "Defence+", 0, 200, 0x100),
