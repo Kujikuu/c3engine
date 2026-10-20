@@ -281,6 +281,11 @@ pub enum Event {
         player: EntityId,
         npc: u32,
     },
+    /// `player`'s item `item` was locked, set unlocking, or freed.
+    ItemLocked {
+        player: EntityId,
+        item: u32,
+    },
     /// `player` opened its bag chest `chest` (an item id), and what it holds changed.
     ChestOpened {
         player: EntityId,

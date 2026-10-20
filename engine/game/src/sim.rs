@@ -257,6 +257,13 @@ impl Sim {
         self.tell_broadcasts();
         self.expire_mentors();
         self.tick_world_events();
+        // Items whose unlocking day has come, looked at each minute.
+        if self.now_ms % 60_000 < self.settings.tick_ms.max(1) {
+            let ids: Vec<EntityId> = self.players.keys().copied().collect();
+            for id in ids {
+                self.unlock_due(id);
+            }
+        }
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {
             self.tick_player(id);

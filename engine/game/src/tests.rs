@@ -2688,3 +2688,52 @@ fn a_chest_holds_items_through_a_save() {
     let p = other_sim.player(back).unwrap();
     assert!(p.chests.is_empty() && p.bag.iter().any(|i| i.kind == POTION));
 }
+
+#[test]
+fn a_locked_item_stays_until_its_unlocking_day() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 5);
+    sim.set_settings(GameplaySettings {
+        item_lock_days: 5,
+        ..GameplaySettings::default()
+    });
+    let mut save = crate::PlayerSave::new("Ann", (3, 3));
+    save.bag = vec![ARMOR.into(), POTION.into()];
+    let ann = sim.add_saved_player(&save);
+    let (armor, potion) = {
+        let bag = &sim.player(ann).unwrap().bag;
+        (bag[0].id, bag[1].id)
+    };
+    let lock = |sim: &Sim| {
+        sim.player(ann)
+            .unwrap()
+            .bag
+            .iter()
+            .find(|i| i.id == armor)
+            .map(|i| i.lock)
+    };
+    sim.input(ann, Input::Lock(potion));
+    assert_eq!(
+        sim.player(ann).unwrap().bag[1].lock,
+        0,
+        "only equipment locks"
+    );
+    sim.input(ann, Input::Lock(armor));
+    assert_eq!(lock(&sim), Some(crate::locks::LOCKED));
+    sim.input(ann, Input::Drop(armor));
+    assert!(lock(&sim).is_some(), "a locked item isn't dropped");
+    sim.input(ann, Input::Unlock(armor));
+    assert!(lock(&sim).unwrap() > 2000_01_01, "unlocking until a day");
+    sim.input(ann, Input::Lock(armor));
+    assert_eq!(
+        lock(&sim),
+        Some(crate::locks::LOCKED),
+        "locking again calls it off"
+    );
+    sim.input(ann, Input::Unlock(armor));
+    // Its day come, it is free (and so it may be dropped).
+    sim.players.get_mut(&ann).unwrap().bag[0].lock = 2000_01_01;
+    sim.unlock_due(ann);
+    assert_eq!(lock(&sim), Some(0));
+    sim.input(ann, Input::Drop(armor));
+    assert!(lock(&sim).is_none());
+}

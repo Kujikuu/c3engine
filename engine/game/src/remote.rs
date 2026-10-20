@@ -103,6 +103,7 @@ impl Event {
             | Event::BoothShown { player, .. }
             | Event::Observed { player, .. }
             | Event::ChestOpened { player, .. }
+            | Event::ItemLocked { player, .. }
             | Event::ChestChanged { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {

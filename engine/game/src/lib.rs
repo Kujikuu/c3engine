@@ -17,6 +17,7 @@ mod friends;
 mod guilds;
 mod index;
 mod input;
+pub(crate) mod locks;
 mod marriage;
 mod mentors;
 mod monster_ai;

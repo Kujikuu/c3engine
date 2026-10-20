@@ -134,6 +134,9 @@ pub enum Input {
     Partner(crate::PartnerAction),
     /// Booths: opening one, setting out wares, buying from one.
     Booth(crate::BoothAction),
+    /// Lock item `0` (a worn kind, carried), or start unlocking it.
+    Lock(u32),
+    Unlock(u32),
     /// Put bag item `item` in bag chest `chest`, or take it back out.
     ChestPut {
         chest: u32,
@@ -169,6 +172,10 @@ pub const MAX_CHAT: usize = 200;
 impl Sim {
     /// Carries out what player `id` asked for.
     pub fn input(&mut self, id: EntityId, input: Input) {
+        if let Some(why) = self.locked_refusal(id, &input) {
+            self.message(id, why);
+            return;
+        }
         match input {
             Input::Walk(cell) => self.walk(id, cell),
             Input::Jump(cell) => self.jump(id, cell),
@@ -198,6 +205,8 @@ impl Sim {
             Input::Friend(action) => self.friend_action(id, action),
             Input::Booth(action) => self.booth_action(id, action),
             Input::ChestPut { chest, item } => self.chest_put(id, chest, item),
+            Input::Lock(item) => self.lock_item(id, item),
+            Input::Unlock(item) => self.unlock_item(id, item),
             Input::ChestTake { chest, item } => self.chest_take(id, chest, item),
             Input::Observe(target) => {
                 if target != id && self.players.contains_key(&target) {

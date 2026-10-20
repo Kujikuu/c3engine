@@ -77,6 +77,8 @@ pub(crate) struct GuiState {
     /// with the game's data).
     pub purchase: Option<crate::purchase::Purchase>,
     pub purchase_asked: Option<String>,
+    /// The lock window's bind pressed.
+    pub lock_binding: bool,
     /// The bag chest shown (its item id), and an item kind asked to be used.
     pub chest: Option<u32>,
     pub use_kind: Option<u32>,
@@ -343,6 +345,12 @@ impl HeroData<'_> {
         self.state.words.get(self.view_number("word"))
     }
 
+    /// The item picked in the lock window, while carried.
+    fn lock_item(&self) -> Option<&c3_game::Item> {
+        let id: u32 = self.state.views.get("lock_item")?.parse().ok()?;
+        (self.player.bag.iter().chain(&self.player.equipment)).find(|i| i.id == id)
+    }
+
     /// The auto-path heading whose places are shown.
     fn autorun_open(&self) -> Option<u32> {
         self.state.views.get("autorun_open")?.parse().ok()
@@ -451,6 +459,8 @@ impl HeroData<'_> {
         Some(match key {
             "hero.bag" => p.bag.iter().collect(),
             "hero.equipment" => p.equipment.iter().collect(),
+            // The item picked in the lock window.
+            "lock.item" => self.lock_item().into_iter().collect(),
             // What the open chest holds.
             "chest.items" => (p.chests.get(&self.state.chest?))
                 .map_or_else(Vec::new, |items| items.iter().collect()),
@@ -721,6 +731,13 @@ impl GuiData for HeroData<'_> {
                 let roots = crate::destinations::roots(self.view);
                 roots.iter().position(|d| d.id == open)? as f64
             }
+            // The lock window: an item picked, and its state (0 free, 1 locked, 2 unlocking).
+            "lock.picked" => u8::from(self.lock_item().is_some()).into(),
+            "lock.state" => match self.lock_item()?.lock {
+                0 => 0.0,
+                1 => 1.0,
+                _ => 2.0,
+            },
             // The open chest (while in the bag) and its rows of three.
             "chest.open" => u8::from(self.chest_size().is_some()).into(),
             "chest.rows" => (self.chest_size()? / 3) as f64,
@@ -1164,6 +1181,20 @@ impl GuiData for HeroData<'_> {
                 })
             }
             "chatlog.date" => Some(chrono::Local::now().format("%Y-%-m-%-d").to_string()),
+            // The lock window: the picked item's name, its lock picture (`EquipTie_` and
+            // this), and the tip's StrRes key (11194, or 11195 for no equipment).
+            "lock.name" => Some(crate::item_name(self.view.sim, self.lock_item()?.kind)),
+            "lock.icon" => Some(match self.lock_item()?.lock {
+                0 => "UnTieIco".into(),
+                _ => "TieIco".into(),
+            }),
+            "lock.tip" => Some(
+                self.state
+                    .views
+                    .get("lock_tip")
+                    .cloned()
+                    .unwrap_or_else(|| "11194".into()),
+            ),
             // The item being bought: its name, and how many are to be bought.
             "purchase.name" => Some(crate::item_name(self.view.sim, self.state.purchase?.kind)),
             "word.text" | "board.text" | "black.name" | "purchase.amount" => {

@@ -84,6 +84,14 @@ impl Sim {
         });
     }
 
+    /// Who player `id` is trading with.
+    pub(crate) fn trade_partner(&self, id: EntityId) -> Option<EntityId> {
+        let trade = &self.trades[self.trade_index(id)?];
+        (trade.sides.iter())
+            .find(|s| s.player != id)
+            .map(|s| s.player)
+    }
+
     pub(crate) fn trade_index(&self, id: EntityId) -> Option<usize> {
         (self.trades.iter()).position(|t| t.sides.iter().any(|s| s.player == id))
     }

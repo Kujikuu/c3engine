@@ -280,6 +280,12 @@ const AUTORUN_OPEN: &str = "autorun_open";
 /// The view group holding the player whose equipment is shown.
 const VIEWED: &str = "viewed";
 
+/// The view groups of the lock window: the item picked, and its tip when not the first.
+const LOCK_ITEM: &str = "lock_item";
+const LOCK_TIP: &str = "lock_tip";
+/// The tip when what was put in is no equipment (TQ's StrRes 11195).
+const LOCK_ONLY_EQUIPMENT: &str = "11195";
+
 /// The amount typed in the purchase asking.
 const PURCHASE_AMOUNT: &str = "purchase.amount";
 
@@ -1019,6 +1025,12 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            // The lock window: its bind button (asked first), and closing it.
+            "lock_bind" => self.gui_state.lock_binding = true,
+            "lock_close" => {
+                self.gui_state.views.remove(LOCK_ITEM);
+                self.gui_state.views.remove(LOCK_TIP);
+            }
             // The first bag item of a kind used (`use_kind:1100006`), as an item hotkey.
             _ if action.starts_with("use_kind:") => {
                 self.gui_state.use_kind = action["use_kind:".len()..].parse().ok();
@@ -1195,6 +1207,35 @@ impl GameUi {
                 }
             }
         }
+    }
+
+    /// The lock window's bind pressed: locking its item, unlocking it, or calling the
+    /// unlocking off, each asked first (TQ's 11197, 11193, 11196).
+    fn lock_bind(&mut self, view: &GameView, player: &Player) {
+        if !std::mem::take(&mut self.gui_state.lock_binding) {
+            return;
+        }
+        let picked = (self.gui_state.views.get(LOCK_ITEM)).and_then(|v| v.parse::<u32>().ok());
+        let Some(item) = picked.and_then(|id| {
+            player
+                .bag
+                .iter()
+                .chain(&player.equipment)
+                .find(|i| i.id == id)
+        }) else {
+            return;
+        };
+        let name = view
+            .sim
+            .rules()
+            .item(item.kind)
+            .map_or_else(String::new, |t| t.name.clone());
+        let (kind, input) = match item.lock {
+            0 => ("lock_apply", c3_game::Input::Lock(item.id)),
+            1 => ("lock_cancel", c3_game::Input::Unlock(item.id)),
+            _ => ("lock_reapply", c3_game::Input::Lock(item.id)),
+        };
+        self.ask(kind, &name, input);
     }
 
     /// Buying in a shop priced in another currency, when the game's UI asks the amount
@@ -1815,6 +1856,7 @@ impl GameUi {
                 let mut picked_contact = None;
                 let mut picked_destination = None;
                 let mut booth_put = None;
+                let mut lock_put = None;
                 let mut repair = None;
                 // What happens to the item held: picked up, put down (or dropped).
                 let mut held = data.state.held.clone();
@@ -1837,6 +1879,10 @@ impl GameUi {
                                 // A bag item onto a workbench slot.
                                 ("hero.bag", Some(_)) => {
                                     work.extend(player.bag.get(at).map(|i| (true, i.id)))
+                                }
+                                // A bag item onto the lock window: picked (equipment only).
+                                ("hero.bag", None) if list == "lock.item" => {
+                                    lock_put = player.bag.get(at).map(|i| (i.id, i.kind));
                                 }
                                 // A bag item onto the hero's booth: its price asked.
                                 ("hero.bag", None) if list.starts_with("booth.mine") => {
@@ -2002,6 +2048,24 @@ impl GameUi {
                         None => actions.push(UiAction::Game(fix)),
                     }
                 }
+                if let Some((item, kind)) = lock_put {
+                    let worn = view
+                        .sim
+                        .rules()
+                        .item(kind)
+                        .is_some_and(|t| t.slot.is_some());
+                    let views = &mut self.gui_state.views;
+                    match worn {
+                        true => {
+                            views.insert(LOCK_ITEM.into(), item.to_string());
+                            views.remove(LOCK_TIP);
+                        }
+                        false => {
+                            views.remove(LOCK_ITEM);
+                            views.insert(LOCK_TIP.into(), LOCK_ONLY_EQUIPMENT.into());
+                        }
+                    }
+                }
                 if let Some(item) = booth_put {
                     self.gui_state.booth_item = Some(item);
                     self.gui_state.prompt = prompt::Prompt::confirm("booth_add:booth_add");
@@ -2091,6 +2155,7 @@ impl GameUi {
                 }
                 self.contact_word(view, player, &mut actions);
                 self.purchase(view, player, &mut actions);
+                self.lock_bind(view, player);
                 let used = self.gui_state.use_kind.take();
                 let item = used.and_then(|kind| player.bag.iter().find(|i| i.kind == kind));
                 actions.extend(item.map(|i| UiAction::Use(i.id)));

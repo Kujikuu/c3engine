@@ -27,6 +27,13 @@ pub struct Item {
     /// Worn, the slot it is in when that isn't its type's own (its `alt_slot`); 0 otherwise.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub worn_at: u8,
+    /// Locked (1), or unlocking until that day (YYYYMMDD); 0: free (see `locks`).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub lock: u32,
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -54,6 +61,7 @@ impl Item {
             quality: 0,
             attrs: [0; ITEM_ATTRIBUTES],
             worn_at: 0,
+            lock: 0,
         }
     }
 

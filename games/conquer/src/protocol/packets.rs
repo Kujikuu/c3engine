@@ -59,6 +59,14 @@ pub fn business(action: u8, id: u32, online: bool, minutes: u16, look: u32, name
 }
 
 pub const BUSINESS: u16 = 2046;
+/// MsgEquipLock (the 5065 client's MsgItemLock): lock, unlock, query, unlocked.
+pub const ITEM_LOCK: u16 = 2048;
+pub mod item_lock {
+    pub const APPLY: u8 = 0;
+    pub const CANCEL: u8 = 1;
+    pub const QUERY: u8 = 2;
+    pub const UNLOCKED: u8 = 3;
+}
 pub mod business {
     pub const APPLY: u8 = 0;
     pub const REJECT: u8 = 1;
@@ -685,6 +693,8 @@ pub struct ItemInfo {
     pub bless: u8,
     pub enchant: u8,
     pub color: u16,
+    /// 0 free, 1 locked, 3 unlocking (MsgItemInfo @38).
+    pub lock: u16,
 }
 
 pub fn item_info(i: &ItemInfo) -> Vec<u8> {
@@ -708,9 +718,16 @@ pub fn item_info(i: &ItemInfo) -> Vec<u8> {
             .u8(0)
             .u32(0)
             .u16(0)
-            .u16(0)
+            .u16(i.lock)
             .u16(i.color)
             .u16(0);
+    })
+}
+
+/// MsgEquipLock 2048 (16 bytes): item, action, lock status, the unlock day (YYYYMMDD).
+pub fn item_lock(item: u32, action: u8, status: u8, until: u32) -> Vec<u8> {
+    packet(ITEM_LOCK, |w| {
+        w.u32(item).u8(action).u8(status).u16(0).u32(until);
     })
 }
 
@@ -1079,6 +1096,11 @@ pub enum Request {
     MentorPrize {
         action: u8,
     },
+    /// An item locked, unlocked or its unlock day asked (2048).
+    ItemLock {
+        item: u32,
+        action: u8,
+    },
     /// A trade partner asked about (2046): the action and the player's or partner's id.
     Business {
         action: u8,
@@ -1418,6 +1440,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             }
         }
         MENTOR_PRIZE => Request::MentorPrize { action: r.u8()? },
+        ITEM_LOCK => {
+            let item = r.u32()?;
+            Request::ItemLock {
+                item,
+                action: r.u8()?,
+            }
+        }
         BUSINESS => {
             let id = r.u32()?;
             Request::Business {
@@ -1500,6 +1529,21 @@ mod tests {
             name: "Pheasant",
         };
         assert_eq!(spawn(&s).len(), 90 + 1 + 9 + 1);
+    }
+
+    #[test]
+    fn equipment_locks_ask_and_answer_in_16_bytes() {
+        let answer = item_lock(7, item_lock::CANCEL, 3, 2026_10_25);
+        assert_eq!(answer.len(), 16);
+        assert_eq!(&answer[2..4], &ITEM_LOCK.to_le_bytes());
+        assert_eq!(&answer[12..16], &2026_10_25_u32.to_le_bytes());
+        assert_eq!(
+            parse(&item_lock(7, item_lock::APPLY, 0, 0)).unwrap(),
+            Request::ItemLock {
+                item: 7,
+                action: item_lock::APPLY
+            }
+        );
     }
 
     #[test]

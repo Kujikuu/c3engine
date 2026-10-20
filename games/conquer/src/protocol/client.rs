@@ -261,6 +261,16 @@ fn item_fields(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> pk::It
         bless: byte("bless"),
         enchant: byte("enchant"),
         color: u16::try_from(attr("color").clamp(0, i32::from(u16::MAX))).unwrap_or(0),
+        lock: lock_status(i.lock),
+    }
+}
+
+/// An item's lock as the client knows it: 0 free, 1 locked, 3 unlocking.
+fn lock_status(lock: u32) -> u16 {
+    match lock {
+        0 => 0,
+        1 => 1,
+        _ => 3,
     }
 }
 
@@ -473,8 +483,9 @@ pub struct ConquerClient {
     booth_asked: Option<EntityId>,
     /// The player whose equipment the client asked to see.
     observe_asked: Option<EntityId>,
-    /// The sash whose items the client asked for.
+    /// The sash whose items the client asked for, and the item whose unlock day.
     chest_asked: Option<u32>,
+    lock_asked: Option<u32>,
     /// The hero's mentor and students as the client was last told (`None`: not yet), and
     /// whether it asked for them or for what students gave.
     mentors_told: Option<(String, Vec<String>)>,
@@ -630,6 +641,22 @@ impl ConquerClient {
             .map(|p| (p.author.as_str(), p.text.as_str(), p.time.as_str()))
             .collect();
         Some(pk::board_list(index, channel, &page))
+    }
+
+    /// The hero's item `item`'s lock as MsgEquipLock tells it: its unlock day asked, or what
+    /// became of it (locked, unlocking, freed).
+    fn item_lock(&self, item: u32, asked: bool, sim: &Sim) -> Option<Vec<u8>> {
+        let p = sim.player(self.hero?)?;
+        let it = (p.bag.iter().chain(&p.equipment)).find(|i| i.id == item)?;
+        let status = lock_status(it.lock) as u8;
+        let until = if it.lock > 1 { it.lock } else { 0 };
+        let action = match (asked, it.lock) {
+            (true, _) => pk::item_lock::QUERY,
+            (false, 0) => pk::item_lock::UNLOCKED,
+            (false, 1) => pk::item_lock::APPLY,
+            (false, _) => pk::item_lock::CANCEL,
+        };
+        Some(pk::item_lock(item, action, status, until))
     }
 
     /// What the hero's sash `chest` holds, as MsgPackage 30 lists it.
@@ -953,6 +980,9 @@ impl ConquerClient {
         }
         if let Some(chest) = self.chest_asked.take() {
             out.push(self.chest(chest, sim));
+        }
+        if let Some(item) = self.lock_asked.take() {
+            out.extend(self.item_lock(item, true, sim));
         }
         if let Some((channel, index, name)) = self.board_asked.take() {
             out.extend(self.board(sim, channel, index, &name));
@@ -1894,6 +1924,10 @@ impl ConquerClient {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
             // The warehouse as it is now, and the money kept.
+            // An item locked, set unlocking or freed (MsgEquipLock 2048).
+            Event::ItemLocked { player, item } if Some(*player) == hero => {
+                self.item_lock(*item, false, sim).into_iter().collect()
+            }
             // A sash as it is now (MsgPackage 30 with the sash's id).
             Event::ChestOpened { player, chest } | Event::ChestChanged { player, chest }
                 if Some(*player) == hero =>
@@ -2280,6 +2314,12 @@ impl ConquerClient {
             }
             // Asking a player to be a trade partner (or asking back), turning one down,
             // ending a partnership.
+            // Locking, unlocking (MsgEquipLock 2048), and the unlock day asked.
+            Request::ItemLock { item, action: a } => match a {
+                pk::item_lock::APPLY => inputs.push(Input::Lock(item)),
+                pk::item_lock::CANCEL => inputs.push(Input::Unlock(item)),
+                _ => self.lock_asked = Some(item),
+            },
             Request::Business { action: a, id } => {
                 use c3_game::PartnerAction as P;
                 use pk::business as b;

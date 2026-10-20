@@ -89,6 +89,9 @@ pub struct SavedItem {
     /// The slot it is worn in when not its type's own.
     #[serde(skip_serializing_if = "is_zero_u8")]
     pub worn_at: u8,
+    /// Locked, or unlocking until that day (see `Item::lock`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub lock: u32,
 }
 
 fn is_zero_u8(n: &u8) -> bool {
@@ -108,6 +111,7 @@ impl From<u32> for SavedItem {
             quality: 0,
             attrs: [0; c3_core::settings::ITEM_ATTRIBUTES],
             worn_at: 0,
+            lock: 0,
         }
     }
 }
@@ -129,6 +133,8 @@ enum SavedItemForm {
         attrs: [i32; c3_core::settings::ITEM_ATTRIBUTES],
         #[serde(default)]
         worn_at: u8,
+        #[serde(default)]
+        lock: u32,
     },
 }
 
@@ -147,6 +153,7 @@ impl From<SavedItemForm> for SavedItem {
                 quality,
                 attrs,
                 worn_at,
+                lock,
             } => Self {
                 kind,
                 count: count.max(1),
@@ -154,6 +161,7 @@ impl From<SavedItemForm> for SavedItem {
                 quality,
                 attrs,
                 worn_at,
+                lock,
             },
         }
     }
@@ -195,6 +203,7 @@ impl Sim {
     pub fn add_saved_player(&mut self, save: &PlayerSave) -> EntityId {
         let id = self.new_entity();
         self.add_saved_player_as(save, id);
+        self.unlock_due(id);
         id
     }
 
@@ -346,6 +355,7 @@ impl Sim {
         item.quality = s.quality;
         item.attrs = s.attrs;
         item.worn_at = s.worn_at;
+        item.lock = s.lock;
         if let Some(durability) = s.durability {
             item.durability = durability;
         }
@@ -361,6 +371,7 @@ impl Sim {
             quality: item.quality,
             attrs: item.attrs,
             worn_at: item.worn_at,
+            lock: item.lock,
         }
     }
 }
