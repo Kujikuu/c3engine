@@ -191,6 +191,10 @@ impl GameModule for ProjectGame {
         self.game.portal_effect()
     }
 
+    fn login_list(&self, address: &str) -> Option<crate::module::LoginList> {
+        self.game.login_list(address)
+    }
+
     fn map_key(&self, id: u32) -> Option<String> {
         self.game.map_key(id)
     }

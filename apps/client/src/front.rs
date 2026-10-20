@@ -54,7 +54,21 @@ impl FrontPhase {
         server: Option<String>,
         account: Option<(String, String)>,
     ) -> Self {
-        let mut servers = settings.network.login_servers();
+        // A project that lists no servers shows the game's own list (Conquer: its Server.dat),
+        // each at this machine's server.
+        let local = format!("127.0.0.1:{}", settings.network.port);
+        let listed = settings
+            .network
+            .servers
+            .is_empty()
+            .then(|| game.login_list(&local));
+        let (mut servers, groups) = match listed.flatten() {
+            Some((groups, servers)) => (servers, groups),
+            None => (
+                settings.network.login_servers(),
+                settings.network.groups.clone(),
+            ),
+        };
         if let Some(address) = server {
             // Offered first, in the first server's group and with its picture.
             let like = servers.first().cloned().unwrap_or_default();
@@ -67,7 +81,7 @@ impl FrontPhase {
                 },
             );
         }
-        let groups = &settings.network.groups;
+        let groups = &groups;
         let rows = (servers.iter())
             .map(|s| ServerRow {
                 name: s.name.clone(),

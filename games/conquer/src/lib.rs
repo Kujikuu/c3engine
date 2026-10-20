@@ -364,6 +364,49 @@ impl Content {
 
     /// The minimap of the first of `map_ids` the client has (see `ConquerModule::minimap`).
     /// The radar's picture for mark `kind` (see [`RADAR_MARKS`]).
+    /// The client's login list from its `Server.dat` (CDlgLogin's LoadNativeGroups and
+    /// LoadNativeServers): `[Header]` GroupAmount and GroupN pictures, each `[GroupN]`'s
+    /// ServerAmount, ServerNameN (else ServerN) and PicN, every server at `address`. A
+    /// picture shows when Server.ani has a section of its name; the 5065 list names the Flash
+    /// login's files (`Group11.swf`), which the native login, like the client's, leaves blank.
+    pub fn login_list(&self, address: &str) -> Option<c3_play::module::LoginList> {
+        use c3_core::settings::{ServerEntry, ServerGroup};
+        let ini = c3_formats_tq::ini::Ini::parse(&self.fs.read(SERVER_DAT)?);
+        let ani = Ani::parse(&self.fs.read(SERVER_ANI)?).ok();
+        // A picture is the Server.ani section of that name, as CMyImage::InsertImage finds it.
+        let picture = |name: &str| -> String {
+            match ani.as_ref().is_some_and(|a| a.get(name).is_some()) {
+                true => name.to_owned(),
+                false => String::new(),
+            }
+        };
+        let header = ini.section("Header")?;
+        let amount: usize = header.get_parsed("GroupAmount").unwrap_or(0);
+        let mut groups = Vec::new();
+        let mut servers = Vec::new();
+        for g in 1..=amount {
+            let name = format!("Group{g}");
+            let icon = picture(header.get(&name).unwrap_or_default());
+            let Some(section) = ini.section(&name) else {
+                continue;
+            };
+            for s in 1..=section.get_parsed::<usize>("ServerAmount").unwrap_or(0) {
+                let shown = (section.get(&format!("ServerName{s}")))
+                    .filter(|n| !n.trim().is_empty())
+                    .or_else(|| section.get(&format!("Server{s}")))
+                    .unwrap_or_default();
+                servers.push(ServerEntry {
+                    name: shown.trim().to_owned(),
+                    address: address.to_owned(),
+                    group: name.clone(),
+                    icon: picture(section.get(&format!("Pic{s}")).unwrap_or_default()),
+                });
+            }
+            groups.push(ServerGroup { name, icon });
+        }
+        (!servers.is_empty()).then_some((groups, servers))
+    }
+
     /// An item type's icon as the client finds it (`CItem::ShowMiniItem`, `GetItemMinIcon`):
     /// helmets, armour and shields by their colour (`color × 1,000,000 + type`, colour 3 when
     /// it has none or that one is missing), others by their type; then `ItemDefault`.
@@ -429,6 +472,8 @@ impl c3_render::SceneAssets for Content {
 /// The client's minimaps, by map id.
 const MINIMAP_ANI: &str = "ani/MiniMap.Ani";
 const ITEM_ICON_ANI: &str = "ani/ItemMinIcon.Ani";
+const SERVER_DAT: &str = "Server.dat";
+const SERVER_ANI: &str = "ani/Server.ani";
 /// The radar's marks, as CRadar draws them: the hero (MiniMap.ani), players and team
 /// leaders (common.ani).
 const RADAR_MARKS: [(&str, &str, &str); 3] = [

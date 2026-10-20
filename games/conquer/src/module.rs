@@ -341,6 +341,10 @@ impl GameModule for ConquerModule {
         self.content.files().read(path).map(|b| b.into_owned())
     }
 
+    fn login_list(&self, address: &str) -> Option<c3_play::module::LoginList> {
+        self.content.login_list(address)
+    }
+
     fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
         self.content.item_icon(kind, look)
     }
