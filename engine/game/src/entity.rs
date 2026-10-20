@@ -138,6 +138,9 @@ pub struct Player {
     /// Items kept with storage NPCs (by NPC id), and the money kept (any of them).
     #[serde(default)]
     pub storage: BTreeMap<u32, Vec<Item>>,
+    /// What its bag's chests hold, by the chest's item id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub chests: BTreeMap<u32, Vec<Item>>,
     #[serde(default)]
     pub saved_money: u64,
     /// Skills it knows, in the order of its skill bar.

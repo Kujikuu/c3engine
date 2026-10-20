@@ -99,6 +99,7 @@ impl Sim {
                 ghost: false,
                 transform: None,
                 storage: std::collections::BTreeMap::new(),
+                chests: std::collections::BTreeMap::new(),
                 saved_money: 0,
                 killed_by_monster: 0,
             },
@@ -293,6 +294,11 @@ impl Sim {
             return;
         };
         let kind = p.bag[slot].kind;
+        // A chest opens.
+        if self.chest_size(kind).is_some() {
+            self.open_chest(id, item);
+            return;
+        }
         // An item a script answers (custom event `use_<type>`): the script does what it does,
         // taking the item if it is spent.
         let event = format!("use_{kind}");

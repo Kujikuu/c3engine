@@ -8,6 +8,7 @@
 mod booths;
 mod broadcasts;
 mod chat;
+mod chests;
 mod commands;
 mod dialogue;
 mod entity;

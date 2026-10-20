@@ -813,6 +813,18 @@ Actions:
   data u32 at 0x28, suspicious u16, lock u16, color u16 at 0x30, pad.
 - The cry is MsgTalk channel 2104.
 
+### Sashes (MsgPackage 1102 type 30; `DlgPortableChest5065.cpp`, Redux `WarehouseManager.cs` 153-260)
+
+- The client opens a sash's window itself when the sash (1100003 / 1100006 / 1100009, rows
+  type % 10 / 3) is used, refusing while vending (StrRes 10445) or trading (10446), and asks
+  its items: MsgPackage `id` = the sash's item id, action 0, type 30.
+- Action 1 puts bag item `itemId` in (refused for a sash, 10441, or a full sash: 3, 6, 9);
+  action 2 takes it out. The front answers each with the sash's listing (action 0, type 30,
+  the same 24-byte entries as the warehouse); the bag change goes as MsgItem as usual.
+- The engine keeps a sash's items with its owner by the sash's id (`gameplay.chests`,
+  `Input::ChestPut` / `ChestTake`, `Event::ChestOpened` / `ChestChanged`), saved by the sash's
+  place in the bag.
+
 ### Other login-time packets (optional)
 
 - **MsgWeaponSkill 1025** (`MsgWeaponSkill.h:26-34`): `@4 u32 type`, `@8 u16 level`, `@10 u16 reserved`, `@12 u32 exp`, size **16**. Redux sends size 14 (buffer 22 - 8, `[1025] WeaponProficiency.cs:25-31`), so its exp is truncated. Use 16.

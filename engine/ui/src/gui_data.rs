@@ -77,6 +77,9 @@ pub(crate) struct GuiState {
     /// with the game's data).
     pub purchase: Option<crate::purchase::Purchase>,
     pub purchase_asked: Option<String>,
+    /// The bag chest shown (its item id), and an item kind asked to be used.
+    pub chest: Option<u32>,
+    pub use_kind: Option<u32>,
     /// A buy asked by an action (`buy:<npc>:<kind>`): its shop and item kind.
     pub buying: Option<(u32, u32)>,
     /// The lines said this session with their channels' keys (the chat log's).
@@ -340,6 +343,13 @@ impl HeroData<'_> {
         self.state.words.get(self.view_number("word"))
     }
 
+    /// How many the open chest holds, while it is in the bag.
+    fn chest_size(&self) -> Option<u32> {
+        let chest = self.state.chest?;
+        let kind = self.player.bag.iter().find(|i| i.id == chest)?.kind;
+        self.view.sim.chest_size(kind)
+    }
+
     /// The player whose equipment is shown (`view:viewed`), while in the world.
     pub(crate) fn viewed(&self) -> Option<&c3_game::Player> {
         let id = self.state.views.get("viewed")?.parse().ok()?;
@@ -436,6 +446,9 @@ impl HeroData<'_> {
         Some(match key {
             "hero.bag" => p.bag.iter().collect(),
             "hero.equipment" => p.equipment.iter().collect(),
+            // What the open chest holds.
+            "chest.items" => (p.chests.get(&self.state.chest?))
+                .map_or_else(Vec::new, |items| items.iter().collect()),
             // The shown player's worn item in slot `n` (CDlgNpcEquip).
             _ if key.starts_with("viewed.worn.") => {
                 let slot: u8 = key.strip_prefix("viewed.worn.")?.parse().ok()?;
@@ -695,6 +708,9 @@ impl GuiData for HeroData<'_> {
                     .or(first)
                     .unwrap_or(0) as f64
             }
+            // The open chest (while in the bag) and its rows of three.
+            "chest.open" => u8::from(self.chest_size().is_some()).into(),
+            "chest.rows" => (self.chest_size()? / 3) as f64,
             // The purchase asking: open, its step, the most that may be bought (and whether
             // the funds hold it), how many are to be bought and what they cost.
             "purchase.open" => u8::from(self.state.purchase.is_some()).into(),

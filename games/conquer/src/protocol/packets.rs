@@ -341,6 +341,8 @@ pub const PACKAGE_QUERY: u8 = 0;
 pub const PACKAGE_CHECK_IN: u8 = 1;
 pub const PACKAGE_CHECK_OUT: u8 = 2;
 pub const PACKAGE_STORAGE: u8 = 10;
+/// MsgPackage's kind for a sash (its id the sash's item id).
+pub const PACKAGE_CHEST: u8 = 30;
 /// Setting a gem in a socket or taking it out (items spec §6.1).
 pub const GEM_EMBED: u16 = 1027;
 pub const FUSE: u16 = 1028;
@@ -805,9 +807,9 @@ pub struct Stored {
 }
 
 /// A storage NPC's warehouse list.
-pub fn package(npc: u32, items: &[Stored]) -> Vec<u8> {
+pub fn package(npc: u32, kind: u8, items: &[Stored]) -> Vec<u8> {
     packet(PACKAGE, |w| {
-        w.u32(npc).u8(PACKAGE_QUERY).u8(PACKAGE_STORAGE).u16(0);
+        w.u32(npc).u8(PACKAGE_QUERY).u8(kind).u16(0);
         w.u32(items.len().min(50) as u32);
         for i in items.iter().take(50) {
             w.u32(i.id).u32(i.kind);
@@ -1516,7 +1518,10 @@ mod tests {
             extra: 5,
         };
         assert_eq!(parse(&b).unwrap(), request);
-        assert!(matches!(parse(&b[..16]).unwrap(), Request::Item { extra: 0, .. }));
+        assert!(matches!(
+            parse(&b[..16]).unwrap(),
+            Request::Item { extra: 0, .. }
+        ));
     }
 
     #[test]

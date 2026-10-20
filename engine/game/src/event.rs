@@ -281,6 +281,15 @@ pub enum Event {
         player: EntityId,
         npc: u32,
     },
+    /// `player` opened its bag chest `chest` (an item id), and what it holds changed.
+    ChestOpened {
+        player: EntityId,
+        chest: u32,
+    },
+    ChestChanged {
+        player: EntityId,
+        chest: u32,
+    },
     /// A trap was placed on this map, or (by id) went away.
     TrapPlaced(c3_scene::Trap),
     TrapGone(u32),

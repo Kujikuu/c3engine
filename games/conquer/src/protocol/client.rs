@@ -473,6 +473,8 @@ pub struct ConquerClient {
     booth_asked: Option<EntityId>,
     /// The player whose equipment the client asked to see.
     observe_asked: Option<EntityId>,
+    /// The sash whose items the client asked for.
+    chest_asked: Option<u32>,
     /// The hero's mentor and students as the client was last told (`None`: not yet), and
     /// whether it asked for them or for what students gave.
     mentors_told: Option<(String, Vec<String>)>,
@@ -628,6 +630,16 @@ impl ConquerClient {
             .map(|p| (p.author.as_str(), p.text.as_str(), p.time.as_str()))
             .collect();
         Some(pk::board_list(index, channel, &page))
+    }
+
+    /// What the hero's sash `chest` holds, as MsgPackage 30 lists it.
+    fn chest(&self, chest: u32, sim: &Sim) -> Vec<u8> {
+        let kept: Vec<pk::Stored> = (self.hero.and_then(|h| sim.player(h)?.chests.get(&chest)))
+            .into_iter()
+            .flatten()
+            .map(|i| stored(i, sim))
+            .collect();
+        pk::package(chest, pk::PACKAGE_CHEST, &kept)
     }
 
     /// Player `target` as the client's view of it shows it: its MsgPlayer, then each worn
@@ -938,6 +950,9 @@ impl ConquerClient {
         }
         if let Some(target) = self.observe_asked.take() {
             out.extend(self.observed(target, sim));
+        }
+        if let Some(chest) = self.chest_asked.take() {
+            out.push(self.chest(chest, sim));
         }
         if let Some((channel, index, name)) = self.board_asked.take() {
             out.extend(self.board(sim, channel, index, &name));
@@ -1879,6 +1894,12 @@ impl ConquerClient {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
             // The warehouse as it is now, and the money kept.
+            // A sash as it is now (MsgPackage 30 with the sash's id).
+            Event::ChestOpened { player, chest } | Event::ChestChanged { player, chest }
+                if Some(*player) == hero =>
+            {
+                vec![self.chest(*chest, sim)]
+            }
             Event::StorageOpened { player, npc } | Event::StorageChanged { player, npc }
                 if Some(*player) == hero =>
             {
@@ -1890,7 +1911,7 @@ impl ConquerClient {
                     .collect();
                 let money = [(attr::MONEY, p.money), (attr::SAVED_MONEY, p.saved_money)];
                 vec![
-                    pk::package(*npc, &kept),
+                    pk::package(*npc, pk::PACKAGE_STORAGE, &kept),
                     pk::item_action(
                         *npc,
                         u32::try_from(p.saved_money).unwrap_or(u32::MAX),
@@ -2301,6 +2322,18 @@ impl ConquerClient {
                 pk::trade::ADD_MONEY => inputs.push(Input::TradeMoney(data.into())),
                 pk::trade::OK => inputs.push(Input::TradeAccept),
                 _ => {}
+            },
+            // A sash: listed (the client opens its window itself), an item put in or taken
+            // out (packets spec 1102 type 30).
+            Request::Package {
+                npc: chest,
+                action: a,
+                kind: pk::PACKAGE_CHEST,
+                item,
+            } => match a {
+                pk::PACKAGE_CHECK_IN => inputs.push(Input::ChestPut { chest, item }),
+                pk::PACKAGE_CHECK_OUT => inputs.push(Input::ChestTake { chest, item }),
+                _ => self.chest_asked = Some(chest),
             },
             Request::Package {
                 npc,

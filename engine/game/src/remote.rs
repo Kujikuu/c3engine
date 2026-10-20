@@ -72,6 +72,8 @@ impl Player {
             skills: Vec::new(),
             cooldowns: Default::default(),
             mates: Vec::new(),
+            storage: Default::default(),
+            chests: Default::default(),
             ..self.clone()
         }
     }
@@ -100,6 +102,8 @@ impl Event {
             | Event::MentorAsked { player, .. }
             | Event::BoothShown { player, .. }
             | Event::Observed { player, .. }
+            | Event::ChestOpened { player, .. }
+            | Event::ChestChanged { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {
                 to: Some(player), ..

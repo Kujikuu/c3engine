@@ -57,6 +57,9 @@ pub struct PlayerSave {
     /// Items kept with storage NPCs (by NPC id), and the money kept.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub storage: BTreeMap<u32, Vec<SavedItem>>,
+    /// What the bag's chests hold, by the chest's place in the bag.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub chests: BTreeMap<u32, Vec<SavedItem>>,
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub saved_money: u64,
 }
@@ -181,6 +184,7 @@ impl PlayerSave {
             attributes: BTreeMap::new(),
             record: None,
             storage: BTreeMap::new(),
+            chests: BTreeMap::new(),
             saved_money: 0,
         }
     }
@@ -209,8 +213,16 @@ impl Sim {
         let storage: BTreeMap<u32, Vec<Item>> = (save.storage.iter())
             .map(|(&npc, items)| (npc, items.iter().map(|&s| self.saved_item(s)).collect()))
             .collect();
+        // A chest's items go with the chest in its place in the bag.
+        let chests: BTreeMap<u32, Vec<Item>> = (save.chests.iter())
+            .filter_map(|(&at, items)| {
+                let chest = bag.get(at as usize)?.id;
+                Some((chest, items.iter().map(|&s| self.saved_item(s)).collect()))
+            })
+            .collect();
         let p = self.players.get_mut(&id).expect("just added");
         p.storage = storage;
+        p.chests = chests;
         p.saved_money = save.saved_money;
         p.exp = save.exp;
         p.money = save.money;
@@ -270,6 +282,14 @@ impl Sim {
             storage: (p.storage.iter())
                 .filter(|(_, items)| !items.is_empty())
                 .map(|(&npc, items)| (npc, items.iter().map(|i| self.stored_item(i)).collect()))
+                .collect(),
+            chests: (p.chests.iter())
+                .filter(|(_, items)| !items.is_empty())
+                .filter_map(|(chest, items)| {
+                    let at = p.bag.iter().position(|i| i.id == *chest)?;
+                    let saved = items.iter().map(|i| self.stored_item(i)).collect();
+                    Some((u32::try_from(at).ok()?, saved))
+                })
                 .collect(),
             saved_money: p.saved_money,
         })

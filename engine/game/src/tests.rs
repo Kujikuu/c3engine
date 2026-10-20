@@ -2634,3 +2634,57 @@ fn a_player_looked_at_is_told_who_looks() {
         "never oneself"
     );
 }
+
+#[test]
+fn a_chest_holds_items_through_a_save() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 5);
+    sim.set_settings(GameplaySettings {
+        chests: vec![[ARMOR, 1]],
+        ..GameplaySettings::default()
+    });
+    let mut save = crate::PlayerSave::new("Ann", (3, 3));
+    save.bag = vec![POTION.into(), ARMOR.into(), ARMOR.into()];
+    let ann = sim.add_saved_player(&save);
+    let bag = |sim: &Sim| sim.player(ann).unwrap().bag.clone();
+    let (potion, chest, other) = (bag(&sim)[0].id, bag(&sim)[1].id, bag(&sim)[2].id);
+    sim.take_events();
+    sim.input(ann, Input::Use(chest));
+    let opened =
+        (sim.take_events().into_iter()).any(|e| e == Event::ChestOpened { player: ann, chest });
+    assert!(opened, "using a chest opens it");
+    sim.input(ann, Input::ChestPut { chest, item: other });
+    assert!(
+        bag(&sim).iter().any(|i| i.id == other),
+        "never a chest in a chest"
+    );
+    sim.input(
+        ann,
+        Input::ChestPut {
+            chest,
+            item: potion,
+        },
+    );
+    assert_eq!(sim.player(ann).unwrap().chests[&chest].len(), 1);
+    assert_eq!(bag(&sim).len(), 2);
+    // Saved and loaded, the potion is still in the chest (its place in the bag).
+    let save = sim.save_player(ann).unwrap();
+    let mut other_sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 6);
+    other_sim.set_settings(GameplaySettings {
+        chests: vec![[ARMOR, 1]],
+        ..GameplaySettings::default()
+    });
+    let back = other_sim.add_saved_player(&save);
+    let p = other_sim.player(back).unwrap();
+    let chest = p.bag[0].id;
+    assert_eq!(p.chests[&chest][0].kind, POTION);
+    let potion = p.chests[&chest][0].id;
+    other_sim.input(
+        back,
+        Input::ChestTake {
+            chest,
+            item: potion,
+        },
+    );
+    let p = other_sim.player(back).unwrap();
+    assert!(p.chests.is_empty() && p.bag.iter().any(|i| i.kind == POTION));
+}

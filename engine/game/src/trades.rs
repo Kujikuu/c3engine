@@ -84,7 +84,7 @@ impl Sim {
         });
     }
 
-    fn trade_index(&self, id: EntityId) -> Option<usize> {
+    pub(crate) fn trade_index(&self, id: EntityId) -> Option<usize> {
         (self.trades.iter()).position(|t| t.sides.iter().any(|s| s.player == id))
     }
 

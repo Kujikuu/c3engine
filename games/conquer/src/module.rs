@@ -274,6 +274,8 @@ pub fn conquer_settings() -> ProjectSettings {
         bump_cost: 5,
         bump_places: 5,
     };
+    // Sashes hold 3, 6 and 9 items (the chest window's rows: type % 10 / 3).
+    s.gameplay.chests = vec![[1_100_003, 3], [1_100_006, 6], [1_100_009, 9]];
     // A broken item takes 5 Meteors to repair (MyShellDlg.cpp OpenBrokenRepairPrompt5065).
     s.gameplay.broken_repair = Some([1_088_001, 5]);
     // Faces (Common.ini Playerface: 102 male from 1, 90 female from 201; bodies 3-4 male,

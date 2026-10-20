@@ -135,6 +135,15 @@ fn move_item(
             item: item()?,
         }),
         ("hero.bag", "trade.mine") => UiAction::Game(Input::TradeItem(item()?)),
+        // Into the open chest and back out.
+        ("hero.bag", "chest.items") => UiAction::Game(Input::ChestPut {
+            chest: data.state.chest?,
+            item: item()?,
+        }),
+        ("chest.items", "hero.bag") => UiAction::Game(Input::ChestTake {
+            chest: data.state.chest?,
+            item: item()?,
+        }),
         ("shop.items", "hero.bag") => UiAction::Buy {
             npc: player.shop?,
             kind: *gui::GuiData::items(data, from).get(at)?,
@@ -1001,6 +1010,11 @@ impl GameUi {
                     self.gui_state.buying = Some((npc, kind));
                 }
             }
+            "chest_close" => self.gui_state.chest = None,
+            // The first bag item of a kind used (`use_kind:1100006`), as an item hotkey.
+            _ if action.starts_with("use_kind:") => {
+                self.gui_state.use_kind = action["use_kind:".len()..].parse().ok();
+            }
             "purchase_ok" => self.gui_state.purchase_asked = Some("ok".into()),
             "purchase_back" => self.gui_state.purchase_asked = Some("back".into()),
             "purchase_cancel" => self.gui_state.purchase = None,
@@ -1667,6 +1681,10 @@ impl GameUi {
                 Event::StorageOpened { player, npc } if *player == hero => {
                     self.gui_state.storage = Some(*npc);
                 }
+                // A bag chest opened (CDlgPortableChest5065).
+                Event::ChestOpened { player, chest } if *player == hero => {
+                    self.gui_state.chest = Some(*chest);
+                }
                 // A booth shown from its first page: another's (CDlgNpcBooth), or the hero's.
                 Event::BoothShown { player, owner } if *player == hero => {
                     let whose = if *owner == hero { "mine" } else { "theirs" };
@@ -2042,6 +2060,9 @@ impl GameUi {
                 }
                 self.contact_word(view, player, &mut actions);
                 self.purchase(view, player, &mut actions);
+                let used = self.gui_state.use_kind.take();
+                let item = used.and_then(|kind| player.bag.iter().find(|i| i.kind == kind));
+                actions.extend(item.map(|i| UiAction::Use(i.id)));
                 // What the hero offers shows in its side of the trade.
                 if let Some(trade) = &mut self.gui_state.trade {
                     for action in &actions {
