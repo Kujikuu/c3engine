@@ -2439,3 +2439,29 @@ fn a_message_board_keeps_one_post_per_author() {
     assert_eq!(board(&sim).len(), 1, "Bob takes down his own, not Ann's");
     assert_eq!(board(&sim)[0].0, "Ann");
 }
+
+#[test]
+fn trade_partners_ask_both_ways_and_an_offline_one_is_told_of_the_end() {
+    use crate::PartnerAction as P;
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let a = sim.add_player("Ann", (5, 5), 1);
+    let b = sim.add_player("Bob", (6, 5), 1);
+    sim.input(a, Input::Partner(P::Ask(b)));
+    let asked = (sim.take_events().into_iter())
+        .any(|e| matches!(e, Event::PartnerAsked { player, from } if player == b && from == a));
+    assert!(asked);
+    assert!(
+        !sim.world_state().are_partners("Ann", "Bob"),
+        "not until asked back"
+    );
+    sim.input(b, Input::Partner(P::Ask(a)));
+    assert!(sim.world_state().are_partners("Ann", "Bob"));
+    sim.remove_player(b);
+    sim.input(a, Input::Partner(P::Break("Bob".into())));
+    assert!(!sim.world_state().are_partners("Ann", "Bob"));
+    assert_eq!(
+        sim.world_state().deliveries["Bob"].len(),
+        1,
+        "words wait for Bob"
+    );
+}

@@ -70,6 +70,9 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// Trade partners: each pair of names (the smaller first) and since when (unix seconds).
+    #[serde(default)]
+    pub partners: BTreeMap<(String, String), i64>,
     /// The message boards' posts by board, the newest first.
     #[serde(default)]
     pub boards: BTreeMap<String, Vec<Post>>,
@@ -151,6 +154,14 @@ impl WorldState {
                     self.friends.insert(pair);
                 } else {
                     self.friends.remove(&pair);
+                }
+            }
+            WorldChange::Partnership { a, b, on, since } => {
+                let pair = friend_pair(a, b);
+                if *on {
+                    self.partners.insert(pair, *since);
+                } else {
+                    self.partners.remove(&pair);
                 }
             }
             WorldChange::Enemy { name, enemy, on } => {
@@ -350,6 +361,22 @@ impl WorldState {
                 }
             }
         }
+    }
+
+    /// Whether players `a` and `b` are trade partners.
+    pub fn are_partners(&self, a: &str, b: &str) -> bool {
+        self.partners.contains_key(&friend_pair(a, b))
+    }
+
+    /// Player `name`'s trade partners and since when each is (unix seconds).
+    pub fn partners_of(&self, name: &str) -> Vec<(String, i64)> {
+        (self.partners.iter())
+            .filter_map(|((a, b), since)| match (a == name, b == name) {
+                (true, _) => Some((b.clone(), *since)),
+                (_, true) => Some((a.clone(), *since)),
+                _ => None,
+            })
+            .collect()
     }
 
     /// Whether players `a` and `b` are friends.

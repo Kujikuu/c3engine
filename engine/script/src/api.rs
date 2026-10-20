@@ -1945,6 +1945,7 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Online { .. }
         | WorldChange::Deliver { .. }
         | WorldChange::Post { .. }
+        | WorldChange::Partnership { .. }
         | WorldChange::Delivered { .. } => {}
     }
 }

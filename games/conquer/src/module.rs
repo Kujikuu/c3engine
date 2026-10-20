@@ -187,6 +187,8 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.npc_windows = vec![[5, 212], [6, 211], [7, 229]];
     // Booth flags (_ROLE_BOOTH_FLAG_NPC 16, Role.h) are where players open booths.
     s.gameplay.booth_spots = vec![16];
+    // Trade partners are on trial for 3 days (social spec §3, PROBATION 259200).
+    s.gameplay.partner_probation_secs = 259_200;
     // The message boards (CDlgLevWord's tabs, channels 2201-2205); the guild's own is the
     // fourth; posting from level 16 (packets spec B10).
     s.gameplay.boards = ["Trade", "Friend", "Team", "Guild", "Other"]

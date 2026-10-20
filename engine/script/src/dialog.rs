@@ -297,6 +297,14 @@ pub enum WorldChange {
         #[serde(default)]
         pk: i64,
     },
+    /// Players `a` and `b` trade partners since `since` (unix seconds), or no longer (`on`).
+    Partnership {
+        a: String,
+        b: String,
+        on: bool,
+        #[serde(default)]
+        since: i64,
+    },
     /// `author`'s post on message board `board` (one each; TQ's bulletins), or taken down
     /// (`text` empty).
     Post {

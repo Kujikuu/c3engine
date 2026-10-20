@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 c3-anim = { version = "0.1.0", path = "../../engine/anim" }
 c3-assets = { version = "0.1.0", path = "../../engine/assets" }
 c3-audio = { version = "0.1.0", path = "../../engine/audio" }

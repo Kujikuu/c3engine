@@ -19,6 +19,7 @@ mod marriage;
 mod monster_ai;
 mod monsters;
 mod npc_fights;
+mod partners;
 mod players;
 mod portals;
 mod pvp;
@@ -52,6 +53,7 @@ pub use event::Event;
 pub use friends::{FriendAction, MAX_ENEMIES, MAX_FRIENDS};
 pub use input::{Input, MAX_CHAT};
 pub use npc_fights::{npc_destroyed_event, npc_life_flag};
+pub use partners::{MAX_PARTNERS, PartnerAction};
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{

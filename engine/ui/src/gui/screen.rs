@@ -388,7 +388,11 @@ fn compare(term: &str, data: &dyn GuiData) -> Option<bool> {
         .min_by_key(|(i, op)| (*i, std::cmp::Reverse(op.len())))?;
     let value = |side: &str| {
         let side = side.trim();
-        (side.parse().ok()).unwrap_or_else(|| data.number(side).unwrap_or(0.0))
+        // A number, a numeric binding, or a text binding holding a number.
+        (side.parse().ok())
+            .or_else(|| data.number(side))
+            .or_else(|| data.text(side)?.trim().parse().ok())
+            .unwrap_or(0.0)
     };
     let (a, b) = (value(&term[..at]), value(&term[at + op.len()..]));
     Some(match op {

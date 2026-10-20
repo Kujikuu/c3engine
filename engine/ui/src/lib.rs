@@ -402,6 +402,7 @@ impl GameUi {
             "guild_invite" => Input::Guild(G::Invite(player)),
             "guild_apply" => Input::Guild(G::Apply(player)),
             "friend_add" => Input::Friend(c3_game::FriendAction::Ask(player)),
+            "partner_add" => Input::Partner(c3_game::PartnerAction::Ask(player)),
             _ => return None,
         };
         Some(UiAction::Game(input))
@@ -1054,6 +1055,11 @@ impl GameUi {
             Event::Proposed { player, from } if player == hero => {
                 ("marriage", from, Input::AcceptProposal(from))
             }
+            Event::PartnerAsked { player, from } if player == hero => (
+                "partner",
+                from,
+                Input::Partner(c3_game::PartnerAction::Ask(from)),
+            ),
             Event::FriendAsked { player, from } if player == hero => (
                 "friend",
                 from,
@@ -1442,6 +1448,7 @@ impl GameUi {
                         gui::GuiEvent::Item { list, index }
                             if list == "friends.rows"
                                 || list == "enemies.rows"
+                                || list == "partners.rows"
                                 || list == "board.rows" =>
                         {
                             let key = format!("{}_pick", list.trim_end_matches(".rows"));
@@ -1487,13 +1494,13 @@ impl GameUi {
                         state: &self.gui_state,
                     };
                     if let Some(name) = data.picked_contact(&list) {
-                        use c3_game::FriendAction as F;
-                        let drop = if list == "enemies" {
-                            F::Forget(name)
-                        } else {
-                            F::Remove(name)
+                        use c3_game::{FriendAction as F, Input, PartnerAction as P};
+                        let drop = match list.as_str() {
+                            "enemies" => Input::Friend(F::Forget(name)),
+                            "partners" => Input::Partner(P::Break(name)),
+                            _ => Input::Friend(F::Remove(name)),
                         };
-                        actions.push(UiAction::Game(c3_game::Input::Friend(drop)));
+                        actions.push(UiAction::Game(drop));
                     }
                 }
                 if std::mem::take(&mut self.gui_state.guild_kicking) {

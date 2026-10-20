@@ -200,6 +200,11 @@ pub enum Event {
     BoothChanged {
         owner: EntityId,
     },
+    /// `from` asks `player` to be trade partners.
+    PartnerAsked {
+        player: EntityId,
+        from: EntityId,
+    },
     /// `from` asks `player` to be friends.
     FriendAsked {
         player: EntityId,

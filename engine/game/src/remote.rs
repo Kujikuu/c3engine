@@ -96,6 +96,7 @@ impl Event {
             | Event::Proposed { player, .. }
             | Event::PkModeSet { player, .. }
             | Event::FriendAsked { player, .. }
+            | Event::PartnerAsked { player, .. }
             | Event::BoothShown { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {

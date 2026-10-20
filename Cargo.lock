@@ -2378,6 +2378,7 @@ dependencies = [
  "c3-scene",
  "c3-script",
  "c3-ui",
+ "chrono",
  "egui 0.37.0",
  "encoding_rs",
  "getrandom 0.3.4",

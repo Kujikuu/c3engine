@@ -49,6 +49,25 @@ pub fn friend(action: u8, id: u32, online: bool, level: u32, name: &str) -> Vec<
         w.u32(0).u32(level).fixed_str(name, 16);
     })
 }
+/// MsgTradeBuddy / MsgBusiness (2046): a trade partner's id, the action, whether it is online,
+/// the minutes of trial left, its look and name (MsgBusiness.h, 0x20 bytes).
+pub fn business(action: u8, id: u32, online: bool, minutes: u16, look: u32, name: &str) -> Vec<u8> {
+    packet(BUSINESS, |w| {
+        w.u32(id).u8(action).u8(u8::from(online)).u16(minutes);
+        w.u32(look).fixed_str(name, 16);
+    })
+}
+
+pub const BUSINESS: u16 = 2046;
+pub mod business {
+    pub const APPLY: u8 = 0;
+    pub const REJECT: u8 = 1;
+    pub const ONLINE: u8 = 2;
+    pub const OFFLINE: u8 = 3;
+    pub const BREAK: u8 = 4;
+    pub const ADD: u8 = 5;
+}
+
 /// A guild action about a guild or player (MsgSyndicate).
 pub const GUILD: u16 = 1107;
 pub mod guild {
@@ -878,6 +897,11 @@ pub fn dialog_with(action: u8, index: u8, data: u16, text: &str) -> Vec<u8> {
 /// What a client asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
+    /// A trade partner asked about (2046): the action and the player's or partner's id.
+    Business {
+        action: u8,
+        id: u32,
+    },
     /// A message board asked about (1111): its channel (2201-2205), the first post of a
     /// page, the action (1 take down, 2 list, 4 read) and a name (whose post).
     Board {
@@ -1167,6 +1191,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 action,
                 index,
                 text: text.unwrap_or_default(),
+            }
+        }
+        BUSINESS => {
+            let id = r.u32()?;
+            Request::Business {
+                action: r.u8()?,
+                id,
             }
         }
         MESSAGE_BOARD => {

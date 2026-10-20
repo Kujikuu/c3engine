@@ -463,6 +463,8 @@ pub struct ConquerClient {
     seen_guilds: HashMap<EntityId, u32>,
     /// The owner of the booth whose goods the client asked for.
     booth_asked: Option<EntityId>,
+    /// The trade partners the client was told of: online or not (`None`: none told yet).
+    partners_told: Option<BTreeMap<String, bool>>,
     /// A message board asked about: its channel, the first post of the page, and whose post
     /// to read (empty: the page).
     board_asked: Option<(u16, u16, String)>,
@@ -863,6 +865,7 @@ impl ConquerClient {
             out.extend(self.team_changes(sim));
             out.extend(self.guild_changes(sim));
             out.extend(self.contact_changes(sim));
+            out.extend(self.partner_changes(sim));
             let mut shown = Vec::new();
             for (at, event) in update.events.iter().enumerate() {
                 if shown.contains(&at) {
@@ -994,6 +997,58 @@ impl ConquerClient {
         }
         self.enemies_told = told.pop();
         self.friends_told = told.pop();
+        out
+    }
+
+    /// The hero's trade partners as they come, go online or offline, or end (MsgBusiness: the
+    /// list at login with each one's trial minutes, social spec §3).
+    fn partner_changes(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
+        use pk::business as b;
+        let Some(p) = self.hero.and_then(|h| sim.player(h)) else {
+            return Vec::new();
+        };
+        let world = sim.world_state();
+        let probation = sim.settings().partner_probation_secs;
+        let now_secs = chrono::Utc::now().timestamp();
+        let online =
+            |n: &String| world.online.contains_key(n) || sim.players().any(|q| &q.name == n);
+        let partners = world.partners_of(&p.name);
+        let now: BTreeMap<String, bool> = partners
+            .iter()
+            .map(|(n, _)| (n.clone(), online(n)))
+            .collect();
+        let before = self.partners_told.take();
+        let mut out = Vec::new();
+        for (name, since) in &partners {
+            let is_on = now[name];
+            let action = match before.as_ref().map(|b| b.get(name)) {
+                None | Some(None) => b::ADD,
+                Some(Some(&was)) if was != is_on => {
+                    if is_on {
+                        b::ONLINE
+                    } else {
+                        b::OFFLINE
+                    }
+                }
+                Some(Some(_)) => continue,
+            };
+            let minutes = ((since + probation - now_secs).max(0) / 60).min(i64::from(u16::MAX));
+            let look = sim
+                .players()
+                .find(|q| &q.name == name)
+                .map_or(0, |q| look_face(q, sim.rules()));
+            let id = self.contact_id(name);
+            out.push(pk::business(action, id, is_on, minutes as u16, look, name));
+        }
+        for name in before
+            .iter()
+            .flat_map(|b| b.keys())
+            .filter(|n| !now.contains_key(*n))
+        {
+            let id = self.contact_id(name);
+            out.push(pk::business(b::BREAK, id, false, 0, 0, name));
+        }
+        self.partners_told = Some(now);
         out
     }
 
@@ -1448,6 +1503,15 @@ impl ConquerClient {
             }
             // A player's emote, to everyone who sees it (the hero too).
             // Another player asks the hero to be friends (the client says so in its log).
+            Event::PartnerAsked { player, from } if Some(*player) == hero => {
+                let (Some(who), Some(name)) = (
+                    self.client_id(*from, ids),
+                    sim.player(*from).map(|q| q.name.clone()),
+                ) else {
+                    return Vec::new();
+                };
+                vec![pk::business(pk::business::APPLY, who, true, 0, 0, &name)]
+            }
             Event::FriendAsked { player, from } if Some(*player) == hero => {
                 let (Some(who), Some(name)) = (
                     self.client_id(*from, ids),
@@ -1853,6 +1917,19 @@ impl ConquerClient {
                     _ => None,
                 };
                 inputs.extend(input.map(Input::Friend));
+            }
+            // Asking a player to be a trade partner (or asking back), turning one down,
+            // ending a partnership.
+            Request::Business { action: a, id } => {
+                use c3_game::PartnerAction as P;
+                use pk::business as b;
+                let input = match a {
+                    b::APPLY => ids.entity(id).map(P::Ask),
+                    b::REJECT => ids.entity(id).map(P::Refuse),
+                    b::BREAK => self.contact_name(id).map(P::Break),
+                    _ => None,
+                };
+                inputs.extend(input.map(Input::Partner));
             }
             Request::Team { action: a, id } => {
                 let other = ids.entity(id);

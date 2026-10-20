@@ -144,7 +144,8 @@ impl Sim {
     /// the world state for it (social spec §5: one a minute).
     fn leave_word(&mut self, id: EntityId, name: &str, to: &str, text: &str) {
         let online = self.world.online.contains_key(to) || self.player_by_name(to).is_some();
-        if online || !self.world.are_friends(name, to) {
+        let known = self.world.are_friends(name, to) || self.world.are_partners(name, to);
+        if online || !known {
             return;
         }
         let now = self.now_ms;

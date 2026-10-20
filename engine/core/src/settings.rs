@@ -455,6 +455,10 @@ pub struct GameplaySettings {
     pub guild_board: Option<u8>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub board_min_level: u32,
+    /// How long (seconds) trade partners are on trial before the partnership is formal
+    /// (TQ's 3 days).
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub partner_probation_secs: i64,
     /// NPC kinds that are booth spots: a player there may open a booth (TQ's booth flags).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub booth_spots: Vec<u32>,
@@ -503,6 +507,10 @@ fn guild_member_rank() -> u32 {
     1
 }
 
+fn is_zero_i64(n: &i64) -> bool {
+    *n == 0
+}
+
 fn is_zero(n: &u32) -> bool {
     *n == 0
 }
@@ -540,6 +548,7 @@ impl Default for GameplaySettings {
             guild_chat_min_fund: 0,
             npc_windows: Vec::new(),
             booth_spots: Vec::new(),
+            partner_probation_secs: 0,
             boards: Vec::new(),
             guild_board: None,
             board_min_level: 0,

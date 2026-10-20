@@ -1185,8 +1185,16 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 313 / 314 / 316 mentor state pages, 315 grand-student list: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 317 CDlgMentorNotice5065 / 318 CDlgMentorConfirm5065: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 319 / 320 / 322 / 323 / 324 mentor contribution pages: missing, all mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 326 CDlgBusiness (trade partners): draft only, 7 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 327 CDlgBusinessState: draft only, 4 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Trade partners (social spec §3): asked and asked back, 20 at most, on trial for `partner_probation_secs` (Conquer's 3 days), ended by either side (an offline one told by leave words), leave words to partners; the Conquer front lists them with their trial minutes and online state (MsgBusiness 2046) and takes asks, refusals and ends
+    - [x] engine, UI and front
+    - [ ] what a formal partnership grants: trading no-trade items, a spouse's NPC storage (needs item monopoly flags and NPC-owned storages)
+    - [ ] refusing an ask tells the asker from the game UI (the prompt's No sends nothing yet)
+  - [ ] UI 326 CDlgBusiness (trade partners): 6 of 7 audit mismatches fixed
+    - [x] GeneralBG and its title, the partners in yellow (online first), assessment icons by hours of trial left, a row opening 327 and double-click whisper / leave words, Add under 20 (StrRes 11145), friend / enemy / mentor pages
+    - [ ] Help, slide-in, the hours tip over an assessment icon (StrRes 11147), rows 11-20 scrolled
+  - [ ] UI 327 CDlgBusinessState: 3 of 4 audit mismatches fixed
+    - [x] GeneralShuxingBG1, the partner's name, level, profession, PK, guild, rank, spouse and assessment icon; Delete asks first (StrRes 11146)
+    - [ ] the partner's face (the engine has no faces), placed beside 326 (205 < 242)
   - [ ] UI 331 CDlgBusinessTip5065: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 332 CDlgBusinessConfirm: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 333 CDlgBusinessShare5065: draft only, 3 mismatches (docs/conquer_ui_audit.md)

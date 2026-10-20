@@ -189,6 +189,9 @@ impl HeroData<'_> {
         let names = match list {
             "friends" => world.friends_of(&self.player.name),
             "enemies" => world.enemies_of(&self.player.name).to_vec(),
+            "partners" => (world.partners_of(&self.player.name).into_iter())
+                .map(|(name, _)| name)
+                .collect(),
             _ => return Vec::new(),
         };
         let online = |n: &String| {
@@ -273,10 +276,26 @@ impl HeroData<'_> {
         self.board_posts().get(self.view_number("board_page") + row)
     }
 
-    /// Whether `name` is the hero's friend and offline (words may be left for it).
+    /// The hours of trial left with trade partner `name` (rounded up; 0 once formal), as
+    /// CDlgBusiness's assessment icons tell them.
+    fn trial_hours(&self, name: &str) -> i64 {
+        let world = self.view.sim.world_state();
+        let probation = self.view.sim.settings().partner_probation_secs;
+        let Some((_, since)) =
+            (world.partners_of(&self.player.name).into_iter()).find(|(n, _)| n == name)
+        else {
+            return 0;
+        };
+        let left = since + probation - chrono::Utc::now().timestamp();
+        (left.max(0) + 3599) / 3600
+    }
+
+    /// Whether `name` is the hero's friend or trade partner and offline (words may be left for
+    /// it).
     pub(crate) fn offline_friend(&self, name: &str) -> bool {
         let world = self.view.sim.world_state();
-        world.are_friends(&self.player.name, name)
+        let me = &self.player.name;
+        (world.are_friends(me, name) || world.are_partners(me, name))
             && !world.online.contains_key(name)
             && self.view.sim.players().all(|p| p.name != name)
     }
@@ -502,6 +521,13 @@ impl GuiData for HeroData<'_> {
                 u8::from(self.view_number("board") == tab).into()
             }
             "word.prev" => u8::from(self.view_number("word") > 0).into(),
+            // The hero's trade partners, and the hours of trial left with the one in row `n`.
+            "partners.count" => self.contacts("partners").len() as f64,
+            _ if key.starts_with("partner.trial.") => {
+                let n: usize = key.strip_prefix("partner.trial.")?.parse().ok()?;
+                let name = self.contacts("partners").into_iter().nth(n)?;
+                self.trial_hours(&name) as f64
+            }
             "word.next" => u8::from(self.view_number("word") + 1 < self.state.words.len()).into(),
             "word.can_reply" => u8::from(
                 self.word_shown()
@@ -713,6 +739,7 @@ impl GuiData for HeroData<'_> {
                     "guild" => (guild.and_then(|(g, _)| world.guilds.get(&g)))
                         .map_or_else(String::new, |g| g.name.clone()),
                     "rank" => guild.map_or_else(String::new, |(_, r)| r.to_string()),
+                    "trial" => self.trial_hours(&name).to_string(),
                     "mate" => {
                         let spouse = &self.view.sim.settings().spouse_text;
                         here.and_then(|p| p.texts.get(spouse).cloned())
@@ -871,7 +898,7 @@ impl GuiData for HeroData<'_> {
                 (rows, picked)
             }
             // The hero's friends, online first, and its enemies.
-            "friends.rows" | "enemies.rows" => {
+            "friends.rows" | "enemies.rows" | "partners.rows" => {
                 let list = key.trim_end_matches(".rows");
                 let picked =
                     (self.state.views.get(&format!("{list}_pick"))).and_then(|v| v.parse().ok());

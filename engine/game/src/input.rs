@@ -121,6 +121,8 @@ pub enum Input {
         #[serde(default)]
         author: String,
     },
+    /// Trade partners: asking, turning down, ending.
+    Partner(crate::PartnerAction),
     /// Booths: opening one, setting out wares, buying from one.
     Booth(crate::BoothAction),
     /// Say `text` on `channel` (to player `to` when whispering).
@@ -175,6 +177,7 @@ impl Sim {
             Input::GuildNotice(text) => self.guild_notice(id, &text),
             Input::Friend(action) => self.friend_action(id, action),
             Input::Booth(action) => self.booth_action(id, action),
+            Input::Partner(action) => self.partner_action(id, action),
             Input::TakeDown { board, author } => self.take_down(id, board, &author),
             Input::Emote(emote) => {
                 if self.players.get(&id).is_some_and(|p| p.is_alive()) {
