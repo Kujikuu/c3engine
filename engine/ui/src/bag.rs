@@ -237,7 +237,7 @@ fn slot_button(
 }
 
 /// A carried item: its type's tooltip with the stack, quality and durability.
-fn describe_item(view: &GameView, item: &Item) -> String {
+pub(crate) fn describe_item(view: &GameView, item: &Item) -> String {
     let mut text = describe(view, item.kind);
     let Some(t) = view.sim.rules().item(item.kind) else {
         return text;

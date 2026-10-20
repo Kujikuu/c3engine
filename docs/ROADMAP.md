@@ -789,7 +789,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Enter/Esc answer it
     - [ ] refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT)
     - [ ] the engine's own UI (no game dialog) still turns asks into chat lines
-  - [ ] UI engine: item drag and drop, right-click use and buy, tooltips, +N and quality overlays, grid paging
+  - [ ] UI engine: items in grids
+    - [x] `pick=1` grids: the left button picks an item up (drawn at the pointer) and puts it on another grid: sold, stored, taken out, worn, taken off, bought, offered in a trade, put on a workbench; the right button uses (Esc or the right button lets it go)
+    - [x] item tooltips under the pointer (what it is, its stack, quality and durability)
+    - [ ] the tooltip drawn as TQ's (Dialog21 box, its colours and lines)
+    - [ ] an item put down on the ground drops it (with the client's confirms); on the quick bar
+    - [ ] +N and quality overlays; grid paging
   - [ ] UI engine: control states and kinds
     - [x] comparisons in `when` (`hero.level>=70`, `<=`, `!=`, `>`, `<`, `=`, against numbers or bindings); `hero.wallet.<currency>`
     - [x] images picked by a binding (an image's section from its value: the picked skill)
@@ -883,15 +888,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the typed box in the column of its answer index (x 40 or 282) and its 44 px slot; password typing from the server's data
     - [ ] fit=104 only when there are answers or a box
     - [ ] centred on the real screen width rather than the 1024 layout
-  - [ ] UI 153 CDlgMpcGoods (bag): 6 of 14 audit mismatches fixed
+  - [ ] UI 153 CDlgMpcGoods (bag): 8 of 14 audit mismatches fixed
     - [x] CPs 1129 and money with thousands commas (`commas=1`, `hero.wallet.CPs`)
     - [x] drop money 1561: asked with an amount (158 mode 5: Drop Silver, Dialog56, Edit150), then dropped
     - [x] close 1128 and the bag button hide it while a shop, warehouse or trade shows it, until that ends (dismissing a `when`-shown dialog)
     - [x] opened with compose 275, oven 278, enchant 105, improve 211, embed 229, booth 233 and item lock 329; oven, enchant and compose hide it again (`opens=`, `hides=`)
     - [x] the shop's close also hides the status 131
     - [ ] EmoneyNavigation 1562 opens the [Emoney] URL; help 1667 opens CDlgHelp topic 13
-    - [ ] grid gestures: left-click picks up (drag to the ground, hotbar, equipment, shop, warehouse), right-click uses (UI engine: drag and drop)
-    - [ ] hover tooltip; +N and quality overlays; the suspicious-item reif effect
+    - [x] grid gestures: left-click picks up and puts in the equipment, shop, warehouse; right-click uses
+    - [ ] dropping on the ground and the hotbar
+    - [x] hover tooltip (engine look)
+    - [ ] +N and quality overlays; the suspicious-item reif effect
     - [ ] repair mode
     - [ ] slide-in from the right; bag and 287 hiding each other
   - [ ] UI 131 CDlgQuery (status): partial, 11 mismatches (docs/conquer_ui_audit.md)

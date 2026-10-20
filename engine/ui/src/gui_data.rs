@@ -34,6 +34,8 @@ pub(crate) struct GuiState {
     pub picking: Option<usize>,
     /// The typed answer's button was pressed.
     pub answering: bool,
+    /// The item picked up from a grid: its list and slot.
+    pub held: Option<(String, usize)>,
 }
 
 /// The most items a workbench holds.
@@ -88,6 +90,43 @@ pub(crate) struct HeroData<'a> {
 }
 
 impl HeroData<'_> {
+    /// The hero's own items a list shows, in slot order: its bag, what it wears (all, or in
+    /// slot `n`: `hero.worn.<n>`), what it offers in a trade, a workbench slot, the open
+    /// warehouse; none for a list of item types (a shop's).
+    pub(crate) fn own_items(&self, key: &str) -> Option<Vec<&c3_game::Item>> {
+        let p = self.player;
+        let sim = self.view.sim;
+        let in_bag = |id: &u32| p.bag.iter().find(|i| i.id == *id);
+        Some(match key {
+            "hero.bag" => p.bag.iter().collect(),
+            "hero.equipment" => p.equipment.iter().collect(),
+            _ if key.starts_with("hero.worn.") => {
+                let slot: Option<u8> = key.strip_prefix("hero.worn.").and_then(|s| s.parse().ok());
+                (p.equipment.iter())
+                    .filter(|i| slot.is_some() && sim.slot_of(i) == slot)
+                    .collect()
+            }
+            "trade.mine" => (self.state.trade.iter())
+                .flat_map(|t| &t.mine)
+                .filter_map(in_bag)
+                .collect(),
+            _ if key.starts_with("work.") => {
+                let n: usize = key.strip_prefix("work.")?.parse().ok()?;
+                self.state
+                    .work
+                    .get(n)
+                    .and_then(in_bag)
+                    .into_iter()
+                    .collect()
+            }
+            "storage.items" => (self.state.storage)
+                .and_then(|npc| p.storage.get(&npc))
+                .map(|items| items.iter().collect())
+                .unwrap_or_default(),
+            _ => return None,
+        })
+    }
+
     /// The attribute `hero.attr_at.<prefix>.<low>-<high>.<n>[+<group>]` names: its number and
     /// value.
     fn attr_entry(&self, key: &str) -> Option<(i64, i64)> {
@@ -325,85 +364,42 @@ impl GuiData for HeroData<'_> {
 
     fn item_looks(&self, key: &str) -> Vec<u32> {
         let sim = self.view.sim;
-        let p = self.player;
-        let of = |items: &mut dyn Iterator<Item = &c3_game::Item>| -> Vec<u32> {
-            items.map(|i| sim.item_look(i)).collect()
-        };
-        match key {
-            "hero.bag" => of(&mut p.bag.iter()),
-            "hero.equipment" => of(&mut p.equipment.iter()),
-            _ if key.starts_with("hero.worn.") => {
-                let slot: Option<u8> = key.strip_prefix("hero.worn.").and_then(|s| s.parse().ok());
-                of(&mut p
-                    .equipment
-                    .iter()
-                    .filter(|i| slot.is_some() && sim.slot_of(i) == slot))
-            }
-            "trade.mine" => of(&mut (self.state.trade.iter())
-                .flat_map(|t| &t.mine)
-                .filter_map(|id| p.bag.iter().find(|i| i.id == *id))),
-            _ if key.starts_with("work.") => {
-                let n: usize = key
-                    .strip_prefix("work.")
-                    .and_then(|n| n.parse().ok())
-                    .unwrap_or(0);
-                of(&mut (self.state.work.get(n))
-                    .and_then(|id| p.bag.iter().find(|i| i.id == *id))
-                    .into_iter())
-            }
-            "storage.items" => (self.state.storage)
-                .and_then(|npc| p.storage.get(&npc))
-                .map(|items| of(&mut items.iter()))
-                .unwrap_or_default(),
-            _ => Vec::new(),
-        }
+        (self.own_items(key).unwrap_or_default().into_iter())
+            .map(|i| sim.item_look(i))
+            .collect()
     }
 
     fn items(&self, key: &str) -> Vec<u32> {
+        if let Some(items) = self.own_items(key) {
+            return items.into_iter().map(|i| i.kind).collect();
+        }
         match key {
-            "hero.bag" => self.player.bag.iter().map(|i| i.kind).collect(),
-            "hero.equipment" => self.player.equipment.iter().map(|i| i.kind).collect(),
-            // What the hero wears in slot `n` (`hero.worn.<n>`).
-            _ if key.starts_with("hero.worn.") => {
-                let slot: Option<u8> = key.strip_prefix("hero.worn.").and_then(|s| s.parse().ok());
-                (self.player.equipment.iter())
-                    .filter(|i| slot.is_some() && self.view.sim.slot_of(i) == slot)
-                    .map(|i| i.kind)
-                    .collect()
-            }
-            // What the partner offers, and what the hero does.
+            // What the partner offers.
             "trade.theirs" => self
                 .state
                 .trade
                 .as_ref()
                 .map(|t| t.theirs.clone())
                 .unwrap_or_default(),
-            "trade.mine" => (self.state.trade.as_ref().into_iter())
-                .flat_map(|t| &t.mine)
-                .filter_map(|id| self.player.bag.iter().find(|i| i.id == *id))
-                .map(|i| i.kind)
-                .collect(),
-            // Workbench slot `n`: the item put there.
-            _ if key.starts_with("work.") => {
-                let n: usize = key
-                    .strip_prefix("work.")
-                    .and_then(|n| n.parse().ok())
-                    .unwrap_or(0);
-                (self.state.work.get(n))
-                    .and_then(|id| self.player.bag.iter().find(|i| i.id == *id))
-                    .map(|i| vec![i.kind])
-                    .unwrap_or_default()
-            }
-            // What the open warehouse keeps.
-            "storage.items" => (self.state.storage)
-                .and_then(|npc| self.player.storage.get(&npc))
-                .map(|items| items.iter().map(|i| i.kind).collect())
-                .unwrap_or_default(),
             // What the open shop sells.
             "shop.items" => (self.player.shop)
                 .map(|npc| self.view.sim.rules().shop(npc).to_vec())
                 .unwrap_or_default(),
             _ => Vec::new(),
+        }
+    }
+
+    fn holding(&self) -> bool {
+        self.state.held.is_some()
+    }
+
+    fn item_tip(&self, key: &str, index: usize) -> Option<String> {
+        match self.own_items(key) {
+            Some(items) => Some(crate::bag::describe_item(self.view, items.get(index)?)),
+            None => Some(crate::bag::describe(
+                self.view,
+                *self.items(key).get(index)?,
+            )),
         }
     }
 

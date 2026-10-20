@@ -52,6 +52,14 @@ pub trait GuiData {
     fn rows(&self, _key: &str) -> (Vec<String>, Option<usize>) {
         (Vec::new(), None)
     }
+    /// What item `index` of list `key` is, for its tooltip.
+    fn item_tip(&self, _key: &str, _index: usize) -> Option<String> {
+        None
+    }
+    /// Whether an item is picked up (a click on a slot puts it there).
+    fn holding(&self) -> bool {
+        false
+    }
 }
 
 /// What the player did on the UI.
@@ -62,11 +70,30 @@ pub enum GuiEvent {
     /// The clicked control's own sound (played in place of the UI's click).
     Sound(String),
     /// Slot `index` of grid list `list` (or row `index` of a list control) was clicked.
-    Item { list: String, index: usize },
+    Item {
+        list: String,
+        index: usize,
+    },
     /// Edit `field` now reads `text`.
-    Edited { field: String, text: String },
+    Edited {
+        field: String,
+        text: String,
+    },
+    /// Item `index` of grid `list` picked up, and the item held put on slot `index` of
+    /// `list` (a `pick` grid).
+    Pick {
+        list: String,
+        index: usize,
+    },
+    Put {
+        list: String,
+        index: usize,
+    },
     /// A key pressed while edit `field` has the keyboard.
-    EditKey { field: String, key: EditKey },
+    EditKey {
+        field: String,
+        key: EditKey,
+    },
 }
 
 /// The keys an edit tells the game about (the chat line's history, channels and names).
@@ -718,6 +745,13 @@ impl Painter<'_, '_> {
                         egui::Sense::hover()
                     };
                     let response = self.ui.interact(slot, id, sense);
+                    let list = control.value.clone();
+                    let holding = data.holding();
+                    // A `pick` grid: the left button picks up or puts down, the right uses.
+                    if control.pick && response.clicked() && holding {
+                        events.push(GuiEvent::Put { list, index });
+                        continue;
+                    }
                     let Some(&kind) = items.get(index) else {
                         continue;
                     };
@@ -728,11 +762,27 @@ impl Painter<'_, '_> {
                             .painter()
                             .image(texture, slot.shrink(1.0), uv, Color32::WHITE);
                     }
-                    if response.clicked() {
-                        events.push(GuiEvent::Item {
-                            list: control.value.clone(),
+                    let used = match control.pick {
+                        true => response.secondary_clicked(),
+                        false => response.clicked(),
+                    };
+                    if control.pick && response.clicked() {
+                        events.push(GuiEvent::Pick {
+                            list: list.clone(),
                             index,
                         });
+                    } else if used {
+                        events.push(GuiEvent::Item {
+                            list: list.clone(),
+                            index,
+                        });
+                    }
+                    // What it is, under the pointer (not while one is held).
+                    if self.live
+                        && !holding
+                        && let Some(tip) = data.item_tip(&list, index)
+                    {
+                        response.on_hover_text(tip);
                     }
                 }
             }
@@ -740,7 +790,6 @@ impl Painter<'_, '_> {
     }
 }
 
-/// `text` with each `{binding}` replaced by what it reads.
 /// Where a list's rows sit, from its corner in layout pixels: row `i` in column `i % cols`,
 /// `step` apart (else `width` shared), `cell` wide (else the step); each line of columns as
 /// tall as its tallest row, a row as tall as its text wrapped in the cell (`wrap`). At most
@@ -827,6 +876,7 @@ fn named(text: &str, names: Option<&std::collections::HashMap<String, String>>) 
     out
 }
 
+/// `text` with each `{binding}` replaced by what it reads.
 pub(super) fn expand(text: &str, data: &dyn GuiData) -> String {
     let mut out = String::new();
     let mut rest = text;

@@ -231,6 +231,9 @@ pub struct Control {
     pub hides: Vec<u32>,
     /// Numbers in its text with thousands commas (`commas=1`; TQ's StringChange).
     pub commas: bool,
+    /// A grid whose items are picked up with the left button and put down in another grid,
+    /// the right button using one (`pick=1`; TQ's CMyGrid).
+    pub pick: bool,
     /// Bindings (`|` between them): a dialog shows while one is set (not 0), as the game opens
     /// it (a shop: `hero.shop`), in place of the engine's own window; a control in a dialog
     /// shows only then (a text box a page asks for).
@@ -348,6 +351,7 @@ impl Control {
             opens: ids("opens"),
             hides: ids("hides"),
             commas: section.int("commas").is_some_and(|c| c != 0),
+            pick: section.int("pick").is_some_and(|p| p != 0),
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),

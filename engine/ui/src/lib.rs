@@ -108,6 +108,71 @@ fn grid_click(
     }
 }
 
+/// What putting the item held (slot `from.1` of list `from.0`) on list `to` asks the game,
+/// as TQ's grids take an item dropped on them: sold to the shop, stored in or taken from the
+/// warehouse, worn, taken off, bought, offered in the trade.
+fn move_item(
+    data: &gui_data::HeroData,
+    player: &Player,
+    (from, at): (&str, usize),
+    to: &str,
+) -> Option<UiAction> {
+    use c3_game::Input;
+    let item = || Some(data.own_items(from)?.get(at)?.id);
+    Some(match (from, to) {
+        ("hero.bag", "shop.items") => UiAction::Sell {
+            npc: player.shop?,
+            item: item()?,
+        },
+        ("hero.bag", "storage.items") => UiAction::Game(Input::Store {
+            npc: data.state.storage?,
+            item: item()?,
+        }),
+        ("storage.items", "hero.bag") => UiAction::Game(Input::Retrieve {
+            npc: data.state.storage?,
+            item: item()?,
+        }),
+        ("hero.bag", "trade.mine") => UiAction::Game(Input::TradeItem(item()?)),
+        ("shop.items", "hero.bag") => UiAction::Buy {
+            npc: player.shop?,
+            kind: *gui::GuiData::items(data, from).get(at)?,
+        },
+        ("hero.bag", worn) if worn.starts_with("hero.worn.") => UiAction::Use(item()?),
+        (worn, "hero.bag") if worn.starts_with("hero.worn.") => UiAction::Unequip(item()?),
+        _ => return None,
+    })
+}
+
+/// The item held drawn at the pointer.
+fn draw_held(
+    ui: &egui::Ui,
+    data: &gui_data::HeroData,
+    list: &str,
+    index: usize,
+    icons: &mut dyn gui::Textures,
+) {
+    use gui::GuiData;
+    let (Some(&kind), Some(at)) = (data.items(list).get(index), ui.ctx().pointer_hover_pos())
+    else {
+        return;
+    };
+    let look = data.item_looks(list).get(index).copied().unwrap_or(0);
+    let Some(texture) = icons.item(ui.ctx(), kind, look) else {
+        return;
+    };
+    let painter = ui.ctx().layer_painter(egui::LayerId::new(
+        egui::Order::Tooltip,
+        egui::Id::unique("held item"),
+    ));
+    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+    painter.image(
+        texture,
+        Rect::from_center_size(at, egui::vec2(40.0, 40.0)),
+        uv,
+        egui::Color32::WHITE,
+    );
+}
+
 /// The typed answer of the NPC's page, when something is typed (CDlgTask sends none empty).
 fn typed_answer(state: &gui_data::GuiState, player: &Player) -> Option<UiAction> {
     let page = &player.dialogue.as_ref()?.page;
@@ -353,7 +418,9 @@ impl GameUi {
                 self.gui_state.fields.insert(field, text);
                 return;
             }
-            gui::GuiEvent::Item { .. } => return,
+            gui::GuiEvent::Item { .. } | gui::GuiEvent::Pick { .. } | gui::GuiEvent::Put { .. } => {
+                return;
+            }
             gui::GuiEvent::EditKey { field, key } => {
                 if field == CHAT_TEXT {
                     self.chat_key(key);
@@ -746,6 +813,10 @@ impl GameUi {
     /// Closes the topmost window (menu, dialogue, shop, bag, quests); `false` when none was
     /// open. A dialogue or shop closes through the returned action.
     pub fn back(&mut self, sim: &Sim, hero: EntityId) -> (bool, Option<UiAction>) {
+        // Esc lets an item held go.
+        if self.gui_state.held.take().is_some() {
+            return (true, None);
+        }
         // Esc answers No to a question shown.
         if self.gui_state.prompt.take().is_some() {
             return (true, None);
@@ -915,8 +986,25 @@ impl GameUi {
                 let working = gui.open_uses("work.");
                 let mut work = Vec::new();
                 let mut picked_target = None;
+                // What happens to the item held: picked up, put down (or dropped).
+                let mut held = data.state.held.clone();
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
                     match event {
+                        gui::GuiEvent::Pick { list, index } => held = Some((list, index)),
+                        gui::GuiEvent::Put { list, .. } => {
+                            let Some((from, at)) = held.take() else {
+                                continue;
+                            };
+                            match (from.as_str(), list.strip_prefix("work.")) {
+                                // A bag item onto a workbench slot.
+                                ("hero.bag", Some(_)) => {
+                                    work.extend(player.bag.get(at).map(|i| (true, i.id)))
+                                }
+                                _ => actions.extend(move_item(&data, player, (&from, at), &list)),
+                            }
+                        }
+                        // The right button while one is held lets it go.
+                        gui::GuiEvent::Item { .. } if held.is_some() => held = None,
                         // A bag item onto an open workbench; a slot clicked empties it.
                         gui::GuiEvent::Item { list, index } if working && list == "hero.bag" => {
                             work.extend(player.bag.get(index).map(|i| (true, i.id)));
@@ -939,7 +1027,11 @@ impl GameUi {
                     }
                 }
                 // The edit asked to take the keyboard has had this frame to.
+                if let Some((list, index)) = &held {
+                    draw_held(ui, &data, list, *index, icons);
+                }
                 self.gui_state.focus = None;
+                self.gui_state.held = held;
                 if std::mem::take(&mut self.gui_state.answering) {
                     actions.extend(typed_answer(&self.gui_state, player));
                 }
