@@ -641,6 +641,29 @@ impl Gui {
             })
     }
 
+    /// Whether a model control showing `key` is on screen: in an open dialog, or on the page
+    /// an open dialog shows.
+    pub fn shows_model(&self, key: &str) -> bool {
+        let models =
+            (self.controls.iter()).filter(|c| c.kind == ControlKind::Model && c.value == key);
+        models.into_iter().any(|m| {
+            let Some(holder) = self
+                .controls
+                .iter()
+                .find(|d| d.id == m.parent && d.kind == ControlKind::Dialog)
+            else {
+                return false;
+            };
+            match holder.parent {
+                0 => self.is_open(holder),
+                outer => {
+                    self.shown_page(outer).is_some_and(|p| p.id == holder.id)
+                        && self.dialogs().any(|d| d.id == outer && self.is_open(d))
+                }
+            }
+        })
+    }
+
     pub fn is_open(&self, dialog: &Control) -> bool {
         dialog.screen == self.screen
             && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))

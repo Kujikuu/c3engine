@@ -158,7 +158,9 @@ impl Gui {
             events.push(GuiEvent::Sound(self.sounds.close.clone()));
         }
         opened.retain(|id, _| showing.iter().any(|d| d.id == *id));
-        let came = showing.iter().any(|d| d.slide && !opened.contains_key(&d.id));
+        let came = showing
+            .iter()
+            .any(|d| d.slide && !opened.contains_key(&d.id));
         if came && !self.sounds.open.is_empty() {
             events.push(GuiEvent::Sound(self.sounds.open.clone()));
         }

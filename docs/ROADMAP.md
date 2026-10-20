@@ -821,7 +821,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
     - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills
     - [x] XP skills picked from 189 shown as XpSkillType in the skill box; the box's Magic0 art replaced by the skill picked
-    - [ ] radar toggle transition (the client rolls it)
+    - [x] radar toggle transition (the client rolls it): see UI 5278
     - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
     - [x] PK button image by PK mode (Button47/49/48/412)
     - [ ] hover tooltips on exp, run, map, screen move, view equipment, XP, MP, HP (Dialog21, StrRes 10070-10074, 10370)
@@ -956,7 +956,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] left hand only for professions that hold one, over Image160
     - [x] hover tooltips; pick-up and put-down to wear and take off (UI engine: items in grids)
     - [ ] donation and nobility images (nob_<rank>64)
-    - [ ] the hero's model at +80,+225
+    - [x] the hero's model at +80,+225 (`hero.model`, kept while a window shows it, made again when it changes clothes)
     - [ ] double-click to take off; requirement checks on wearing
     - [ ] colour variants and +N
   - [ ] UI 163 CDlgSkill (skills page of 131): missing, 1 mismatches (docs/conquer_ui_audit.md)

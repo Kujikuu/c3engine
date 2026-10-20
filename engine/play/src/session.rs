@@ -129,6 +129,8 @@ pub struct Session {
     pub effigy: Option<crate::effigy::Effigy>,
     /// The player whose equipment is shown, as a figure (`viewed.model`, CDlgNpcEquip).
     viewed_model: Option<(EntityId, crate::preview::UiModel)>,
+    /// The hero as a figure while a window shows it (`hero.model`, CDlgEquip).
+    hero_model: Option<crate::preview::UiModel>,
 }
 
 /// A map's minimap: the image until the UI uploads it, then its texture.
@@ -389,6 +391,7 @@ impl Session {
             destinations,
             effigy: None,
             viewed_model: None,
+            hero_model: None,
         })
     }
 
@@ -883,7 +886,18 @@ impl Session {
         (self.effigy.as_mut().map(|e| &mut e.model))
             .into_iter()
             .chain(self.viewed_model.as_mut().map(|(_, m)| m))
+            .chain(self.hero_model.as_mut())
             .collect()
+    }
+
+    /// A figure of player `id` for model control `key`.
+    fn player_model(&self, id: EntityId, key: &'static str) -> Option<crate::preview::UiModel> {
+        let p = self.sim.player(id)?;
+        let game = Rc::clone(&self.world.game);
+        let look = game.looks().player(p);
+        let tilt = crate::settings::tilt_deg(&self.settings, &*game);
+        let preview = crate::preview::LookPreview::new(game, &look, tilt);
+        Some(crate::preview::UiModel::new(key, preview))
     }
 
     /// Keeps the shown player's figure for whom the UI shows (made when it is first shown).
@@ -892,14 +906,19 @@ impl Session {
         if self.viewed_model.as_ref().map(|(id, _)| *id) == viewed {
             return;
         }
-        self.viewed_model = viewed.and_then(|id| {
-            let p = self.sim.player(id)?;
-            let game = Rc::clone(&self.world.game);
-            let look = game.looks().player(p);
-            let tilt = crate::settings::tilt_deg(&self.settings, &*game);
-            let preview = crate::preview::LookPreview::new(game, &look, tilt);
-            Some((id, crate::preview::UiModel::new("viewed.model", preview)))
-        });
+        self.viewed_model =
+            viewed.and_then(|id| Some((id, self.player_model(id, "viewed.model")?)));
+    }
+
+    /// Keeps the hero's figure while a window shows it.
+    fn follow_hero_model(&mut self) {
+        match self.ui.shows_model("hero.model") {
+            false => self.hero_model = None,
+            true if self.hero_model.is_none() => {
+                self.hero_model = self.player_model(self.hero, "hero.model");
+            }
+            true => {}
+        }
     }
 
     /// What the statue window asks: a pose (`Pose(0)` opens it standing), play or pause,
@@ -1055,6 +1074,17 @@ impl Session {
         if asked {
             self.effigy_action(crate::effigy::EffigyAction::Pose(0));
         }
+        // A figure is made again once its player changes clothes.
+        for e in events.iter() {
+            if let Event::Dressed { player } = *e {
+                if player == self.hero {
+                    self.hero_model = None;
+                }
+                if self.viewed_model.as_ref().is_some_and(|(id, _)| *id == player) {
+                    self.viewed_model = None;
+                }
+            }
+        }
         self.ui.events(&events, &self.sim, self.hero, now);
         self.audio.events(&events, &self.sim, self.hero);
         self.audio.update(&self.sim, self.hero, now);
@@ -1093,9 +1123,11 @@ impl Session {
         (hint, controls): (&str, &ControlsView),
     ) -> Vec<UiAction> {
         self.follow_viewed();
+        self.follow_hero_model();
         let models: Vec<(&str, egui::TextureId)> = (self.effigy.as_ref().map(|e| &e.model))
             .into_iter()
             .chain(self.viewed_model.as_ref().map(|(_, m)| m))
+            .chain(self.hero_model.as_ref())
             .filter_map(|m| Some((m.key, m.texture?)))
             .collect();
         let head = |id: EntityId| {

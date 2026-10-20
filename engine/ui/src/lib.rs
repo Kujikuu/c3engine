@@ -548,6 +548,11 @@ impl GameUi {
     }
 
     /// The player whose equipment the UI shows (CDlgNpcEquip's), if one.
+    /// Whether the game UI shows a model control of `key` (its figure is wanted).
+    pub fn shows_model(&self, key: &str) -> bool {
+        self.gui.as_ref().is_some_and(|g| g.shows_model(key))
+    }
+
     pub fn viewed(&self) -> Option<EntityId> {
         let id = self.gui_state.views.get(VIEWED)?.parse().ok()?;
         Some(EntityId(id))
