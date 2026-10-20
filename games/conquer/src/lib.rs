@@ -364,13 +364,24 @@ impl Content {
 
     /// The minimap of the first of `map_ids` the client has (see `ConquerModule::minimap`).
     /// The radar's picture for mark `kind` (see [`RADAR_MARKS`]).
-    /// An item type's icon as the client finds it (`CGameDataSet::GetItemMinIcon`): its
-    /// `Item<type>` section of `ItemMinIcon.Ani`, else `ItemDefault`.
-    pub fn item_icon(&self, kind: u32) -> Option<Image> {
+    /// An item type's icon as the client finds it (`CItem::ShowMiniItem`, `GetItemMinIcon`):
+    /// helmets, armour and shields by their colour (`color × 1,000,000 + type`, colour 3 when
+    /// it has none or that one is missing), others by their type; then `ItemDefault`.
+    pub fn item_icon(&self, kind: u32, color: u32) -> Option<Image> {
         let ani = (self.item_icons)
             .get_or_init(|| Ani::parse(&self.fs.read(ITEM_ICON_ANI)?).ok())
             .as_ref()?;
-        let section = ani.get(&format!("Item{kind}")).or_else(|| ani.get("ItemDefault"))?;
+        let coloured = matches!(kind / 10_000, 11 | 13 | 90..=99);
+        let keys = match coloured {
+            true => {
+                let color = if color == 0 { 3 } else { color };
+                vec![color * 1_000_000 + kind, 3_000_000 + kind, kind]
+            }
+            false => vec![kind],
+        };
+        let section = (keys.iter())
+            .find_map(|k| ani.get(&format!("Item{k}")))
+            .or_else(|| ani.get("ItemDefault"))?;
         self.load_image(&section.frame_str(0)?)
     }
 

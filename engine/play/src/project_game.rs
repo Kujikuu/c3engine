@@ -149,8 +149,8 @@ impl GameModule for ProjectGame {
             .or_else(|| self.game.read_file(path))
     }
 
-    fn item_icon(&self, kind: u32) -> Option<Image> {
-        self.game.item_icon(kind)
+    fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
+        self.game.item_icon(kind, look)
     }
 
     fn slot_names(&self) -> Vec<(u8, String)> {

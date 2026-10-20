@@ -195,7 +195,7 @@ fn slot_button(
         );
     }
     match item {
-        Some(item) => match icons.item(ui.ctx(), item.kind) {
+        Some(item) => match icons.item(ui.ctx(), item.kind, view.sim.item_look(item)) {
             Some(texture) => {
                 painter.image(
                     texture,

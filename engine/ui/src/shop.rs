@@ -55,7 +55,7 @@ pub(crate) fn window(
                             let (slot, _) =
                                 ui.allocate_exact_size(Vec2::splat(ICON), egui::Sense::hover());
                             ui.painter().rect_filled(slot, 3.0, style::SLOT);
-                            if let Some(texture) = icons.item(ui.ctx(), kind) {
+                            if let Some(texture) = icons.item(ui.ctx(), kind, 0) {
                                 ui.painter().image(
                                     texture,
                                     slot.shrink(2.0),

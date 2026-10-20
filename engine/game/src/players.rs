@@ -454,6 +454,16 @@ impl Sim {
     }
 
     /// Player `id` as one side of a fight (see [`crate::Fighter::facts`]).
+    /// Which of its type's looks `item` has (the settings' item look attribute; 0: none).
+    pub fn item_look(&self, item: &Item) -> u32 {
+        let names = &self.settings.item_attributes;
+        (names
+            .iter()
+            .position(|n| *n == self.settings.item_look_attribute))
+        .and_then(|i| item.attrs.get(i))
+        .map_or(0, |&v| u32::try_from(v).unwrap_or(0))
+    }
+
     /// The numbers the game shows of player `id` (rules `shown`).
     pub fn shown(&self, id: EntityId) -> Vec<(String, i64)> {
         self.rules.shown(&self.player_fighter(id))

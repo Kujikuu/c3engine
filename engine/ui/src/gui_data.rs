@@ -224,6 +224,42 @@ impl GuiData for HeroData<'_> {
         }
     }
 
+    fn item_looks(&self, key: &str) -> Vec<u32> {
+        let sim = self.view.sim;
+        let p = self.player;
+        let of = |items: &mut dyn Iterator<Item = &c3_game::Item>| -> Vec<u32> {
+            items.map(|i| sim.item_look(i)).collect()
+        };
+        match key {
+            "hero.bag" => of(&mut p.bag.iter()),
+            "hero.equipment" => of(&mut p.equipment.iter()),
+            _ if key.starts_with("hero.worn.") => {
+                let slot: Option<u8> = key.strip_prefix("hero.worn.").and_then(|s| s.parse().ok());
+                of(&mut p
+                    .equipment
+                    .iter()
+                    .filter(|i| slot.is_some() && sim.slot_of(i) == slot))
+            }
+            "trade.mine" => of(&mut (self.state.trade.iter())
+                .flat_map(|t| &t.mine)
+                .filter_map(|id| p.bag.iter().find(|i| i.id == *id))),
+            _ if key.starts_with("work.") => {
+                let n: usize = key
+                    .strip_prefix("work.")
+                    .and_then(|n| n.parse().ok())
+                    .unwrap_or(0);
+                of(&mut (self.state.work.get(n))
+                    .and_then(|id| p.bag.iter().find(|i| i.id == *id))
+                    .into_iter())
+            }
+            "storage.items" => (self.state.storage)
+                .and_then(|npc| p.storage.get(&npc))
+                .map(|items| of(&mut items.iter()))
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        }
+    }
+
     fn items(&self, key: &str) -> Vec<u32> {
         match key {
             "hero.bag" => self.player.bag.iter().map(|i| i.kind).collect(),

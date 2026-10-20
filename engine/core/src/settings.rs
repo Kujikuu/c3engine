@@ -445,6 +445,10 @@ pub struct GameplaySettings {
     /// The most members a guild has (0: no limit).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub guild_max_members: u32,
+    /// The item attribute that picks an item's look among its type's icons (Conquer: the
+    /// colour of helmets, armour and shields); empty: none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub item_look_attribute: String,
     /// The attribute holding points a player spends on `point_attributes` (empty: none).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub points_attribute: String,
@@ -507,6 +511,7 @@ impl Default for GameplaySettings {
             storage_size: storage_size(),
             guild_member_rank: guild_member_rank(),
             guild_invite_rank: 0,
+            item_look_attribute: String::new(),
             points_attribute: String::new(),
             point_attributes: Vec::new(),
             guild_join_min_fund: 0,

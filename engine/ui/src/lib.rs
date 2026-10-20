@@ -166,8 +166,8 @@ pub enum LogLine {
 
 /// Item pictures, loaded by the host.
 pub trait Icons {
-    /// The icon of item type `kind`, if the game has one.
-    fn item(&mut self, ctx: &egui::Context, kind: u32) -> Option<TextureId>;
+    /// The icon of item type `kind` in look `look` (0: its usual), if the game has one.
+    fn item(&mut self, ctx: &egui::Context, kind: u32, look: u32) -> Option<TextureId>;
 }
 
 /// The game being shown and how it sits on screen.

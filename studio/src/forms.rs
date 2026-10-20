@@ -338,7 +338,7 @@ impl Studio {
         let icon = self
             .game
             .as_ref()
-            .and_then(|g| g.item_icon(kind))
+            .and_then(|g| g.item_icon(kind, 0))
             .map(|img| {
                 let size = [img.width as usize, img.height as usize];
                 let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &img.rgba);

@@ -10,7 +10,7 @@ use std::rc::Rc;
 /// Item icons and the UI's images as the game draws them, loaded once each.
 pub struct GameTextures {
     game: Rc<dyn GameModule>,
-    cache: HashMap<u32, Option<TextureHandle>>,
+    cache: HashMap<(u32, u32), Option<TextureHandle>>,
     images: HashMap<String, Option<(TextureHandle, egui::Vec2)>>,
 }
 
@@ -25,17 +25,18 @@ impl GameTextures {
 }
 
 impl Icons for GameTextures {
-    fn item(&mut self, ctx: &egui::Context, kind: u32) -> Option<TextureId> {
+    fn item(&mut self, ctx: &egui::Context, kind: u32, look: u32) -> Option<TextureId> {
         let game = &self.game;
         self.cache
-            .entry(kind)
+            .entry((kind, look))
             .or_insert_with(|| {
-                let image = game.item_icon(kind)?;
+                let image = game.item_icon(kind, look)?;
                 let color = egui::ColorImage::from_rgba_unmultiplied(
                     [image.width as usize, image.height as usize],
                     &image.rgba,
                 );
-                Some(ctx.load_texture(format!("item {kind}"), color, egui::TextureOptions::LINEAR))
+                let name = format!("item {kind} {look}");
+                Some(ctx.load_texture(name, color, egui::TextureOptions::LINEAR))
             })
             .as_ref()
             .map(TextureHandle::id)

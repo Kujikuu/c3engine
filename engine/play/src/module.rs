@@ -144,9 +144,9 @@ pub trait GameModule {
     fn tilt_deg(&self) -> f32;
     /// A file of the game's content (sounds), loose or packed.
     fn read_file(&self, path: &str) -> Option<Vec<u8>>;
-    /// The icon of item type `kind`.
-    fn item_icon(&self, kind: u32) -> Option<Image> {
-        let _ = kind;
+    /// The icon of item type `kind` in look `look` (an item's look attribute; 0: its usual).
+    fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
+        let _ = (kind, look);
         None
     }
     /// The equipment slots and their names, in display order.

@@ -28,6 +28,10 @@ pub trait GuiData {
     fn text(&self, key: &str) -> Option<String> {
         self.number(key).map(|n| format!("{n}"))
     }
+    /// The looks of a list's items (`Sim::item_look`), in slot order; none: each its usual.
+    fn item_looks(&self, _key: &str) -> Vec<u32> {
+        Vec::new()
+    }
     /// Item kinds of a list (a bag), in slot order.
     fn items(&self, _key: &str) -> Vec<u32> {
         Vec::new()
@@ -506,6 +510,7 @@ impl Painter<'_, '_> {
             }
             ControlKind::Grid => {
                 let items = data.items(&control.value);
+                let looks = data.item_looks(&control.value);
                 let cell = Vec2::new(
                     rect.width() / control.cols as f32,
                     rect.height() / control.rows as f32,
@@ -529,7 +534,8 @@ impl Painter<'_, '_> {
                     let Some(&kind) = items.get(index) else {
                         continue;
                     };
-                    if let Some(texture) = self.textures.item(self.ui.ctx(), kind) {
+                    let look = looks.get(index).copied().unwrap_or(0);
+                    if let Some(texture) = self.textures.item(self.ui.ctx(), kind, look) {
                         let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
                         self.ui
                             .painter()

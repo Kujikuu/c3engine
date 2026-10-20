@@ -172,6 +172,8 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.guild_member_rank = 50;
     // Attribute points spent on the four attributes (MsgAllot).
     s.gameplay.points_attribute = "attribute_points".into();
+    // Helmets, armour and shields show their colour's icon.
+    s.gameplay.item_look_attribute = "color".into();
     s.gameplay.point_attributes = ["strength", "agility", "vitality", "spirit"]
         .map(String::from)
         .to_vec();
@@ -337,8 +339,8 @@ impl GameModule for ConquerModule {
         self.content.files().read(path).map(|b| b.into_owned())
     }
 
-    fn item_icon(&self, kind: u32) -> Option<Image> {
-        self.content.item_icon(kind)
+    fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
+        self.content.item_icon(kind, look)
     }
 
     fn slot_names(&self) -> Vec<(u8, String)> {
