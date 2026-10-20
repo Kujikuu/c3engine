@@ -983,7 +983,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] a CP buy asks the amount (290); a valuable sold asks first (IMPTITEM_CONFIRM)
     - [ ] price rows in the tooltip; +N and colour on wares
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
-    - [ ] refused while trading or with an NPC booth open
+    - [x] refused while trading or with an NPC booth open (`when=hero.shop&!hero.trading&!booth.theirs`)
   - [ ] UI 161 CDlgDepot (warehouse): 8 of 14 audit mismatches fixed
     - [x] page 1626 and page count 1627 (`view_page.`, `list_pages.` bindings)
     - [x] page buttons only with more than one page, paging 20 at a time
@@ -995,7 +995,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] bag-full / warehouse-full messages and the locked-item confirm
     - [ ] quality, +N, colour and reif on stored items
     - [x] the slide-in from its side and DlgOpen / DlgClose as it comes and goes (`slide=1`: 20 steps of a twentieth of its width, 15 ms apart)
-    - [ ] refused while trading
+    - [x] refused while trading (`blocked=137`, or its `when` while `hero.trading`: CDlgMain's openers return when 137 shows)
   - [ ] UI 141 CDlgGroup (team): 8 of 13 audit mismatches fixed
     - [x] faces only, no names; a face clicked is picked, with the focus frame
     - [x] Kick sends out the member picked and is disabled (frame 2) until one who does not lead is (`disabled=`, a TQ button's disabled frame)
@@ -1032,7 +1032,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] help (CDlgHelp 215)
     - [ ] the name's block and invalid-glyph marks
     - [ ] quality, +N; 20-item cap (10390); buddy/protection tips and the locked-item confirm on offering
-    - [ ] the dead-hero refusal (10712) and the 10065 prompt from the main bar's trade button
+    - [x] the dead-hero refusal (10712, not in 5065's StrRes) and the 10065 prompt from the main bar's trade button (see UI 130)
     - [ ] checked live with two players
   - [ ] UI 140 CDlgAct (emotes): 3 of 6 audit mismatches fixed
     - [x] emotes in the game (`Input::Emote`, `Event::Emoted`; the view plays the action once, held or looping by `Looks::emote_play`: Conquer holds sit, kneel and faint and loops the dance); Conquer's MsgAction 81 both ways
@@ -1040,7 +1040,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] 188/191 no longer close it; Esc as the client
     - [ ] dragging an emote onto the quick bar
     - [ ] emote hotkeys (user actions 10-19)
-    - [ ] BtnClick.wav from the main bar's button
+    - [x] BtnClick.wav from the main bar's button (the UI's click sound)
     - [ ] checked live: the pose seen in a running client (the start-up --act runs before the actors load)
   - [ ] UI 191 CDlgPk (PK modes): 8 of 9 audit mismatches fixed
     - [x] PK modes in the game: free, peace (monsters only), team (spares team, guild, spouse), arrest (bad names only) (`Input::SetPkMode`, `Player::pk_mode`, `PkModeSet`); Conquer's MsgAction 96 both ways; players enter in arrest mode (`pk.start_mode`)
@@ -1185,7 +1185,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] composing closes it; closing empties the workbench
     - [x] items put on its slots
     - [x] tooltips and quality lights on its slots
-    - [ ] refused while trading
+    - [x] refused while trading (`blocked=137`, or its `when` while `hero.trading`: CDlgMain's openers return when 137 shows)
     - [ ] slots by kind: main equipment only, treasures after it (Image510), gems from +5 (Image511), routed by type
     - [ ] compose only with main and both treasures
     - [ ] +N
