@@ -111,9 +111,14 @@ impl SimView {
                         }
                     }
                 }
-                Event::Placed { id, cell } | Event::Jumped { id, to: cell } => {
+                Event::Placed { id, cell } => {
                     if let Some(i) = self.actor(id) {
                         world.actors[i].place(cell);
+                    }
+                }
+                Event::Jumped { id, to } => {
+                    if let Some(i) = self.actor(id) {
+                        world.actor_jump(i, to);
                     }
                 }
                 Event::Attacked {
@@ -291,8 +296,15 @@ impl SimView {
         }
     }
 
-    /// Where `id`'s actor's feet are now (between cells while it steps).
+    /// Where `id`'s actor's feet are drawn now (between cells while it steps, up mid-jump).
     pub fn feet(&self, world: &World, id: EntityId) -> Option<Vec2> {
+        let actor = world.actors.get(self.actor(id)?)?;
+        let now = world.now_ms();
+        Some(actor.position(&world.scene, now) - Vec2::Y * actor.lift(now))
+    }
+
+    /// Where `id`'s actor stands on the ground now.
+    pub fn ground(&self, world: &World, id: EntityId) -> Option<Vec2> {
         let actor = world.actors.get(self.actor(id)?)?;
         Some(actor.position(&world.scene, world.now_ms()))
     }

@@ -18,6 +18,26 @@ use c3_scene::CellPos;
 use c3_scene::path::{self, PathRules};
 use std::collections::VecDeque;
 
+/// Why a jump can't be made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JumpRefused {
+    TooFar,
+    /// The ground on the way rises too high.
+    TooHigh,
+    /// Nowhere to stand there (blocked, or someone stands on it).
+    NoFooting,
+}
+
+/// The cells on the straight line from `from` to `to`, both ends included.
+fn line(from: CellPos, to: CellPos) -> impl Iterator<Item = CellPos> {
+    let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+    let steps = dx.abs().max(dy.abs()).max(1);
+    (0..=steps).map(move |i| {
+        let at = |a: i32, d: i32| a + (d * i * 2 + steps * d.signum()) / (steps * 2);
+        (at(from.0, dx), at(from.1, dy))
+    })
+}
+
 /// Path search budget for a player's walk.
 const PLAYER_PATH: PathRules = PathRules {
     max_climb: 25,
@@ -122,16 +142,39 @@ impl Sim {
         p.path = path::find_path(&self.grid, p.cell, goal, &PLAYER_PATH).into();
     }
 
-    /// Jumps the player to `to`, if it is walkable and within the jump range.
+    /// Whether player `id` can jump to `to`: within the jump range, the ground on the way
+    /// (the highest cell on the line there) no more than the jump height above where it stands,
+    /// onto walkable ground no one living stands on (TQ's `CHero::Jump`, `CanJump`).
+    pub fn can_jump(&self, id: EntityId, to: CellPos) -> Result<(), JumpRefused> {
+        let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
+            return Err(JumpRefused::NoFooting);
+        };
+        if distance(p.cell, to) > self.settings.jump_range {
+            return Err(JumpRefused::TooFar);
+        }
+        let most = self.settings.jump_height;
+        let height = |c: CellPos| self.grid.get(c).map_or(0, |c| i32::from(c.height));
+        let start = height(p.cell);
+        if most > 0 && line(p.cell, to).any(|c| height(c) - start > most) {
+            return Err(JumpRefused::TooHigh);
+        }
+        let taken = (self.index.near(to, 0)).any(|(e, _)| {
+            e != id
+                && (self.players.get(&e).is_some_and(|o| o.is_alive())
+                    || self.monsters.get(&e).is_some_and(|m| m.is_alive()))
+        });
+        if !self.walkable(to) || taken {
+            return Err(JumpRefused::NoFooting);
+        }
+        Ok(())
+    }
+
+    /// Jumps the player to `to`, if it can ([`Self::can_jump`]).
     pub fn jump(&mut self, id: EntityId, to: CellPos) {
-        if !self.walkable(to) {
+        if self.can_jump(id, to).is_err() {
             return;
         }
-        let range = self.settings.jump_range;
         let Some(p) = self.living(id) else { return };
-        if distance(p.cell, to) > range {
-            return;
-        }
         let from = p.cell;
         p.direction = path::facing(from, to).unwrap_or(p.direction);
         p.cell = to;

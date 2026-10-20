@@ -65,6 +65,7 @@ pub use mentors::{Gifts, MentorAction, MentorGift, Mentorship};
 pub use nobility::{Donation, Noble, rank_by_value};
 pub use npc_fights::{npc_destroyed_event, npc_life_flag};
 pub use partners::{MAX_PARTNERS, PartnerAction};
+pub use players::JumpRefused;
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{

@@ -54,6 +54,8 @@ pub enum Action {
     Move,
     /// Act on the nearest thing: the target, an NPC, a drop.
     Interact,
+    /// Jump to the cell under the pointer.
+    Jump,
     AttackNearest,
     NextTarget,
     PreviousTarget,
@@ -89,10 +91,11 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self::Click,
         Self::Move,
         Self::Interact,
+        Self::Jump,
         Self::AttackNearest,
         Self::NextTarget,
         Self::PreviousTarget,
@@ -146,6 +149,7 @@ impl Action {
             Self::Click
             | Self::Move
             | Self::Interact
+            | Self::Jump
             | Self::AttackNearest
             | Self::NextTarget
             | Self::PreviousTarget
@@ -173,6 +177,7 @@ impl Action {
             Self::Click => "Act on what's pointed at",
             Self::Move => "Move",
             Self::Interact => "Interact with the nearest",
+            Self::Jump => "Jump where it's pointed",
             Self::AttackNearest => "Attack the nearest",
             Self::NextTarget => "Next target",
             Self::PreviousTarget => "Previous target",
@@ -209,6 +214,7 @@ impl Action {
             Self::Click => b(&["Mouse Left", "Touch Tap"]),
             Self::Move => b(&["Pad LeftStick", "Pad DPad", "Touch Joystick"]),
             Self::Interact => b(&["Pad South", "Touch Button"]),
+            Self::Jump => b(&["Mouse Ctrl Left"]),
             Self::AttackNearest => b(&["Key Tab", "Pad West", "Touch Button"]),
             Self::NextTarget => b(&["Pad RightBumper"]),
             Self::PreviousTarget => b(&["Pad LeftBumper"]),
@@ -358,6 +364,25 @@ pub enum MouseControl {
     Wheel,
 }
 
+/// A key held with a mouse button (`Mouse Ctrl Left`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Modifier {
+    Ctrl,
+    Shift,
+    Alt,
+}
+
+impl Modifier {
+    fn from_name(name: &str) -> Option<Self> {
+        match name.to_ascii_lowercase().as_str() {
+            "ctrl" => Some(Self::Ctrl),
+            "shift" => Some(Self::Shift),
+            "alt" => Some(Self::Alt),
+            _ => None,
+        }
+    }
+}
+
 /// A touch gesture or on-screen control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TouchControl {
@@ -379,6 +404,9 @@ pub enum Binding {
     /// Four keys as a direction (up, left, down, right) or two as an amount (plus, minus).
     Keys(Vec<String>),
     Mouse(MouseControl),
+    /// A mouse button pressed while a key is held (a plain binding of the button then
+    /// doesn't fire).
+    Chord(Modifier, MouseControl),
     Pad(PadControl),
     Touch(TouchControl),
 }
@@ -386,7 +414,9 @@ pub enum Binding {
 impl Binding {
     pub fn device(&self) -> Device {
         match self {
-            Self::Key(_) | Self::Keys(_) | Self::Mouse(_) => Device::KeyboardMouse,
+            Self::Key(_) | Self::Keys(_) | Self::Mouse(_) | Self::Chord(..) => {
+                Device::KeyboardMouse
+            }
             Self::Pad(_) => Device::Gamepad,
             Self::Touch(_) => Device::Touch,
         }
@@ -403,6 +433,7 @@ impl Binding {
             },
             Self::Mouse(MouseControl::Wheel) => kind == ActionKind::Axis,
             Self::Mouse(_) => kind == ActionKind::Button,
+            Self::Chord(_, button) => *button != MouseControl::Wheel && kind == ActionKind::Button,
             Self::Pad(c) => c.kind() == kind,
             Self::Touch(TouchControl::Tap | TouchControl::Button) => kind == ActionKind::Button,
             Self::Touch(TouchControl::Pinch) => kind == ActionKind::Axis,
@@ -417,6 +448,7 @@ impl fmt::Display for Binding {
             Self::Key(k) => write!(f, "Key {k}"),
             Self::Keys(keys) => write!(f, "Keys {}", keys.join(" ")),
             Self::Mouse(m) => write!(f, "Mouse {m:?}"),
+            Self::Chord(k, m) => write!(f, "Mouse {k:?} {m:?}"),
             Self::Pad(c) => write!(f, "Pad {}", c.name()),
             Self::Touch(t) => write!(f, "Touch {t:?}"),
         }
@@ -440,13 +472,22 @@ impl std::str::FromStr for Binding {
             "keys" if rest.len() == 2 || rest.len() == 4 => {
                 Self::Keys(rest.iter().map(|k| (*k).to_owned()).collect())
             }
-            "mouse" => Self::Mouse(match one()?.to_ascii_lowercase().as_str() {
-                "left" => MouseControl::Left,
-                "right" => MouseControl::Right,
-                "middle" => MouseControl::Middle,
-                "wheel" => MouseControl::Wheel,
-                _ => return Err(bad()),
-            }),
+            "mouse" => {
+                let button = |name: &str| match name.to_ascii_lowercase().as_str() {
+                    "left" => Ok(MouseControl::Left),
+                    "right" => Ok(MouseControl::Right),
+                    "middle" => Ok(MouseControl::Middle),
+                    "wheel" => Ok(MouseControl::Wheel),
+                    _ => Err(bad()),
+                };
+                match rest.as_slice() {
+                    [name] => Self::Mouse(button(name)?),
+                    [key, name] => {
+                        Self::Chord(Modifier::from_name(key).ok_or_else(bad)?, button(name)?)
+                    }
+                    _ => return Err(bad()),
+                }
+            }
             "pad" => Self::Pad(PadControl::from_name(one()?).ok_or_else(bad)?),
             "touch" => Self::Touch(match one()?.to_ascii_lowercase().as_str() {
                 "tap" => TouchControl::Tap,

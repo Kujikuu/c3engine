@@ -17,7 +17,9 @@ use crate::session::{Screen, Session};
 use crate::touch::TouchOverlay;
 use crate::world::World;
 use c3_core::ProjectSettings;
-use c3_core::input::{Action, ActionKind, Binding, Device, MouseControl, PadControl, TouchControl};
+use c3_core::input::{
+    Action, ActionKind, Binding, Device, Modifier, MouseControl, PadControl, TouchControl,
+};
 use c3_core::settings::CameraSettings;
 use c3_game::EntityId;
 use c3_render::camera::Camera2d;
@@ -46,6 +48,18 @@ const HINTS: [(Action, &str); 11] = [
     (Action::Zoom, "zoom"),
     (Action::Menu, "menu"),
 ];
+
+/// The chord keys `modifiers` holds.
+fn held_modifiers(modifiers: egui::Modifiers) -> std::collections::HashSet<Modifier> {
+    [
+        (modifiers.ctrl, Modifier::Ctrl),
+        (modifiers.shift, Modifier::Shift),
+        (modifiers.alt, Modifier::Alt),
+    ]
+    .into_iter()
+    .filter_map(|(held, m)| held.then_some(m))
+    .collect()
+}
 
 pub struct GameScreen {
     pub session: Session,
@@ -76,8 +90,10 @@ pub struct GameScreen {
     /// The player chose Leave the game.
     left: bool,
     /// UI actions to run once a frame has been drawn (a scripted shot's, after what its lines
-    /// asked has come back).
+    /// asked has come back); `after:2.5:` waits that long from the first frame.
     pub later: Vec<String>,
+    /// When the first frame ran (UI seconds).
+    first_frame: Option<f64>,
 }
 
 impl GameScreen {
@@ -108,6 +124,7 @@ impl GameScreen {
             touch: TouchOverlay::default(),
             listening: None,
             later: Vec::new(),
+            first_frame: None,
             step_wait: 0.0,
             left: false,
         };
@@ -262,8 +279,19 @@ impl GameScreen {
         }
         let now = ui.input(|i| i.time);
         self.session.advance(seconds, now);
-        for action in std::mem::take(&mut self.later) {
-            self.session.gui_action(&action);
+        let since = now - *self.first_frame.get_or_insert(now);
+        let later: Vec<String> = (std::mem::take(&mut self.later).iter())
+            .flat_map(|a| a.split(';').filter(|a| !a.is_empty()).map(str::to_owned))
+            .collect();
+        for action in later {
+            let wait = (action.strip_prefix("after:"))
+                .and_then(|a| a.split_once(':'))
+                .and_then(|(s, rest)| Some((s.parse::<f64>().ok()?, rest)));
+            match wait {
+                Some((seconds, _)) if since < seconds => self.later.push(action),
+                Some((_, rest)) => self.session.gui_action(rest),
+                None => self.session.gui_action(&action),
+            }
         }
         self.follow_hero(seconds);
         self.clamp_to_map();
@@ -312,6 +340,7 @@ impl GameScreen {
                 }
             }
             k.down = i.keys_down.clone();
+            k.modifiers = held_modifiers(i.modifiers);
             for (button, control) in [
                 (PointerButton::Primary, MouseControl::Left),
                 (PointerButton::Secondary, MouseControl::Right),
@@ -393,6 +422,9 @@ impl GameScreen {
         if a.pressed(Action::Interact) {
             self.session.interact();
         }
+        if a.pressed(Action::Jump) {
+            self.session.jump_to_pointer();
+        }
         for (slot, action) in Action::SKILLS.into_iter().enumerate() {
             if a.pressed(action) {
                 self.session.cast_slot(slot);
@@ -470,8 +502,11 @@ impl GameScreen {
             self.follow = false;
         }
         let tap = self.bound_to_touch(Action::Click, TouchControl::Tap);
+        let held = held_modifiers(resp.ctx.input(|i| i.modifiers));
         let clicked = buttons.into_iter().any(|(b, m)| {
-            resp.clicked_by(b) && (self.clicks_with(m) || (tap && b == PointerButton::Primary))
+            resp.clicked_by(b)
+                && !self.chorded(m, &held)
+                && (self.clicks_with(m) || (tap && b == PointerButton::Primary))
         });
         let screen = Screen {
             rect,
@@ -486,6 +521,15 @@ impl GameScreen {
 
     fn clicks_with(&self, m: MouseControl) -> bool {
         self.bindings.of(Action::Click).contains(&Binding::Mouse(m))
+    }
+
+    /// Whether button `m` with the keys `held` is some action's chord (`Ctrl` + left jumps),
+    /// so it isn't a click.
+    fn chorded(&self, m: MouseControl, held: &std::collections::HashSet<Modifier>) -> bool {
+        Action::ALL.into_iter().any(|a| {
+            (self.bindings.of(a).iter())
+                .any(|b| matches!(b, Binding::Chord(k, c) if *c == m && held.contains(k)))
+        })
     }
 
     /// Waits for the key or button to bind the listening action to; Esc or the gamepad's

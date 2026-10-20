@@ -4,6 +4,9 @@ param(
     [ValidateSet("client", "studio")] [string]$App = "client",
     [Parameter(Mandatory)] [string]$Out,
     [int]$Wait = 8,
+    # More than one shot: Out gets -1, -2... before its extension, Every ms apart.
+    [int]$Burst = 1,
+    [int]$Every = 100,
     [Parameter(ValueFromRemainingArguments)] [string[]]$AppArgs
 )
 $ErrorActionPreference = "Stop"
@@ -25,13 +28,18 @@ try {
     $h = $p.MainWindowHandle
     $r = New-Object PW+RECT
     [PW]::GetWindowRect($h, [ref]$r) | Out-Null
-    $b = New-Object System.Drawing.Bitmap ($r.R - $r.L), ($r.B - $r.T)
-    $g = [System.Drawing.Graphics]::FromImage($b)
-    $dc = $g.GetHdc()
-    # 2 = PW_RENDERFULLCONTENT (captures GPU-rendered content).
-    [PW]::PrintWindow($h, $dc, 2) | Out-Null
-    $g.ReleaseHdc($dc)
-    $b.Save($Out)
+    for ($i = 1; $i -le $Burst; $i++) {
+        $b = New-Object System.Drawing.Bitmap ($r.R - $r.L), ($r.B - $r.T)
+        $g = [System.Drawing.Graphics]::FromImage($b)
+        $dc = $g.GetHdc()
+        # 2 = PW_RENDERFULLCONTENT (captures GPU-rendered content).
+        [PW]::PrintWindow($h, $dc, 2) | Out-Null
+        $g.ReleaseHdc($dc)
+        $file = if ($Burst -gt 1) { [IO.Path]::ChangeExtension($Out, $null).TrimEnd('.') + "-$i" + [IO.Path]::GetExtension($Out) } else { $Out }
+        $b.Save($file)
+        $g.Dispose(); $b.Dispose()
+        if ($i -lt $Burst) { Start-Sleep -Milliseconds $Every }
+    }
 } finally {
     if (-not $p.HasExited) { $p.Kill() }
 }

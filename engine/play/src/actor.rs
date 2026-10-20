@@ -58,7 +58,21 @@ struct Step {
     to: CellPos,
     started_ms: u64,
     duration_ms: u64,
+    /// A jump: how high its arc peaks (pixels), and its facing along its path (degrees).
+    peak: f32,
+    facing: Option<f32>,
 }
+
+/// An action beginning or ending on a cell, for the effect it leaves on the map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapMark {
+    pub act: u32,
+    pub cell: CellPos,
+    pub at_end: bool,
+}
+
+/// The shortest frame of a jump (`CRole::GetFrameInterval`'s clamp, ms).
+const JUMP_FRAME_MS: u32 = 33;
 
 pub struct Actor {
     /// Cell the actor stands on, or is stepping from.
@@ -81,6 +95,10 @@ pub struct Actor {
     part_effects: Vec<Vec<RunningEffect>>,
     /// Effects standing at the actor's feet.
     role_effects: Vec<RunningEffect>,
+    /// Actions begun and ended since last taken ([`Self::take_map_marks`]).
+    map_marks: Vec<MapMark>,
+    /// A jump asked mid-jump, made on landing (TQ queues the command).
+    next_jump: Option<CellPos>,
 }
 
 impl Actor {
@@ -158,6 +176,8 @@ impl Actor {
             },
             step: None,
             path: VecDeque::new(),
+            map_marks: Vec::new(),
+            next_jump: None,
         }
     }
 
@@ -186,6 +206,69 @@ impl Actor {
         self.cell = cell;
         self.step = None;
         self.path.clear();
+    }
+
+    /// Jumps to `to` (TQ's `CRole::Jump`): the jump action played once over the way, its
+    /// frames longer the farther it goes (the action's frame time × distance / 300 + 1, 33 ms
+    /// at least), along an arc peaking a third of the distance plus 20 pixels up midway
+    /// (`GetJumpHeight` over flat ground).
+    pub fn jump(
+        &mut self,
+        to: CellPos,
+        now_ms: u64,
+        scene: &Scene,
+        game: &dyn GameModule,
+        library: &mut EffectLibrary,
+    ) {
+        self.path.clear();
+        if self.step.as_ref().is_some_and(|s| s.peak > 0.0) {
+            self.next_jump = Some(to);
+            return;
+        }
+        let from = self.position(scene, now_ms);
+        let land = Vec2::from(scene.cell_to_world(to));
+        self.cell = scene.world_to_cell((from.x, from.y));
+        self.face(to);
+        let jump = game.looks().action(Act::Jump);
+        self.play(jump, now_ms, game, library);
+        let far = from.distance(land);
+        let frame_ms = (self.playing.frame_ms as f32 * far / 300.0 + 1.0) as u32;
+        self.playing.frame_ms = frame_ms.max(JUMP_FRAME_MS);
+        self.step = Some(Step {
+            from: self.cell,
+            to,
+            started_ms: now_ms,
+            duration_ms: self.action_ms(),
+            peak: far / 3.0 + 20.0,
+            // The body turns to the path itself, not one of eight ways (`CRole::Show`).
+            facing: Some(-270.0 - (land.y - from.y).atan2(land.x - from.x).to_degrees()),
+        });
+    }
+
+    /// Notes the playing action beginning or ending where the actor stands.
+    fn mark(&mut self, at_end: bool) {
+        let cell = self.step.as_ref().map_or(self.cell, |s| s.from);
+        self.map_marks.push(MapMark {
+            act: self.playing.action,
+            cell,
+            at_end,
+        });
+    }
+
+    /// The actions begun and ended since last asked.
+    pub fn take_map_marks(&mut self) -> Vec<MapMark> {
+        std::mem::take(&mut self.map_marks)
+    }
+
+    /// How high above the ground the actor is drawn at `now_ms` (mid-jump).
+    pub fn lift(&self, now_ms: u64) -> f32 {
+        match &self.step {
+            Some(s) if s.peak > 0.0 => {
+                let t = now_ms.saturating_sub(s.started_ms) as f32 / s.duration_ms.max(1) as f32;
+                s.peak * (std::f32::consts::PI * t.min(1.0)).sin()
+            }
+            _ => 0.0,
+        }
     }
 
     /// Whether the actor is stepping or has steps planned.
@@ -237,6 +320,10 @@ impl Actor {
             self.cell = step.to;
             self.step = None;
             stepped = true;
+            self.mark(true);
+            if let Some(to) = self.next_jump.take() {
+                return self.jump(to, now_ms, scene, game, library);
+            }
         }
         match self.path.pop_front() {
             // The map may have changed under a planned path: stop at a blocked step.
@@ -249,6 +336,8 @@ impl Actor {
                     to: next,
                     started_ms: now_ms,
                     duration_ms: self.action_ms(),
+                    peak: 0.0,
+                    facing: None,
                 });
             }
             Some(_) => self.path.clear(),
@@ -256,6 +345,9 @@ impl Actor {
         }
         let run_through = now_ms >= self.playing.started_ms + self.action_ms();
         if self.step.is_none() && !self.playing.hold {
+            if run_through && !stepped {
+                self.mark(true);
+            }
             if stepped || (self.playing.once && run_through) {
                 let stand = game.looks().action(Act::Stand);
                 self.play(stand, now_ms, game, library);
@@ -328,6 +420,7 @@ impl Actor {
         self.playing.started_ms = now_ms;
         self.playing.once = false;
         self.playing.hold = false;
+        self.mark(false);
         for group in 0..self.part_effects.len() {
             let Some(key) = self.model(group).effect_key else {
                 continue;
@@ -414,8 +507,9 @@ impl Actor {
     pub fn pose(&self, scene: &Scene, tilt_deg: f32, now_ms: u64) -> ActorPose {
         let p = self.position(scene, now_ms);
         ActorPose {
-            position: (p.x, p.y),
-            facing_deg: -45.0 * self.direction as f32 - 45.0,
+            position: (p.x, p.y - self.lift(now_ms)),
+            facing_deg: (self.step.as_ref().and_then(|s| s.facing))
+                .unwrap_or(-45.0 * self.direction as f32 - 45.0),
             tilt_deg,
             scale: BASE_SCALE * self.zoom_percent / 100.0,
             height: 0.0,

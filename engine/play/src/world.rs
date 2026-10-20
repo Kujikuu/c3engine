@@ -145,6 +145,14 @@ impl World {
         }
     }
 
+    /// Actor `index` jumps to `to` along its arc.
+    pub fn actor_jump(&mut self, index: usize, to: c3_scene::CellPos) {
+        let now_ms = self.now_ms();
+        if let Some(actor) = self.actors.get_mut(index) {
+            actor.jump(to, now_ms, &self.scene, &*self.game, &mut self.view.library);
+        }
+    }
+
     /// Actor `index` plays action `act` once and stays on its last frame (dying).
     pub fn actor_hold(&mut self, index: usize, act: u32) {
         let now_ms = self.now_ms();
@@ -190,8 +198,20 @@ impl World {
     /// Advances actors (movement, actions) to now and drops finished effects.
     pub fn tick(&mut self) {
         let now = self.now_ms();
+        let mut left = Vec::new();
         for actor in &mut self.actors {
             actor.update(now, &self.scene, &*self.game, &mut self.view.library);
+            for mark in actor.take_map_marks() {
+                let terrain = self.scene.grid.get(mark.cell).map_or(0, |c| c.surface);
+                let looks = self.game.looks();
+                if let Some(effect) = looks.map_effect(actor.look(), mark.act, terrain, mark.at_end)
+                {
+                    left.push((effect, mark.cell));
+                }
+            }
+        }
+        for (effect, cell) in left {
+            let _ = self.place_effect(&effect, cell, false);
         }
         self.view.tick(now);
         for error in self.view.library.take_errors() {

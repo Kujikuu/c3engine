@@ -307,8 +307,16 @@ impl Looks for Layered {
         self.game.looks().part_effects(key, act)
     }
 
+    fn emote_play(&self, emote: u32) -> crate::module::EmotePlay {
+        self.game.looks().emote_play(emote)
+    }
+
     fn action(&self, act: Act) -> u32 {
         self.game.looks().action(act)
+    }
+
+    fn map_effect(&self, look: &Look, act: u32, terrain: u16, at_end: bool) -> Option<String> {
+        self.game.looks().map_effect(look, act, terrain, at_end)
     }
 
     fn action_names(&self) -> Vec<(u32, String)> {

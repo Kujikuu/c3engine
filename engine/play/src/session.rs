@@ -735,6 +735,13 @@ impl Session {
         let (x, y) = self.sim.player(self.hero).map_or((0, 0), |p| p.cell);
         let action = (action.replace("{hero}", &self.hero.0.to_string()))
             .replace("{cell}", &format!("{x},{y}"));
+        // A jump from where the hero stands (`jump_by:6,-4`).
+        if let Some((dx, dy)) = (action.strip_prefix("jump_by:"))
+            .and_then(|d| d.split_once(','))
+            .and_then(|(dx, dy)| Some((dx.parse::<i32>().ok()?, dy.parse::<i32>().ok()?)))
+        {
+            return self.jump_to((x + dx, y + dy));
+        }
         for action in self.ui.run_gui_action(&action) {
             self.act(action);
         }
@@ -747,7 +754,7 @@ impl Session {
 
     /// Where the hero's feet are now.
     pub fn hero_position(&self) -> Option<Vec2> {
-        self.view.feet(&self.world, self.hero)
+        self.view.ground(&self.world, self.hero)
     }
 
     /// Walks the hero up to NPC `id` and talks to it, as if it was clicked.
@@ -848,6 +855,27 @@ impl Session {
             self.input(Input::Walk(cell));
             self.world.mark_click(cell);
         }
+    }
+
+    /// Jumps the hero to the cell under the pointer, checked first as the sim checks it
+    /// (`CHero::Jump`): too far, too high on the way, or nowhere to stand is told.
+    pub fn jump_to_pointer(&mut self) {
+        let Some(point) = self.pointer else { return };
+        self.jump_to(self.world.scene.world_to_cell((point.x, point.y)));
+    }
+
+    /// Jumps the hero to `cell`, the client's checks first ([`Self::jump_to_pointer`]).
+    pub fn jump_to(&mut self, cell: CellPos) {
+        if self.sim.player(self.hero).is_none_or(|p| p.cell == cell) {
+            return;
+        }
+        let refused = match self.sim.can_jump(self.hero, cell) {
+            Ok(()) => return self.input(Input::Jump(cell)),
+            Err(c3_game::JumpRefused::TooFar) => "You can't jump that far!",
+            Err(c3_game::JumpRefused::TooHigh) => "You can't jump that high!",
+            Err(c3_game::JumpRefused::NoFooting) => "You can't stop here!",
+        };
+        self.ui.system(refused, style::BAD);
     }
 
     /// Runs `seconds` of game and shows what happened (`now`: UI time in seconds).

@@ -308,6 +308,8 @@ pub fn conquer_settings() -> ProjectSettings {
             ..Default::default()
         };
     }
+    // Jumps climb at most 200 above where the hero stands (CHero::m_nHeightCanJump).
+    s.gameplay.jump_height = 200;
     // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,
     // 1.25 level-time units a minute, for the heaven-blessed (StrRes 11001).
     s.gameplay.offline_training = c3_core::settings::OfflineTraining {
@@ -691,6 +693,16 @@ impl Looks for ConquerModule {
             Act::Attack => action::ATTACK_0,
             Act::Die => DIE,
             Act::Jump => action::JUMP,
+        }
+    }
+
+    fn map_effect(&self, look: &Look, act: u32, terrain: u16, at_end: bool) -> Option<String> {
+        match look.kind {
+            LookKind::Player | LookKind::Monster => {
+                self.content
+                    .map_effect(look.body % 1000, act, terrain, at_end)
+            }
+            _ => None,
         }
     }
 

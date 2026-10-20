@@ -63,6 +63,12 @@ pub trait Looks {
     }
     /// The game's id of action `act`.
     fn action(&self, act: Act) -> u32;
+
+    /// The effect action `act` of `look` leaves on the map where it begins (`at_end` false)
+    /// or ends, on ground of `terrain` (a jump's dust, a run step's).
+    fn map_effect(&self, _look: &Look, _act: u32, _terrain: u16, _at_end: bool) -> Option<String> {
+        None
+    }
     /// Actions with readable names, for pickers.
     fn action_names(&self) -> Vec<(u32, String)>;
 }

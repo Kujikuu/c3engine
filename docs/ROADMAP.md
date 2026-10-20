@@ -864,7 +864,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the opener hides 189
     - [ ] 140 / 191 opening no longer close it (window model)
     - [ ] hidden on death and booth close
-  - [ ] Conquer's jump as the client does it: Ctrl+click (and the client's jump rules: range, walkable, height), the hero's jump motion along its arc, other players seen jumping, the dust where it lands; checked against the 5065 client source (3drole Hero jump, CRole::Jump)
+  - [ ] Conquer's jump as the client does it (checked against the 5065 client source: CHero::Jump, CanJump, CRole::Jump, GetJumpHeight, GetFrameInterval, CRole::Show, ProcessAction)
+    - [x] Ctrl+click jumps (an engine `Jump` action, bound `Mouse Ctrl Left`; a chorded click is no walk); rules shared by client and sim: 16 cells (StrRes 100032), the ground on the way at most 200 above the start (100022), walkable and nobody living there (100023)
+    - [x] the jump motion (130) over the way, its frames stretched by distance (× d/300 + 1, 33 ms least), along a sine arc peaking d/3 + 20 midway; the body turned to the path's exact angle; names and picking follow the body up
+    - [x] other players' jumps shown the same way; a jump asked mid-air made on landing (the client's command queue)
+    - [x] the effect an action leaves on the map (ActionMap3DEffect.ini by look, action, terrain): Dust or WaterSplash where a jump lands, RunDust after each run step
+    - [ ] the arc over uneven ground (GetJumpHeight's begin, highest and end altitudes less the base altitude)
+    - [ ] the jump shadow (GetJumpShadowHeight)
+    - [ ] flying (USERSTATUS_FLY: 100 high at most, FLY_MOVE instead of the jump motion)
+    - [ ] no jump within 3 s of a transform, and only for jump-able transforms (Transform.ini)
+    - [ ] ActionCtrl.ini movement curves (the monster and mount looks it lists)
+    - [ ] the name and life bar raised to 130% of the zoom mid-jump
   - [ ] UI 5278 CDlgMipmap / radar (minimap): 3 of 5 audit mismatches fixed
     - [x] the radar as CRadar's crop: MiniMap.ani's picture upright in a 170x128 box top right, at 0xaa, around the hero and clamped to the picture (`ui.radar_box`)
     - [x] hero mark (MiniMap.ani hero) and teammates (PlayerFlag, TeamLeader); no monster/NPC dots, as the native client

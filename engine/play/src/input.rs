@@ -5,8 +5,8 @@
 //! used last is the active one: hints and on-screen controls follow it.
 
 use c3_core::input::{
-    Action, ActionKind, Binding, Device, InputSettings, MouseControl, PadControl, TouchControl,
-    TouchControls,
+    Action, ActionKind, Binding, Device, InputSettings, Modifier, MouseControl, PadControl,
+    TouchControl, TouchControls,
 };
 use egui::Key;
 use glam::Vec2;
@@ -192,6 +192,8 @@ pub struct KeyState {
     /// Buttons pressed this frame over the game.
     pub mouse_pressed: HashSet<MouseControl>,
     pub mouse_down: HashSet<MouseControl>,
+    /// Keys held that chords use.
+    pub modifiers: HashSet<Modifier>,
     /// Wheel scroll this frame (points, up positive).
     pub wheel: f32,
     /// The keyboard is busy (a text field has focus): keys count for nothing.
@@ -275,6 +277,7 @@ pub fn short_name(binding: &Binding) -> String {
         Binding::Keys(keys) => keys.join("/"),
         Binding::Mouse(MouseControl::Wheel) => "Wheel".into(),
         Binding::Mouse(m) => format!("{m:?} click"),
+        Binding::Chord(k, m) => format!("{k:?}+{m:?} click"),
         Binding::Pad(c) => pad_name(*c).into(),
         Binding::Touch(TouchControl::Tap) => "Tap".into(),
         Binding::Touch(TouchControl::Pinch) => "Pinch".into(),
@@ -406,6 +409,13 @@ impl InputMapper {
                 *out.axes.entry(action).or_default() += keys.wheel * WHEEL_ZOOM;
             }
             Binding::Mouse(m) => press(keys.mouse_pressed.contains(m), keys.mouse_down.contains(m)),
+            Binding::Chord(k, m) => {
+                let held = !keys.typing && keys.modifiers.contains(k);
+                press(
+                    held && keys.mouse_pressed.contains(m),
+                    held && keys.mouse_down.contains(m),
+                );
+            }
             Binding::Keys(names) if names.len() == 4 => {
                 let v = Vec2::new(
                     f32::from(u8::from(key_down(&names[3])))

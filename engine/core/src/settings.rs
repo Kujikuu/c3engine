@@ -84,6 +84,7 @@ impl ProjectSettings {
             (1..=100).contains(&g.view_range),
             "The view range must be 1 to 100 cells",
         );
+        check(g.jump_height >= 0, "The jump height can't be below 0");
         check(
             [
                 g.talk_range,
@@ -511,6 +512,9 @@ pub struct GameplaySettings {
     pub trade_range: i32,
     /// Cells a player can jump at once.
     pub jump_range: i32,
+    /// How far the ground on a jump's way may rise above where the player stands (map height
+    /// units; 0: any).
+    pub jump_height: i32,
     /// Cells within which "attack nearest" looks for a monster.
     pub attack_search: i32,
     /// Cells a monster chases away from its spawn area before giving up.
@@ -700,6 +704,7 @@ impl Default for GameplaySettings {
             talk_range: 3,
             trade_range: 18,
             jump_range: 16,
+            jump_height: 0,
             attack_search: 10,
             monster_leash: 24,
             monster_wander: 4,

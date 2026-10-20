@@ -2928,3 +2928,30 @@ fn a_dice_round_takes_chips_rolls_and_pays_by_the_table_rules() {
         "the next round"
     );
 }
+
+#[test]
+fn jumps_keep_to_range_height_and_footing() {
+    // A wall 300 high at x 10, a bystander on (5, 8).
+    let mut grid = Grid::new(40, 40);
+    for y in 0..40 {
+        grid.get_mut((10, y)).unwrap().height = 300;
+    }
+    let mut sim = Sim::new(grid, vec![], vec![], rules(), 7);
+    sim.set_settings(GameplaySettings {
+        jump_height: 200,
+        ..sim.settings().clone()
+    });
+    let hero = sim.add_player("Hero", (5, 5), 1);
+    sim.add_player("Ann", (5, 8), 1);
+    assert_eq!(sim.can_jump(hero, (25, 5)), Err(crate::JumpRefused::TooFar));
+    assert_eq!(
+        sim.can_jump(hero, (14, 5)),
+        Err(crate::JumpRefused::TooHigh)
+    );
+    assert_eq!(
+        sim.can_jump(hero, (5, 8)),
+        Err(crate::JumpRefused::NoFooting)
+    );
+    sim.input(hero, Input::Jump((8, 2)));
+    assert_eq!(sim.player(hero).unwrap().cell, (8, 2));
+}

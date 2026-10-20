@@ -44,3 +44,18 @@ fn nearly_every_effect_loads() {
     // Some entries point at the 46 effect files missing from the client.
     assert!(empty < names.len() / 20, "{empty} of {} empty", names.len());
 }
+
+#[test]
+fn jumps_and_run_steps_leave_ground_effects() {
+    let Some(c) = content() else { return };
+    // ActionMap3DEffect.ini: a jump (130) ends in dust on stone, a splash in water; a run
+    // step (120) ends in run dust; nothing marks where they begin.
+    assert_eq!(c.map_effect(3, 130, 3, true).as_deref(), Some("Dust"));
+    assert_eq!(
+        c.map_effect(3, 130, 1, true).as_deref(),
+        Some("WaterSplash")
+    );
+    assert_eq!(c.map_effect(3, 120, 2, true).as_deref(), Some("RunDust"));
+    assert_eq!(c.map_effect(3, 130, 3, false), None);
+    assert!(c.load_effect("Dust").is_ok());
+}

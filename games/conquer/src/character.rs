@@ -151,6 +151,20 @@ const ANY_ACTION: u64 = 999;
 const ANY_PART: u64 = 999;
 const ANY_VARIANT: u64 = 999;
 
+/// Parses `ActionMap3DEffect.ini`: `[look·10⁶ + action·10³ + terrain]` sections of `Effect`,
+/// `ShowTime` (1: where the action ends) and `DirEnable` (no record turns it); a later section
+/// replaces an earlier one (`C3DRoleData::CreateActionMapEffectInfo`).
+pub(crate) fn parse_map_effects(data: &[u8]) -> HashMap<u32, (String, bool)> {
+    let ini = c3_formats_tq::ini::Ini::parse(data);
+    (ini.sections.iter())
+        .filter_map(|s| {
+            let key = s.name.trim().parse().ok()?;
+            let effect = s.get("Effect")?.to_owned();
+            Some((key, (effect, s.get("ShowTime")?.trim() == "1")))
+        })
+        .collect()
+}
+
 /// Parses an `Action3DEffect*.ini`: lines `look.action.part.variant=effect`.
 pub(crate) fn parse_action_effects(data: &[u8]) -> HashMap<u64, String> {
     let text = String::from_utf8_lossy(data);
@@ -352,6 +366,27 @@ impl Content {
             .iter()
             .map_while(|slot| keys.iter().find_map(|k| slot.get(k)).cloned())
             .collect()
+    }
+
+    /// The map effect action `act` of body `look` leaves on `terrain` where it begins or ends
+    /// (`C3DRoleData::GetActionMapEffect`: the exact key, then 999 for any look, action or
+    /// terrain, in its order).
+    pub fn map_effect(&self, look: u32, act: u32, terrain: u16, at_end: bool) -> Option<String> {
+        const ANY: u32 = 999;
+        let terrain = u32::from(terrain);
+        [
+            (look, act, terrain),
+            (ANY, act, terrain),
+            (look, ANY, terrain),
+            (look, act, ANY),
+            (ANY, ANY, terrain),
+            (ANY, act, ANY),
+            (look, ANY, ANY),
+        ]
+        .iter()
+        .find_map(|(l, a, t)| self.tables.map_effects.get(&(l * 1_000_000 + a * 1000 + t)))
+        .filter(|(_, end)| *end == at_end)
+        .map(|(effect, _)| effect.clone())
     }
 
     /// Milliseconds per animation frame of action `act` (`C3DRoleData::GetActionTimeInterval`:

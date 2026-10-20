@@ -80,6 +80,9 @@ struct Tables {
     /// `Action3DEffect.ini`, `Action3DEffect1.ini`, `Action3DEffect2.ini` (effect slots 0–2):
     /// look·10⁹ + action·10⁶ + part·10³ + variant → effect name.
     action_effects: [HashMap<u64, String>; 3],
+    /// `ActionMap3DEffect.ini`: look·10⁶ + action·10³ + terrain → the map effect and whether
+    /// it shows where the action ends (else where it begins).
+    map_effects: HashMap<u32, (String, bool)>,
     /// `Monster.dat` (encrypted): monster type id → drawing size in percent.
     monster_zoom: HashMap<u32, u32>,
     sounds: sound::SoundTables,
@@ -124,6 +127,7 @@ impl Tables {
                 "Action3DEffect2.ini",
             ]
             .map(|name| character::parse_action_effects(&bytes(name))),
+            map_effects: character::parse_map_effects(&bytes("ActionMap3DEffect.ini")),
             monster_zoom: monster_zoom(&bytes("Monster.dat")),
             sounds: sound::SoundTables::parse(
                 &bytes("ActionSound.ini"),
