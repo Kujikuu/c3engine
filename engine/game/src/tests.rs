@@ -26,6 +26,8 @@ struct TestRules {
     others: Vec<ItemType>,
     skills: Vec<SkillType>,
     statuses: Vec<StatusType>,
+    /// Each level's time (offline training), from level 1 to 4; none: levels take none.
+    level_time: Option<u64>,
 }
 
 fn monster(id: u32, life: u32, attack: u32, aggressive: bool) -> MonsterType {
@@ -81,6 +83,9 @@ impl Rules for TestRules {
     }
     fn level_exp(&self, level: u32) -> Option<u64> {
         (level < 5).then_some(25)
+    }
+    fn level_time(&self, level: u32) -> Option<u64> {
+        self.level_time.filter(|_| level < 5)
     }
     fn hit(&self, attacker: &Fighter, target: &Fighter, rng: &mut Rng) -> u32 {
         let a = rng.range(
@@ -222,6 +227,7 @@ fn test_rules() -> TestRules {
                 ..ItemType::default()
             },
         ],
+        level_time: None,
     }
 }
 
@@ -2758,4 +2764,59 @@ fn what_waits_for_a_player_is_taken_into_its_wallet() {
     assert!(told);
     sim.input(ann, Input::Withdraw);
     assert_eq!(sim.player(ann).unwrap().wallet.get("CPs"), Some(&500));
+}
+
+#[test]
+fn offline_training_banks_online_minutes_and_pays_levels_on_return() {
+    use crate::{TrainingAction as T, TrainingNews as N};
+    let rules = TestRules {
+        level_time: Some(10),
+        ..test_rules()
+    };
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], Box::new(rules), 5);
+    sim.set_settings(GameplaySettings {
+        offline_training: c3_core::settings::OfflineTraining {
+            most_credit: 90,
+            attribute: "blessing_until".into(),
+            ..Default::default()
+        },
+        ..GameplaySettings::default()
+    });
+    let mut save = crate::PlayerSave::new("Ann", (3, 3));
+    save.training_credit = 12;
+    let ann = sim.add_saved_player(&save);
+    let news = |sim: &mut Sim| {
+        (sim.take_events().into_iter())
+            .filter_map(|e| match e {
+                Event::Training { news, .. } => Some(news),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    sim.take_events();
+    sim.input(ann, Input::Training(T::Ask));
+    assert_eq!(news(&mut sim), [N::Offer { minutes: 120 }]);
+    sim.input(ann, Input::Training(T::Start));
+    assert!(news(&mut sim).is_empty(), "the unblessed don't start");
+    let now = crate::training::now_secs();
+    let p = sim.players.get_mut(&ann).unwrap();
+    p.attributes.insert("blessing_until".into(), now + 86_400);
+    sim.input(ann, Input::Training(T::Start));
+    assert_eq!(news(&mut sim), [N::Started]);
+    // Away an hour: 60 minutes trained of the 120, 75 level-time units: 7 levels of 10
+    // would be 70, but the levels stop at 5 (four levels of 10, then 35 units into it).
+    sim.players.get_mut(&ann).unwrap().training_since = now - 3_600;
+    sim.input(ann, Input::Training(T::Query));
+    assert!(matches!(
+        news(&mut sim)[..],
+        [N::Info {
+            trained: 60,
+            remaining: 60,
+            level: 5,
+            ..
+        }]
+    ));
+    sim.input(ann, Input::Training(T::Claim));
+    let p = sim.player(ann).unwrap();
+    assert_eq!((p.level, p.training_since, p.training_credit), (5, 0, 6));
 }

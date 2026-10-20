@@ -74,6 +74,9 @@ impl Player {
             mates: Vec::new(),
             storage: Default::default(),
             chests: Default::default(),
+            training_credit: 0,
+            training_since: 0,
+            online_since: 0,
             ..self.clone()
         }
     }
@@ -105,6 +108,7 @@ impl Event {
             | Event::ChestOpened { player, .. }
             | Event::ItemLocked { player, .. }
             | Event::Withdrawn { player, .. }
+            | Event::Training { player, .. }
             | Event::ChestChanged { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {

@@ -274,6 +274,13 @@ pub fn conquer_settings() -> ProjectSettings {
         bump_cost: 5,
         bump_places: 5,
     };
+    // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,
+    // 1.25 level-time units a minute, for the heaven-blessed (StrRes 11001).
+    s.gameplay.offline_training = c3_core::settings::OfflineTraining {
+        most_credit: 90,
+        attribute: "blessing_until".into(),
+        ..Default::default()
+    };
     // A locked item takes 5 days to unlock (StrRes 11194).
     s.gameplay.item_lock_days = 5;
     // Sashes hold 3, 6 and 9 items (the chest window's rows: type % 10 / 3).

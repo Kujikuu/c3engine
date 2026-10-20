@@ -42,6 +42,7 @@ mod storage;
 pub use guilds::GuildAction;
 mod teams;
 mod trades;
+mod training;
 pub use trades::TradeNews;
 mod world_state;
 /// A map made while playing, as the world state keeps it.
@@ -72,6 +73,7 @@ pub use save::{PlayerSave, SavedItem};
 pub use sim::Sim;
 pub use skills::CastAt;
 pub use statuses::ActiveStatus;
+pub use training::{TrainingAction, TrainingNews};
 
 use c3_scene::CellPos;
 use serde::{Deserialize, Serialize};

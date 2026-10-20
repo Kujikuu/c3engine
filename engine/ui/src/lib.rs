@@ -286,6 +286,17 @@ const SLOW_FRAMES: u32 = 600;
 const SLOW_FPS: f64 = 5.0;
 const LOW_FPS: &str = "low_fps";
 
+/// The kind of the game's exit question.
+const EXIT: &str = "exit";
+
+/// What offline training does next, worked out with the game's data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TrainingNext {
+    Ask,
+    Query,
+    Leave,
+}
+
 /// The view groups of the lock window: the item picked, and its tip when not the first.
 const LOCK_ITEM: &str = "lock_item";
 const LOCK_TIP: &str = "lock_tip";
@@ -1038,6 +1049,24 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            // Offline training: asked from the exit question (the blessed only), started,
+            // called off (back to the question), claimed, the result put away.
+            "train_ask" => self.gui_state.training_next = Some(TrainingNext::Ask),
+            "train_start" => {
+                self.gui_state.training = None;
+                let start = c3_game::Input::Training(c3_game::TrainingAction::Start);
+                actions.push(UiAction::Game(start));
+            }
+            "train_cancel" => {
+                self.gui_state.training = None;
+                self.gui_state.prompt = prompt::Prompt::confirm("exit:leave");
+            }
+            "train_claim" => {
+                self.gui_state.training = None;
+                let claim = c3_game::Input::Training(c3_game::TrainingAction::Claim);
+                actions.push(UiAction::Game(claim));
+            }
+            "train_close" => self.gui_state.training = None,
             "withdraw" => actions.push(UiAction::Game(c3_game::Input::Withdraw)),
             // Too slow: out of full screen, and the game left to be started again.
             "low_fps_restart" => {
@@ -1249,6 +1278,28 @@ impl GameUi {
         *frames = u32::MAX;
         if fps <= SLOW_FPS {
             self.gui_state.views.insert(LOW_FPS.into(), "1".into());
+        }
+    }
+
+    /// What offline training does next: asked (the blessed; others told StrRes 11001 and
+    /// kept playing), what it trained asked on coming back, or the game left once started.
+    fn training_next(&mut self, view: &GameView, player: &Player, actions: &mut Vec<UiAction>) {
+        use c3_game::{Input, TrainingAction as T};
+        match self.gui_state.training_next.take() {
+            Some(TrainingNext::Ask) => {
+                let needs = &view.sim.settings().offline_training.attribute;
+                let until = player.attributes.get(needs).copied().unwrap_or(0);
+                let now = chrono::Utc::now().timestamp();
+                if needs.is_empty() || until > now {
+                    self.gui_state.prompt = None;
+                    actions.push(UiAction::Game(Input::Training(T::Ask)));
+                } else {
+                    self.gui_state.prompt = prompt::Prompt::confirm("train_notice:");
+                }
+            }
+            Some(TrainingNext::Query) => actions.push(UiAction::Game(Input::Training(T::Query))),
+            Some(TrainingNext::Leave) => actions.push(UiAction::Leave),
+            None => {}
         }
     }
 
@@ -1638,6 +1689,11 @@ impl GameUi {
     }
 
     pub fn toggle_menu(&mut self) {
+        // The game's own exit question, when it has one (TQ's Esc: CDlgConfirm mode 27).
+        if self.menu.is_none() && self.gui.as_ref().is_some_and(|g| g.asks(EXIT)) {
+            self.gui_state.prompt = prompt::Prompt::confirm("exit:leave");
+            return;
+        }
         self.menu = match self.menu {
             Some(_) => None,
             None => Some(menu::Page::Main),
@@ -1776,6 +1832,20 @@ impl GameUi {
                     self.gui_state.storage = Some(*npc);
                 }
                 // What waited taken: told in an OK-only prompt (TQ's StrRes 11200).
+                // Offline training: the minutes offered (285), started (the game left), back
+                // (what it trained asked), what it trained (284), refused here (11056).
+                Event::Training { player, news } if *player == hero => {
+                    use c3_game::TrainingNews as N;
+                    match *news {
+                        N::Offer { .. } | N::Info { .. } => self.gui_state.training = Some(*news),
+                        N::Started => self.gui_state.training_next = Some(TrainingNext::Leave),
+                        N::Ready => self.gui_state.training_next = Some(TrainingNext::Query),
+                        N::Denied => {
+                            self.gui_state.prompt = prompt::Prompt::confirm("train_denied:")
+                        }
+                        N::Claimed => self.gui_state.training = None,
+                    }
+                }
                 Event::Withdrawn { player, amount, .. } if *player == hero => {
                     let mut told = prompt::Prompt::confirm("withdrawn:");
                     if let Some(p) = &mut told {
@@ -2211,6 +2281,7 @@ impl GameUi {
                 self.contact_word(view, player, &mut actions);
                 self.purchase(view, player, &mut actions);
                 self.lock_bind(view, player);
+                self.training_next(view, player, &mut actions);
                 let used = self.gui_state.use_kind.take();
                 let item = used.and_then(|kind| player.bag.iter().find(|i| i.kind == kind));
                 actions.extend(item.map(|i| UiAction::Use(i.id)));

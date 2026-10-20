@@ -420,6 +420,33 @@ impl NpcCombatSettings {
     }
 }
 
+/// Offline training (TQ's training ground, Training.dll): each minute online banks a credit
+/// (up to `most_credit`) worth `minutes_a_credit` training minutes, counted in `step`s; a
+/// player holding `attribute` (when a state ends, unix seconds: TQ's heaven blessing; empty:
+/// none needed) starts it on leaving; a training minute gives `rate_percent` hundredths of a
+/// level-time unit (the levels table's `time`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OfflineTraining {
+    pub most_credit: u32,
+    pub minutes_a_credit: u32,
+    pub step: u32,
+    pub rate_percent: u32,
+    pub attribute: String,
+}
+
+impl Default for OfflineTraining {
+    fn default() -> Self {
+        Self {
+            most_credit: 0,
+            minutes_a_credit: 10,
+            step: 15,
+            rate_percent: 125,
+            attribute: String::new(),
+        }
+    }
+}
+
 /// The simulation's numbers: timing, ranges, the bag, the start, game masters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -478,6 +505,9 @@ pub struct GameplaySettings {
     /// Nobility bought by donations (off while `min_level` is 0).
     #[serde(default)]
     pub nobility: NobilitySettings,
+    /// Offline training (off while `most_credit` is 0).
+    #[serde(default)]
+    pub offline_training: OfflineTraining,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -632,6 +662,7 @@ impl Default for GameplaySettings {
             mentor: MentorSettings::default(),
             broadcast: BroadcastSettings::default(),
             nobility: NobilitySettings::default(),
+            offline_training: OfflineTraining::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),

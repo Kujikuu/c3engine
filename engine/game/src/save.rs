@@ -57,11 +57,20 @@ pub struct PlayerSave {
     /// Items kept with storage NPCs (by NPC id), and the money kept.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub storage: BTreeMap<u32, Vec<SavedItem>>,
+    /// Offline training: the credit banked, and when it started (unix seconds; 0: not).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub training_credit: u32,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub training_since: i64,
     /// What the bag's chests hold, by the chest's place in the bag.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub chests: BTreeMap<u32, Vec<SavedItem>>,
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub saved_money: u64,
+}
+
+fn is_zero_i64(n: &i64) -> bool {
+    *n == 0
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -193,6 +202,8 @@ impl PlayerSave {
             record: None,
             storage: BTreeMap::new(),
             chests: BTreeMap::new(),
+            training_credit: 0,
+            training_since: 0,
             saved_money: 0,
         }
     }
@@ -204,6 +215,7 @@ impl Sim {
         let id = self.new_entity();
         self.add_saved_player_as(save, id);
         self.unlock_due(id);
+        self.training_login(id);
         id
     }
 
@@ -232,6 +244,8 @@ impl Sim {
         let p = self.players.get_mut(&id).expect("just added");
         p.storage = storage;
         p.chests = chests;
+        p.training_credit = save.training_credit;
+        p.training_since = save.training_since;
         p.saved_money = save.saved_money;
         p.exp = save.exp;
         p.money = save.money;
@@ -300,6 +314,8 @@ impl Sim {
                     Some((u32::try_from(at).ok()?, saved))
                 })
                 .collect(),
+            training_credit: self.training_credit_saved(p),
+            training_since: p.training_since,
             saved_money: p.saved_money,
         })
     }

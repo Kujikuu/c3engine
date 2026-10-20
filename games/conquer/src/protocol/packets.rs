@@ -59,6 +59,40 @@ pub fn business(action: u8, id: u32, online: bool, minutes: u16, look: u32, name
 }
 
 pub const BUSINESS: u16 = 2046;
+/// Offline training (Training.dll): MsgTraining's actions both ways, and what it trained.
+pub const TRAINING: u16 = 2044;
+pub const TRAINING_INFO: u16 = 2043;
+pub mod training {
+    /// Client: asked; server: the minutes offered.
+    pub const ASK: u16 = 0;
+    pub const START: u16 = 1;
+    /// Server: back from training (the client asks what it trained).
+    pub const READY: u16 = 2;
+    pub const QUERY: u16 = 3;
+    pub const CLAIM: u16 = 4;
+    /// Server: no training on this map (StrRes 11056).
+    pub const DENIED: u16 = 5;
+}
+
+/// MsgTraining 2044 (12 bytes): its action and data.
+pub fn training(action: u16, data: u32) -> Vec<u8> {
+    packet(TRAINING, |w| {
+        w.u16(action).u16(0).u32(data);
+    })
+}
+
+/// MsgTrainingInfo 2043 (16 bytes): minutes trained and left, the level reached and how far
+/// into it (ten-millionths).
+pub fn training_info(trained: u16, remaining: u16, level: u16, fraction: u32) -> Vec<u8> {
+    packet(TRAINING_INFO, |w| {
+        w.u16(trained)
+            .u16(remaining)
+            .u16(level)
+            .u16(0)
+            .u32(fraction);
+    })
+}
+
 /// MsgEquipLock (the 5065 client's MsgItemLock): lock, unlock, query, unlocked.
 pub const ITEM_LOCK: u16 = 2048;
 pub mod item_lock {
@@ -1100,6 +1134,8 @@ pub enum Request {
     MentorPrize {
         action: u8,
     },
+    /// Offline training asked of (2044): its action.
+    Training(u16),
     /// An item locked, unlocked or its unlock day asked (2048).
     ItemLock {
         item: u32,
@@ -1444,6 +1480,7 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             }
         }
         MENTOR_PRIZE => Request::MentorPrize { action: r.u8()? },
+        TRAINING => Request::Training(r.u16()?),
         ITEM_LOCK => {
             let item = r.u32()?;
             Request::ItemLock {
@@ -1533,6 +1570,23 @@ mod tests {
             name: "Pheasant",
         };
         assert_eq!(spawn(&s).len(), 90 + 1 + 9 + 1);
+    }
+
+    #[test]
+    fn offline_training_talks_in_12_and_16_bytes() {
+        let offer = training(training::ASK, 900);
+        assert_eq!(
+            (offer.len(), &offer[4..6], &offer[8..12]),
+            (12, &[0, 0][..], &900_u32.to_le_bytes()[..])
+        );
+        let info = training_info(120, 780, 15, 8_800_000);
+        assert_eq!(info.len(), 16);
+        assert_eq!(&info[4..10], &[120, 0, 0x0C, 3, 15, 0]);
+        assert_eq!(&info[12..16], &8_800_000_u32.to_le_bytes());
+        assert_eq!(
+            parse(&training(training::CLAIM, 0)).unwrap(),
+            Request::Training(training::CLAIM)
+        );
     }
 
     #[test]

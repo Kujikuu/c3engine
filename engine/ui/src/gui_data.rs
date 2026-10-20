@@ -3,6 +3,7 @@
 use crate::GameView;
 use crate::gui::GuiData;
 use c3_game::Player;
+use c3_game::TrainingNews as TN;
 
 /// What the game UI keeps between frames: the storage NPC whose warehouse is open, and
 /// what is typed in its fields.
@@ -82,6 +83,10 @@ pub(crate) struct GuiState {
     pub purchase_asked: Option<String>,
     /// The lock window's bind pressed.
     pub lock_binding: bool,
+    /// Offline training: the minutes offered or what it trained (its windows'), and what it
+    /// does next.
+    pub training: Option<c3_game::TrainingNews>,
+    pub training_next: Option<crate::TrainingNext>,
     /// The bag chest shown (its item id), and an item kind asked to be used.
     pub chest: Option<u32>,
     pub use_kind: Option<u32>,
@@ -734,6 +739,33 @@ impl GuiData for HeroData<'_> {
                 let roots = crate::destinations::roots(self.view);
                 roots.iter().position(|d| d.id == open)? as f64
             }
+            // Offline training: its windows shown, and minutes as hours and minutes
+            // (`training.trained_h`, `_m`; offered, trained, remaining, total).
+            "training.offer" => {
+                u8::from(matches!(self.state.training, Some(TN::Offer { .. }))).into()
+            }
+            "training.info" => {
+                u8::from(matches!(self.state.training, Some(TN::Info { .. }))).into()
+            }
+            _ if key.starts_with("training.") && (key.ends_with("_h") || key.ends_with("_m")) => {
+                let minutes = match (self.state.training?, &key["training.".len()..key.len() - 2]) {
+                    (TN::Offer { minutes }, "offer") => minutes,
+                    (TN::Info { trained, .. }, "trained") => trained,
+                    (TN::Info { remaining, .. }, "remain") => remaining,
+                    (
+                        TN::Info {
+                            trained, remaining, ..
+                        },
+                        "total",
+                    ) => trained + remaining,
+                    _ => return None,
+                };
+                f64::from(if key.ends_with("_h") {
+                    minutes / 60
+                } else {
+                    minutes % 60
+                })
+            }
             // The lock window: an item picked, and its state (0 free, 1 locked, 2 unlocking).
             "lock.picked" => u8::from(self.lock_item().is_some()).into(),
             "lock.state" => match self.lock_item()?.lock {
@@ -1199,6 +1231,21 @@ impl GuiData for HeroData<'_> {
                 })
             }
             "chatlog.date" => Some(chrono::Local::now().format("%Y-%-m-%-d").to_string()),
+            // What offline training brings: the hero's level and how far into it now, and
+            // then (StrRes 11010's `%.5lf => %.5lf`).
+            "training.exp" => {
+                let Some(TN::Info {
+                    level, fraction, ..
+                }) = self.state.training
+                else {
+                    return None;
+                };
+                let p = self.player;
+                let need = self.view.sim.rules().level_exp(p.level).unwrap_or(0).max(1);
+                let now = f64::from(p.level) + p.exp as f64 / need as f64;
+                let then = f64::from(level) + f64::from(fraction) * 0.000_000_1;
+                Some(format!("{now:.5} => {then:.5}"))
+            }
             // The lock window: the picked item's name, its lock picture (`EquipTie_` and
             // this), and the tip's StrRes key (11194, or 11195 for no equipment).
             "lock.name" => Some(crate::item_name(self.view.sim, self.lock_item()?.kind)),

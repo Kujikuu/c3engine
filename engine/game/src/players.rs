@@ -100,6 +100,9 @@ impl Sim {
                 transform: None,
                 storage: std::collections::BTreeMap::new(),
                 chests: std::collections::BTreeMap::new(),
+                training_credit: 0,
+                training_since: 0,
+                online_since: 0,
                 saved_money: 0,
                 killed_by_monster: 0,
             },
@@ -1161,21 +1164,29 @@ impl Sim {
                 break;
             }
             p.exp -= need;
-            p.level += 1;
-            let level = p.level;
-            let name = p.name.clone();
-            self.events.push(Event::LeveledUp { player: id, level });
-            let map = self.map_ids.first().copied().map_or(0, i64::from);
-            self.change_world(c3_script::WorldChange::Online {
-                name,
-                map,
-                level: i64::from(level),
-            });
-            self.refresh_stats(id);
-            let p = self.players.get_mut(&id).expect("levelling");
-            p.life = p.stats.max_life;
-            p.mana = p.stats.max_mana;
-            self.script_event(id, "on_level_up", vec![i64::from(level).into()]);
+            self.raise_level(id);
         }
+    }
+
+    /// Raises player `id` a level: told, its stats and life renewed, its scripts' `on_level_up`.
+    pub(crate) fn raise_level(&mut self, id: EntityId) {
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        p.level += 1;
+        let level = p.level;
+        let name = p.name.clone();
+        self.events.push(Event::LeveledUp { player: id, level });
+        let map = self.map_ids.first().copied().map_or(0, i64::from);
+        self.change_world(c3_script::WorldChange::Online {
+            name,
+            map,
+            level: i64::from(level),
+        });
+        self.refresh_stats(id);
+        let p = self.players.get_mut(&id).expect("levelling");
+        p.life = p.stats.max_life;
+        p.mana = p.stats.max_mana;
+        self.script_event(id, "on_level_up", vec![i64::from(level).into()]);
     }
 }

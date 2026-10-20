@@ -36,6 +36,10 @@ fn is_zero_u32(n: &u32) -> bool {
     *n == 0
 }
 
+fn is_zero_i64(n: &i64) -> bool {
+    *n == 0
+}
+
 fn is_zero(n: &u8) -> bool {
     *n == 0
 }
@@ -146,6 +150,14 @@ pub struct Player {
     /// Items kept with storage NPCs (by NPC id), and the money kept (any of them).
     #[serde(default)]
     pub storage: BTreeMap<u32, Vec<Item>>,
+    /// Offline training: the credit banked, when it started (unix seconds; 0: not training),
+    /// and when this stay online began.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub training_credit: u32,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub training_since: i64,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub online_since: i64,
     /// What its bag's chests hold, by the chest's item id.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub chests: BTreeMap<u32, Vec<Item>>,

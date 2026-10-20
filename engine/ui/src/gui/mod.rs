@@ -598,6 +598,12 @@ impl Gui {
     /// Whether `dialog` shows: on the screen shown, open from the start or opened.
     /// Whether any control is bound to something starting with `prefix` (the game's own
     /// skill strip: `skill.`).
+    /// Whether a dialog shows questions of kind `kind` (`when=prompt.kind.<kind>`).
+    pub fn asks(&self, kind: &str) -> bool {
+        let shown = format!("prompt.kind.{kind}");
+        self.controls.iter().any(|c| c.when.contains(&shown))
+    }
+
     pub fn binds(&self, prefix: &str) -> bool {
         self.controls.iter().any(|c| c.value.starts_with(prefix))
     }

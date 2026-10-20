@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /wallet CURRENCY N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -33,6 +33,22 @@ impl Sim {
             "Raised {name} {} {} {}.",
             args[0], args[1], args[2]
         ))
+    }
+
+    /// `/attribute NAME N` (game masters): sets one of the player's attributes.
+    fn attribute_command(&mut self, id: EntityId, words: &[&str]) -> Result<String, String> {
+        let gm = (self.players.get(&id)).is_some_and(|p| self.settings.is_gm(&p.name));
+        if !gm {
+            return Err("Only game masters can use commands.".into());
+        }
+        let [name, value] = words else {
+            return Err("Usage: /attribute NAME N".into());
+        };
+        let value: i64 = (value.parse()).map_err(|_| format!("\"{value}\" is not a number"))?;
+        let p = self.players.get_mut(&id).expect("checked above");
+        p.attributes.insert((*name).to_owned(), value);
+        self.refresh_stats(id);
+        Ok(format!("{name} set to {value}."))
     }
 
     /// `/deposit NAME CURRENCY N` (game masters): leaves N of a currency for player NAME to take.
@@ -75,28 +91,17 @@ impl Sim {
     }
 
     pub fn command(&mut self, id: EntityId, line: &str) -> Result<String, String> {
-        // Everyone runs their team.
+        // The commands taking words: everyone runs their team, the rest are game masters'.
         let all: Vec<&str> = line.trim_start_matches('/').split_whitespace().collect();
-        if all.first().is_some_and(|w| w.eq_ignore_ascii_case("team")) {
-            return self.team_command(id, &all[1..]);
-        }
-        if all
-            .first()
-            .is_some_and(|w| w.eq_ignore_ascii_case("signal"))
-        {
-            return self.signal_command(id, &all[1..]);
-        }
-        if all
-            .first()
-            .is_some_and(|w| w.eq_ignore_ascii_case("wallet"))
-        {
-            return self.wallet_command(id, &all[1..]);
-        }
-        if all
-            .first()
-            .is_some_and(|w| w.eq_ignore_ascii_case("deposit"))
-        {
-            return self.deposit_command(id, &all[1..]);
+        let first = all.first().map(|w| w.to_ascii_lowercase());
+        let rest = all.get(1..).unwrap_or_default();
+        match first.as_deref() {
+            Some("team") => return self.team_command(id, rest),
+            Some("signal") => return self.signal_command(id, rest),
+            Some("wallet") => return self.wallet_command(id, rest),
+            Some("deposit") => return self.deposit_command(id, rest),
+            Some("attribute") => return self.attribute_command(id, rest),
+            _ => {}
         }
         let mut words = line.trim_start_matches('/').split_whitespace();
         let name = words.next().unwrap_or_default().to_lowercase();
@@ -137,6 +142,18 @@ impl Sim {
                 held.durability = value;
                 self.events.push(Event::Dressed { player: id });
                 Ok(format!("Item {item}'s durability set to {value}."))
+            }
+            // Away training this many minutes already, its credit full (as on coming back).
+            "train" => {
+                let minutes = arg(0)?.max(0);
+                let most = self.settings.offline_training.most_credit;
+                let p = self.players.get_mut(&id).expect("checked above");
+                p.training_credit = most;
+                p.training_since = crate::training::now_secs() - minutes * 60;
+                let news = crate::TrainingNews::Ready;
+                self.events
+                    .push(crate::Event::Training { player: id, news });
+                Ok(format!("Training for {minutes} minutes."))
             }
             "level" => {
                 let level = arg(0)?.clamp(1, 1000) as u32;

@@ -281,6 +281,11 @@ pub enum Event {
         player: EntityId,
         npc: u32,
     },
+    /// Offline training news for `player`.
+    Training {
+        player: EntityId,
+        news: crate::training::TrainingNews,
+    },
     /// `player` took `amount` of `currency` that waited for it.
     Withdrawn {
         player: EntityId,

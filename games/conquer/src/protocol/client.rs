@@ -1937,6 +1937,30 @@ impl ConquerClient {
                 vec![pk::team(pk::team::INVITE, Ids::player(*leader))]
             }
             // The warehouse as it is now, and the money kept.
+            // Offline training news (MsgTraining 2044, MsgTrainingInfo 2043).
+            Event::Training { player, news } if Some(*player) == hero => {
+                use c3_game::TrainingNews as N;
+                use pk::training as t;
+                let word = |n: u32| u16::try_from(n).unwrap_or(u16::MAX);
+                match *news {
+                    N::Offer { minutes } => vec![pk::training(t::ASK, minutes)],
+                    N::Started => vec![pk::training(t::START, 0)],
+                    N::Ready => vec![pk::training(t::READY, 0)],
+                    N::Denied => vec![pk::training(t::DENIED, 0)],
+                    N::Info {
+                        trained,
+                        remaining,
+                        level,
+                        fraction,
+                    } => vec![pk::training_info(
+                        word(trained),
+                        word(remaining),
+                        word(level),
+                        fraction,
+                    )],
+                    N::Claimed => Vec::new(),
+                }
+            }
             // CPs that waited taken (MsgInteract 32 with how many: StrRes 11200).
             Event::Withdrawn { player, amount, .. } if Some(*player) == hero => {
                 let id = self.hero_id();
@@ -2337,6 +2361,19 @@ impl ConquerClient {
             }
             // Asking a player to be a trade partner (or asking back), turning one down,
             // ending a partnership.
+            // Offline training (MsgTraining 2044): asked, started, what it trained, claimed.
+            Request::Training(a) => {
+                use c3_game::TrainingAction as T;
+                use pk::training as t;
+                let action = match a {
+                    t::ASK => Some(T::Ask),
+                    t::START => Some(T::Start),
+                    t::QUERY => Some(T::Query),
+                    t::CLAIM => Some(T::Claim),
+                    _ => None,
+                };
+                inputs.extend(action.map(Input::Training));
+            }
             // Locking, unlocking (MsgEquipLock 2048), and the unlock day asked.
             Request::ItemLock { item, action: a } => match a {
                 pk::item_lock::APPLY => inputs.push(Input::Lock(item)),
