@@ -780,7 +780,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] one question at a time (`prompt.*` bindings, `prompt_yes`/`prompt_no`, `ask:<kind>:<actions>` for the player's own actions); trade and team asks lapse after 10 s; a second trade ask is turned away (StrRes 10433)
     - [x] trade, team invite/apply, guild invite/apply and marriage asks put to the hero; leaving a guild and taking a chat name off asked first
     - [ ] an amount typed in the prompt (modes 5, 9, 10, 11: dropping money, donating, booth prices) and the gem take-out, item drop and important-item asks
-    - [ ] Enter/Esc answer it; refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT)
+    - [x] Enter/Esc answer it
+    - [ ] refusing a team ask tells the asker (CMD_TEAM_CONFIRM_REJECT)
     - [ ] the engine's own UI (no game dialog) still turns asks into chat lines
   - [ ] UI engine: item drag and drop, right-click use and buy, tooltips, +N and quality overlays, grid paging
   - [ ] UI engine: disabled and latched button frames, images picked by a binding, sliders, multi-line edits, comparisons in `when`
@@ -857,11 +858,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 161 CDlgDepot (warehouse): partial, 14 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 141 CDlgGroup (team): partial, 13 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 268 CMenuGroup (team options): partial, 3 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 158 CDlgConfirm (generic yes/no prompt): 6 of 14 audit mismatches fixed
+  - [ ] UI 158 CDlgConfirm (generic yes/no prompt): 7 of 14 audit mismatches fixed
     - [x] opens while a question is asked; Dialog15 at -5,-5 (Dialog45 at -25,-25 for a proposal); centred yellow text from StrRes (name, 10000/10002-10005/10365, 10001; 10009, 10008); OK runs it, Cancel drops it
     - [x] modes 0-2 hide after 10 s; a second trade ask refused
     - [ ] amount edits and Dialog56/57 icons (modes 5, 9, 10, 11), Exercise (27), detail rows (32), Cancel hidden in modes 30, 34, 35, 52-54
-    - [ ] Enter/Esc mapped to OK/Cancel
+    - [x] Enter/Esc mapped to OK/Cancel
     - [ ] the other 40-odd modes (booth, mentor, item lock, offline training...) as their features land
   - [ ] UI 137 CDlgTrade (trade): partial, 21 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 140 CDlgAct (emote bar): draft only, 6 mismatches (docs/conquer_ui_audit.md)
