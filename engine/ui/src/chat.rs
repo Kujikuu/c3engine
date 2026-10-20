@@ -96,6 +96,7 @@ impl Chat {
                     c3_game::ChatChannel::Whisper => "[Whisper] ",
                     c3_game::ChatChannel::Team => "[Team] ",
                     c3_game::ChatChannel::Guild => "[Guild] ",
+                    c3_game::ChatChannel::Friend => "[Friend] ",
                 };
                 Some((format!("{tag}{name}: {text}"), style::TEXT))
             }

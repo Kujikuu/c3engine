@@ -19,6 +19,8 @@ pub enum ChatChannel {
     Team,
     /// The speaker's guild.
     Guild,
+    /// The speaker's friends, on any map.
+    Friend,
 }
 
 /// A chat line on its way to a player on another map.
@@ -74,6 +76,18 @@ impl Sim {
                     .filter(|&m| m != id)
                     .filter_map(|m| self.name_of_any(m))
                     .collect()
+            }
+            ChatChannel::Friend => {
+                let friends: Vec<String> = (self.world.friends_of(&name).into_iter())
+                    .filter(|f| {
+                        self.world.online.contains_key(f) || self.player_by_name(f).is_some()
+                    })
+                    .collect();
+                if friends.is_empty() {
+                    self.message(id, "None of your friends is online.");
+                    return;
+                }
+                friends
             }
             ChatChannel::Guild => {
                 let Some((guild, _)) = self.world.guild_of(&name) else {

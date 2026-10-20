@@ -1118,6 +1118,7 @@ impl ConquerClient {
                     ),
                     c3_game::ChatChannel::Team => (channel::TEAM, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Guild => (channel::GUILD, "ALLUSERS".to_owned()),
+                    c3_game::ChatChannel::Friend => (channel::FRIEND, "ALLUSERS".to_owned()),
                 };
                 vec![pk::talk(code, name, &hearer, text, WHITE)]
             }
@@ -1603,6 +1604,7 @@ impl ConquerClient {
                     channel::WHISPER => Some(C::Whisper),
                     channel::TEAM => Some(C::Team),
                     channel::GUILD => Some(C::Guild),
+                    channel::FRIEND => Some(C::Friend),
                     _ => None,
                 };
                 inputs.push(match on {

@@ -173,6 +173,7 @@ impl Sim {
             damage,
         });
         if dead {
+            self.note_enemy(target, id);
             self.kill_player(target, Some(id));
             if let Some(killer) = self.players.get_mut(&id) {
                 killer.pk_kills += 1;

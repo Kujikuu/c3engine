@@ -183,6 +183,11 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// `from` asks `player` to be friends.
+    FriendAsked {
+        player: EntityId,
+        from: EntityId,
+    },
     /// Player `player` shows emote `emote` (the game's action number).
     Emoted {
         player: EntityId,

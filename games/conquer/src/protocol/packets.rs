@@ -169,6 +169,7 @@ pub mod channel {
     pub const WHISPER: u16 = 2001;
     pub const TEAM: u16 = 2003;
     pub const GUILD: u16 = 2004;
+    pub const FRIEND: u16 = 2009;
     /// A guild's announcement, set by its leader and told to its members (_TXTATR_SYNANNOUNCEG).
     pub const GUILD_NOTICE: u16 = 2111;
     pub const TALK: u16 = 2007;

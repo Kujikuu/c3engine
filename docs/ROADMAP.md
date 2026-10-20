@@ -833,7 +833,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] List 1185 opens the names list 148 (Dialog24, yellow names, a pick fills the name and hides it); Add 1545 switches Button57/58/59 and lists or takes off the name
     - [x] Log 1095 toggles 139; Action 1096 toggles 274 and closes 191 (`close:N`)
     - [ ] broadcast (ad_channel) mode: tip 11034, placeholder 11023, level 50 / 5 CPs / 80 bytes, prompt 296; and 174's [174-1549]
-    - [ ] friend (2009) and service (2014, 20 s cooldown StrRes 10444) channels sent (needs M13 friends)
+    - [x] friend channel (2009): friends and enemies in the game (`FriendAction`, `WorldChange::Friendship`/`Enemy`, a killer kept as the victim's enemy)
+    - [ ] service channel (2014, 20 s cooldown StrRes 10444)
     - [ ] taking a listed name off asks first (CDlgConfirm 158, needs the yes/no prompt)
     - [ ] 148: kept between sessions, hidden when the mouse leaves, its arrows [148-1]/[148-2]
     - [ ] inline #NN emoticons in the line (MyCombo.cpp 98)

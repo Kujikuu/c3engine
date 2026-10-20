@@ -70,6 +70,12 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// Friends: each pair of names, the smaller first.
+    #[serde(default)]
+    pub friends: std::collections::BTreeSet<(String, String)>,
+    /// Each player's enemies by name, the oldest first.
+    #[serde(default)]
+    pub enemies: BTreeMap<String, Vec<String>>,
 }
 
 /// A bounty on a killer: the one killed, the killer, the reward's kind and amount.
@@ -134,6 +140,23 @@ impl WorldState {
             WorldChange::GuildFund { guild, amount } => {
                 if let Some(g) = self.guild_mut(*guild) {
                     g.fund = g.fund.saturating_add(*amount).max(0);
+                }
+            }
+            WorldChange::Friendship { a, b, on } => {
+                let pair = friend_pair(a, b);
+                if *on {
+                    self.friends.insert(pair);
+                } else {
+                    self.friends.remove(&pair);
+                }
+            }
+            WorldChange::Enemy { name, enemy, on } => {
+                let list = self.enemies.entry(name.clone()).or_default();
+                list.retain(|e| e != enemy);
+                if *on {
+                    list.push(enemy.clone());
+                    let over = list.len().saturating_sub(crate::MAX_ENEMIES);
+                    list.drain(..over);
                 }
             }
             WorldChange::GuildNotice { guild, text } => {
@@ -306,6 +329,27 @@ impl WorldState {
         }
     }
 
+    /// Whether players `a` and `b` are friends.
+    pub fn are_friends(&self, a: &str, b: &str) -> bool {
+        self.friends.contains(&friend_pair(a, b))
+    }
+
+    /// Player `name`'s friends.
+    pub fn friends_of(&self, name: &str) -> Vec<String> {
+        (self.friends.iter())
+            .filter_map(|(a, b)| match (a == name, b == name) {
+                (true, _) => Some(b.clone()),
+                (_, true) => Some(a.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Player `name`'s enemies, the oldest first.
+    pub fn enemies_of(&self, name: &str) -> &[String] {
+        self.enemies.get(name).map_or(&[], Vec::as_slice)
+    }
+
     /// The guild player `name` is in, and its rank there.
     pub fn guild_of(&self, name: &str) -> Option<(u32, i64)> {
         (self.guilds.iter()).find_map(|(id, g)| g.members.get(name).map(|r| (*id, *r)))
@@ -401,4 +445,10 @@ impl Sim {
             self.deliver_waiting();
         }
     }
+}
+
+/// Two names as the friends set keeps them: the smaller first.
+fn friend_pair(a: &str, b: &str) -> (String, String) {
+    let (x, y) = if a <= b { (a, b) } else { (b, a) };
+    (x.to_owned(), y.to_owned())
 }

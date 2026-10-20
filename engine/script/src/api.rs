@@ -1939,6 +1939,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::GuildLeader { .. }
         | WorldChange::GuildNotice { .. }
         | WorldChange::Contribution { .. }
+        | WorldChange::Friendship { .. }
+        | WorldChange::Enemy { .. }
         | WorldChange::MapCopy { .. }
         | WorldChange::Online { .. }
         | WorldChange::Deliver { .. }

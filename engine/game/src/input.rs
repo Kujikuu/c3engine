@@ -113,6 +113,8 @@ pub enum Input {
     Emote(u32),
     /// A guild's leader sets what it tells its members.
     GuildNotice(String),
+    /// Friends and enemies: asking, taking up, letting go.
+    Friend(crate::FriendAction),
     /// Say `text` on `channel` (to player `to` when whispering).
     Chat {
         channel: crate::ChatChannel,
@@ -163,6 +165,7 @@ impl Sim {
             Input::Revive => self.revive(id),
             Input::SetPkMode(mode) => self.set_pk_mode(id, mode),
             Input::GuildNotice(text) => self.guild_notice(id, &text),
+            Input::Friend(action) => self.friend_action(id, action),
             Input::Emote(emote) => {
                 if self.players.get(&id).is_some_and(|p| p.is_alive()) {
                     self.events.push(Event::Emoted { player: id, emote });

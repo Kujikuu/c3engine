@@ -668,6 +668,7 @@ impl GameUi {
                     "whisper" => C::Whisper,
                     "team" => C::Team,
                     "guild" => C::Guild,
+                    "friend" => C::Friend,
                     _ => {
                         self.system("That channel isn't open yet.", style::BAD);
                         return;

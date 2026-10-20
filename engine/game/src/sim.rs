@@ -83,6 +83,8 @@ pub struct Sim {
     pub(crate) guild_invites: BTreeMap<EntityId, u32>,
     /// Players who asked to join a guild, and which.
     pub(crate) guild_applies: BTreeMap<EntityId, u32>,
+    /// Players who asked another to be friends: the asker, and whom.
+    pub(crate) friend_asks: BTreeMap<EntityId, EntityId>,
     pub(crate) closed_teams: std::collections::BTreeSet<EntityId>,
     /// Teams (by leader) whose members keep their money from each other, and those sharing
     /// items.
@@ -156,6 +158,7 @@ impl Sim {
             team_applies: BTreeMap::new(),
             guild_invites: BTreeMap::new(),
             guild_applies: BTreeMap::new(),
+            friend_asks: BTreeMap::new(),
             closed_teams: std::collections::BTreeSet::new(),
             teams_keeping_money: std::collections::BTreeSet::new(),
             teams_sharing_items: std::collections::BTreeSet::new(),

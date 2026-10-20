@@ -232,6 +232,18 @@ pub enum WorldChange {
         guild: i64,
         amount: i64,
     },
+    /// Players `a` and `b` became friends (`on`) or are no longer.
+    Friendship {
+        a: String,
+        b: String,
+        on: bool,
+    },
+    /// Player `name` keeps `enemy` as an enemy (`on`), or no longer.
+    Enemy {
+        name: String,
+        enemy: String,
+        on: bool,
+    },
     /// Guild `guild`'s announcement is now `text`.
     GuildNotice {
         guild: i64,
