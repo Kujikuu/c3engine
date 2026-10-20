@@ -10,7 +10,9 @@
 mod bag;
 mod chat;
 pub use chat::{ChatFilter, ChatLook, channel_key};
+pub use destinations::Destination;
 mod chat_bar;
+mod destinations;
 mod dialogue;
 pub mod fonts;
 pub mod front;
@@ -271,6 +273,10 @@ pub(crate) const CHAT_NAME: &str = "chat.name";
 const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
+/// The view groups of the auto-path menu: shown (`flip:autorun`), and its heading open.
+const AUTORUN: &str = "autorun";
+const AUTORUN_OPEN: &str = "autorun_open";
+
 /// The view group holding the player whose equipment is shown.
 const VIEWED: &str = "viewed";
 
@@ -336,6 +342,8 @@ pub struct GameView<'a> {
     /// none: the game counts none.
     pub power: Option<Power>,
     pub viewed_power: Option<Power>,
+    /// The game's auto-path destinations, every map's.
+    pub destinations: &'a [Destination],
 }
 
 /// A player's battle power: what each part gives (the game's order: TQ's level, rebirths,
@@ -1805,6 +1813,7 @@ impl GameUi {
                 let mut picked_target = None;
                 let mut picked_guild_row = None;
                 let mut picked_contact = None;
+                let mut picked_destination = None;
                 let mut booth_put = None;
                 let mut repair = None;
                 // What happens to the item held: picked up, put down (or dropped).
@@ -1852,6 +1861,12 @@ impl GameUi {
                                 n.and_then(|n: usize| data.state.work.get(n))
                                     .map(|id| (false, *id)),
                             );
+                        }
+                        // An auto-path row picked: a heading opens, a place is walked to.
+                        gui::GuiEvent::Item { list, index } if list.starts_with("autorun.") => {
+                            let open =
+                                (data.state.views.get(AUTORUN_OPEN)).and_then(|v| v.parse().ok());
+                            picked_destination = destinations::pick(view, &list, index, open);
                         }
                         // A guild member's row picked (for Delete).
                         gui::GuiEvent::Item { list, index } if list == "guild.member_rows" => {
@@ -2028,6 +2043,22 @@ impl GameUi {
                         Some((s, _)) => self.gui_state.picked_skill = Some(s),
                         None => {}
                     }
+                }
+                match picked_destination {
+                    Some(destinations::Pick::Open(id)) => {
+                        let open = self.gui_state.views.remove(AUTORUN_OPEN);
+                        if open != Some(id.to_string()) {
+                            self.gui_state
+                                .views
+                                .insert(AUTORUN_OPEN.into(), id.to_string());
+                        }
+                    }
+                    Some(destinations::Pick::Walk(cell)) => {
+                        actions.push(UiAction::Game(c3_game::Input::Walk(cell)));
+                        self.gui_state.views.remove(AUTORUN_OPEN);
+                        self.gui_state.views.remove(AUTORUN);
+                    }
+                    None => {}
                 }
                 if let Some((key, row)) = picked_contact {
                     // Another group picked: none of its actions is yet.

@@ -560,7 +560,14 @@ impl Painter<'_, '_> {
         data: &dyn GuiData,
         events: &mut Vec<GuiEvent>,
     ) {
-        let origin = Pos2::new(at.x as f32, at.y as f32);
+        // Moved down by its binding (`dy=key*step`).
+        let dy = match control.dy.split_once('*') {
+            Some((key, step)) => {
+                data.number(key).unwrap_or(0.0) as f32 * step.trim().parse::<f32>().unwrap_or(1.0)
+            }
+            None => data.number(&control.dy).unwrap_or(0.0) as f32,
+        };
+        let origin = Pos2::new(at.x as f32, at.y as f32 + dy);
         let size = Vec2::new(at.w.max(0) as f32, at.h.max(0) as f32);
         let rect = Rect::from_min_size(self.screen(origin.x, origin.y), size * self.place.scale);
         if let Some([r, g, b]) = control.back {
@@ -816,6 +823,13 @@ impl Painter<'_, '_> {
                 let scale = self.place.scale;
                 let font = crate::fonts::font(control.size * scale);
                 let laid = list_rows(self.ui.ctx(), control, &rows, size.x);
+                let tips = data.rows(&control.tips).0;
+                // The foot under the last row.
+                if let Some(last) = laid.last()
+                    && let Some(foot) = self.frame(self.skin.frames(&control.foot), 0)
+                {
+                    self.draw(foot, origin + Vec2::new(0.0, last.bottom()), None, None);
+                }
                 // Rows past its foot are reached with the wheel; a log shows its end, the wheel
                 // going back as far as its first row.
                 let total = laid.last().map_or(0.0, |l| l.bottom());
@@ -850,13 +864,28 @@ impl Painter<'_, '_> {
                     };
                     let response = self.ui.interact(line, id, sense);
                     let lit = self.live && response.hovered();
+                    // Its row picture: lit under the pointer, pressed while held.
+                    let frames = self.skin.frames(&control.row);
+                    let frame = match (lit, response.is_pointer_button_down_on()) {
+                        (_, true) => 2,
+                        (true, false) => 1,
+                        _ => 0,
+                    };
+                    if let Some(picture) = self.frame(frames, frame) {
+                        let corner = origin + at.min.to_vec2();
+                        self.draw(picture, corner, None, None);
+                    }
+                    let response = match tips.get(index).filter(|t| !t.is_empty()) {
+                        Some(tip) => response.on_hover_text(tip.as_str()),
+                        None => response,
+                    };
                     if picked == Some(index) {
                         self.ui.painter().rect_filled(
                             line,
                             2.0,
                             Color32::from_rgba_unmultiplied(255, 220, 120, 60),
                         );
-                    } else if lit && control.hover.is_none() {
+                    } else if lit && control.hover.is_none() && control.row.is_empty() {
                         self.ui
                             .painter()
                             .rect_filled(line, 2.0, Color32::from_white_alpha(20));
@@ -875,8 +904,9 @@ impl Painter<'_, '_> {
                         Color32::from_rgb(r, g, b),
                         wrap,
                     );
+                    let indent = control.indent.unwrap_or(4) as f32;
                     let at = Pos2::new(
-                        line.left() + 4.0 * scale,
+                        line.left() + indent * scale,
                         line.center().y - galley.size().y / 2.0,
                     );
                     // Kept inside its row (a long name is cut, as TQ's list boxes do).
@@ -992,7 +1022,10 @@ fn list_rows(ctx: &egui::Context, control: &Control, rows: &[String], width: f32
         0 => step,
         c => c as f32,
     };
-    let line = control.size + 6.0;
+    let line = match control.line {
+        0 => control.size + 6.0,
+        tall => tall as f32,
+    };
     let shown = match control.limit {
         0 => rows.len(),
         n => rows.len().min(n),

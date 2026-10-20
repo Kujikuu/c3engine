@@ -121,6 +121,8 @@ pub struct Session {
     minimap: Minimap,
     /// What falls from the sky where the hero stands.
     weather: crate::weather::WeatherOverlay,
+    /// The game's auto-path destinations.
+    destinations: Vec<c3_ui::Destination>,
 }
 
 /// A map's minimap: the image until the UI uploads it, then its texture.
@@ -349,6 +351,7 @@ impl Session {
             ui.system("Connected to the server.", style::GOOD);
         }
         ui.events(&said, &sim, hero, 0.0);
+        let destinations = game.destinations();
         Ok(Self {
             sim,
             hero,
@@ -368,6 +371,7 @@ impl Session {
             map_change: None,
             minimap,
             weather: Default::default(),
+            destinations,
         })
     }
 
@@ -951,6 +955,7 @@ impl Session {
         let power_of =
             |id| (self.sim.player(id)).and_then(|p| self.world.game.battle_power(&self.sim, p));
         let view = GameView {
+            destinations: &self.destinations,
             power: power_of(self.hero),
             viewed_power: self.ui.viewed().and_then(power_of),
             sim: &self.sim,

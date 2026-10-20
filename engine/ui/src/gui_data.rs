@@ -343,6 +343,11 @@ impl HeroData<'_> {
         self.state.words.get(self.view_number("word"))
     }
 
+    /// The auto-path heading whose places are shown.
+    fn autorun_open(&self) -> Option<u32> {
+        self.state.views.get("autorun_open")?.parse().ok()
+    }
+
     /// How many the open chest holds, while it is in the bag.
     fn chest_size(&self) -> Option<u32> {
         let chest = self.state.chest?;
@@ -707,6 +712,14 @@ impl GuiData for HeroData<'_> {
                     .copied()
                     .or(first)
                     .unwrap_or(0) as f64
+            }
+            // The auto-path menu: how many headings, and the row of the one open.
+            "autorun.count" => crate::destinations::roots(self.view).len() as f64,
+            "autorun.open" => u8::from(self.number("autorun.open_row").is_some()).into(),
+            "autorun.open_row" => {
+                let open = self.autorun_open()?;
+                let roots = crate::destinations::roots(self.view);
+                roots.iter().position(|d| d.id == open)? as f64
             }
             // The open chest (while in the bag) and its rows of three.
             "chest.open" => u8::from(self.chest_size().is_some()).into(),
@@ -1409,6 +1422,20 @@ impl GuiData for HeroData<'_> {
                     .map(|(_, l)| l.clone())
                     .collect();
                 (rows, None)
+            }
+            // The auto-path menu: the hero's map's headings and places, the places under the
+            // heading open, and their tips (TQ's `\b` a line apart).
+            "autorun.rows" | "autorun.tips" | "autorun.children" | "autorun.child_tips" => {
+                let rows = match key {
+                    "autorun.rows" | "autorun.tips" => crate::destinations::roots(self.view),
+                    _ => crate::destinations::children(self.view, self.autorun_open().unwrap_or(0)),
+                };
+                let tips = key.ends_with("tips");
+                let rows = rows.iter().map(|d| match tips {
+                    true => d.mark.replace("\\b", "\n"),
+                    false => d.title.clone(),
+                });
+                (rows.collect(), None)
             }
             // The names whose lines are never heard (the blacklist).
             "blacklist.rows" => {

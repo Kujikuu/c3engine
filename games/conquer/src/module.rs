@@ -469,6 +469,10 @@ impl GameModule for ConquerModule {
         self.content.chat_look()
     }
 
+    fn destinations(&self) -> Vec<c3_ui::Destination> {
+        self.content.destinations()
+    }
+
     fn battle_power(&self, sim: &c3_game::Sim, p: &c3_game::Player) -> Option<c3_ui::Power> {
         Some(crate::battle_power::battle_power(sim, p))
     }

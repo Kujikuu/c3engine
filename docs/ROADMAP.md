@@ -1231,7 +1231,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 267 CDlgDiceList: draft only, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 284 CDlgOfflineTrainingResult: draft only, 8 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 285 CDlgOfflineTrainingConfirm: draft only, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 303 CDlgAutoRun5065 (auto-path destinations): draft only, 7 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 303 CDlgAutoRun5065 (auto-path destinations): 6 of 7 audit mismatches fixed
+    - [x] the game's destinations (`GameModule::destinations`; Conquer decodes ini/MapDestination.dat: MSVC rand key 0x2537, XOR, rotate); flipped by 304; path_title and 11121; the hero's map's headings on path_target rows (lit, pressed; lists take `row=`, `line=`, `indent=`, `tips=`, `foot=`), their marks as tips, path_bottom; 11120 where none; a heading opens its places to its left under path_menutitle (controls take `dy=`); a place picked is walked to and the menu closes
+    - [ ] the 300 ms slide in from the right; a heading opening under the pointer (and closing after 5 s away); the tip's own look (Dialog21, 320 wide, `` lines); stopping within the place's radius; the foot 5 pixels higher
   - [ ] UI 334 CDlgFurnishment5065 (item-bind list): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 380 CDlgQuestList5065 / 381 CDlgQuestTrack5065: draft only (non-native additions), 7 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 215 CDlgHelp (help pages): the pages as text

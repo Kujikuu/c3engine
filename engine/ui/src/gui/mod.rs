@@ -271,6 +271,16 @@ pub struct Control {
     /// as paragraphs), the one view group `page` holds.
     pub pages: String,
     pub page: String,
+    /// A list's rows each on skin section `row` (frame 1 under the pointer, 2 pressed), this
+    /// tall (`line=`; 0: its font's), their text this far in (`indent=`), a tip each from the
+    /// rows of binding `tips`, and section `foot` under the last (TQ's auto-path menu).
+    pub row: String,
+    pub line: i32,
+    pub indent: Option<i32>,
+    pub tips: String,
+    pub foot: String,
+    /// Moved down by what a binding reads, times a step (`dy=autorun.open_row*32`).
+    pub dy: String,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
     /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
@@ -445,6 +455,12 @@ impl Control {
             tail: section.int("tail").is_some_and(|t| t != 0),
             pages: text("pages"),
             page: text("page"),
+            row: text("row"),
+            line: section.int("line").unwrap_or(0),
+            indent: section.int("indent"),
+            tips: text("tips"),
+            foot: text("foot"),
+            dy: text("dy"),
             open: text("open"),
             slot: text("slot"),
             clears: text("clears"),

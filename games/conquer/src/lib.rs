@@ -5,6 +5,7 @@
 
 mod battle_power;
 pub mod character;
+mod destinations;
 pub mod game;
 pub mod guild_war;
 pub mod import;
@@ -419,6 +420,11 @@ impl Content {
     /// 100008, [Team] 100009, [Guild] 100010, [Friend] 100014, [System] 100006), " speaks to "
     /// (100017), ": " (100018), "All " (100026), the clock after; yellow (GetChannelColor's
     /// 0xffff00), 6 lines up from 130 above the bottom, 3 system notes at the top left.
+    /// The auto-path menu's destinations (`ini/MapDestination.dat`).
+    pub fn destinations(&self) -> Vec<c3_ui::Destination> {
+        (self.fs.read("ini/MapDestination.dat")).map_or_else(Vec::new, |b| destinations::read(&b))
+    }
+
     pub fn chat_look(&self) -> Option<c3_ui::ChatLook> {
         let text = String::from_utf8_lossy(&self.fs.read(STR_RES)?).into_owned();
         let strings: std::collections::HashMap<&str, &str> = (text.lines())

@@ -180,6 +180,10 @@ pub trait GameModule {
         let _ = (sim, p);
         None
     }
+    /// The game's auto-path destinations, every map's; none: no auto-path menu.
+    fn destinations(&self) -> Vec<c3_ui::Destination> {
+        Vec::new()
+    }
     /// How the game shows its chat log; none: the engine's.
     fn chat_look(&self) -> Option<c3_ui::ChatLook> {
         None

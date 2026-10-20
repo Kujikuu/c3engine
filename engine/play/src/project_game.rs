@@ -157,6 +157,10 @@ impl GameModule for ProjectGame {
         self.game.chat_look()
     }
 
+    fn destinations(&self) -> Vec<c3_ui::Destination> {
+        self.game.destinations()
+    }
+
     fn battle_power(&self, sim: &c3_game::Sim, p: &c3_game::Player) -> Option<c3_ui::Power> {
         self.game.battle_power(sim, p)
     }
