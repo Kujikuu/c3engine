@@ -225,6 +225,12 @@ pub struct Control {
     pub clears: String,
     /// Esc closes the dialog too, with the right part's (the bag).
     pub esc: bool,
+    /// Dialogs opened with it (`opens=153`: the bag beside a workbench) and closed with it
+    /// (`hides=153`).
+    pub opens: Vec<u32>,
+    pub hides: Vec<u32>,
+    /// Numbers in its text with thousands commas (`commas=1`; TQ's StringChange).
+    pub commas: bool,
     /// Bindings (`|` between them): a dialog shows while one is set (not 0), as the game opens
     /// it (a shop: `hero.shop`), in place of the engine's own window; a control in a dialog
     /// shows only then (a text box a page asks for).
@@ -286,6 +292,11 @@ impl Control {
             let n: Vec<i32> = s.split(',').filter_map(|v| v.trim().parse().ok()).collect();
             <[i32; 2]>::try_from(n).ok()
         });
+        let ids = |key: &str| -> Vec<u32> {
+            (section.get(key).unwrap_or_default().split(','))
+                .filter_map(|n| n.trim().parse().ok())
+                .collect()
+        };
         let rgb = |key: &str| {
             (section.get(key))
                 .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
@@ -334,6 +345,9 @@ impl Control {
             slot: text("slot"),
             clears: text("clears"),
             esc: section.int("esc").is_some_and(|e| e != 0),
+            opens: ids("opens"),
+            hides: ids("hides"),
+            commas: section.int("commas").is_some_and(|c| c != 0),
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
@@ -365,6 +379,10 @@ pub struct Gui {
     pub controls: Vec<Control>,
     /// Dialogs opened by actions.
     open: BTreeSet<u32>,
+    /// Dialogs their `when` shows, as last worked out, and those of them the player closed
+    /// (shown again once their `when` has ended).
+    when_shown: BTreeSet<u32>,
+    dismissed: BTreeSet<u32>,
     /// The screen shown (empty: the game).
     screen: String,
     /// The sounds of a dialog opening and closing and a button clicked (asset paths).
@@ -383,6 +401,8 @@ impl Gui {
                 .filter_map(Control::parse)
                 .collect(),
             open: BTreeSet::new(),
+            when_shown: BTreeSet::new(),
+            dismissed: BTreeSet::new(),
             screen: String::new(),
             names: Default::default(),
             sounds: GuiSounds::default(),
@@ -469,21 +489,62 @@ impl Gui {
             .filter(|d| parts.contains(&d.slot.as_str()))
             .map(|d| d.id)
             .collect();
+        let opens = dialog.opens.clone();
         for other in taken {
-            self.open.remove(&other);
+            self.shut(other);
         }
         self.open.insert(id);
+        self.dismissed.remove(&id);
+        for with in opens {
+            self.open(with);
+        }
+    }
+
+    /// Closes dialog `id` (dismissing it when its `when` shows it), and those it hides.
+    fn shut(&mut self, id: u32) {
+        self.open.remove(&id);
+        if self.when_shown.contains(&id) {
+            self.dismissed.insert(id);
+        }
+        let hides = (self.dialogs())
+            .find(|d| d.id == id)
+            .map(|d| d.hides.clone());
+        for other in hides.unwrap_or_default() {
+            if other != id {
+                self.shut(other);
+            }
+        }
+    }
+
+    /// Notes which dialogs their `when` shows now; one the player closed shows again once
+    /// its `when` has ended.
+    pub fn update_shown(&mut self, data: &dyn GuiData) {
+        let shown: BTreeSet<u32> = (self.dialogs())
+            .filter(|d| !d.when.is_empty() && screen::holds(d, data))
+            .map(|d| d.id)
+            .collect();
+        self.dismissed.retain(|id| shown.contains(id));
+        self.when_shown = shown;
+    }
+
+    /// Whether the player closed dialog `id` while its `when` shows it.
+    pub fn dismissed(&self, id: u32) -> bool {
+        self.dismissed.contains(&id)
     }
 
     /// Esc: closes the right part's dialog and those Esc closes with it (the bag), as TQ's
     /// shell does; whether one was open.
     pub fn escape(&mut self) -> bool {
+        let showing = |d: &Control| {
+            self.open.contains(&d.id)
+                || (self.when_shown.contains(&d.id) && !self.dismissed.contains(&d.id))
+        };
         let closing: Vec<u32> = (self.dialogs())
-            .filter(|d| self.open.contains(&d.id) && (d.slot == "right" || d.esc))
+            .filter(|d| showing(d) && (d.slot == "right" || d.esc))
             .map(|d| d.id)
             .collect();
-        for id in &closing {
-            self.open.remove(id);
+        for &id in &closing {
+            self.shut(id);
         }
         !closing.is_empty()
     }
@@ -536,7 +597,7 @@ impl Gui {
 
     /// Closes dialog `id`.
     pub fn close(&mut self, id: u32) {
-        self.open.remove(&id);
+        self.shut(id);
     }
 
     /// Closes the dialogs with a control bound to `binding` (a list hidden once picked from).
@@ -546,13 +607,15 @@ impl Gui {
             .map(|c| c.parent)
             .collect();
         for id in holders {
-            self.open.remove(&id);
+            self.shut(id);
         }
     }
 
-    /// Opens dialog `id`, or closes it when it is open; whether it is open now.
+    /// Opens dialog `id`, or closes it when it shows; whether it shows now.
     pub fn toggle(&mut self, id: u32) -> bool {
-        if self.open.remove(&id) {
+        let by_when = self.when_shown.contains(&id) && !self.dismissed.contains(&id);
+        if self.open.contains(&id) || by_when {
+            self.shut(id);
             return false;
         }
         self.open(id);
@@ -630,6 +693,44 @@ clears=right
         assert_eq!(opened(&gui), [2, 3]);
         gui.open(4);
         assert_eq!(opened(&gui), [3, 4]);
+    }
+
+    struct Shop(f64);
+    impl GuiData for Shop {
+        fn number(&self, key: &str) -> Option<f64> {
+            (key == "shop").then_some(self.0)
+        }
+    }
+
+    #[test]
+    fn a_dialog_its_when_shows_closes_until_the_when_ends() {
+        let controls = b"[0-1]
+type=dialog
+when=shop
+";
+        let mut gui = Gui::new(b"", b"", controls);
+        gui.update_shown(&Shop(1.0));
+        assert!(!gui.toggle(1));
+        assert!(gui.dismissed(1));
+        gui.update_shown(&Shop(0.0));
+        assert!(!gui.dismissed(1));
+    }
+
+    #[test]
+    fn a_workbench_brings_the_bag_and_takes_it_away() {
+        let controls = b"[0-1]
+type=dialog
+slot=right
+opens=2
+hides=2
+[0-2]
+type=dialog
+";
+        let mut gui = Gui::new(b"", b"", controls);
+        gui.open(1);
+        assert_eq!(opened(&gui), [1, 2]);
+        gui.close(1);
+        assert!(opened(&gui).is_empty());
     }
 
     #[test]

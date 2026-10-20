@@ -105,7 +105,9 @@ impl Gui {
         textures: &mut dyn Textures,
     ) -> Vec<GuiEvent> {
         let mut events = Vec::new();
-        let shown = |d: &Control| d.screen == self.screen && !d.when.is_empty() && set(d, data);
+        let shown = |d: &Control| {
+            d.screen == self.screen && !d.when.is_empty() && set(d, data) && !self.dismissed(d.id)
+        };
         for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
             let place = self.place(dialog, area);
             let r = self.fitted(ctx, dialog, data).0;
@@ -295,6 +297,11 @@ fn edit_keys(ui: &egui::Ui, field: &str, events: &mut Vec<GuiEvent>) {
             key,
         });
     }
+}
+
+/// Whether `control`'s `when` holds (see [`set`]).
+pub(super) fn holds(control: &Control, data: &dyn GuiData) -> bool {
+    set(control, data)
 }
 
 /// Whether `control`'s `when` holds: alternatives between `|`, each of terms all holding
@@ -554,6 +561,9 @@ impl Painter<'_, '_> {
                 if let Some(name) = names.and_then(|t| t.get(&key)) {
                     text = name.clone();
                 }
+                if control.commas {
+                    text = with_commas(&text);
+                }
                 let [r, g, b] = control.color;
                 let font = crate::fonts::font(control.size * self.place.scale);
                 // Wrapped within its width when it has one (an NPC's words).
@@ -774,6 +784,31 @@ fn list_rows(ctx: &egui::Context, control: &Control, rows: &[String], width: f32
     out
 }
 
+/// `text` with commas between the thousands of each run of digits ("12345" "12,345").
+fn with_commas(text: &str) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if !chars[i].is_ascii_digit() {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        let end = (i..chars.len())
+            .find(|&j| !chars[j].is_ascii_digit())
+            .unwrap_or(chars.len());
+        for (k, c) in chars[i..end].iter().enumerate() {
+            if k > 0 && (end - i - k) % 3 == 0 {
+                out.push(',');
+            }
+            out.push(*c);
+        }
+        i = end;
+    }
+    out
+}
+
 /// `text` with each `{=key}` turned into that key's name in `names` (a string of the game's
 /// own, `{=10001}` from TQ's StrRes.ini).
 fn named(text: &str, names: Option<&std::collections::HashMap<String, String>>) -> String {
@@ -835,6 +870,12 @@ type=text",
             .unwrap()
         };
         set(&control, &Hero)
+    }
+
+    #[test]
+    fn digits_take_commas() {
+        assert_eq!(with_commas("1234567 and 12"), "1,234,567 and 12");
+        assert_eq!(with_commas("999"), "999");
     }
 
     #[test]

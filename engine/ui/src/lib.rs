@@ -180,6 +180,8 @@ pub struct ControlsView<'a> {
 /// The game UI's chat line and whisper name fields.
 const CHAT_TEXT: &str = "chat.text";
 pub(crate) const CHAT_NAME: &str = "chat.name";
+/// The amount typed in the yes/no prompt (dropping money).
+const PROMPT_AMOUNT: &str = "prompt.amount";
 /// The chat bar's list of names (TQ's CDlgListBox, hidden once a name is picked).
 const CHAT_TARGETS: &str = "chat.targets";
 
@@ -542,7 +544,17 @@ impl GameUi {
                 }
                 None => {}
             },
-            "prompt_no" => self.gui_state.prompt = None,
+            "prompt_no" => {
+                self.gui_state.prompt = None;
+                self.gui_state.fields.remove(PROMPT_AMOUNT);
+            }
+            // The money typed in the prompt dropped (its drop-money question).
+            "drop_money" => {
+                let typed = self.gui_state.fields.remove(PROMPT_AMOUNT);
+                if let Some(amount) = typed.and_then(|t| t.trim().parse::<u64>().ok()) {
+                    actions.push(UiAction::Game(c3_game::Input::DropMoney(amount)));
+                }
+            }
             // The typed answer sent (its button, Enter in its box).
             "answer_typed" => self.gui_state.answering = true,
             // The hero's skill `n` picked for the right button (`pick_skill:<n>`).
@@ -885,6 +897,13 @@ impl GameUi {
         quests::npc_marks(&ui.painter_at(view.rect), view);
         self.in_team = player.team.is_some();
         self.leads_team = player.team == Some(player.id);
+        if let Some(gui) = &mut self.gui {
+            gui.update_shown(&gui_data::HeroData {
+                view,
+                player,
+                state: &self.gui_state,
+            });
+        }
         match &self.gui {
             Some(gui) => {
                 let data = gui_data::HeroData {

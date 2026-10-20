@@ -49,6 +49,10 @@ CLEARS = {
 }
 # Dialogs Esc closes with the right part's (CMyShellDlg::CloseCurDlg: the bag).
 ESC = {153}
+# Workbenches open the bag with them (DlgMain.cpp 1687-1725, 2408-2496, 2728-2765); oven,
+# enchant and compose hide it again as they close (CloseCurDlg).
+OPENS = {105: 153, 211: 153, 229: 153, 233: 153, 275: 153, 278: 153, 329: 153}
+HIDES = {105: 153, 275: 153, 278: 153}
 
 
 def window_lines(number):
@@ -58,6 +62,10 @@ def window_lines(number):
         out.append(f"clears={CLEARS[number]}")
     if number in ESC:
         out.append("esc=1")
+    if number in OPENS:
+        out.append(f"opens={OPENS[number]}")
+    if number in HIDES:
+        out.append(f"hides={HIDES[number]}")
     return out
 
 

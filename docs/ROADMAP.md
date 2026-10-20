@@ -883,7 +883,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the typed box in the column of its answer index (x 40 or 282) and its 44 px slot; password typing from the server's data
     - [ ] fit=104 only when there are answers or a box
     - [ ] centred on the real screen width rather than the 1024 layout
-  - [ ] UI 153 CDlgMpcGoods (bag): partial, 14 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 153 CDlgMpcGoods (bag): 6 of 14 audit mismatches fixed
+    - [x] CPs 1129 and money with thousands commas (`commas=1`, `hero.wallet.CPs`)
+    - [x] drop money 1561: asked with an amount (158 mode 5: Drop Silver, Dialog56, Edit150), then dropped
+    - [x] close 1128 and the bag button hide it while a shop, warehouse or trade shows it, until that ends (dismissing a `when`-shown dialog)
+    - [x] opened with compose 275, oven 278, enchant 105, improve 211, embed 229, booth 233 and item lock 329; oven, enchant and compose hide it again (`opens=`, `hides=`)
+    - [x] the shop's close also hides the status 131
+    - [ ] EmoneyNavigation 1562 opens the [Emoney] URL; help 1667 opens CDlgHelp topic 13
+    - [ ] grid gestures: left-click picks up (drag to the ground, hotbar, equipment, shop, warehouse), right-click uses (UI engine: drag and drop)
+    - [ ] hover tooltip; +N and quality overlays; the suspicious-item reif effect
+    - [ ] repair mode
+    - [ ] slide-in from the right; bag and 287 hiding each other
   - [ ] UI 131 CDlgQuery (status): partial, 11 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 132 CDlgQuery_Role (role page): partial, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 134 CDlgQueryWeapon (weapon skills page): partial, 6 mismatches (docs/conquer_ui_audit.md)

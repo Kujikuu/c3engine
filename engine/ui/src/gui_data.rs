@@ -270,7 +270,7 @@ impl GuiData for HeroData<'_> {
                 let n: usize = key.strip_prefix("skill.")?.parse().ok()?;
                 Some(self.player.skills.get(n)?.to_string())
             }
-            "storage.amount" | "trade.amount" | "dialogue.typed" => {
+            "storage.amount" | "trade.amount" | "dialogue.typed" | "prompt.amount" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }
             // Team member `n`'s name (the leader first), empty past the team's end.
