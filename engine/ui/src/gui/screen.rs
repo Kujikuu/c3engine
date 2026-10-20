@@ -160,6 +160,15 @@ impl Gui {
         events
     }
 
+    /// The screen point of the top-left of the control whose action is `action` (the map
+    /// check the radar grows out of), when the UI is drawn over `area`.
+    pub fn action_spot(&self, action: &str, area: Rect) -> Option<Pos2> {
+        let control = (self.controls.iter()).find(|c| c.parent != 0 && c.action == action)?;
+        let dialog = self.dialogs().find(|d| d.id == control.parent)?;
+        let r = self.rect(control);
+        Some(self.place(dialog, area).screen(r.x as f32, r.y as f32))
+    }
+
     /// Where `dialog` sits when the UI is drawn over `area`.
     pub fn place(&self, dialog: &Control, area: Rect) -> Place {
         self.place_rect(self.rect(dialog), area)

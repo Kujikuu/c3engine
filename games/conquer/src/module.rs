@@ -571,8 +571,12 @@ impl GameModule for ConquerModule {
         self.content.minimap(map_ids)
     }
 
-    fn radar_mark(&self, kind: &str) -> Option<Image> {
-        self.content.radar_mark(kind)
+    fn radar_marks(&self, kind: &str) -> Vec<Image> {
+        self.content.radar_marks(kind)
+    }
+
+    fn radar_fallback(&self, _key: &str, map_ids: &[u32]) -> bool {
+        self.content.radar_fallback(map_ids)
     }
 
     fn role_shadow(&self) -> Option<Image> {

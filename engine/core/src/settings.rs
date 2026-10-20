@@ -1017,6 +1017,8 @@ pub struct PlayerPrefs {
     pub fullscreen: bool,
     /// The said lines the chat log shows (0: the game's own number).
     pub chat_lines: u32,
+    /// The radar rolled up (TQ's MapModeRecord).
+    pub radar_shut: bool,
 }
 
 impl Default for PlayerPrefs {
@@ -1027,6 +1029,7 @@ impl Default for PlayerPrefs {
             sound: 1.0,
             fullscreen: false,
             chat_lines: 0,
+            radar_shut: false,
         }
     }
 }

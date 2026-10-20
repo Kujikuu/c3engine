@@ -219,8 +219,14 @@ impl GameModule for ProjectGame {
         self.game.map_key(id)
     }
 
-    fn radar_mark(&self, kind: &str) -> Option<Image> {
-        self.game.radar_mark(kind)
+    fn radar_marks(&self, kind: &str) -> Vec<Image> {
+        self.game.radar_marks(kind)
+    }
+
+    /// A project's own generated minimap is never a fallback.
+    fn radar_fallback(&self, key: &str, map_ids: &[u32]) -> bool {
+        let own = c3_project::minimap_file_in(&self.maps_dir, key).exists();
+        !own && self.game.radar_fallback(key, map_ids)
     }
 
     fn role_shadow(&self) -> Option<Image> {

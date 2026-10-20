@@ -877,14 +877,17 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] a transformed hero jumps only as a look Transform.ini marks `Jump=1` (`transform_jumps`); the client's 3 s wait covers the time between casting and the server's change, which the engine's instant transform doesn't have
     - [ ] ActionCtrl.ini movement curves (the monster and mount looks it lists)
     - [x] the name and life bar raised to 130% of the zoom mid-jump (CPlayer::ShowLife)
-  - [ ] UI 5278 CDlgMipmap / radar (minimap): 3 of 5 audit mismatches fixed
-    - [x] the radar as CRadar's crop: MiniMap.ani's picture upright in a 170x128 box top right, at 0xaa, around the hero and clamped to the picture (`ui.radar_box`)
+  - [ ] UI 5278 CDlgMipmap / radar (minimap): checked against CRadar (Radar.cpp) and CMyShellDlg's radar buttons
+    - [x] the radar as CRadar's crop: MiniMap.ani's picture upright in a 170x128 box top right, at 0xaa, around the hero and clamped to the picture (`ui.radar_box`, `radar_box.rs`)
     - [x] hero mark (MiniMap.ani hero) and teammates (PlayerFlag, TeamLeader); no monster/NPC dots, as the native client
     - [x] 130-1015 toggles it and its frame follows
-    - [ ] the grow/shrink transition (SetTransition)
-    - [ ] overview and full modes with Button01/Button02; MapModeRecord kept
-    - [ ] the hero mark animated (all its frames); the spouse mark (PlayerFlag frame 2), the leader mark only for 8 s after MsgAction 101, Friend mark 6 s
-    - [ ] maps with fewer than 4 minimap frames drawn as ShowFallback
+    - [x] the grow/shrink transition (SetTransition, ProcessTransition): the box's centre moves 60 a frame from the map check, sized by how far it has come
+    - [x] the three modes: the overview first (the whole map squeezed into the box at 0x99), the crop (0xaa), the full picture at its own size from the corner (0x99); Button01/Button00 and Button02 at 40/20 from the right (dialog 102) swap them with the crop
+    - [x] MapModeRecord: the radar opens as the player left it (`PlayerPrefs::radar_shut`)
+    - [x] the hero mark animated (all its frames, 30 ms each); the marks of the players the hero knows nearby, each once in CRadar's order: spouse (PlayerFlag 2), the team's leader to its members (TeamLeader), teammates (3), mentor and students (Tutor, Student), friends (0), enemies (1)
+    - [x] maps with fewer than 4 minimap frames drawn as ShowFallback (the picture at its own size in the corner, at 0xaa)
+    - [ ] the leader mark only for 8 s after MsgAction 101 (the engine knows the leader's place, so shows it while near)
+    - [ ] the Friend mark for 6 s after a member's place is asked (MsgAction 106)
   - [x] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): the 3 audit mismatches fixed (303 itself is its own item)
   - [ ] UI 325 mentor HUD button: 3 of 5 audit mismatches fixed
     - [x] always shown, btn-dssy alone (no Dialog531 frame, no Button532)

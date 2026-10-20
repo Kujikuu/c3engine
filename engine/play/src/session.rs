@@ -132,24 +132,27 @@ pub struct Session {
 struct Minimap {
     image: Option<c3_assets::Image>,
     texture: Option<egui::TextureHandle>,
-    /// The game's mark pictures, then their textures.
-    mark_images: Vec<(&'static str, c3_assets::Image)>,
+    /// The game's mark pictures (each kind's frames), then their textures.
+    mark_images: Vec<(&'static str, Vec<c3_assets::Image>)>,
     marks: c3_ui::RadarMarks,
+    /// The picture is shown as it is (CRadar::ShowFallback).
+    fallback: bool,
     /// Kept so the marks' textures stay alive.
     mark_textures: Vec<egui::TextureHandle>,
 }
 
 impl Minimap {
     fn of(game: &dyn GameModule, key: &str, map_ids: &[u32]) -> Self {
-        let mark_images = ["hero", "player", "leader"]
+        let mark_images = ["hero", "player", "leader", "tutor", "student"]
             .into_iter()
-            .filter_map(|kind| Some((kind, game.radar_mark(kind)?)))
+            .map(|kind| (kind, game.radar_marks(kind)))
             .collect();
         Self {
             image: game.minimap(key, map_ids),
             texture: None,
             mark_images,
             marks: c3_ui::RadarMarks::default(),
+            fallback: game.radar_fallback(key, map_ids),
             mark_textures: Vec::new(),
         }
     }
@@ -161,17 +164,23 @@ impl Minimap {
             let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
             self.texture = Some(ctx.load_texture("minimap", pixels, Default::default()));
         }
-        for (kind, image) in std::mem::take(&mut self.mark_images) {
-            let size = [image.width as usize, image.height as usize];
-            let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
-            let texture = ctx.load_texture(kind, pixels, Default::default());
-            let mark = Some((texture.id(), egui::vec2(size[0] as f32, size[1] as f32)));
+        for (kind, images) in std::mem::take(&mut self.mark_images) {
+            let frames = images.iter().map(|image| {
+                let size = [image.width as usize, image.height as usize];
+                let pixels = egui::ColorImage::from_rgba_unmultiplied(size, &image.rgba);
+                let texture = ctx.load_texture(kind, pixels, Default::default());
+                let mark = (texture.id(), egui::vec2(size[0] as f32, size[1] as f32));
+                self.mark_textures.push(texture);
+                mark
+            });
+            let frames: Vec<c3_ui::RadarMark> = frames.collect();
             match kind {
-                "hero" => self.marks.hero = mark,
-                "player" => self.marks.player = mark,
-                _ => self.marks.leader = mark,
+                "hero" => self.marks.hero = frames,
+                "player" => self.marks.player = frames,
+                "leader" => self.marks.leader = frames,
+                "tutor" => self.marks.tutor = frames,
+                _ => self.marks.student = frames,
             }
-            self.mark_textures.push(texture);
         }
         (self.texture.as_ref()).map(|t| (t.id(), t.size_vec2()))
     }
@@ -999,7 +1008,8 @@ impl Session {
                 boxed: (self.settings.ui.radar_box).map(|[w, h]| egui::vec2(w as f32, h as f32)),
                 bounds: c3_render::minimap::scene_bounds(&self.world.scene),
                 projection: self.world.scene.projection,
-                marks: self.minimap.marks,
+                marks: self.minimap.marks.clone(),
+                fallback: self.minimap.fallback,
             });
         let power_of =
             |id| (self.sim.player(id)).and_then(|p| self.world.game.battle_power(&self.sim, p));

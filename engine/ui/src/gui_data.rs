@@ -17,8 +17,10 @@ pub(crate) struct GuiState {
     pub work: Vec<u32>,
     /// Invites and asks to join a team are taken at once (the team dialog's auto check).
     pub auto_team: bool,
-    /// The minimap rolled up.
-    pub radar_hidden: bool,
+    /// The radar's mode, showing, and grow or shrink; whether it was set from the player's
+    /// record yet.
+    pub radar: crate::radar_box::RadarState,
+    pub radar_restored: bool,
     /// The field whose edit takes the keyboard next frame.
     pub focus: Option<String>,
     /// Each view group's view (`view:<group>:<name>`; a status page's base or details).
@@ -594,7 +596,10 @@ impl GuiData for HeroData<'_> {
                 p.wallet.get(name).copied().unwrap_or(0) as f64
             }
             "hero.running" => f64::from(u8::from(p.running)),
-            "ui.radar" => f64::from(u8::from(!self.state.radar_hidden)),
+            "ui.radar" => f64::from(u8::from(self.state.radar.visible)),
+            "ui.radar_crop" => f64::from(u8::from(
+                self.state.radar.mode == crate::radar_box::RadarMode::Crop,
+            )),
             "hero.bag_count" => p.bag.len() as f64,
             "hero.bag_size" => self.view.sim.bag_size() as f64,
             "hero.attack_min" => p.stats.attack_min.into(),

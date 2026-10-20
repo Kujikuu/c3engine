@@ -540,9 +540,31 @@ impl Content {
         self.load_image(&section.frame_str(0)?)
     }
 
-    pub fn radar_mark(&self, kind: &str) -> Option<Image> {
-        let (_, file, section) = RADAR_MARKS.iter().find(|(k, _, _)| *k == kind)?;
-        self.ani_image(file, section)
+    /// Every frame of the radar's mark `kind` (see [`RADAR_MARKS`]).
+    pub fn radar_marks(&self, kind: &str) -> Vec<Image> {
+        let Some((_, file, section)) = RADAR_MARKS.iter().find(|(k, _, _)| *k == kind) else {
+            return Vec::new();
+        };
+        let Some(ani) = self.fs.read(file).and_then(|b| Ani::parse(&b).ok()) else {
+            return Vec::new();
+        };
+        let Some(section) = ani.get(section) else {
+            return Vec::new();
+        };
+        (0..section.frames.len())
+            .filter_map(|i| self.load_image(&section.frame_str(i)?))
+            .collect()
+    }
+
+    /// Whether the first of `map_ids` the client has a minimap for has fewer than its four
+    /// parts (CRadar::Show then draws it with ShowFallback).
+    pub fn radar_fallback(&self, map_ids: &[u32]) -> bool {
+        let Some(ani) = self.fs.read(MINIMAP_ANI).and_then(|b| Ani::parse(&b).ok()) else {
+            return false;
+        };
+        (map_ids.iter())
+            .find_map(|id| ani.get(&id.to_string()))
+            .is_some_and(|s| s.frames.len() < 4)
     }
 
     /// The ground shadow under every role (`ani/common.ani` `SimpleShadow`, CRole::Show).
@@ -616,12 +638,14 @@ fn quality_light(kind: u32) -> Option<&'static str> {
 }
 const SERVER_DAT: &str = "Server.dat";
 const SERVER_ANI: &str = "ani/Server.ani";
-/// The radar's marks, as CRadar draws them: the hero (MiniMap.ani), players and team
-/// leaders (common.ani).
-const RADAR_MARKS: [(&str, &str, &str); 3] = [
+/// The radar's marks, as CRadar draws them: the hero (MiniMap.ani), the players it knows,
+/// team leaders, its mentor and students (common.ani).
+const RADAR_MARKS: [(&str, &str, &str); 5] = [
     ("hero", MINIMAP_ANI, "hero"),
     ("player", "ani/common.ani", "PlayerFlag"),
     ("leader", "ani/common.ani", "TeamLeader"),
+    ("tutor", "ani/common.ani", "Tutor"),
+    ("student", "ani/common.ani", "Student"),
 ];
 
 /// Four images as the quarters of one (top-left, top-right, bottom-left, bottom-right).

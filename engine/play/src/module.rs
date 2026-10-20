@@ -253,11 +253,18 @@ pub trait GameModule {
         None
     }
 
-    /// The picture the radar marks `kind` with (`hero`, `player`, `leader`) in place of its
-    /// dot; none: the dot.
-    fn radar_mark(&self, kind: &str) -> Option<Image> {
+    /// The pictures (frames) the radar marks `kind` with (`hero`, `player`, `leader`,
+    /// `tutor`, `student`) in place of its dot; none: the dot.
+    fn radar_marks(&self, kind: &str) -> Vec<Image> {
         let _ = kind;
-        None
+        Vec::new()
+    }
+
+    /// Whether map `key`'s minimap is a single picture shown as it is in the corner rather
+    /// than in the radar's box (TQ's CRadar::ShowFallback).
+    fn radar_fallback(&self, key: &str, map_ids: &[u32]) -> bool {
+        let _ = (key, map_ids);
+        false
     }
     /// The effect every portal shows, looping (TQ's client draws `Exit` on each).
     fn portal_effect(&self) -> Option<String> {

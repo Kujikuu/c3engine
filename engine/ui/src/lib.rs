@@ -27,6 +27,7 @@ mod prompt;
 mod purchase;
 mod quests;
 mod radar;
+mod radar_box;
 mod shop;
 pub mod style;
 
@@ -405,7 +406,7 @@ pub struct PowerRow {
 
 /// A minimap for the radar: its texture covers world `bounds` (`[left, top, right,
 /// bottom]`) of the map laid out by `projection`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct RadarMap {
     pub texture: egui::TextureId,
     /// The picture's size in pixels, and the world it covers.
@@ -414,16 +415,25 @@ pub struct RadarMap {
     /// Shown as a box this size (layout pixels) in the top-right corner; none: the circle.
     pub boxed: Option<egui::Vec2>,
     pub projection: c3_scene::IsoProjection,
-    /// The game's pictures for the hero, players and team leaders (texture and size).
+    /// The game's pictures for the radar's marks.
     pub marks: RadarMarks,
+    /// The picture is one the game shows as it is, at its own size in the corner (TQ's
+    /// CRadar::ShowFallback, for maps with no four-part minimap).
+    pub fallback: bool,
 }
 
-/// The game's pictures for the radar's marks; none: a dot.
-#[derive(Debug, Clone, Copy, Default)]
+/// A radar mark's picture: its texture and size.
+pub type RadarMark = (egui::TextureId, egui::Vec2);
+
+/// The game's pictures for the radar's marks, each with its frames; none: a dot. The
+/// players' frames are TQ's PlayerFlag: friend, enemy, spouse, teammate.
+#[derive(Debug, Clone, Default)]
 pub struct RadarMarks {
-    pub hero: Option<(egui::TextureId, egui::Vec2)>,
-    pub player: Option<(egui::TextureId, egui::Vec2)>,
-    pub leader: Option<(egui::TextureId, egui::Vec2)>,
+    pub hero: Vec<RadarMark>,
+    pub player: Vec<RadarMark>,
+    pub leader: Vec<RadarMark>,
+    pub tutor: Vec<RadarMark>,
+    pub student: Vec<RadarMark>,
 }
 
 impl GameView<'_> {
@@ -813,7 +823,16 @@ impl GameUi {
             }
             "team_auto" => self.gui_state.auto_team ^= true,
             // The minimap shown or rolled up (the main bar's map check).
-            "radar" => self.gui_state.radar_hidden ^= true,
+            // The map check opens and closes the radar; its buttons switch the overview and
+            // the full picture with the crop (OnMainMap, OnBtnRadar01/02).
+            "radar" => {
+                let mut prefs = self.prefs;
+                prefs.radar_shut = !self.gui_state.radar.toggle();
+                self.prefs = prefs;
+                actions.push(UiAction::SetPrefs(prefs));
+            }
+            "radar_overview" => self.gui_state.radar.toggle_overview(),
+            "radar_full" => self.gui_state.radar.toggle_full(),
             // The chat bar: its line said on the picked channel (`view:chat:<channel>`;
             // talk when none), a whisper to the name typed; the shown lines cleared.
             // Lines are a half second apart at least (StrRes 10044); each is kept for Up/Down.
@@ -2113,6 +2132,11 @@ impl GameUi {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
         self.prefs = view.controls.prefs;
+        // The radar opens as the player last left it (MapModeRecord).
+        if !self.gui_state.radar_restored {
+            self.gui_state.radar.visible = !self.prefs.radar_shut;
+            self.gui_state.radar_restored = true;
+        }
         self.gui_state.place_fixed = self.placing.is_some_and(|p| p.cell.is_some());
         self.watch_frames(ui.input(|i| i.time));
         self.chat.shown = (self.prefs.chat_lines > 0).then_some(self.prefs.chat_lines as usize);
@@ -2148,13 +2172,22 @@ impl GameUi {
             hud::team_list(ui, view, player);
         }
         hud::status_row(ui, view, player);
-        if !self.gui_state.radar_hidden {
-            // Layout pixels to the screen's, as the game UI is drawn.
-            let scale = self.gui.as_ref().map_or(1.0, |g| {
-                let [w, h] = g.layout.base().map(|v| v as f32);
-                (view.rect.width() / w).min(view.rect.height() / h)
-            });
-            radar::show(ui, view, scale);
+        match view.minimap.as_ref().filter(|m| m.boxed.is_some()) {
+            Some(map) => {
+                // Layout pixels to the screen's, as the game UI is drawn; the box grows out
+                // of the control that opens it.
+                let scale = self.gui.as_ref().map_or(1.0, |g| {
+                    let [w, h] = g.layout.base().map(|v| v as f32);
+                    (view.rect.width() / w).min(view.rect.height() / h)
+                });
+                let collapsed = (self.gui.as_ref()).and_then(|g| g.action_spot("radar", view.rect));
+                let now_ms = (ui.input(|i| i.time) * 1000.0) as u64;
+                let painter = ui.painter_at(view.rect);
+                let state = &mut self.gui_state.radar;
+                radar_box::show(&painter, view, map, state, (scale, collapsed, now_ms));
+            }
+            None if self.gui_state.radar.visible => radar::show(ui, view),
+            None => {}
         }
         quests::npc_marks(&ui.painter_at(view.rect), view);
         self.in_team = player.team.is_some();
