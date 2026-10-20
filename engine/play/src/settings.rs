@@ -85,6 +85,7 @@ pub fn new_character(settings: &GameplaySettings, name: &str, cell: CellPos) -> 
         bag: start.bag.iter().map(|&k| k.into()).collect(),
         equipment: start.equipment.iter().map(|&k| k.into()).collect(),
         skills: start.skills.clone(),
+        profession: start.profession,
         ..PlayerSave::new(name, cell)
     }
 }

@@ -442,6 +442,8 @@ impl GameUi {
                 actions.push(UiAction::Game(c3_game::Input::Team(action)));
             }
             "team_auto" => self.gui_state.auto_team ^= true,
+            // The minimap shown or rolled up (the main bar's map check).
+            "radar" => self.gui_state.radar_hidden ^= true,
             // The chat bar: its line said on the picked channel (`view:chat:<channel>`;
             // talk when none), a whisper to the name typed; the shown lines cleared.
             "chat_send" => {
@@ -673,7 +675,9 @@ impl GameUi {
         hud::hint_line(ui, view);
         hud::status_row(ui, view, player);
         hud::team_list(ui, view, player);
-        radar::show(ui, view);
+        if !self.gui_state.radar_hidden {
+            radar::show(ui, view);
+        }
         quests::npc_marks(&ui.painter_at(view.rect), view);
         self.in_team = player.team.is_some();
         self.leads_team = player.team == Some(player.id);

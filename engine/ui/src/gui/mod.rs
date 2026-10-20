@@ -185,6 +185,9 @@ pub struct Control {
     /// A progress bar's full value, a binding or a number.
     pub max: String,
     pub fill: Fill,
+    /// A progress bar's image area, drawn as it is at the control's corner (`area=w,h`;
+    /// TQ's `CMyProgress::SetWidthAndHeight`); none: the control's size.
+    pub area: Option<[i32; 2]>,
     /// Text with `{binding}`s in it.
     pub text: String,
     /// A file of `value,name` (or `value=name`) lines (TQ's `ProfessionalName.ini`,
@@ -261,6 +264,10 @@ impl Control {
             let n: Vec<i32> = s.split(',').filter_map(|v| v.trim().parse().ok()).collect();
             <[i32; 4]>::try_from(n).ok()
         });
+        let area = section.get("area").and_then(|s| {
+            let n: Vec<i32> = s.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+            <[i32; 2]>::try_from(n).ok()
+        });
         let color = section
             .get("color")
             .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
@@ -284,6 +291,7 @@ impl Control {
             focus: text("focus"),
             max: text("max"),
             fill,
+            area,
             text: text("text"),
             names: text("names"),
             map: text("map"),

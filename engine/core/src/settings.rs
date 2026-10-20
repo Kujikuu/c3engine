@@ -302,6 +302,9 @@ pub struct NewCharacter {
     /// Skills they know.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<u32>,
+    /// Their profession when none is picked (a character made without the create screen).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub profession: u32,
 }
 
 impl Default for NewCharacter {
@@ -312,6 +315,7 @@ impl Default for NewCharacter {
             bag: Vec::new(),
             equipment: Vec::new(),
             skills: Vec::new(),
+            profession: 0,
         }
     }
 }

@@ -216,7 +216,10 @@ impl Accounts {
         let mut character = new_character(name);
         character.name = name.to_owned();
         character.look = look;
-        character.profession = profession;
+        // The one picked, else the game's default.
+        if profession != 0 {
+            character.profession = profession;
+        }
         data.characters.push(character.clone());
         self.write(account, &data)?;
         Ok(character)

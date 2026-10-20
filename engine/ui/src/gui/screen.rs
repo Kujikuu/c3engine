@@ -447,11 +447,14 @@ impl Painter<'_, '_> {
                 let Some(texture) = self.frame(frames, control.frame) else {
                     return;
                 };
-                // The control's size, else the image's.
-                let full = Vec2::new(
-                    if at.w > 0 { size.x } else { texture.1.x },
-                    if at.h > 0 { size.y } else { texture.1.y },
-                );
+                // Its image area, else the control's size, else the image's.
+                let full = match control.area {
+                    Some([w, h]) => Vec2::new(w as f32, h as f32),
+                    None => Vec2::new(
+                        if at.w > 0 { size.x } else { texture.1.x },
+                        if at.h > 0 { size.y } else { texture.1.y },
+                    ),
+                };
                 let (offset, shown) = match control.fill {
                     Fill::Up => (
                         Vec2::new(0.0, full.y * (1.0 - f)),

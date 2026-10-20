@@ -18,6 +18,8 @@ pub(crate) struct GuiState {
     pub guild_tab: String,
     /// Invites and asks to join a team are taken at once (the team dialog's auto check).
     pub auto_team: bool,
+    /// The minimap rolled up.
+    pub radar_hidden: bool,
     /// The field whose edit takes the keyboard next frame.
     pub focus: Option<String>,
     /// Each view group's view (`view:<group>:<name>`; a status page's base or details).
@@ -119,6 +121,7 @@ impl GuiData for HeroData<'_> {
             "hero.exp_next" => need()? as f64,
             "hero.money" => p.money as f64,
             "hero.running" => f64::from(u8::from(p.running)),
+            "ui.radar" => f64::from(u8::from(!self.state.radar_hidden)),
             "hero.bag_count" => p.bag.len() as f64,
             "hero.bag_size" => self.view.sim.bag_size() as f64,
             "hero.attack_min" => p.stats.attack_min.into(),
@@ -194,8 +197,12 @@ impl GuiData for HeroData<'_> {
             }
             // Any of the hero's attributes (`hero.attr.strength`), 0 when it has none.
             _ => {
+                // Its own value, else the attribute's default (stamina starts full).
                 let name = key.strip_prefix("hero.attr.")?;
-                p.attributes.get(name).copied().unwrap_or(0) as f64
+                let default = (self.view.sim.settings().attributes.iter())
+                    .find(|a| a.name == name)
+                    .map_or(0, |a| a.default);
+                p.attributes.get(name).copied().unwrap_or(default) as f64
             }
         })
     }

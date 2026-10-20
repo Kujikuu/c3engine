@@ -781,7 +781,26 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI engine: disabled and latched button frames, images picked by a binding, sliders, multi-line edits, comparisons in `when`
   - [ ] UI engine: the dialogs the server opens (window numbers and events) wired for every dialog that has one
   - [ ] UI engine: the engine's own widgets (skill bar, radar circle, chat log, quest windows) hidden where the game draws its own
-  - [ ] UI 130 CDlgMain (main bar): partial, 19 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 130 CDlgMain (main bar): 6 of 19 audit mismatches fixed (docs/conquer_ui_audit.md)
+    - [x] life and mana orbs at the client's image sizes (36x74, 34x74; `area=`), life as the whole orb (frame 2, 86 wide) for a hero with no mana (DlgMain.cpp 166-172, 726-735)
+    - [x] XP orb 1018 (Progress42, 92x92) and stamina 1025 (Progress46, 8x70, under the bezel) bound to the `xp` and `stamina` attributes (attribute defaults now read by `hero.attr.*`)
+    - [x] exp 1019 a pixel up (y 96, DlgMain.cpp 796); Control.Ani has no Progress44, so like the client it draws nothing with the default skin
+    - [x] message board 1006 toggles 240 and setup 1008 toggles 138 as OnMainLeaveWord / OnMainSetup do (both dialogs still drafts, below)
+    - [x] map check 1015 shows and toggles the radar (frame from its visibility)
+    - [x] a hero made without the create screen gets the game's profession (`new_character.profession`; Conquer: Trojan) so it has points and life
+    - [ ] life orb's mana latch: the client keeps the whole-orb life until mana is first above 0, then never goes back (we follow max mana)
+    - [ ] XP orb's 500 ms mode-2 flash on an XP change (DlgMain.cpp 849-864)
+    - [ ] stamina x1.5 while Blessed, and extra stamina 1027 (Progress47) above 99 (DlgMain.cpp 703-709, 757-762)
+    - [ ] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136)
+    - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
+    - [ ] skill box 1022 shows the right-click skill picked (MagicSkillType / XpSkillType) and casts it
+    - [ ] radar toggle transition (the client rolls it)
+    - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
+    - [ ] PK button image by PK mode (Button47/49/48/412)
+    - [ ] hover tooltips on exp, run, map, screen move, view equipment, XP, MP, HP (Dialog21, StrRes 10070-10074, 10370)
+    - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
+    - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
+    - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts
   - [ ] UI 145 CDlgTalk (chat bar): partial, 16 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 188 CDlgMagic (normal-magic skill strip): partial, 11 mismatches (docs/conquer_ui_audit.md)

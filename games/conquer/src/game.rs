@@ -85,6 +85,8 @@ pub fn new_character() -> NewCharacter {
     NewCharacter {
         money: START_MONEY,
         equipment: gear.into_iter().filter(|&k| k != 0).collect(),
+        // A hero made without the create screen is a Trojan, as the default hero's gear is.
+        profession: 10,
         ..NewCharacter::default()
     }
 }
