@@ -792,7 +792,7 @@ pub fn item_info_ex(i: &ItemInfo, owner: u32, price: u32, mode: u8) -> Vec<u8> {
             .u8(0)
             .u32(i.data)
             .u16(0)
-            .u16(0)
+            .u16(i.lock)
             .u16(i.color)
             .u16(0);
     })

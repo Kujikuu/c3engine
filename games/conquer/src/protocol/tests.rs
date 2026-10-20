@@ -347,6 +347,7 @@ fn msg_item_info_ex_is_the_clients_size() {
         bless: 0,
         enchant: 0,
         color: 3,
+        lock: 1,
     };
     let packet = pk::item_info_ex(&info, 100_005, 250, pk::ITEM_EX_BOOTH_CPS);
     assert_eq!(packet.len(), 0x34, "MsgItemInfoEx.h static_assert");
