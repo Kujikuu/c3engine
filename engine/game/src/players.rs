@@ -540,6 +540,10 @@ impl Sim {
         p.bag.push(item);
         self.refresh_stats(id);
         self.events.push(Event::Dressed { player: id });
+        self.events.push(Event::Equipped {
+            player: id,
+            on: false,
+        });
     }
 
     /// Puts `item` on, moving what was worn in its slot to the bag.
@@ -556,6 +560,10 @@ impl Sim {
         p.equipment.push(item);
         self.refresh_stats(id);
         self.events.push(Event::Dressed { player: id });
+        self.events.push(Event::Equipped {
+            player: id,
+            on: true,
+        });
     }
 
     /// The slot worn item `item` is in.

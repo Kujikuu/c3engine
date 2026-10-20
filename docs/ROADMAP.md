@@ -773,8 +773,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] The minimap's marks: the game's pictures for the hero, players and team leaders
         (`GameModule::radar_mark`; MiniMap.ani's hero, common.ani's PlayerFlag and
         TeamLeader) in place of dots (screenshot)
-  - [ ] The minimap's tutor and student marks; Unequip.wav apart from equipping; Dlg_Ok (Dlg_Ok.wav isn't in
-        its sound folder); sounds on the login screens
+  - [x] The minimap's tutor and student marks (radar_box: common.ani Tutor / Student); Unequip.wav apart
+        from equipping (`Event::Equipped`, `[ui] sound_unequip`); Dlg_Ok (Dlg_Ok.wav isn't in its sound
+        folder, so the client plays nothing); the login screens silent as the client's (DXPlaySound
+        defined away; a dialog's `sound=` its controls')
+  - [ ] The native login's Register, Site and Charge buttons (BtnClick, the 10366 / 10367 pages, the
+        CP top-up)
   - Audit 2026-10-20 (docs/conquer_ui_audit.md): every dialog the 5065 client creates, checked against its code; each one below is open until it matches.
   - [x] UI engine: the client's window model
     - [x] dialogs own a part of the screen (`slot=left|middle|right`, from CDlgMain::CloseCurDlg) and clear others as they open (`clears=`); the overlap rule is gone, so HUD strips and child dialogs no longer close each other

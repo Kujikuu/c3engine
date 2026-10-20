@@ -154,6 +154,7 @@ impl Event {
             | Event::PickedUp { player, .. }
             | Event::Used { player, .. }
             | Event::Dressed { player }
+            | Event::Equipped { player, .. }
             | Event::Chat {
                 player, to: None, ..
             } => vec![player],

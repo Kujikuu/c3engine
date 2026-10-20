@@ -245,7 +245,8 @@ pub struct Control {
     pub size: f32,
     /// What a click asks the game for.
     pub action: String,
-    /// A sound (an asset path) a click plays in place of the UI's click (`none`: silent).
+    /// A sound (an asset path) a click plays in place of the UI's click (`none`: silent); on a
+    /// dialog, its controls' that name none (TQ's login screens click silently).
     pub sound: String,
     /// What a right click on a dialog asks for (`right=dice_cancel`).
     pub right: String,
@@ -611,12 +612,26 @@ pub struct Gui {
 impl Gui {
     /// A UI from a layout, skin and controls file's bytes.
     pub fn new(layout: &[u8], skin: &[u8], controls: &[u8]) -> Self {
+        let mut controls: Vec<Control> = (ini::parse(controls).iter())
+            .filter_map(Control::parse)
+            .collect();
+        // A dialog's sound is its controls' own unless they name one.
+        let dialog_sounds: std::collections::HashMap<u32, String> = (controls.iter())
+            .filter(|c| c.kind == ControlKind::Dialog && !c.sound.is_empty())
+            .map(|c| (c.id, c.sound.clone()))
+            .collect();
+        for c in controls
+            .iter_mut()
+            .filter(|c| c.kind != ControlKind::Dialog)
+        {
+            if let Some(sound) = dialog_sounds.get(&c.parent).filter(|_| c.sound.is_empty()) {
+                c.sound = sound.clone();
+            }
+        }
         Self {
             layout: Layout::parse(layout),
             skin: Skin::parse(skin),
-            controls: (ini::parse(controls).iter())
-                .filter_map(Control::parse)
-                .collect(),
+            controls,
             opened_at: Default::default(),
             rising: Default::default(),
             open: BTreeSet::new(),

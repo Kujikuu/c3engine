@@ -23,6 +23,7 @@ pub struct GameAudio {
     /// The sounds of the hero selling and changing what it wears (the game UI's settings).
     sell_sound: String,
     equip_sound: String,
+    unequip_sound: String,
 }
 
 impl GameAudio {
@@ -37,6 +38,7 @@ impl GameAudio {
             region_music: None,
             sell_sound: String::new(),
             equip_sound: String::new(),
+            unequip_sound: String::new(),
             map_music: None,
             project: Volumes::default(),
             player: PlayerPrefs::default(),
@@ -91,6 +93,7 @@ impl GameAudio {
     pub fn set_ui_sounds(&mut self, ui: &c3_core::settings::UiSettings) {
         self.sell_sound = ui.sound_sell.clone();
         self.equip_sound = ui.sound_equip.clone();
+        self.unequip_sound = ui.sound_unequip.clone();
     }
 
     /// Plays a sound of the game's UI (a click), as loud as any sound beside the hero.
@@ -128,8 +131,16 @@ impl GameAudio {
                     }
                     continue;
                 }
-                Event::Dressed { player } if player == hero && !self.equip_sound.is_empty() => {
-                    self.audio.play(&self.equip_sound, 1.0);
+                // Putting an item on or taking one off (TQ's DlgEquip: Unequip.wav).
+                Event::Equipped { player, on } if player == hero => {
+                    let sound = if on {
+                        &self.equip_sound
+                    } else {
+                        &self.unequip_sound
+                    };
+                    if !sound.is_empty() {
+                        self.audio.play(sound, 1.0);
+                    }
                     continue;
                 }
                 Event::Sold { player, .. } if player == hero && !self.sell_sound.is_empty() => {

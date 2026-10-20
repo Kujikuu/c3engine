@@ -97,6 +97,11 @@ pub enum Event {
     Dressed {
         player: EntityId,
     },
+    /// The player put an item on (`on`), or took one off.
+    Equipped {
+        player: EntityId,
+        on: bool,
+    },
     /// Something the player should be told ("Your bag is full").
     Message {
         player: EntityId,
