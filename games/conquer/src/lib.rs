@@ -3,6 +3,7 @@
 //!
 //! [`Content`] opens a 5065 client folder and hands out engine types (scenes, models, images).
 
+mod battle_power;
 pub mod character;
 pub mod game;
 pub mod guild_war;

@@ -946,7 +946,10 @@ impl Session {
                 projection: self.world.scene.projection,
                 marks: self.minimap.marks,
             });
+        let power =
+            (self.sim.player(self.hero)).and_then(|p| self.world.game.battle_power(&self.sim, p));
         let view = GameView {
+            power,
             sim: &self.sim,
             hero: self.hero,
             rect: screen.rect,

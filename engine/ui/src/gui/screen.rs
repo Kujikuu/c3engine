@@ -1083,8 +1083,14 @@ type=text",
     fn fill_first_fills_printf_blanks_in_turn() {
         let text = "To be %s, you need to donate %s silver at least.";
         let once = fill_first(text, "Prince");
-        assert_eq!(fill_first(&once, "300"), "To be Prince, you need to donate 300 silver at least.");
-        assert_eq!(fill_first("EXP = %0.2f EXP Ball", "1.5"), "EXP = 1.5 EXP Ball");
+        assert_eq!(
+            fill_first(&once, "300"),
+            "To be Prince, you need to donate 300 silver at least."
+        );
+        assert_eq!(
+            fill_first("EXP = %0.2f EXP Ball", "1.5"),
+            "EXP = 1.5 EXP Ball"
+        );
     }
 
     #[test]

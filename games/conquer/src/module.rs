@@ -459,6 +459,10 @@ impl GameModule for ConquerModule {
         self.content.chat_look()
     }
 
+    fn battle_power(&self, sim: &c3_game::Sim, p: &c3_game::Player) -> Option<c3_ui::Power> {
+        Some(crate::battle_power::battle_power(sim, p))
+    }
+
     fn item_glow(&self, kind: u32) -> Vec<Image> {
         self.content.item_glow(kind)
     }

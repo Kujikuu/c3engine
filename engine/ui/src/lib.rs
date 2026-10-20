@@ -310,6 +310,27 @@ pub struct GameView<'a> {
     pub controls: &'a ControlsView<'a>,
     /// The map drawn small, under the radar's dots.
     pub minimap: Option<RadarMap>,
+    /// The hero's battle power as the game counts it; none: the game counts none.
+    pub power: Option<Power>,
+}
+
+/// A player's battle power: what each part gives (the game's order: TQ's level, rebirths,
+/// quality, sockets, super gems, plus and other) and each equipment row's scores.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Power {
+    pub parts: [i64; 7],
+    pub rows: Vec<PowerRow>,
+}
+
+/// One worn item as the battle power detail lists it: the item (none: nothing worn), its
+/// quality digit, its quality / sockets / super gems / plus scores, and whether it counts for
+/// nothing (a left hand under a two-handed weapon).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PowerRow {
+    pub item: Option<c3_game::Item>,
+    pub quality: u8,
+    pub scores: [i64; 4],
+    pub shadowed: bool,
 }
 
 /// A minimap for the radar: its texture covers world `bounds` (`[left, top, right,

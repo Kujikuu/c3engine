@@ -175,6 +175,11 @@ pub trait GameModule {
         let _ = (address, read);
         None
     }
+    /// Player `p`'s battle power as the game counts it; none: the game counts none.
+    fn battle_power(&self, sim: &c3_game::Sim, p: &c3_game::Player) -> Option<c3_ui::Power> {
+        let _ = (sim, p);
+        None
+    }
     /// How the game shows its chat log; none: the engine's.
     fn chat_look(&self) -> Option<c3_ui::ChatLook> {
         None

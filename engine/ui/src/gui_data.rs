@@ -407,6 +407,12 @@ impl HeroData<'_> {
                 .and_then(|npc| p.storage.get(&npc))
                 .map(|items| items.iter().collect())
                 .unwrap_or_default(),
+            // An equipment row of the battle power detail (`power.row.0`).
+            _ if key.starts_with("power.row.") => {
+                let n: usize = key.strip_prefix("power.row.")?.parse().ok()?;
+                let power = self.view.power.as_ref()?;
+                power.rows.get(n)?.item.iter().collect()
+            }
             // A booth's wares, and the one in a slot of its page (`booth.mine.0`).
             "booth.mine" | "booth.theirs" => {
                 let whose = key.strip_prefix("booth.")?;
@@ -604,6 +610,38 @@ impl GuiData for HeroData<'_> {
                 u8::from(row.1 != self.player.name).into()
             }
             "pigeon.mode" => self.view_number("pigeon") as f64,
+            // Battle power: the total, each part (`power.0` the level .. `power.6` other), the
+            // detail page's mode (`view:power_mode`: 1 quality .. 5 other) and a row's score,
+            // quality step (0 none, 1 Refined .. 4 Super) and whether it counts.
+            "power.total" => self.view.power.as_ref()?.parts.iter().sum::<i64>() as f64,
+            "power.mode" => self.view_number("power_mode") as f64,
+            // The detail page's total: the part its mode counts.
+            "power.mode_total" => {
+                let mode = self.view_number("power_mode");
+                *self.view.power.as_ref()?.parts.get(mode + 1)? as f64
+            }
+            _ if key.starts_with("power.row.") => {
+                let (n, field) = key.strip_prefix("power.row.")?.split_once('.')?;
+                let row = self
+                    .view
+                    .power
+                    .as_ref()?
+                    .rows
+                    .get(n.parse::<usize>().ok()?)?;
+                let mode = self.view_number("power_mode");
+                match field {
+                    "score" => row.scores.get(mode.checked_sub(1)?).copied().unwrap_or(0) as f64,
+                    "q" => {
+                        f64::from(row.quality.saturating_sub(5).min(4) * u8::from(row.quality >= 6))
+                    }
+                    "shadowed" => u8::from(row.shadowed).into(),
+                    _ => return None,
+                }
+            }
+            _ if key.starts_with("power.") => {
+                let n: usize = key.strip_prefix("power.")?.parse().ok()?;
+                *self.view.power.as_ref()?.parts.get(n)? as f64
+            }
             // The hero's noble rank and the rank picked to ask about (`view:nobility_query`).
             "nobility.rank" => {
                 let sim = self.view.sim;
@@ -904,6 +942,40 @@ impl GuiData for HeroData<'_> {
                     _ => (n.titles.iter())
                         .find(|(r, _)| *r == rank)
                         .map_or_else(String::new, |(_, t)| t.clone()),
+                })
+            }
+            // A battle power detail row's item name (StrRes 10493 when nothing is worn) and
+            // what it shows in the page's mode (a StrRes key: quality 10075-10080, sockets
+            // 10494/10495, super gems 10496/10497, plus 10498/10499, broken 11055).
+            _ if key.starts_with("power.row.") && key.matches('.').count() == 3 => {
+                let (n, field) = key.strip_prefix("power.row.")?.split_once('.')?;
+                let row = self
+                    .view
+                    .power
+                    .as_ref()?
+                    .rows
+                    .get(n.parse::<usize>().ok()?)?;
+                let mode = self.view_number("power_mode");
+                let item = row.item.as_ref();
+                Some(match field {
+                    "name" => item
+                        .and_then(|i| self.view.sim.rules().item(i.kind))
+                        .map_or_else(|| "10493".to_owned(), |t| t.name.clone()),
+                    "detail" => {
+                        let score = row.scores.get(mode.wrapping_sub(1)).copied().unwrap_or(0);
+                        let key = match (item, mode) {
+                            (None, _) => 10075,
+                            (Some(i), _) if i.durability == 0 => 11055,
+                            (Some(_), 1) if row.quality >= 6 => 10071 + u32::from(row.quality),
+                            (Some(_), 1) => 10076,
+                            (Some(_), 2) => 10494 + u32::from(score > 0),
+                            (Some(_), 3) => 10496 + u32::from(score > 0),
+                            (Some(_), 4) => 10498 + u32::from(score > 0),
+                            _ => return Some(String::new()),
+                        };
+                        key.to_string()
+                    }
+                    _ => return self.number(key).map(|n| format!("{n}")),
                 })
             }
             // The broadcast banner's latest line, and the board's rows (`pigeon.0.name`).

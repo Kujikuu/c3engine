@@ -939,8 +939,15 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] double-click to take off; requirement checks on wearing
     - [ ] colour variants and +N
   - [ ] UI 163 CDlgSkill (skills page of 131): missing, 1 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 286 CDlgBattlePower: draft only, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 287 CDlgBattlePowerDetail: draft only, 4 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Battle power: the game module counts it (`GameModule::battle_power`, `c3_ui::Power`); Conquer as CHero::CalculateBattlePower (level, rebirths x5, quality / sockets / super gems / plus of what is worn, a two-hander twice, arrows and a shadowed left hand nothing) plus the noble rank
+    - [x] the count, the status page's number (toggling 286) and the two dialogs
+    - [ ] the mentor's shared battle power (none yet), TQ's 3D digits on the status page, another player's battle power (258)
+  - [ ] UI 286 CDlgBattlePower: 4 of 5 audit mismatches fixed
+    - [x] Dialog60, the seven parts and total, level (10083) and rebirths (10500), detail buttons (other only when it gives) opening 287 in their mode; toggled by 131-1464
+    - [ ] placed beside the status page (262,95 as DlgQuery moves it), help topic 48
+  - [ ] UI 287 CDlgBattlePowerDetail: 3 of 4 audit mismatches fixed
+    - [x] Dialog61, seven rows (item, name coloured by quality or grey when shadowed, what it shows in the mode: 10075-10080 / 10494-10499 / 11055, score), the mode's total
+    - [ ] the other mode's noble rank rows (SetOtherRows), the quality word before the name, hiding 258 and the bag on opening, the 300 ms delay
   - [ ] UI 152 CDlgNpcBuy (NPC shop): 6 of 14 audit mismatches fixed
     - [x] CP shops draw Dialog58 and hide Fix (`shop.priced_in.CPs`); wares are sold for the shop's currency (`cq_goods.moneytype` → the shops table's `currency`, items' `price_CPs`; `Rules::shop_currency`, `ItemType::price_in`)
     - [x] paging 20 wares with Button203/204 and ChangePage.wav (`offset=` grids, `view_step:` bounded by `count.<list>`)

@@ -157,6 +157,10 @@ impl GameModule for ProjectGame {
         self.game.chat_look()
     }
 
+    fn battle_power(&self, sim: &c3_game::Sim, p: &c3_game::Player) -> Option<c3_ui::Power> {
+        self.game.battle_power(sim, p)
+    }
+
     fn item_icon(&self, kind: u32, look: u32) -> Option<Image> {
         self.game.item_icon(kind, look)
     }
