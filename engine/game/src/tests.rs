@@ -2722,7 +2722,7 @@ fn a_locked_item_stays_until_its_unlocking_day() {
     sim.input(ann, Input::Drop(armor));
     assert!(lock(&sim).is_some(), "a locked item isn't dropped");
     sim.input(ann, Input::Unlock(armor));
-    assert!(lock(&sim).unwrap() > 2000_01_01, "unlocking until a day");
+    assert!(lock(&sim).unwrap() > 20_000_101, "unlocking until a day");
     sim.input(ann, Input::Lock(armor));
     assert_eq!(
         lock(&sim),
@@ -2731,7 +2731,7 @@ fn a_locked_item_stays_until_its_unlocking_day() {
     );
     sim.input(ann, Input::Unlock(armor));
     // Its day come, it is free (and so it may be dropped).
-    sim.players.get_mut(&ann).unwrap().bag[0].lock = 2000_01_01;
+    sim.players.get_mut(&ann).unwrap().bag[0].lock = 20_000_101;
     sim.unlock_due(ann);
     assert_eq!(lock(&sim), Some(0));
     sim.input(ann, Input::Drop(armor));

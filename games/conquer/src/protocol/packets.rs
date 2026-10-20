@@ -1537,10 +1537,10 @@ mod tests {
 
     #[test]
     fn equipment_locks_ask_and_answer_in_16_bytes() {
-        let answer = item_lock(7, item_lock::CANCEL, 3, 2026_10_25);
+        let answer = item_lock(7, item_lock::CANCEL, 3, 20_261_025);
         assert_eq!(answer.len(), 16);
         assert_eq!(&answer[2..4], &ITEM_LOCK.to_le_bytes());
-        assert_eq!(&answer[12..16], &2026_10_25_u32.to_le_bytes());
+        assert_eq!(&answer[12..16], &20_261_025_u32.to_le_bytes());
         assert_eq!(
             parse(&item_lock(7, item_lock::APPLY, 0, 0)).unwrap(),
             Request::ItemLock {
