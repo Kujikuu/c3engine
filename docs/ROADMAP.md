@@ -1096,7 +1096,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] list arrows [160-1]/[160-2] (`arrows=1`)
     - [x] the Conquer front's MsgFriend (1019): the lists at login, made / lost / online / offline as they change, apply / accept / break / enemy delete from the client, a friend ask told
     - [x] online / offline notices to friends (StrRes 100103/100104; the real client prints them from the front's MsgFriend)
-  - [ ] UI 269 CDlgEnemy (enemies): 6 of 8 audit mismatches fixed
+  - [x] UI 269 CDlgEnemy (enemies): the 8 audit mismatches fixed (its list's arrows too)
     - [x] GeneralBG and the title image; enemies listed (a killer kept)
     - [x] Friend opens 160; mentor and business buttons
     - [x] a name clicked opens 270
