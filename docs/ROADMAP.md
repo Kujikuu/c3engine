@@ -1082,7 +1082,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] TQ's own hotkey categories (StrRes 10300-10305, 11018) rather than the engine's action groups
     - [ ] Delete (clearing a key)
     - [ ] help 1667 (0x19)
-  - [ ] UI 255 CDlgOther (setup "Other": furniture): draft only, 4 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 255 CDlgOther (furniture): 2 of 4 audit mismatches fixed
+    - [x] opened by setup's Other; hides the status and friends' pages as it opens
+    - [ ] 1694 delete furniture (the delete-NPC cursor; needs furniture in homes)
+    - [ ] help 1667
   - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 274 CDlgTalkAct (emotion icon picker): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [x] UI 148 CDlgListBox (whisper-name history): the 3 audit mismatches fixed (opened by 145-1185, Dialog24 at -3,-4, names bound and picked); what is left is under 145

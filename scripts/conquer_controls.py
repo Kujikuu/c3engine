@@ -41,6 +41,7 @@ SLOTS = {
 CLEARS = {
     137: "right",
     138: "131,160,269",
+    255: "131,160,269",
     240: "middle",
     211: "left,right",
     212: "left,right",
