@@ -312,3 +312,20 @@ fn guild_info_is_the_clients_size() {
     assert_eq!(u32_at(&packet, 4), 12);
     assert_eq!(packet[20], 100);
 }
+
+#[test]
+fn msg_friend_is_the_clients_size_and_reads_back() {
+    let packet = pk::friend(pk::friend::GET_INFO, 3_500_000_001, true, 70, "Ann");
+    assert_eq!(packet.len(), 0x24);
+    assert_eq!(u32_at(&packet, 4), 3_500_000_001);
+    assert_eq!(packet[8], pk::friend::GET_INFO);
+    assert_eq!(packet[9], 1);
+    assert_eq!(u32_at(&packet, 16), 70);
+    assert_eq!(
+        pk::parse(&packet).unwrap(),
+        pk::Request::Friend {
+            action: pk::friend::GET_INFO,
+            id: 3_500_000_001
+        }
+    );
+}

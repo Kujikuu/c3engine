@@ -94,6 +94,10 @@ fn pk_mode_code(mode: c3_core::settings::PkMode) -> u32 {
     }
 }
 
+/// The ids friends and enemies are known by in the client (above every player's and
+/// monster's).
+const CONTACT_IDS: u32 = 3_500_000_000;
+
 /// What the client was told of the hero's guild: its id, the hero's rank, its fund and member
 /// count, and what the hero gave it.
 type GuildShown = (u32, u8, u32, u32, i32);
@@ -388,6 +392,11 @@ pub struct ConquerClient {
     guild: Option<Option<GuildShown>>,
     /// The hero's guild's announcement as last told.
     notice: Option<String>,
+    /// The ids the client knows friends and enemies by, by name; and what it was told of
+    /// each: online or not (`None`: not told yet).
+    contact_ids: BTreeMap<String, u32>,
+    friends_told: Option<BTreeMap<String, bool>>,
+    enemies_told: Option<BTreeMap<String, bool>>,
     /// The guild names the client was told, by id.
     guild_names: BTreeMap<u32, String>,
     /// The hero's guild's members (by rank, then level): name, level, online.
@@ -686,6 +695,7 @@ impl ConquerClient {
         if self.entered {
             out.extend(self.team_changes(sim));
             out.extend(self.guild_changes(sim));
+            out.extend(self.contact_changes(sim));
             let mut shown = Vec::new();
             for (at, event) in update.events.iter().enumerate() {
                 if shown.contains(&at) {
@@ -721,6 +731,87 @@ impl ConquerClient {
     /// The guild of player `e` in view.
     fn guild_of_seen(&self, e: EntityId) -> Option<u32> {
         self.seen_guilds.get(&e).copied()
+    }
+
+    /// The id the client knows friend or enemy `name` by (made up as first met).
+    fn contact_id(&mut self, name: &str) -> u32 {
+        let next = CONTACT_IDS + self.contact_ids.len() as u32;
+        *self.contact_ids.entry(name.to_owned()).or_insert(next)
+    }
+
+    /// The friend or enemy the client knows by `id`.
+    fn contact_name(&self, id: u32) -> Option<String> {
+        (self.contact_ids.iter())
+            .find(|(_, i)| **i == id)
+            .map(|(n, _)| n.clone())
+    }
+
+    /// The hero's friends and enemies, as they changed: all of them at first (GET_INFO,
+    /// ENEMY_ADD), then those made, lost, coming online or leaving (MsgFriend.cpp).
+    fn contact_changes(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
+        use pk::friend as f;
+        let Some(p) = self.hero.and_then(|h| sim.player(h)) else {
+            return Vec::new();
+        };
+        let world = sim.world_state();
+        let online =
+            |n: &String| world.online.contains_key(n) || sim.players().any(|q| &q.name == n);
+        let now = |names: Vec<String>| -> BTreeMap<String, bool> {
+            names.into_iter().map(|n| (n.clone(), online(&n))).collect()
+        };
+        let friends = now(world.friends_of(&p.name));
+        let enemies = now(world.enemies_of(&p.name).to_vec());
+        let mut out = Vec::new();
+        let lists = [
+            (
+                friends,
+                self.friends_told.take(),
+                [f::GET_INFO, f::ACCEPT, f::BREAK, f::ONLINE, f::OFFLINE],
+            ),
+            (
+                enemies,
+                self.enemies_told.take(),
+                [
+                    f::ENEMY_ADD,
+                    f::ENEMY_ADD,
+                    f::ENEMY_DEL,
+                    f::ENEMY_ONLINE,
+                    f::ENEMY_OFFLINE,
+                ],
+            ),
+        ];
+        let mut told = Vec::new();
+        for (now, before, [first, added, gone, on, off]) in lists {
+            let level = |n: &str| world.levels.get(n).copied().unwrap_or(0);
+            for (name, &is_on) in &now {
+                let action = match before.as_ref().map(|b| b.get(name)) {
+                    None => first,
+                    Some(None) => added,
+                    Some(Some(&was)) if was != is_on => {
+                        if is_on {
+                            on
+                        } else {
+                            off
+                        }
+                    }
+                    Some(Some(_)) => continue,
+                };
+                let id = self.contact_id(name);
+                out.push(pk::friend(action, id, is_on, level(name), name));
+            }
+            for name in before
+                .iter()
+                .flat_map(|b| b.keys())
+                .filter(|n| !now.contains_key(*n))
+            {
+                let id = self.contact_id(name);
+                out.push(pk::friend(gone, id, false, 0, name));
+            }
+            told.push(now);
+        }
+        self.enemies_told = told.pop();
+        self.friends_told = told.pop();
+        out
     }
 
     /// The hero's guild, when it changed: its details and name.
@@ -1161,6 +1252,16 @@ impl ConquerClient {
                 vec![pk::interact(interact::COURT, f, self.hero_id(), cell, 0)]
             }
             // A player's emote, to everyone who sees it (the hero too).
+            // Another player asks the hero to be friends (the client says so in its log).
+            Event::FriendAsked { player, from } if Some(*player) == hero => {
+                let (Some(who), Some(name)) = (
+                    self.client_id(*from, ids),
+                    sim.player(*from).map(|q| q.name.clone()),
+                ) else {
+                    return Vec::new();
+                };
+                vec![pk::friend(pk::friend::APPLY, who, true, 0, &name)]
+            }
             Event::Emoted { player, emote } => {
                 let Some(who) = self.client_id(*player, ids) else {
                     return Vec::new();
@@ -1498,6 +1599,25 @@ impl ConquerClient {
                 data,
             } => {
                 out.push(self.member_page(data));
+            }
+            // Asking another player to be friends (or taking up its ask), letting a friend
+            // go, forgetting an enemy.
+            Request::Friend {
+                action: a,
+                id: target,
+            } => {
+                use c3_game::FriendAction as F;
+                use pk::friend as f;
+                let input = match a {
+                    f::APPLY | f::ACCEPT => ids.entity(target).map(|e| match a {
+                        f::APPLY => F::Ask(e),
+                        _ => F::Accept(e),
+                    }),
+                    f::BREAK => self.contact_name(target).map(F::Remove),
+                    f::ENEMY_DEL => self.contact_name(target).map(F::Forget),
+                    _ => None,
+                };
+                inputs.extend(input.map(Input::Friend));
             }
             Request::Team { action: a, id } => {
                 let other = ids.entity(id);

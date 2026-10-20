@@ -26,6 +26,29 @@ pub const NAME_MAP_EFFECT: u8 = 9;
 pub const NAME_ROLE_EFFECT: u8 = 10;
 /// The hero's guild: id, fund, members, its rank and leader (MsgSyndicateAttributeInfo).
 pub const GUILD_INFO: u16 = 1106;
+
+/// Friends and enemies (MsgFriend 1019, 0x24 bytes): a friend or enemy's id, the action,
+/// whether it is online, its look, level and name.
+pub const FRIEND: u16 = 1019;
+pub mod friend {
+    pub const APPLY: u8 = 10;
+    pub const ACCEPT: u8 = 11;
+    pub const ONLINE: u8 = 12;
+    pub const OFFLINE: u8 = 13;
+    pub const BREAK: u8 = 14;
+    pub const GET_INFO: u8 = 15;
+    pub const ENEMY_ONLINE: u8 = 16;
+    pub const ENEMY_OFFLINE: u8 = 17;
+    pub const ENEMY_DEL: u8 = 18;
+    pub const ENEMY_ADD: u8 = 19;
+}
+
+pub fn friend(action: u8, id: u32, online: bool, level: u32, name: &str) -> Vec<u8> {
+    packet(FRIEND, |w| {
+        w.u32(id).u8(action).u8(u8::from(online)).u8(0).u8(0);
+        w.u32(0).u32(level).fixed_str(name, 16);
+    })
+}
 /// A guild action about a guild or player (MsgSyndicate).
 pub const GUILD: u16 = 1107;
 pub mod guild {
@@ -758,6 +781,11 @@ pub enum Request {
         account: String,
         password: [u8; 16],
     },
+    /// A friend or enemy asked about (1019): the action and the player's or friend's id.
+    Friend {
+        action: u8,
+        id: u32,
+    },
     /// Game login (1052) with the token the account server gave.
     Connect {
         token: u32,
@@ -919,6 +947,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             Request::Guild {
                 action,
                 id: r.u32()?,
+            }
+        }
+        FRIEND => {
+            let id = r.u32()?;
+            Request::Friend {
+                action: r.u8()?,
+                id,
             }
         }
         TEAM => {

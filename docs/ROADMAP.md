@@ -1044,7 +1044,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] whisper and leave-word row actions
     - [ ] help 1667
     - [ ] slide-in, sounds; list arrows [160-1]/[160-2]
-    - [ ] the Conquer front's MsgFriend (1019) so the real client sees friends
+    - [x] the Conquer front's MsgFriend (1019): the lists at login, made / lost / online / offline as they change, apply / accept / break / enemy delete from the client, a friend ask told
     - [ ] online / offline notices to friends (StrRes 100103/100104)
   - [ ] UI 269 CDlgEnemy (enemies): 6 of 8 audit mismatches fixed
     - [x] GeneralBG and the title image; enemies listed (a killer kept)
