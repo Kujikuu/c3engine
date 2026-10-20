@@ -216,6 +216,14 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    action(
+        "player.client_cue_text",
+        "Cue the client (text)",
+        "Player",
+        &[("name", Text), ("a", Number), ("text", Text)],
+        &[],
+        "client_cue_text({name}, {a}, {text});",
+    ),
     pure(
         "world.flag_top",
         "Highest of world variables",
@@ -622,6 +630,7 @@ pub const NODES: &[NodeDef] = &[
         "erase_trap();",
     ),
     event("event.minute", "Every minute (no player)", "on_minute", &[]),
+    event("event.logout", "On logging out", "on_logout", &[]),
     event(
         "event.hit_npc",
         "On hitting an NPC (it is the dialogue's NPC)",

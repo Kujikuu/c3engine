@@ -68,9 +68,28 @@ pub(crate) const MATE: &str = "mate";
 pub(crate) const SCORE: &str = ".score.";
 /// The player attribute holding the id of its home (a map made while playing).
 const HOME: &str = "home_id";
+/// TQ's wanted-list lines (its string table: STR_MAX_BONUTY and the others).
+const MAX_BOUNTY_LINE: &str = "You should offer a reward of 9999999 silvers at most!";
+const MIN_BOUNTY_LINE: &str = "You should offer a reward of 100000 silvers at least!";
+const INVALID_WANTED_LINE: &str = "Invalid Pursuing Number!";
+const LOWEST_RAISE_LINE: &str = "You must increase 10000 silvers at lease!";
+/// MsgName's types for the wanted order's and the police order's target.
+const NAME_WANTED: i64 = 8;
+const NAME_POLICE_WANTED: i64 = 15;
+
 /// The player variable holding the police-wanted name the player took on (3011).
 pub(crate) const POLICE_TARGET: &str = "police_target";
 const WANTED_MODIFY: &str = "wanted_modify";
+
+/// A piece of a line told to the player: text, a number node, a text node.
+enum Part {
+    Text(&'static str),
+    Number(u32),
+    Words(u32),
+}
+
+/// The client cue sending a MsgName (Conquer's `pk::cue::NAME`).
+const CUE_NAME: &str = crate::protocol::packets::cue::NAME;
 
 /// The custom event a placement asked for by 401 runs: its action `action`'s chain.
 fn laid_event(action: u32) -> String {
@@ -567,6 +586,8 @@ fn line(param: &str) -> String {
         ("%accept", "{accept}"),
         ("%npc_name", "{npc}"),
         ("%iter_member_name", "{member}"),
+        ("%iter_police_wanted", "{police}"),
+        ("%iter_wanted", "{wanted}"),
     ] {
         text = text.replace(tq, engine);
     }
@@ -1201,20 +1222,25 @@ impl<'a> Builder<'a> {
                 g.data(name, none, "a");
                 let there = g.node("logic.not", &[], column);
                 g.data(none, there, "a");
-                let effect = if a.kind == 3010 {
+                if a.kind == 3010 {
                     let step = g.node("player.set_flag", &[("name", txt("iterator"))], column);
                     g.data(index, step, "value");
-                    step
-                } else {
-                    let keep = g.node(
-                        "player.set_text_var",
-                        &[("name", txt(POLICE_TARGET))],
-                        column,
-                    );
-                    g.data(name, keep, "text");
-                    keep
-                };
-                self.guarded(g, &[there], None, &[effect], column)
+                    return self.guarded(g, &[there], None, &[step], column);
+                }
+                let keep = g.node(
+                    "player.set_text_var",
+                    &[("name", txt(POLICE_TARGET))],
+                    column,
+                );
+                g.data(name, keep, "text");
+                let cue = g.node(
+                    "player.client_cue_text",
+                    &[("name", txt(CUE_NAME)), ("a", num(NAME_POLICE_WANTED))],
+                    column,
+                );
+                g.data(name, cue, "text");
+                let invalid = self.say(g, &[Part::Text(INVALID_WANTED_LINE)], column);
+                self.guarded_said(g, &[(there, invalid)], None, &[keep, cue], column)
             }
             3012 => {
                 let me = g.node("player.name", &[], column);
@@ -3029,7 +3055,7 @@ impl<'a> Builder<'a> {
 
     /// 3001-3008: TQ's wanted list (`CGameAction::ProcessActionWanted`), on the shared wanted
     /// list. The player keeps the name and bounty being posted, and the entry it took on or
-    /// is raising, as variables; TQ's refusal lines are left out.
+    /// is raising, as variables; refusals and what is done are told in TQ's lines.
     fn wanted(&mut self, g: &mut Canvas, a: &Action, column: i32) -> Emitted {
         let flag =
             |g: &mut Canvas, name: &str| g.node("player.flag", &[("name", txt(name))], column);
@@ -3078,44 +3104,92 @@ impl<'a> Builder<'a> {
             3003 => {
                 let n = typed(g);
                 let fits = self.compare_node(g, n, "<", 10_000_000, column);
+                let too_much = self.say(g, &[Part::Text(MAX_BOUNTY_LINE)], column);
                 let keep = set_flag(g, WANTED_BOUNTY, n);
-                self.guarded(g, &[fits], None, &[keep], column)
+                self.guarded_said(g, &[(fits, too_much)], None, &[keep], column)
             }
             // Posted: 100,000 at least, paid by the player.
             3004 => {
                 let b = flag(g, WANTED_BOUNTY);
                 let enough = self.compare_node(g, b, ">=", 100_000, column);
+                let too_little = self.say(g, &[Part::Text(MIN_BOUNTY_LINE)], column);
+                let short = self.short_of(g, b, column);
                 let name = g.node("player.text_var", &[("name", txt(WANTED_NAME))], column);
                 let add = g.node("wanted.add", &[], column);
                 g.data(name, add, "target");
                 g.data(b, add, "bounty");
-                self.guarded(g, &[enough], Some(b), &[add], column)
+                self.guarded_said(g, &[(enough, too_little)], Some((b, short)), &[add], column)
             }
-            // Taken on (1,000 to take) or modified next (3007): an entry that exists.
+            // Taken on (1,000 to take; the target's name to the client), or modified next
+            // (3007): an entry that exists.
             3005 | 3007 => {
                 let id = typed(g);
                 let b = bounty_of(g, id);
                 let exists = self.compare_node(g, b, ">", 0, column);
-                let name = if a.kind == 3005 {
-                    WANTED_ORDER
-                } else {
-                    WANTED_MODIFY
-                };
-                let keep = set_flag(g, name, id);
-                let fee = (a.kind == 3005)
-                    .then(|| g.node("math.add", &[("a", num(1000)), ("b", num(0))], column));
-                self.guarded(g, &[exists], fee, &[keep], column)
+                let invalid = self.say(g, &[Part::Text(INVALID_WANTED_LINE)], column);
+                if a.kind == 3007 {
+                    let keep = set_flag(g, WANTED_MODIFY, id);
+                    return self.guarded_said(g, &[(exists, invalid)], None, &[keep], column);
+                }
+                let keep = set_flag(g, WANTED_ORDER, id);
+                let fee = g.node("math.add", &[("a", num(1000)), ("b", num(0))], column);
+                let short = self.short_of(g, fee, column);
+                let target = g.node("wanted.target", &[], column);
+                g.data(id, target, "id");
+                let cue = g.node(
+                    "player.client_cue_text",
+                    &[("name", txt(CUE_NAME)), ("a", num(NAME_WANTED))],
+                    column,
+                );
+                g.data(target, cue, "text");
+                let told = self.say(
+                    g,
+                    &[
+                        Part::Text("1000 silvers earnest money is deducted.  You have got No."),
+                        Part::Number(id),
+                        Part::Text(" Pursuing Order. Target: "),
+                        Part::Words(target),
+                        Part::Text("; Reward: "),
+                        Part::Number(b),
+                        Part::Text(" silvers."),
+                    ],
+                    column,
+                );
+                self.guarded_said(
+                    g,
+                    &[(exists, invalid)],
+                    Some((fee, short)),
+                    &[keep, cue, told],
+                    column,
+                )
             }
             // Cancelled by anyone paying twice the bounty.
             3006 => {
                 let id = typed(g);
                 let b = bounty_of(g, id);
                 let exists = self.compare_node(g, b, ">", 0, column);
+                let invalid = self.say(g, &[Part::Text(INVALID_WANTED_LINE)], column);
                 let twice = g.node("math.multiply", &[("b", num(2))], column);
                 g.data(b, twice, "a");
+                let short = self.short_of(g, twice, column);
                 let remove = g.node("wanted.set_bounty", &[("bounty", num(0))], column);
                 g.data(id, remove, "id");
-                self.guarded(g, &[exists], Some(twice), &[remove], column)
+                let told = self.say(
+                    g,
+                    &[
+                        Part::Text("Pursuing Order for "),
+                        Part::Number(id),
+                        Part::Text(" has been canceled."),
+                    ],
+                    column,
+                );
+                self.guarded_said(
+                    g,
+                    &[(exists, invalid)],
+                    Some((twice, short)),
+                    &[remove, told],
+                    column,
+                )
             }
             // Raised by 10,000 or more, below 10,000,000 in all, paid by the player.
             3008 => {
@@ -3123,17 +3197,129 @@ impl<'a> Builder<'a> {
                 let id = flag(g, WANTED_MODIFY);
                 let b = bounty_of(g, id);
                 let exists = self.compare_node(g, b, ">", 0, column);
+                let invalid = self.say(g, &[Part::Text(INVALID_WANTED_LINE)], column);
                 let enough = self.compare_node(g, add, ">=", 10_000, column);
+                let too_little = self.say(g, &[Part::Text(LOWEST_RAISE_LINE)], column);
                 let total = g.node("math.add", &[], column);
                 g.data(b, total, "a");
                 g.data(add, total, "b");
                 let fits = self.compare_node(g, total, "<", 10_000_000, column);
+                let too_much = self.say(g, &[Part::Text(MAX_BOUNTY_LINE)], column);
+                let short = self.short_of(g, add, column);
                 let raise = g.node("wanted.set_bounty", &[], column);
                 g.data(id, raise, "id");
                 g.data(total, raise, "bounty");
-                self.guarded(g, &[exists, enough, fits], Some(add), &[raise], column)
+                let told = self.say(
+                    g,
+                    &[
+                        Part::Text("The reward for No."),
+                        Part::Number(id),
+                        Part::Text(" Pursuing Order is increased to "),
+                        Part::Number(total),
+                        Part::Text(" silvers!"),
+                    ],
+                    column,
+                );
+                let checks = [(exists, invalid), (enough, too_little), (fits, too_much)];
+                self.guarded_said(g, &checks, Some((add, short)), &[raise, told], column)
             }
             _ => self.not_converted(g, a, column),
+        }
+    }
+
+    /// A message node telling the player `parts` joined.
+    fn say(&mut self, g: &mut Canvas, parts: &[Part], column: i32) -> u32 {
+        let mut text: Option<u32> = None;
+        for part in parts {
+            let piece = match *part {
+                Part::Text(t) => g.node("text.join", &[("a", txt(t)), ("b", txt(""))], column),
+                Part::Number(n) => {
+                    let p = g.node("text.number", &[("text", txt(""))], column);
+                    g.data(n, p, "number");
+                    p
+                }
+                Part::Words(w) => {
+                    let p = g.node("text.join", &[("a", txt(""))], column);
+                    g.data(w, p, "b");
+                    p
+                }
+            };
+            text = Some(match text {
+                None => piece,
+                Some(before) => {
+                    let joined = g.node("text.join", &[], column);
+                    g.data(before, joined, "a");
+                    g.data(piece, joined, "b");
+                    joined
+                }
+            });
+        }
+        let message = g.node("player.message", &[], column);
+        if let Some(text) = text {
+            g.data(text, message, "text");
+        }
+        message
+    }
+
+    /// TQ's STR_NOT_ENOUGH_MONEY for `amount`.
+    fn short_of(&mut self, g: &mut Canvas, amount: u32, column: i32) -> u32 {
+        let parts = [
+            Part::Text("You don`t have "),
+            Part::Number(amount),
+            Part::Text(" silver!"),
+        ];
+        self.say(g, &parts, column)
+    }
+
+    /// [`Self::guarded`] telling each refusal: every check's line (a message node) when its
+    /// condition fails, `pay`'s when the money is short.
+    fn guarded_said(
+        &mut self,
+        g: &mut Canvas,
+        checks: &[(u32, u32)],
+        pay: Option<(u32, u32)>,
+        effects: &[u32],
+        column: i32,
+    ) -> Emitted {
+        let fail = g.node("flow.reroute_exec", &[], column);
+        let mut entry = None;
+        let mut at: Option<(u32, &'static str)> = None;
+        let step = |g: &mut Canvas,
+                    node: u32,
+                    entry: &mut Option<u32>,
+                    at: &mut Option<(u32, &'static str)>| {
+            match *at {
+                Some(from) => g.exec(from, node),
+                None => *entry = Some(node),
+            }
+        };
+        for &(condition, line) in checks {
+            let branch = g.node("flow.branch", &[], column);
+            g.data(condition, branch, "condition");
+            step(g, branch, &mut entry, &mut at);
+            g.exec((branch, "false"), line);
+            g.exec((line, "then"), fail);
+            at = Some((branch, "true"));
+        }
+        if let Some((amount, line)) = pay {
+            let take = g.node("player.take_money", &[], column);
+            g.data(amount, take, "amount");
+            step(g, take, &mut entry, &mut at);
+            let paid = g.node("flow.branch", &[], column);
+            g.wire((take, "taken"), (paid, "condition"));
+            g.exec((take, "then"), paid);
+            g.exec((paid, "false"), line);
+            g.exec((line, "then"), fail);
+            at = Some((paid, "true"));
+        }
+        for &effect in effects {
+            step(g, effect, &mut entry, &mut at);
+            at = Some((effect, "then"));
+        }
+        Emitted {
+            entry,
+            ok: at,
+            fail: Some((fail, "then")),
         }
     }
 

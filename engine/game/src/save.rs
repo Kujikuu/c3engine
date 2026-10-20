@@ -281,6 +281,7 @@ impl Sim {
 
     /// Takes player `id` out of the world (logged out).
     pub fn remove_player(&mut self, id: EntityId) {
+        self.script_event(id, "on_logout", Vec::new());
         // Logging out leaves the team.
         if let Some(leader) = self.players.get(&id).and_then(|p| p.team) {
             self.leave_team(id, leader);

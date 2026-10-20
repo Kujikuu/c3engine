@@ -37,7 +37,7 @@ mod tables;
 pub use conversation::{Conversation, Step};
 pub use dialog::{
     BountyView, DialogOption, DialogPage, Effect, GuildView, HeldItem, MapCopyView, NpcInfo,
-    PlayerState, Reply, WantedView, WorldChange,
+    PlayerState, PoliceView, Reply, WantedView, WorldChange,
 };
 pub use formulas::{Formulas, RULES_SCRIPT, map_int};
 pub use graph::{
@@ -81,6 +81,10 @@ impl Diagnostic {
 
 /// Every function scripts can call, with what it does, for the editor's reference.
 pub const API: &[(&str, &str)] = &[
+    (
+        "client_cue_text(name, a, text)",
+        "A client cue `name` with a number and a text for the player's client alone (Conquer: `name`, a MsgName of type `a`)",
+    ),
     (
         "flag_top(prefix) / clear_flags(prefix)",
         "World variables named `<prefix><number>`: the number of the highest above 0 (0: none); all of them set to 0",

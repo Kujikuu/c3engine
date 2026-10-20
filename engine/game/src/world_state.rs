@@ -46,6 +46,9 @@ pub struct WorldState {
     /// The police wanted list: names and levels, the highest level first.
     #[serde(default)]
     pub police: Vec<(String, i64)>,
+    /// The guild and PK points of each name on the police list.
+    #[serde(default)]
+    pub police_info: BTreeMap<String, (String, i64)>,
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
@@ -195,8 +198,14 @@ impl WorldState {
                 name,
                 level,
                 listed,
+                guild,
+                pk,
             } => {
                 self.police.retain(|(n, _)| n != name);
+                self.police_info.remove(name);
+                if *listed {
+                    self.police_info.insert(name.clone(), (guild.clone(), *pk));
+                }
                 if *listed {
                     // Before the first of a lower level (TQ's sorted insert).
                     let at = (self.police.iter())

@@ -83,8 +83,8 @@ pub struct PlayerState {
     pub wanted: BTreeMap<i64, WantedView>,
     /// Bounties on killers, by id (the oldest first).
     pub bounties: BTreeMap<i64, BountyView>,
-    /// The police wanted list: players' names, the highest level first.
-    pub police: Vec<String>,
+    /// The police wanted list, the highest level first.
+    pub police: Vec<PoliceView>,
     /// Maps made while playing (players' homes), by their new id.
     pub map_copies: BTreeMap<i64, MapCopyView>,
     /// The NPCs on the player's map: their names, kinds and distances from the player.
@@ -155,6 +155,15 @@ pub struct WantedView {
     pub target: String,
     pub payer: String,
     pub bounty: i64,
+}
+
+/// A name on the police wanted list as scripts see it: its guild, level and PK points.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PoliceView {
+    pub name: String,
+    pub guild: String,
+    pub level: i64,
+    pub pk: i64,
 }
 
 /// A map made while playing as scripts see it: the map it copies (`base`), its owner, where
@@ -248,6 +257,11 @@ pub enum WorldChange {
         name: String,
         level: i64,
         listed: bool,
+        /// Its guild's name and PK points when put on.
+        #[serde(default)]
+        guild: String,
+        #[serde(default)]
+        pk: i64,
     },
     /// Bounty `id` set as `view` (`None`: removed).
     Bounty {
@@ -504,6 +518,12 @@ pub enum Effect {
     Announce(String),
     /// Open the game UI's dialog `id` for the player.
     OpenWindow(i64),
+    /// A client cue `name` with a number and a text, for the player's client alone.
+    ClientCueText {
+        name: String,
+        a: i64,
+        text: String,
+    },
     /// The player asked where to place an NPC of `look` and `kind`; the answer runs the
     /// custom event `event`.
     AskPlacement {

@@ -92,6 +92,7 @@ impl Event {
             | Event::PlacementAsked { player, .. }
             | Event::CommandReply { player, .. }
             | Event::ClientCue { player, .. }
+            | Event::ClientCueText { player, .. }
             | Event::StorageOpened { player, .. }
             | Event::Trade { player, .. }
             | Event::TeamInvited { player, .. }

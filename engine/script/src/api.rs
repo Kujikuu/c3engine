@@ -3,7 +3,7 @@
 
 use crate::dialog::{
     BountyView, DialogOption, DialogPage, Effect, GuildView, MapCopyView, NpcInfo, PlayerState,
-    WantedView, WorldChange,
+    PoliceView, WantedView, WorldChange,
 };
 use crate::quest::{self, DONE, NOT_TAKEN, Quest, TAKEN};
 use crate::tables::Tables;
@@ -399,6 +399,8 @@ fn more(engine: &mut Engine, shared: &Shared) {
                 ("{money}", c.player.money.to_string()),
                 ("{accept}", c.player.accept.clone()),
                 ("{member}", guild_member_at(c, c.player.flag("iterator"))),
+                ("{wanted}", wanted_line(c, c.player.flag("iterator"))),
+                ("{police}", police_line(c, c.player.flag("iterator"))),
             ];
             (values.iter()).fold(text.to_owned(), |t, (key, value)| t.replace(key, value))
         })
@@ -585,6 +587,16 @@ fn more(engine: &mut Engine, shared: &Shared) {
     let s = shared.clone();
     engine.register_fn("loot_money", move |money: i64| {
         with(&s, |c| c.effects.push(Effect::Loot { item: 0, money }))
+    });
+    let s = shared.clone();
+    engine.register_fn("client_cue_text", move |name: &str, a: i64, text: &str| {
+        with(&s, |c| {
+            c.effects.push(Effect::ClientCueText {
+                name: name.to_owned(),
+                a,
+                text: text.to_owned(),
+            })
+        })
     });
     let s = shared.clone();
     engine.register_fn("room_cue_text", move |name: &str, a: i64, text: &str| {
@@ -1306,14 +1318,31 @@ fn police(engine: &mut Engine, shared: &Shared) {
         "police_list",
         move |name: &str, level: i64, listed: bool| {
             with(&s, |c| {
-                c.player.police.retain(|n| n != name);
+                // The player's own guild and PK go with its name.
+                let (guild, pk) = match name == c.player.name {
+                    true => {
+                        let guild = (c.player.guilds.values())
+                            .find(|g| g.members.contains_key(&c.player.name))
+                            .map(|g| g.name.clone());
+                        (guild.unwrap_or_default(), c.player.pk)
+                    }
+                    false => (String::new(), 0),
+                };
+                c.player.police.retain(|p| p.name != name);
                 if listed {
-                    c.player.police.push(name.to_owned());
+                    c.player.police.push(PoliceView {
+                        name: name.to_owned(),
+                        guild: guild.clone(),
+                        level,
+                        pk,
+                    });
                 }
                 let change = WorldChange::Police {
                     name: name.to_owned(),
                     level,
                     listed,
+                    guild,
+                    pk,
                 };
                 c.effects.push(Effect::World(change));
             })
@@ -1323,13 +1352,41 @@ fn police(engine: &mut Engine, shared: &Shared) {
     engine.register_fn("police_at", move |index: i64| {
         with(&s, |c| {
             let n = usize::try_from(index).unwrap_or(usize::MAX);
-            c.player.police.get(n).cloned().unwrap_or_default()
+            c.player
+                .police
+                .get(n)
+                .map(|p| p.name.clone())
+                .unwrap_or_default()
         })
     });
     let s = shared.clone();
     engine.register_fn("police_has", move |name: &str| {
-        with(&s, |c| c.player.police.iter().any(|n| n == name))
+        with(&s, |c| c.player.police.iter().any(|p| p.name == name))
     });
+}
+
+/// The wanted entry at `index` as a board line: its id, target and bounty (`--`: none).
+fn wanted_line(c: &Call, index: i64) -> String {
+    let n = usize::try_from(index).unwrap_or(usize::MAX);
+    c.player.wanted.iter().nth(n).map_or_else(
+        || "--".to_owned(),
+        |(id, w)| format!("{id:06} {:<15} {}", w.target, w.bounty),
+    )
+}
+
+/// The police list's name at `index` as a board line: its place, name, guild, level and PK
+/// (`--`: none).
+fn police_line(c: &Call, index: i64) -> String {
+    let n = usize::try_from(index).unwrap_or(usize::MAX);
+    c.player.police.get(n).map_or_else(
+        || "--".to_owned(),
+        |p| {
+            format!(
+                "{n:03} {:<15} {:<15} {:03} {}",
+                p.name, p.guild, p.level, p.pk
+            )
+        },
+    )
 }
 
 /// Bounties on killers every map shares (TQ's cq_pk_bonus): recorded on a kill, counted,

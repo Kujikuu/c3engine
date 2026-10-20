@@ -632,8 +632,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
         login (PK 1000) or for killing an innocent, jailed and taken off when killed by a
         player, the hunter of its target loses PK by the target's level (the rules
         blueprint; one node per event, extra lanes after a sequence)
-  - [ ] PK: the wanted order's name sent to the client (3005's MsgName 8), TQ's refusal lines,
-        the police list's guild and PK columns, taking players off at logout
+  - [x] PK: the wanted and police orders' names sent to the client (MsgName 8 and 15,
+        `client_cue_text`), TQ's refusal and success lines (play-tested: a 50,000 bounty refused
+        "You should offer a reward of 100000 silvers at least!"), the boards' lines
+        (`%iter_wanted`, `%iter_police_wanted` with the guild and PK columns), taken off the
+        police list at logout (`on_logout`)
+  - [ ] PK: where a wanted target is (STR_WANTED_INFO, the police order's map name), which
+        needs the online players of every map
   - [x] Map type tests (306 `type test N`: the `map_types` table from cq_map, a bit-and
         node), magic levels (1020), map-cell spawns (2006), team counts nearby (1102)
   - [x] Player homes: maps made while playing on the shared world state (a copy of a map by

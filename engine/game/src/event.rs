@@ -175,6 +175,13 @@ pub enum Event {
         name: String,
         args: [i64; 2],
     },
+    /// A client cue with a text for player `player`'s client alone.
+    ClientCueText {
+        player: EntityId,
+        name: String,
+        a: i64,
+        text: String,
+    },
     /// A client cue about player `player` for everyone who sees it.
     RoomCue {
         player: EntityId,

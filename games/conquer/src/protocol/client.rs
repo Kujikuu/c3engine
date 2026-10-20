@@ -1046,6 +1046,14 @@ impl ConquerClient {
                     _ => Vec::new(),
                 }
             }
+            Event::ClientCueText {
+                player,
+                name,
+                a,
+                text,
+            } if Some(*player) == hero && name == pk::cue::NAME => {
+                vec![pk::name(u8::try_from(*a).unwrap_or(0), 0, text)]
+            }
             Event::RoomCueText {
                 player,
                 name,

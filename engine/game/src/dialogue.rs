@@ -489,6 +489,14 @@ impl Sim {
                     });
                 }
             }
+            Effect::ClientCueText { name, a, text } => {
+                self.events.push(Event::ClientCueText {
+                    player: id,
+                    name,
+                    a,
+                    text,
+                });
+            }
             Effect::OpenWindow(dialog) => {
                 if let Ok(dialog) = u32::try_from(dialog) {
                     self.events.push(Event::OpenWindow { player: id, dialog });
@@ -737,7 +745,22 @@ impl Sim {
             guilds: self.world.guild_views(),
             wanted: self.world.wanted_views(),
             bounties: self.world.bounty_views(),
-            police: self.world.police.iter().map(|(n, _)| n.clone()).collect(),
+            police: (self.world.police.iter())
+                .map(|(name, level)| {
+                    let (guild, pk) = self
+                        .world
+                        .police_info
+                        .get(name)
+                        .cloned()
+                        .unwrap_or_default();
+                    c3_script::PoliceView {
+                        name: name.clone(),
+                        guild,
+                        level: *level,
+                        pk,
+                    }
+                })
+                .collect(),
             map_npcs: {
                 let at = self.players[&id].cell;
                 (self.npcs.iter())

@@ -788,6 +788,18 @@ fn police_wanted(g: &mut Graph, top: f32) {
         wire(g, level, (list, "level"));
         list
     };
+    // Logging out takes the name off.
+    let (_, logout) = event_lane(g, "event.logout", [0.0, top - 150.0]);
+    let me = node(g, "player.name", [260.0, top - 150.0], &[]);
+    let my_level = node(g, "player.level", [260.0, top - 100.0], &[]);
+    let off = put_on(
+        g,
+        [460.0, top - 150.0],
+        (me, "value"),
+        (my_level, "value"),
+        false,
+    );
+    wire(g, logout, (off, "exec"));
     // Logging in black-named outside the jail.
     let (_, login) = event_lane(g, "event.login", [0.0, top]);
     let names = Names {
