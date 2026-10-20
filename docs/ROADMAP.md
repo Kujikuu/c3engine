@@ -800,7 +800,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] comparisons in `when` (`hero.level>=70`, `<=`, `!=`, `>`, `<`, `=`, against numbers or bindings); `hero.wallet.<currency>`
     - [x] images picked by a binding (an image's section from its value: the picked skill)
     - [x] disabled button frames (`disabled=`: frame 2, no clicks)
-    - [ ] latched button frames
+    - [x] latched button frames (`latched=`: frame 1, no clicks)
     - [ ] sliders and multi-line edits
   - [ ] UI engine: the dialogs the server opens (window numbers and events) wired for every dialog that has one
   - [ ] UI engine: the engine's own widgets (skill bar, radar circle, chat log, quest windows) hidden where the game draws its own
