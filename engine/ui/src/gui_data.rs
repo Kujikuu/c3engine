@@ -55,6 +55,9 @@ pub(crate) struct TradeView {
     /// The bag items the hero offers (their ids).
     pub mine: Vec<u32>,
     pub agreed: bool,
+    /// The money the hero offers, as the game took it, and whether it agreed.
+    pub own_money: u64,
+    pub i_agreed: bool,
 }
 
 impl GuiState {
@@ -69,6 +72,8 @@ impl GuiState {
                     their_money: 0,
                     mine: Vec::new(),
                     agreed: false,
+                    own_money: 0,
+                    i_agreed: false,
                 })
             }
             N::Done | N::Closed => self.trade = None,
@@ -81,6 +86,7 @@ impl GuiState {
             N::PartnerItem(item) => t.theirs.push(item.kind),
             N::PartnerMoney(n) => t.their_money = *n,
             N::PartnerAccepted => t.agreed = true,
+            N::OwnMoney(n) => t.own_money = *n,
             N::Refused(item) => t.mine.retain(|i| i != item),
             _ => {}
         }
@@ -230,6 +236,17 @@ impl GuiData for HeroData<'_> {
             "hero.trading" => u8::from(self.state.trade.is_some()).into(),
             "trade.money" => self.state.trade.as_ref().map_or(0, |t| t.their_money) as f64,
             "trade.agreed" => u8::from(self.state.trade.as_ref().is_some_and(|t| t.agreed)).into(),
+            // The hero's money offer is made, it agreed; the partner's level.
+            "trade.money_set" => {
+                u8::from(self.state.trade.as_ref().is_some_and(|t| t.own_money > 0)).into()
+            }
+            "trade.i_agreed" => {
+                u8::from(self.state.trade.as_ref().is_some_and(|t| t.i_agreed)).into()
+            }
+            "trade.partner_level" => {
+                let partner = self.state.trade.as_ref()?.partner;
+                self.view.sim.player(partner)?.level.into()
+            }
             // 1 while the hero talks with an NPC.
             "hero.talking" => u8::from(p.dialogue.is_some()).into(),
             // The most characters the typed answer takes.

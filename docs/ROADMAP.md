@@ -975,7 +975,20 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] amount edits and Dialog56/57 icons (modes 5, 9, 10, 11), Exercise (27), detail rows (32), Cancel hidden in modes 30, 34, 35, 52-54
     - [x] Enter/Esc mapped to OK/Cancel
     - [ ] the other 40-odd modes (booth, mentor, item lock, offline training...) as their features land
-  - [ ] UI 137 CDlgTrade (trade): partial, 21 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 137 CDlgTrade (trade): 9 of 21 audit mismatches fixed
+    - [x] placed at (10, 242) as CDlgMain moves it
+    - [x] the partner's level (StrRes 10442) and money with commas
+    - [x] the money box 11 digits only; OK refuses none (StrRes 10045) and latches once taken; Agree refuses money typed but not offered (10046) and latches (`latched=`)
+    - [x] six goods a page on each side, with page buttons only when needed and the page numbers
+    - [x] offering by putting a bag item on the hero's side; tooltips on both sides
+    - [x] an incoming ask answered Yes/No (158 trade mode)
+    - [ ] CPs: the partner's 1150 and the hero's 1573 (trading CPs in the engine)
+    - [ ] the edits disabled once money is set and the hero's grid once it agreed
+    - [ ] help 1667; nobility icons 1619/1566; the business partner button 2070 and assessment 2087
+    - [ ] the name's block and invalid-glyph marks
+    - [ ] quality, +N; 20-item cap (10390); buddy/protection tips and the locked-item confirm on offering
+    - [ ] the dead-hero refusal (10712) and the 10065 prompt from the main bar's trade button
+    - [ ] checked live with two players
   - [ ] UI 140 CDlgAct (emotes): 3 of 6 audit mismatches fixed
     - [x] emotes in the game (`Input::Emote`, `Event::Emoted`; the view plays the action once, held or looping by `Looks::emote_play`: Conquer holds sit, kneel and faint and loops the dance); Conquer's MsgAction 81 both ways
     - [x] the ten ButtonA buttons show their emotes

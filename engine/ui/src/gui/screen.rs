@@ -539,7 +539,8 @@ impl Painter<'_, '_> {
                     _ => rect,
                 };
                 let disabled = !control.disabled.is_empty() && expression(&control.disabled, data);
-                let sense = if disabled {
+                let latched = !control.latched.is_empty() && expression(&control.latched, data);
+                let sense = if disabled || latched {
                     egui::Sense::hover()
                 } else {
                     sense
@@ -547,6 +548,8 @@ impl Painter<'_, '_> {
                 let response = self.ui.interact(rect, id, sense);
                 let frame = if disabled {
                     2
+                } else if latched {
+                    1
                 } else if control.kind == ControlKind::Check {
                     usize::from(expression(&control.value, data))
                 } else if response.is_pointer_button_down_on() {

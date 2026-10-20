@@ -510,13 +510,34 @@ impl GameUi {
             _ if action.starts_with("guild_tab:") => {
                 self.gui_state.guild_tab = action.trim_start_matches("guild_tab:").to_owned();
             }
+            // The money typed offered: none is refused (StrRes 10045).
             "trade_money" => {
-                let amount = (self.gui_state.fields.remove("trade.amount"))
+                let amount: u64 = (self.gui_state.fields.get("trade.amount"))
                     .and_then(|t| t.trim().parse().ok())
                     .unwrap_or(0);
+                if amount == 0 {
+                    self.system("Invalid amount.", style::BAD);
+                    return;
+                }
                 actions.push(UiAction::Game(c3_game::Input::TradeMoney(amount)));
             }
-            "trade_accept" => actions.push(UiAction::Game(c3_game::Input::TradeAccept)),
+            // Agreeing waits for money typed to be offered first (StrRes 10046).
+            "trade_accept" => {
+                let typed = (self.gui_state.fields.get("trade.amount"))
+                    .and_then(|t| t.trim().parse::<u64>().ok())
+                    .unwrap_or(0);
+                let Some(own) = self.gui_state.trade.as_ref().map(|t| t.own_money) else {
+                    return;
+                };
+                if typed > 0 && own == 0 {
+                    self.system("Please confirm the amount of silver to trade.", style::BAD);
+                    return;
+                }
+                if let Some(trade) = &mut self.gui_state.trade {
+                    trade.i_agreed = true;
+                }
+                actions.push(UiAction::Game(c3_game::Input::TradeAccept));
+            }
             // The workbench's items worked together: `combine:<kind>[:<value>[:<slots>]]`, the
             // slots `0,1` (all when left out; none sent when one of them is empty).
             _ if action.starts_with("combine:") => {
