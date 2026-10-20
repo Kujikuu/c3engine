@@ -1116,7 +1116,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Record 1336 opens the chat log (218)
     - [ ] the action channel's lines (the engine has none yet)
     - [x] help (CDlgHelp 215)
-  - [ ] UI 239 CDlgBlack (blacklist): 7 of 8 audit mismatches fixed
+  - [x] UI 239 CDlgBlack (blacklist): the 8 audit mismatches fixed
     - [x] Dialog36 with Image37's two frames; the names listed, the name typed (15), Add asked first (StrRes 11017 in 158), Del the picked one; a blacklisted name's lines unheard; closes back to 139
     - [x] help (CDlgHelp 215)
   - [ ] Message boards (packets spec 1111, B10): `gameplay.boards`, a guild's own board, posting from `board_min_level`, one post per author on the world state (ChatChannel::Board, Input::TakeDown, GM take-down); the Conquer front lists pages of 8 and reads posts (MsgMessageBoard 1111, MsgTalk 2201-2205)
@@ -1207,10 +1207,10 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] Leave words (social spec §5): words for an offline friend wait on the world state and come at its next login (ChatChannel::LeaveWord, one a minute, STR_MSG_SENT / STR_MSG_FAILED); the Conquer front carries them on MsgTalk 2110 and holds them until the client has loaded its map
     - [x] engine, UI and front
     - [ ] trade partners may get words too (no trade partners yet), words kept 31 days, the received words logged to disk as the client's chat log does
-  - [ ] UI 232 CDlgMsgSend (leave a word): 5 of 6 audit mismatches fixed
+  - [x] UI 232 CDlgMsgSend (leave a word): the 6 audit mismatches fixed
     - [x] opened by double-clicking an offline friend (CMyList OnLButtonDblClk) and by Reply in 238; the friend's name, a 256-letter multi-line edit (`wrap=1` edits), Send leaves the words and closes, View All only with words received
     - [x] help (CDlgHelp 215)
-  - [ ] UI 238 CDlgMsgReceive (received words): 5 of 6 audit mismatches fixed
+  - [x] UI 238 CDlgMsgReceive (received words): the 6 audit mismatches fixed
     - [x] who left the words and what; Previous / Next enabled as there are more; Reply only to an offline friend; Delete All
     - [x] help (CDlgHelp 215)
   - [ ] UI 290 CDlgItemPurchase5065 (+292 CDlgBuyMessage5065) (CP buy amount): draft only, 10 mismatches (docs/conquer_ui_audit.md)
