@@ -2615,12 +2615,22 @@ fn a_face_change_costs_and_takes_only_a_face_the_body_may_have() {
 #[test]
 fn a_player_looked_at_is_told_who_looks() {
     let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 5);
-    let (ann, bob) = (sim.add_player("Ann", (3, 3), 1), sim.add_player("Bob", (5, 5), 1));
+    let (ann, bob) = (
+        sim.add_player("Ann", (3, 3), 1),
+        sim.add_player("Bob", (5, 5), 1),
+    );
     sim.take_events();
     sim.input(ann, Input::Observe(bob));
     sim.input(ann, Input::Observe(ann));
     let told: Vec<_> = (sim.take_events().into_iter())
         .filter(|e| matches!(e, Event::Observed { .. }))
         .collect();
-    assert_eq!(told, vec![Event::Observed { player: bob, viewer: ann }], "never oneself");
+    assert_eq!(
+        told,
+        vec![Event::Observed {
+            player: bob,
+            viewer: ann
+        }],
+        "never oneself"
+    );
 }

@@ -800,26 +800,35 @@ impl Painter<'_, '_> {
                 }
             }
             ControlKind::List => {
-                let (rows, picked) = data.rows(&control.value);
+                // A document's paragraphs (the page its view group holds), else the binding's rows.
+                let page = data.view_number(&control.page);
+                let (rows, picked) = match control.pages.is_empty() {
+                    true => data.rows(&control.value),
+                    false => {
+                        let doc =
+                            (self.names.get(&control.pages)).and_then(|t| t.get(&page.to_string()));
+                        (
+                            doc.map_or_else(Vec::new, |d| d.lines().map(str::to_owned).collect()),
+                            None,
+                        )
+                    }
+                };
                 let scale = self.place.scale;
                 let font = crate::fonts::font(control.size * scale);
                 let laid = list_rows(self.ui.ctx(), control, &rows, size.x);
-                // A log shows its end, the wheel going back as far as its first row.
-                let lift = match control.tail {
-                    true => {
-                        let total = laid.last().map_or(0.0, |l| l.bottom());
-                        let over = (total - size.y).max(0.0);
-                        let id = (self.ui.scope_id()).with(("gui log", control.parent, control.id));
-                        let mut back: f32 = self.ui.data(|d| d.get_temp(id)).unwrap_or(0.0);
-                        if self.live && self.ui.rect_contains_pointer(rect) {
-                            back += self.ui.input(|i| i.smooth_scroll_delta.y) / scale;
-                        }
-                        back = back.clamp(0.0, over);
-                        self.ui.data_mut(|d| d.insert_temp(id, back));
-                        over - back
-                    }
-                    false => 0.0,
-                };
+                // Rows past its foot are reached with the wheel; a log shows its end, the wheel
+                // going back as far as its first row.
+                let total = laid.last().map_or(0.0, |l| l.bottom());
+                let over = (total - size.y).max(0.0);
+                let id = (self.ui.scope_id()).with(("gui list", control.parent, control.id, page));
+                let mut moved: f32 = self.ui.data(|d| d.get_temp(id)).unwrap_or(0.0);
+                if self.live && over > 0.0 && self.ui.rect_contains_pointer(rect) {
+                    let wheel = self.ui.input(|i| i.smooth_scroll_delta.y) / scale;
+                    moved += if control.tail { wheel } else { -wheel };
+                }
+                moved = moved.clamp(0.0, over);
+                self.ui.data_mut(|d| d.insert_temp(id, moved));
+                let lift = if control.tail { over - moved } else { moved };
                 for (index, (row, at)) in rows.iter().zip(laid).enumerate() {
                     let at = at.translate(Vec2::new(0.0, -lift));
                     let line =

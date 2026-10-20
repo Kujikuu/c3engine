@@ -902,7 +902,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] close 1128 and the bag button hide it while a shop, warehouse or trade shows it, until that ends (dismissing a `when`-shown dialog)
     - [x] opened with compose 275, oven 278, enchant 105, improve 211, embed 229, booth 233 and item lock 329; oven, enchant and compose hide it again (`opens=`, `hides=`)
     - [x] the shop's close also hides the status 131
-    - [ ] EmoneyNavigation 1562 opens the [Emoney] URL; help 1667 opens CDlgHelp topic 13
+    - [ ] EmoneyNavigation 1562 opens the [Emoney] URL
+    - [x] help (CDlgHelp 215)
     - [x] grid gestures: left-click picks up and puts in the equipment, shop, warehouse; right-click uses
     - [ ] dropping on the ground and the hotbar
     - [x] hover tooltip (engine look)
@@ -916,7 +917,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] hidden by shop close and setup (`clears=131,160,269`); Esc closes it
     - [ ] skills tab 1028 and page 163
     - [ ] power button 1464, battle-power digits and 286/287
-    - [ ] help 1667 by page (CDlgHelp 215)
+    - [x] help (CDlgHelp 215)
     - [ ] slide-in, open/close sounds; hotkeys 20/21/22/43
   - [ ] UI 132 CDlgQuery_Role (role page): 3 of 5 audit mismatches fixed
     - [x] PK in the client's colours (red 20-99, yellow below 0, black from 100)
@@ -930,7 +931,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] a clicked icon's name, level, exp percent and description
     - [ ] paging by 6 while more exist
     - [ ] arrival order and level-0 skills
-    - [ ] help topic 11
+    - [x] help (CDlgHelp 215)
   - [ ] UI 135 CDlgEquip (equipment page): 3 of 7 audit mismatches fixed
     - [x] treasure 1679 and mount 1680 places
     - [x] left hand only for professions that hold one, over Image160
@@ -945,7 +946,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the mentor's shared battle power (none yet), TQ's 3D digits on the status page, another player's battle power (258)
   - [ ] UI 286 CDlgBattlePower: 4 of 5 audit mismatches fixed
     - [x] Dialog60, the seven parts and total, level (10083) and rebirths (10500), detail buttons (other only when it gives) opening 287 in their mode; toggled by 131-1464
-    - [ ] placed beside the status page (262,95 as DlgQuery moves it), help topic 48
+    - [ ] placed beside the status page (262,95 as DlgQuery moves it)
+    - [x] help (CDlgHelp 215)
   - [ ] UI 287 CDlgBattlePowerDetail: 3 of 4 audit mismatches fixed
     - [x] Dialog61, seven rows (item, name coloured by quality or grey when shadowed, what it shows in the mode: 10075-10080 / 10494-10499 / 11055, score), the mode's total
     - [ ] the other mode's noble rank rows (SetOtherRows), the quality word before the name, hiding 258 and the bag on opening, the 300 ms delay
@@ -955,7 +957,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] buying by the right button or a drag onto the bag; selling by a drag from the bag
     - [x] Esc closes it; the frame a pixel up
     - [ ] Fix 1105: the repair cursor and prompt
-    - [ ] help 1667 (CDlgHelp, 45 for CP shops)
+    - [x] help (CDlgHelp 215)
     - [ ] a CP buy asks the amount (290); a valuable sold asks first (IMPTITEM_CONFIRM)
     - [ ] price rows in the tooltip; +N and colour on wares
     - [ ] slide-in and DlgOpen/DlgClose; refused while trading or with an NPC booth open
@@ -965,7 +967,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] money right-aligned with commas (`align=right`); the amount box 12 digits, digits only (`digits=1`)
     - [x] store and take out by drag or the right button; tooltips
     - [x] Esc closes the warehouse
-    - [ ] help 1667
+    - [x] help (CDlgHelp 215)
     - [ ] deposit only when 0 < amount <= money; live commas while typing; focus on open
     - [ ] bag-full / warehouse-full messages and the locked-item confirm
     - [ ] quality, +N, colour and reif on stored items
@@ -979,7 +981,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] invite and apply asked with the yes/no prompt (158 modes 2/1)
     - [ ] each member's own face (the engine has no faces: every hero wears face 1)
     - [ ] Follow (TeamFollow) for a member
-    - [ ] help 1667 (CDlgHelp DLG_GROUP)
+    - [x] help (CDlgHelp 215)
     - [ ] the auto check's aura-team rules
     - [ ] double-clicking a face starts a team whisper; living-player checks on Join/Invite picks
   - [ ] UI 268 CMenuGroup (team options): 1 of 3 audit mismatches fixed
@@ -1002,7 +1004,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] an incoming ask answered Yes/No (158 trade mode)
     - [ ] CPs: the partner's 1150 and the hero's 1573 (trading CPs in the engine)
     - [ ] the edits disabled once money is set and the hero's grid once it agreed
-    - [ ] help 1667; nobility icons 1619/1566; the business partner button 2070 and assessment 2087
+    - [ ] nobility icons 1619/1566; the business partner button 2070 and assessment 2087
+    - [x] help (CDlgHelp 215)
     - [ ] the name's block and invalid-glyph marks
     - [ ] quality, +N; 20-item cap (10390); buddy/protection tips and the locked-item confirm on offering
     - [ ] the dead-hero refusal (10712) and the 10065 prompt from the main bar's trade button
@@ -1047,7 +1050,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] buttons disabled without a guild; closing hides 257; guild join/invite asks (158)
     - [ ] members' online state in the list
     - [x] clicking a member opens 257 with its details (a list runs its action for the row clicked)
-    - [ ] help 1667 (topic 8)
+    - [x] help (CDlgHelp 215)
     - [ ] slide-in, sounds, y 58
   - [x] UI 257 CDlgFacState (guild member info): the 4 audit mismatches fixed (opened by a member clicked on 133's member page; name, level, rank title, contribution; closed with 133; no longer closes 133)
   - [ ] UI 160 CDlgFriend (friends): 9 of 12 audit mismatches fixed
@@ -1057,7 +1060,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Enemy opens 269; mentor 312 and business 326 open (their dialogs are their own items)
     - [x] a name clicked opens 209; closing hides 209
     - [ ] whisper and leave-word row actions
-    - [ ] help 1667
+    - [x] help (CDlgHelp 215)
     - [ ] slide-in, sounds; list arrows [160-1]/[160-2]
     - [x] the Conquer front's MsgFriend (1019): the lists at login, made / lost / online / offline as they change, apply / accept / break / enemy delete from the client, a friend ask told
     - [ ] online / offline notices to friends (StrRes 100103/100104)
@@ -1065,7 +1068,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] GeneralBG and the title image; enemies listed (a killer kept)
     - [x] Friend opens 160; mentor and business buttons
     - [x] a name clicked opens 270
-    - [ ] help
+    - [x] help (CDlgHelp 215)
     - [ ] slide-in
   - [ ] UI 209 CDlgFrdState (friend info): 5 of 7 audit mismatches fixed
     - [x] opened by a friend clicked; no longer closes 160
@@ -1088,37 +1091,41 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] delete role (confirm, password)
     - [ ] shadow buttons 1072/1077, show-names 1083 and KO-count 1087 checks (engine options)
     - [ ] the resolution radios 1533/1534 (Picture100)
-    - [ ] help 1667 (topic 19); user hotkey 45
+    - [ ] user hotkey 45
+    - [x] help (CDlgHelp 215)
   - [ ] UI 231 CDlgSetup_Hotkey (hotkeys): 5 of 8 audit mismatches fixed
     - [x] opened by setup's Hotkey
     - [x] the groups of actions and the picked group's actions (the engine's input actions), the picked action's keys
     - [x] Change waits for the new key (the engine's rebinding, shown at +246,+126); Revert sets every key back
     - [ ] TQ's own hotkey categories (StrRes 10300-10305, 11018) rather than the engine's action groups
     - [ ] Delete (clearing a key)
-    - [ ] help 1667 (0x19)
+    - [x] help (CDlgHelp 215)
   - [ ] UI 255 CDlgOther (furniture): 2 of 4 audit mismatches fixed
     - [x] opened by setup's Other; hides the status and friends' pages as it opens
     - [ ] 1694 delete furniture (the delete-NPC cursor; needs furniture in homes)
-    - [ ] help 1667
+    - [x] help (CDlgHelp 215)
   - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 274 CDlgTalkAct (emotion icon picker): 5 of 6 audit mismatches fixed
     - [x] Dialog50 at (+3,-5); 32 of EmotionIco.ani's icons a page in eight columns, a frame each 300 ms (`animate=`); one clicked put in the chat line as `#NN` (88 letters at most); Last / Next pages; Close
     - [x] said lines draw their `#NN` emotions in place (CMyBitmap::ShowString: below EmotionIco.ini's count, a frame each 200 ms, a font and a half wide); the log's lines in their channels' colours
-    - [ ] the emotion put at the caret rather than the line's end; help 1719; emotions in the talk bubble over a speaker
+    - [ ] the emotion put at the caret rather than the line's end; emotions in the talk bubble over a speaker
+    - [x] help (CDlgHelp 215)
   - [x] UI 148 CDlgListBox (whisper-name history): the 3 audit mismatches fixed (opened by 145-1185, Dialog24 at -3,-4, names bound and picked); what is left is under 145
   - [ ] UI 139 CDlgChat (chat options: filters and colours): 9 of 11 audit mismatches fixed
     - [x] Dialog36 with Image36; a check per channel (G/B/D/H/S/Z, on at first) hiding its lines, SF whispers from friends only; each channel's colour (Image36N, talk 7, the rest 6) opening the eight swatches, one picked colouring its lines (`ChatFilter`, `ChatLook::palette`); Sift to 239; closes
     - [x] Record 1336 opens the chat log (218)
-    - [ ] help 1667; the action channel's lines (the engine has none yet)
+    - [ ] the action channel's lines (the engine has none yet)
+    - [x] help (CDlgHelp 215)
   - [ ] UI 239 CDlgBlack (blacklist): 7 of 8 audit mismatches fixed
     - [x] Dialog36 with Image37's two frames; the names listed, the name typed (15), Add asked first (StrRes 11017 in 158), Del the picked one; a blacklisted name's lines unheard; closes back to 139
-    - [ ] help 1667
+    - [x] help (CDlgHelp 215)
   - [ ] Message boards (packets spec 1111, B10): `gameplay.boards`, a guild's own board, posting from `board_min_level`, one post per author on the world state (ChatChannel::Board, Input::TakeDown, GM take-down); the Conquer front lists pages of 8 and reads posts (MsgMessageBoard 1111, MsgTalk 2201-2205)
     - [x] engine, UI and front
     - [ ] posts' text checked (CheckText) and the 2206 system board
   - [ ] UI 240 CDlgLevWord (message board): 8 of 10 audit mismatches fixed
     - [x] title Image371-373 by mode; tabs with frame 2 on the one chosen (`chosen=`); list, write and read modes; Send (StrRes 10362), Watch (10363 when none picked), Del, Up/Down/Refresh; OK posts (lines made one), Cancel Button7 / Button2; a row double-clicked whispers its author
-    - [ ] the dim block behind the edit in write and read modes (ShowBlock 0x99000000), the list arrows [240-1]/[240-2], Help
+    - [ ] the dim block behind the edit in write and read modes (ShowBlock 0x99000000), the list arrows [240-1]/[240-2]
+    - [x] help (CDlgHelp 215)
   - [ ] UI 5326 CDlgNorMsg (chat-log line handles): missing, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 218 CDlgLog (chat history viewer): the session's log
     - [x] the Win32 dialog's bitmaps as they are (`file=`): LogBk.bmp centred, Close, Delete (the channel shown) and Delete All, a tab per channel (Talk, Whisper, Guild, Friend, Team, All); the day shown; the lines said (`[Talk]Ann speaks to All: hi[h:m]`) on the edit's brush (`back=`), the newest last, the wheel going back (`tail=1`); opened by 139's Record
@@ -1129,7 +1136,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] being banned from broadcasting (STR_PIGEON_FORBID), a log of lines told kept past 50
   - [ ] UI 294 CDlgBroadcast5065 (pigeon broadcast board): 7 of 9 audit mismatches fixed
     - [x] ad_MainBG, the four tabs (frame on the one chosen) and Pic_channel by mode, ten rows a page (place, name, line in red, time left), the hero's waiting lines' move buttons, another's name whispering it, the empty-page words (11027-11030), paging; opened from 295
-    - [ ] the combined first page (6 waiting, 3 heard, inner arrows, 11114), tooltips (11036, the whole line), the help
+    - [ ] the combined first page (6 waiting, 3 heard, inner arrows, 11114), tooltips (11036, the whole line)
+    - [x] help (CDlgHelp 215)
   - [x] UI 296 CDlgPigeonPrompt5065 (broadcast prompts): below level 50 (11035, OK alone), the line asked (11043, cost 11024), moving forward (11032 / 11033); Dialog15, buttons by mode
   - [x] UI 293 CDlgOfflineMessage5065 (whisper to an offline friend): a whisper to an offline friend asks (StrRes 11022, Dialog15 at -5,-5) whether to leave it as words; OK leaves them, Cancel drops it
   - [ ] UI 229 CDlgEmbed (gem sockets): 5 of 13 audit mismatches fixed
@@ -1142,7 +1150,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] sockets only where the gear has them, over Dialog30; gems already set shown
     - [ ] socket picked (ImageFocus); embedding only newly placed gems; Take Out from the picked socket, asked first (158 mode 17)
     - [ ] double-click to take an item back without shifting
-    - [ ] help 1667; +N
+    - [ ] +N
+    - [x] help (CDlgHelp 215)
   - [ ] UI 275 CDlgItemCompose5065 (+N composing): 4 of 12 audit mismatches fixed
     - [x] the bag opened with it; right part (closes the right owner)
     - [x] composing closes it; closing empties the workbench
@@ -1151,20 +1160,24 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] refused while trading
     - [ ] slots by kind: main equipment only, treasures after it (Image510), gems from +5 (Image511), routed by type
     - [ ] compose only with main and both treasures
-    - [ ] help 1667; +N
+    - [ ] +N
+    - [x] help (CDlgHelp 215)
   - [ ] UI 211 CDlgImprove (raise quality / level): 4 of 6 audit mismatches fixed
     - [x] opened by a forge NPC, with the bag
     - [x] the gear (1628) and the DragonBall or Meteor (1629) put on it
     - [x] OK uses the second on the first (`use_on:1:0`) and closes
     - [x] closing empties the workbench
     - [ ] 1628 only gear at full durability, 1629 only DragonBall / Meteor / MeteorTear
-    - [ ] help 1667; double-click to take back
+    - [ ] double-click to take back
+    - [x] help (CDlgHelp 215)
   - [ ] UI 278 CDlgOven (refine / fuse): 4 of 6 audit mismatches fixed
     - [x] opened by MsgAction 126 data 2 / 3 (`window=2,3`, its mode kept for the fuse) with the bag; Dialog54, up to 20 bag items in the 4x5 grid (`work.all`; one clicked comes out), the confirm check, the level while checked (10454), Refine needing the check (else 10452) fusing in the mode and closing
-    - [ ] the probability (10453 from the client's fuse values), the add gates (10447, 10448, 10450, 10451, 10456, 10464), help
+    - [ ] the probability (10453 from the client's fuse values), the add gates (10447, 10448, 10450, 10451, 10456, 10464)
+    - [x] help (CDlgHelp 215)
   - [ ] UI 105 CDlgEnchant: 3 of 4 audit mismatches fixed (unreachable in 5065, as in the client)
     - [x] the equipment and gem slots (bag items put on them), Enchant (combine 4, MsgItem ENCHANT) and close
-    - [ ] the slots' gates (equipment sort 1-8, full durability, enchant < 255; gems only), help
+    - [ ] the slots' gates (equipment sort 1-8, full durability, enchant < 255; gems only)
+    - [x] help (CDlgHelp 215)
   - [x] UI 298 CDlgBrokenRepair5065: the shop's Repair (152-1105) turns the next bag item clicked into a repair; a broken one asks first (`gameplay.broken_repair`: Conquer's 5 Meteors; 11053 with Confirm / Cancel, or 11052 with Close)
   - [x] Faces: `PlayerLook::face`, `gameplay.faces` by body and `face_cost` (Conquer: 102 male faces from 1, 90 female from 201, 500 silver, paid even for a wrong face as TQ's MsgAction 142); team faces and the Conquer look face use it
   - [ ] UI 212 CDlgNpcFace (change avatar): 5 of 6 audit mismatches fixed
@@ -1182,10 +1195,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] shown with the bag while the hero keeps a booth; Dialog34, six slots a page (Up/Down), each item (tooltip, glow), its price with commas and its Dialog56/57 coin; GetBack under filled slots; Change never drawn (DlgMpcBooth.cpp 252-347)
     - [x] a bag item put on a slot asks its price in silver or CPs (DlgConfirm mode 10: Dialog56/57, edits 1666/1667)
     - [x] Hawk opens 235; both close buttons close the booth, hiding the cry (`hides=` on a `when` dialog)
-    - [ ] Help (1667) once the help dialog lands; slide-in and sounds
+    - [ ] slide-in and sounds
+    - [x] help (CDlgHelp 215)
   - [ ] UI 234 CDlgNpcBooth (another player's booth): 7 of 8 audit mismatches fixed
     - [x] shown when the hero comes to another's booth, from its first page: items, prices, coins, a Buy under each, paging; closing leaves it (DlgNpcBooth.cpp 213-522)
-    - [ ] Help (1667) and slide-in
+    - [ ] slide-in
+    - [x] help (CDlgHelp 215)
   - [ ] UI 235 CDlgHawk (booth cry-out): 2 of 3 audit mismatches fixed
     - [x] opened by the booth's Hawk, a 64-letter edit, Agree sets the cry and closes (DlgHawk.cpp 98-167)
     - [ ] the text filtered and the edit cleared on show
@@ -1194,17 +1209,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] trade partners may get words too (no trade partners yet), words kept 31 days, the received words logged to disk as the client's chat log does
   - [ ] UI 232 CDlgMsgSend (leave a word): 5 of 6 audit mismatches fixed
     - [x] opened by double-clicking an offline friend (CMyList OnLButtonDblClk) and by Reply in 238; the friend's name, a 256-letter multi-line edit (`wrap=1` edits), Send leaves the words and closes, View All only with words received
-    - [ ] Help (1667) once the help dialog lands
+    - [x] help (CDlgHelp 215)
   - [ ] UI 238 CDlgMsgReceive (received words): 5 of 6 audit mismatches fixed
     - [x] who left the words and what; Previous / Next enabled as there are more; Reply only to an offline friend; Delete All
-    - [ ] Help (1667)
+    - [x] help (CDlgHelp 215)
   - [ ] UI 290 CDlgItemPurchase5065 (+292 CDlgBuyMessage5065) (CP buy amount): draft only, 10 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 330 CDlgEmoneyWithdraw5065 (CP withdraw button): draft only, 2 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 277 CDlgPortableChest5065 (portable chest): missing, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 329 CDlgItemLock5065 (item lock): draft only, 7 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 258 CDlgNpcEquip (another player's equipment): 6 of 10 audit mismatches fixed
     - [x] opened by the main bar's view button (130-1016, `pick:view_equip`) and a player clicked; Dialog42 on the right; the nine worn items in their places with their tips; Image160 at +90,+302; name, spouse; its rank image (nob_*64); its battle power (`GameView::viewed_power`); the one looked at told (`Input::Observe`; the front's MsgAction 117 / 310)
-    - [ ] the player's model at +120,+295 and the slide in from the right; the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; help (topic 36); closed when other right-side dialogs open; the spouse over the network (players' texts aren't sent)
+    - [ ] the player's model at +120,+295 and the slide in from the right; the rank's tip (StrRes 11100-11107) and the Infanta for a woman; the battle power in CountK digits and 1464 opening 286 for that player; closed when other right-side dialogs open; the spouse over the network (players' texts aren't sent)
+    - [x] help (CDlgHelp 215)
   - [ ] UI 241 CDlgEffigy (statue placement): draft only, 9 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 242 CDlgLay (place an NPC): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 262 CDlgDice: draft only, 9 mismatches (docs/conquer_ui_audit.md)
@@ -1214,7 +1230,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 303 CDlgAutoRun5065 (auto-path destinations): draft only, 7 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 334 CDlgFurnishment5065 (item-bind list): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 380 CDlgQuestList5065 / 381 CDlgQuestTrack5065: draft only (non-native additions), 7 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 215 CDlgHelp: draft only, 2 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 215 CDlgHelp (help pages): the pages as text
+    - [x] the Win32 dialog's bitmaps (HelpBk.bmp centred, Close, More); Help<n>.htm read as paragraphs (`pages=`, `html_paragraphs`) where the browser sat, on the pages' #292010 in their #999999, the wheel scrolling; every dialog's Help sets its topic (the DLG_* owner or OnHelp's number) and opens it
+    - [ ] the pages' own look (fonts, colours, headings centred, the background image, links); More opening the [OemHelp] url (StrRes 10435) in a browser
   - [ ] Mentors (adapters spec §5, Guide.dll): `gameplay.mentor` (Conquer: level 70, gaps 30/20/10 by rebirths, cq_tutor_type students, cq_student_type shares, 50,000 silver and 72 hours to leave); offer / ask / answer, leave, expel; a student's exp gives its mentor and its mentor's mentor time at its level (flushed each minute), claimed as experience (TQ's AwardTimeExp, `Rules::level_time`), blessed hours or +1 stones; the Conquer front carries MsgMentor 2065, the relations (2066) and the claims (2067)
     - [x] engine, UI and front for the above
     - [ ] blessed hours from prayer items and item points from +N drops (no hooks yet), battle power shares (no battle power yet), a mentor taking back a student who left (actions 5/6), the timers and notices of actions 10-23
@@ -1233,7 +1251,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] refusing an ask tells the asker from the game UI (the prompt's No sends nothing yet)
   - [ ] UI 326 CDlgBusiness (trade partners): 6 of 7 audit mismatches fixed
     - [x] GeneralBG and its title, the partners in yellow (online first), assessment icons by hours of trial left, a row opening 327 and double-click whisper / leave words, Add under 20 (StrRes 11145), friend / enemy / mentor pages
-    - [ ] Help, slide-in, the hours tip over an assessment icon (StrRes 11147), rows 11-20 scrolled
+    - [ ] slide-in, the hours tip over an assessment icon (StrRes 11147), rows 11-20 scrolled
+    - [x] help (CDlgHelp 215)
   - [ ] UI 327 CDlgBusinessState: 3 of 4 audit mismatches fixed
     - [x] GeneralShuxingBG1, the partner's name, level, profession, PK, guild, rank, spouse and assessment icon; Delete asks first (StrRes 11146)
     - [ ] the partner's face (the engine has no faces), placed beside 326 (205 < 242)
@@ -1245,7 +1264,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] Queens and female notices (the engine keeps no sex), the battle power a rank gives (no battle power yet), the rank shown on others
   - [ ] UI 307 CDlgNobilityMain: 5 of 6 audit mismatches fixed
     - [x] checont_checontribute at (-5,-5), the amount and Contribute (in CPs asked first, 308), the six rank buttons (frame 2 on the one asked about, disabled at or below the hero's rank) and what that rank needs (11094); closing hides 310; opened by the hero's rank icon from level 70
-    - [ ] the King / Queen art by sex, help
+    - [ ] the King / Queen art by sex
+    - [x] help (CDlgHelp 215)
   - [x] UI 308 CDlgNobilityConfirm: Dialog15, 11090 with the silver and CPs, OK gives, ReInput goes back to the amount, Close drops it
   - [ ] UI 309 CDlgNobilityRanking: 4 of 5 audit mismatches fixed
     - [x] checont_exploitbead, ten places a page (place, icon, title, name, donation with commas), the page and its arrows, the donation block from level 70; opened by the rank icon below level 70 and 310's More

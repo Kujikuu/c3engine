@@ -267,6 +267,10 @@ pub struct Control {
     /// A list shown from its end, the newest rows lowest, the mouse wheel going back (`tail=1`;
     /// a log).
     pub tail: bool,
+    /// Numbered documents a list shows in place of rows (`pages=Help/help{n}.htm`: HTML read
+    /// as paragraphs), the one view group `page` holds.
+    pub pages: String,
+    pub page: String,
     /// A dialog's opening: `always`, or empty when actions open it.
     pub open: String,
     /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
@@ -439,6 +443,8 @@ impl Control {
             beside: section.int("beside").is_some_and(|b| b != 0),
             back: section.get("back").map(|_| rgb("back")),
             tail: section.int("tail").is_some_and(|t| t != 0),
+            pages: text("pages"),
+            page: text("page"),
             open: text("open"),
             slot: text("slot"),
             clears: text("clears"),
@@ -537,6 +543,20 @@ impl Gui {
                 })
                 .collect();
             self.names.insert(file, table);
+        }
+        // The numbered documents, each under its pattern by its number.
+        let patterns: BTreeSet<String> = (self.controls.iter())
+            .filter(|c| !c.pages.is_empty())
+            .map(|c| c.pages.clone())
+            .collect();
+        for pattern in patterns {
+            let table = (0..PAGES)
+                .filter_map(|n| {
+                    let bytes = read(&pattern.replace("{n}", &n.to_string()))?;
+                    Some((n.to_string(), html_paragraphs(&bytes).join("\n")))
+                })
+                .collect();
+            self.names.insert(pattern, table);
         }
     }
 
@@ -759,9 +779,77 @@ impl Gui {
     }
 }
 
+/// The numbers a document pattern is read for (`{n}` from 0 below this).
+const PAGES: u32 = 1000;
+
+/// An HTML page's text as paragraphs (TQ's help pages, shown in a browser): its head, styles
+/// and scripts left out, a line ended at each break, paragraph, row or heading, the other
+/// tags dropped, the common entities read, each line's spaces made one.
+pub fn html_paragraphs(bytes: &[u8]) -> Vec<String> {
+    let html = String::from_utf8_lossy(bytes);
+    let lower = html.to_ascii_lowercase();
+    let mut text = String::new();
+    let mut at = 0;
+    while let Some(open) = lower[at..].find('<').map(|i| at + i) {
+        // The page's own line ends are spaces, as a browser reads them.
+        text.push_str(&html[at..open].replace(['\r', '\n'], " "));
+        let Some(close) = lower[open..].find('>').map(|i| open + i) else {
+            break;
+        };
+        let tag = &lower[open + 1..close];
+        let name: String = (tag.trim_start_matches('/').chars())
+            .take_while(char::is_ascii_alphanumeric)
+            .collect();
+        at = close + 1;
+        // A head, style or script is skipped to its end.
+        if !tag.starts_with('/') && matches!(name.as_str(), "head" | "style" | "script") {
+            let end = format!("</{name}");
+            at = lower[at..].find(&end).map_or(lower.len(), |i| at + i);
+            continue;
+        }
+        let breaks = match name.as_str() {
+            "br" | "tr" | "li" | "div" => true,
+            "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => tag.starts_with('/'),
+            _ => false,
+        };
+        if breaks {
+            text.push('\n');
+        }
+    }
+    if at < html.len() {
+        text.push_str(&html[at..].replace(['\r', '\n'], " "));
+    }
+    let text = (text
+        .replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">"))
+    .replace("&quot;", "\"")
+    .replace("&#39;", "'")
+    .replace("&amp;", "&");
+    (text.lines())
+        .map(|l| l.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn html_pages_read_as_paragraphs() {
+        let page = b"<HTML><HEAD><TITLE>Help</TITLE><style>td {color: #999}</style></HEAD>\n\
+            <BODY><p align=center><font color=\"#FFFF00\">Get  Promoted</font></p>\n\
+            <TD><p>At level 15,\n   see the Job Center.<br><br>Warriors &amp; Archers</p></BODY>";
+        assert_eq!(
+            html_paragraphs(page),
+            [
+                "Get Promoted",
+                "At level 15, see the Job Center.",
+                "Warriors & Archers"
+            ]
+        );
+    }
 
     #[test]
     fn layout_places_and_controls_fall_back_to_their_own_rect() {
