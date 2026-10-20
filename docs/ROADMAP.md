@@ -880,7 +880,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the folded Button490 always shown
     - [ ] its click unfolds the 494x288 Dialog49 help with Tip/PageUp/PageDown/More and folds back on close
     - [ ] flashing at milestone levels; help text bound
-  - [ ] UI 295 CDlgPigeonBanner5065 (broadcast banner line): draft only, 6 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 295 CDlgPigeonBanner5065 (broadcast banner line): 3 of 6 audit mismatches fixed
+    - [x] always shown; ad_query toggles 294; the latest line heard (name in 0xaaffaa, StrRes 100018, the line); the chat menu's ad_channel picks the broadcast channel
+    - [ ] placed by the line slider, Ctrl+click whisper, tip 11042 and the "Pigeon" effect
   - [ ] UI 289 CDlgEmoneyShop5065 (CP-Mall button): 1 of 2 audit mismatches fixed
     - [x] shown from level 70, after a second rebirth or with CPs, as RefreshEmoneyShopVisibility5065
     - [ ] its click opens the CP shop (2888) and plays BtnClick
@@ -1104,8 +1106,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 5326 CDlgNorMsg (chat-log line handles): missing, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 218 CDlgLog (chat history viewer): missing, all mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 2232 / 2233 / 2234 native private chat windows and tray: missing, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 294 CDlgBroadcast5065 (pigeon broadcast board): draft only, 9 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 296 CDlgPigeonPrompt5065 (broadcast prompts): draft only, 5 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Broadcasts (adapters spec §4, Pigeon.dll): `gameplay.broadcast` (Conquer: 5 CPs from level 50, 80 letters, 5 waiting each, a minute apart, 15 CPs to the front, 5 up 5 places); one queue on the world state that every map tells when due (ChatChannel::Broadcast); the Conquer front carries MsgPigeon 2050 / MsgPigeonInfo 2051 and MsgTalk 2500
+    - [x] engine, UI and front
+    - [ ] being banned from broadcasting (STR_PIGEON_FORBID), a log of lines told kept past 50
+  - [ ] UI 294 CDlgBroadcast5065 (pigeon broadcast board): 7 of 9 audit mismatches fixed
+    - [x] ad_MainBG, the four tabs (frame on the one chosen) and Pic_channel by mode, ten rows a page (place, name, line in red, time left), the hero's waiting lines' move buttons, another's name whispering it, the empty-page words (11027-11030), paging; opened from 295
+    - [ ] the combined first page (6 waiting, 3 heard, inner arrows, 11114), tooltips (11036, the whole line), the help
+  - [x] UI 296 CDlgPigeonPrompt5065 (broadcast prompts): below level 50 (11035, OK alone), the line asked (11043, cost 11024), moving forward (11032 / 11033); Dialog15, buttons by mode
   - [x] UI 293 CDlgOfflineMessage5065 (whisper to an offline friend): a whisper to an offline friend asks (StrRes 11022, Dialog15 at -5,-5) whether to leave it as words; OK leaves them, Cancel drops it
   - [ ] UI 229 CDlgEmbed (gem sockets): 5 of 13 audit mismatches fixed
     - [x] opened by a gem NPC (`gameplay.npc_windows`: an NPC kind opening a window in place of a dialogue)

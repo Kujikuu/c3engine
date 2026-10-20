@@ -323,6 +323,24 @@ impl Default for NewCharacter {
 /// The money cut: a teammate below level `picker_below` picking up the money of a teammate of
 /// level `owner_from` or more, at least `gap` levels above it, gives the owner `percent` of it
 /// (0: none).
+/// Paid broadcasts (TQ's Pigeon.dll, adapters spec §4).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BroadcastSettings {
+    /// What a line costs in `currency` (empty: the money; 0: no broadcasts), from `min_level`.
+    pub cost: u64,
+    pub currency: String,
+    pub min_level: u32,
+    /// The longest line, the lines a player may have waiting, the seconds between lines.
+    pub max_len: usize,
+    pub max_queued: usize,
+    pub gap_secs: i64,
+    /// What moving a waiting line to the front costs, and moving it up `bump_places`.
+    pub first_cost: u64,
+    pub bump_cost: u64,
+    pub bump_places: usize,
+}
+
 /// Mentors and students (TQ's Guide.dll, adapters spec §5).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -432,6 +450,9 @@ pub struct GameplaySettings {
     /// Mentors and students (off while `min_level` is 0).
     #[serde(default)]
     pub mentor: MentorSettings,
+    /// Paid broadcasts to every player (off while `cost` is 0).
+    #[serde(default)]
+    pub broadcast: BroadcastSettings,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -563,6 +584,7 @@ impl Default for GameplaySettings {
             currencies: Vec::new(),
             pk: PkSettings::default(),
             mentor: MentorSettings::default(),
+            broadcast: BroadcastSettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),

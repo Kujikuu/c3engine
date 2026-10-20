@@ -70,6 +70,9 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// Broadcast lines, waiting and told (the latest 50), by the time each is told.
+    #[serde(default)]
+    pub broadcasts: Vec<crate::Broadcast>,
     /// Each student's mentor, by the student's name.
     #[serde(default)]
     pub mentors: BTreeMap<String, crate::Mentorship>,
@@ -164,6 +167,26 @@ impl WorldState {
                 } else {
                     self.friends.remove(&pair);
                 }
+            }
+            WorldChange::Broadcast {
+                id,
+                author,
+                text,
+                at,
+            } => {
+                self.broadcasts.retain(|l| l.id != *id);
+                let line = crate::Broadcast {
+                    id: *id,
+                    author: author.clone(),
+                    text: text.clone(),
+                    at: *at,
+                };
+                self.broadcasts.push(line);
+                self.broadcasts.sort_by_key(|l| (l.at, l.id));
+                // Lines told long before this one are forgotten past the latest 50.
+                let told = self.broadcasts.iter().filter(|l| l.at < *at).count();
+                let over = told.saturating_sub(50);
+                self.broadcasts.drain(..over);
             }
             WorldChange::Mentorship {
                 student,

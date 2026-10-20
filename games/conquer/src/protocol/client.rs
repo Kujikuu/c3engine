@@ -468,6 +468,8 @@ pub struct ConquerClient {
     mentors_told: Option<(String, Vec<String>)>,
     mentors_asked: bool,
     prize_asked: bool,
+    /// A broadcast request answered with the next update: its action and data.
+    pigeon_asked: Option<(u8, u32)>,
     /// The trade partners the client was told of: online or not (`None`: none told yet).
     partners_told: Option<BTreeMap<String, bool>>,
     /// A message board asked about: its channel, the first post of the page, and whose post
@@ -490,6 +492,47 @@ impl ConquerClient {
             _ => None,
         });
         (seen.chain(self.me.as_ref())).find(|p| p.booth.is_some() && booth_id(p.id) == id)
+    }
+
+    /// A broadcast request's answer: a page of the waiting lines (all, or the hero's), or
+    /// where its line now waits (MsgPigeon / MsgPigeonInfo).
+    fn pigeon_reply(&self, sim: &Sim, ids: &mut Ids, action: u8, data: u32) -> Vec<Vec<u8>> {
+        use pk::pigeon as p;
+        let Some(me) = self.me.as_ref() else {
+            return Vec::new();
+        };
+        let now = chrono::Utc::now().timestamp();
+        let queue: Vec<&c3_game::Broadcast> = sim
+            .world_state()
+            .broadcasts
+            .iter()
+            .filter(|l| l.at > now)
+            .collect();
+        let place_of_mine =
+            || (queue.iter().rposition(|l| l.author == me.name)).map_or(0, |i| i as u32 + 1);
+        match action {
+            p::QUERY_QUEUE | p::QUERY_MINE => {
+                let first = data as usize * p::PAGE;
+                let lines: Vec<pk::PigeonLine> = (queue.iter().enumerate())
+                    .filter(|(_, l)| action == p::QUERY_QUEUE || l.author == me.name)
+                    .skip(first)
+                    .take(p::PAGE)
+                    .map(|(place, l)| pk::PigeonLine {
+                        id: l.id,
+                        owner: (sim.players().find(|q| q.name == l.author))
+                            .and_then(|q| self.client_id(q.id, ids))
+                            .unwrap_or(0),
+                        place: place as u32,
+                        name: &l.author,
+                        seconds: u32::try_from(l.at - now).unwrap_or(0),
+                        text: &l.text,
+                    })
+                    .collect();
+                vec![pk::pigeon_info(data, &lines)]
+            }
+            p::PUBLISH | p::MOVE_FIRST | p::MOVE_FIVE => vec![pk::pigeon(action, place_of_mine())],
+            _ => Vec::new(),
+        }
     }
 
     /// A message board's page of posts from `index`, or `name`'s post read (packets 1111).
@@ -797,6 +840,9 @@ impl ConquerClient {
     /// Shows the client what changed around its hero.
     pub fn update(&mut self, update: &WorldUpdate, sim: &Sim, ids: &mut Ids) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
+        if let Some((action, data)) = self.pigeon_asked.take() {
+            out.extend(self.pigeon_reply(sim, ids, action, data));
+        }
         if let Some(owner) = self.booth_asked.take() {
             out.extend(self.booth_goods(owner, sim));
         }
@@ -1529,7 +1575,12 @@ impl ConquerClient {
                 text,
                 channel: on,
                 ..
-            } if Some(*player) != hero || *on == c3_game::ChatChannel::LeaveWord => {
+            } if Some(*player) != hero
+                || matches!(
+                    on,
+                    c3_game::ChatChannel::LeaveWord | c3_game::ChatChannel::Broadcast
+                ) =>
+            {
                 let (code, hearer) = match on {
                     c3_game::ChatChannel::Local => (channel::TALK, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Whisper => (
@@ -1543,6 +1594,7 @@ impl ConquerClient {
                         channel::LEAVE_WORD,
                         self.me.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
                     ),
+                    c3_game::ChatChannel::Broadcast => (channel::BROADCAST, "ALLUSERS".to_owned()),
                     c3_game::ChatChannel::Board(n) => (
                         pk::board::FIRST_CHANNEL + u16::from(*n),
                         "ALLUSERS".to_owned(),
@@ -2059,6 +2111,23 @@ impl ConquerClient {
                 inputs.extend(input.map(Input::Mentor));
             }
             Request::MentorMembers => self.mentors_asked = true,
+            // A broadcast paid for or moved forward, the waiting lines asked for.
+            Request::Pigeon {
+                action: a,
+                data,
+                text,
+            } => {
+                use c3_game::BroadcastAction as B;
+                use pk::pigeon as p;
+                let input = match a {
+                    p::PUBLISH => Some(B::Send(text)),
+                    p::MOVE_FIRST => Some(B::First(data)),
+                    p::MOVE_FIVE => Some(B::Bump(data)),
+                    _ => None,
+                };
+                inputs.extend(input.map(Input::Broadcast));
+                self.pigeon_asked = Some((a, data));
+            }
             Request::MentorPrize { action: a } => {
                 use c3_game::{MentorAction as M, MentorGift as G};
                 use pk::mentor as m;
@@ -2212,6 +2281,7 @@ impl ConquerClient {
                     channel::GUILD => Some(C::Guild),
                     channel::FRIEND => Some(C::Friend),
                     channel::LEAVE_WORD => Some(C::LeaveWord),
+                    channel::BROADCAST => Some(C::Broadcast),
                     // A post on a message board (2201 trade .. 2205 other).
                     2201..=2205 => Some(C::Board((code - pk::board::FIRST_CHANNEL) as u8)),
                     _ => None,

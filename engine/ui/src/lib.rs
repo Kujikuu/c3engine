@@ -707,6 +707,11 @@ impl GameUi {
                     "team" => C::Team,
                     "guild" => C::Guild,
                     "friend" => C::Friend,
+                    // A broadcast: checked for the hero's level, then asked (CDlgPigeonPrompt).
+                    "broadcast" => {
+                        self.gui_state.broadcast = Some(text);
+                        return;
+                    }
                     _ => {
                         self.system("That channel isn't open yet.", style::BAD);
                         return;
@@ -835,6 +840,15 @@ impl GameUi {
                 };
                 let claim = c3_game::Input::Mentor(c3_game::MentorAction::Claim(gift));
                 actions.push(UiAction::Game(claim));
+            }
+            // The broadcast board: a waiting line moved to the front or up 5 places (asked
+            // first, StrRes 11033 / 11032).
+            // Another's line's name: the chat bar whispers its author (`pigeon_whisper:<row>`).
+            _ if action.starts_with("pigeon_") && action.contains(':') => {
+                let (kind, row) = action.split_once(':').expect("checked");
+                if let Ok(row) = row.parse() {
+                    self.gui_state.pigeon_move = Some((kind.to_owned(), row));
+                }
             }
             "words_clear" => {
                 self.gui_state.words.clear();
@@ -996,6 +1010,41 @@ impl GameUi {
                 self.gui_state.focus = Some(CHAT_TEXT.into());
             }
             _ => {}
+        }
+        let pigeon_move = self.gui_state.pigeon_move.take();
+        let data = gui_data::HeroData {
+            view,
+            player,
+            state: &self.gui_state,
+        };
+        let moving = pigeon_move
+            .and_then(|(kind, row)| Some((kind, data.pigeon_rows().into_iter().nth(row)?)));
+        if let Some((kind, (place, name, _, _, id))) = moving {
+            use c3_game::BroadcastAction as B;
+            match kind.as_str() {
+                "pigeon_first" => {
+                    self.ask(&kind, "1", c3_game::Input::Broadcast(B::First(id)));
+                }
+                "pigeon_bump" => {
+                    let to = place.saturating_sub(5).max(1).to_string();
+                    self.ask(&kind, &to, c3_game::Input::Broadcast(B::Bump(id)));
+                }
+                _ => {
+                    self.gui_state.fields.insert(CHAT_NAME.into(), name);
+                    self.gui_state.views.insert("chat".into(), "whisper".into());
+                    self.gui_state.focus = Some(CHAT_TEXT.into());
+                }
+            }
+        }
+        if let Some(text) = self.gui_state.broadcast.take() {
+            let low = player.level < view.sim.settings().broadcast.min_level;
+            let line = c3_game::Input::Chat {
+                channel: c3_game::ChatChannel::Broadcast,
+                to: String::new(),
+                text: text.clone(),
+            };
+            let kind = if low { "broadcast_low" } else { "broadcast" };
+            self.ask(kind, &text, line);
         }
         let data = gui_data::HeroData {
             view,
@@ -1327,6 +1376,21 @@ impl GameUi {
                     self.gui_state.views.remove(&format!("booth_{whose}_page"));
                     if *owner != hero {
                         self.gui_state.booth = Some(*owner);
+                    }
+                }
+                // A broadcast heard: the banner's line and the board's history.
+                Event::Chat {
+                    name,
+                    text,
+                    channel: c3_game::ChatChannel::Broadcast,
+                    to: Some(to),
+                    ..
+                } if *to == hero => {
+                    self.gui_state
+                        .broadcasts_heard
+                        .push((name.clone(), text.clone()));
+                    if self.gui.is_none() {
+                        self.chat.event(event, sim, hero);
                     }
                 }
                 // Words a friend left for the hero, kept for the received-words dialog.

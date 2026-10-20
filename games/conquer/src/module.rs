@@ -216,6 +216,19 @@ pub fn conquer_settings() -> ProjectSettings {
         bless_status: 9876,
         item: 730_001,
     };
+    // Broadcasts (adapters spec §4): 5 CPs a line from level 50, 80 letters, 5 waiting each,
+    // a minute apart; 15 CPs to the front, 5 CPs up 5 places.
+    s.gameplay.broadcast = c3_core::settings::BroadcastSettings {
+        cost: 5,
+        currency: CONQUER_POINTS.into(),
+        min_level: 50,
+        max_len: 80,
+        max_queued: 5,
+        gap_secs: 60,
+        first_cost: 15,
+        bump_cost: 5,
+        bump_places: 5,
+    };
     // Trade partners are on trial for 3 days (social spec §3, PROBATION 259200).
     s.gameplay.partner_probation_secs = 259_200;
     // The message boards (CDlgLevWord's tabs, channels 2201-2205); the guild's own is the

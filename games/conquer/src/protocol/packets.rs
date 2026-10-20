@@ -151,6 +151,47 @@ pub mod mentor {
     pub const AVAILABLE: u8 = 4;
 }
 
+/// MsgPigeon (2050) to the client: a broadcast action's result (`data`: the line's place).
+pub fn pigeon(action: u8, data: u32) -> Vec<u8> {
+    packet(PIGEON, |w| {
+        w.u8(action).u8(0).u8(0).u8(0).u32(data);
+        strings(w, &[]);
+    })
+}
+
+/// One waiting broadcast line as MsgPigeonInfo lists it (0x70 bytes).
+pub struct PigeonLine<'a> {
+    pub id: u32,
+    pub owner: u32,
+    pub place: u32,
+    pub name: &'a str,
+    pub seconds: u32,
+    pub text: &'a str,
+}
+
+/// MsgPigeonInfo (2051): page `page` of the waiting broadcast lines.
+pub fn pigeon_info(page: u32, lines: &[PigeonLine]) -> Vec<u8> {
+    packet(PIGEON_INFO, |w| {
+        w.u32(page).u16(0).u16(lines.len() as u16);
+        for l in lines {
+            w.u32(l.id).u32(l.owner).u32(l.place).fixed_str(l.name, 16);
+            w.u32(l.seconds).fixed_str(l.text, 80);
+        }
+    })
+}
+
+pub const PIGEON: u16 = 2050;
+pub const PIGEON_INFO: u16 = 2051;
+/// MsgPigeon actions (MsgPigeon.h).
+pub mod pigeon {
+    pub const QUERY_QUEUE: u8 = 1;
+    pub const QUERY_MINE: u8 = 2;
+    pub const PUBLISH: u8 = 3;
+    pub const MOVE_FIRST: u8 = 4;
+    pub const MOVE_FIVE: u8 = 5;
+    pub const PAGE: usize = 10;
+}
+
 /// A guild action about a guild or player (MsgSyndicate).
 pub const GUILD: u16 = 1107;
 pub mod guild {
@@ -299,6 +340,8 @@ pub mod channel {
     pub const GUILD_NOTICE: u16 = 2111;
     /// Words left for an offline friend (_TXTATR_LEAVEWORD; social spec §5).
     pub const LEAVE_WORD: u16 = 2110;
+    /// A paid broadcast (Pigeon.dll's channel).
+    pub const BROADCAST: u16 = 2500;
     /// A booth's cry (_TXTATR_CRYOUT).
     pub const CRY: u16 = 2104;
     pub const TALK: u16 = 2007;
@@ -980,6 +1023,12 @@ pub fn dialog_with(action: u8, index: u8, data: u16, text: &str) -> Vec<u8> {
 /// What a client asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
+    /// A broadcast asked about or paid for (2050): the action, its data and the line.
+    Pigeon {
+        action: u8,
+        data: u32,
+        text: String,
+    },
     /// A mentor action (2065): the action, two players' ids and its data.
     Mentor {
         action: u8,
@@ -1299,6 +1348,17 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
             }
         }
         MENTOR_MEMBER => Request::MentorMembers,
+        PIGEON => {
+            let action = r.u8()?;
+            r.skip(3)?;
+            let data = r.u32()?;
+            let text = (r.u8().ok().filter(|&n| n > 0)).and_then(|_| r.short_str().ok());
+            Request::Pigeon {
+                action,
+                data,
+                text: text.unwrap_or_default(),
+            }
+        }
         MENTOR_PRIZE => Request::MentorPrize { action: r.u8()? },
         BUSINESS => {
             let id = r.u32()?;

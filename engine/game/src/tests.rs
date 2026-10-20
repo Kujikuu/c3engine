@@ -2496,3 +2496,53 @@ fn a_mentor_teaches_a_student_far_enough_below_and_may_send_it_away() {
     sim.input(m, Input::Mentor(M::Expel("Pupil".into())));
     assert!(sim.world_state().mentors.is_empty());
 }
+
+#[test]
+fn a_paid_broadcast_is_told_to_every_player_and_the_next_waits_its_turn() {
+    use crate::BroadcastAction as B;
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 3);
+    sim.set_settings(GameplaySettings {
+        broadcast: c3_core::settings::BroadcastSettings {
+            cost: 5,
+            min_level: 1,
+            max_len: 80,
+            max_queued: 5,
+            gap_secs: 60,
+            first_cost: 15,
+            bump_cost: 5,
+            bump_places: 5,
+            ..Default::default()
+        },
+        ..GameplaySettings::default()
+    });
+    let mut rich = crate::PlayerSave::new("Ann", (5, 5));
+    rich.money = 12;
+    let a = sim.add_saved_player(&rich);
+    let b = sim.add_player("Bob", (25, 25), 1);
+    sim.input(a, Input::Broadcast(B::Send("hello world".into())));
+    sim.input(a, Input::Broadcast(B::Send("again".into())));
+    sim.input(a, Input::Broadcast(B::Send("no money".into())));
+    assert_eq!(sim.player(a).unwrap().money, 2, "two lines paid for");
+    assert_eq!(sim.world_state().broadcasts.len(), 2);
+    sim.take_events();
+    sim.advance(sim.settings().tick_ms);
+    let heard: Vec<(EntityId, String)> = (sim.take_events().into_iter())
+        .filter_map(|e| match e {
+            Event::Chat {
+                channel: crate::ChatChannel::Broadcast,
+                to: Some(to),
+                text,
+                ..
+            } => Some((to, text)),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        heard.contains(&(b, "hello world".to_owned())),
+        "told far away too"
+    );
+    assert!(
+        heard.iter().all(|(_, t)| t != "again"),
+        "the next waits a minute"
+    );
+}

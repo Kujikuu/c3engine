@@ -297,6 +297,13 @@ pub enum WorldChange {
         #[serde(default)]
         pk: i64,
     },
+    /// Broadcast line `id` by `author` told at `at` (unix seconds), queued or moved.
+    Broadcast {
+        id: u32,
+        author: String,
+        text: String,
+        at: i64,
+    },
     /// `student`'s mentor `mentor` (`left`: the unix hour it left it, 0 while it learns), or
     /// no longer (`on`).
     Mentorship {

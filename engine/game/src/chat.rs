@@ -25,6 +25,8 @@ pub enum ChatChannel {
     LeaveWord,
     /// A post on message board `0` (the settings' `boards`), one per author.
     Board(u8),
+    /// A paid line told to every player (the settings' `broadcast`).
+    Broadcast,
 }
 
 /// How long a player waits between leaving words (TQ's 60 s, social spec §5).
@@ -56,6 +58,9 @@ impl Sim {
         }
         if let ChatChannel::Board(board) = channel {
             return self.post(id, board, &text);
+        }
+        if channel == ChatChannel::Broadcast {
+            return self.broadcast_action(id, crate::BroadcastAction::Send(text));
         }
         let hearer = match channel {
             ChatChannel::Whisper => to.trim().to_owned(),
@@ -110,7 +115,7 @@ impl Sim {
                 }
                 friends
             }
-            ChatChannel::LeaveWord | ChatChannel::Board(_) => return,
+            ChatChannel::LeaveWord | ChatChannel::Board(_) | ChatChannel::Broadcast => return,
             ChatChannel::Guild => {
                 let Some((guild, _)) = self.world.guild_of(&name) else {
                     self.message(id, "You are in no guild.");

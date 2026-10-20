@@ -6,6 +6,7 @@
 //! world, movement, timing and order (see docs/DECISIONS.md: a typed world, no ECS).
 
 mod booths;
+mod broadcasts;
 mod chat;
 mod commands;
 mod dialogue;
@@ -46,6 +47,7 @@ pub use teams::{Mate, TEAM_SIZE, TeamAction, TeamOp};
 pub use world_state::{GUILD_RELATIONS, Guild, Post, WorldState};
 
 pub use booths::{Booth, BoothAction, MAX_WARES, Ware};
+pub use broadcasts::{Broadcast, BroadcastAction};
 pub use c3_core::settings::GameplaySettings;
 pub use chat::{ChatChannel, ChatLine};
 pub use commands::HELP as COMMAND_HELP;

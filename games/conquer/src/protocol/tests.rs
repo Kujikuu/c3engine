@@ -413,7 +413,11 @@ fn msg_mentor_member_puts_its_strings_at_0x44() {
     });
     assert_eq!(packet.len(), 0x44 + 1 + (1 + 6) + (1 + 5) + 1);
     assert_eq!(u32_at(&packet, 0x0C), 3_500_000_002, "the member at 0x0C");
-    assert_eq!((packet[0x20], packet[0x30]), (50, 1), "level at 0x20, online at 0x30");
+    assert_eq!(
+        (packet[0x20], packet[0x30]),
+        (50, 1),
+        "level at 0x20, online at 0x30"
+    );
     assert_eq!(u32_at(&packet, 0x38), 600, "the time given at 0x38");
     assert_eq!(packet[0x44], 3, "three strings");
 }

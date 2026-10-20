@@ -56,6 +56,12 @@ pub(crate) struct GuiState {
     /// A whisper waiting to be checked: sent, or (to an offline friend) asked to be left as
     /// words.
     pub whisper: Option<(String, String)>,
+    /// A broadcast line typed, waiting for the hero's level to be checked; the lines heard
+    /// this session (the board's published pages), the latest last; a waiting line's
+    /// button pressed (`first` or `bump`, the row).
+    pub broadcast: Option<String>,
+    pub broadcasts_heard: Vec<(String, String)>,
+    pub pigeon_move: Option<(String, usize)>,
     /// The bag item put on the hero's booth, waiting for its price.
     pub booth_item: Option<u32>,
     /// A booth slot's button pressed: taking the ware back (`mine`) or buying it (`theirs`),
@@ -77,6 +83,9 @@ fn exp_balls(time: i64) -> String {
     let hundredths = time.max(0) * 1000 / 600 / 10;
     format!("{}.{:02}", hundredths / 100, hundredths % 100)
 }
+
+/// The broadcast board's rows a page shows (CDlgBroadcast5065's 10).
+const PIGEON_PAGE: usize = 10;
 
 /// The posts a message board's page lists (MsgMessageBoard's lists of 8).
 const BOARD_PAGE: usize = 8;
@@ -276,6 +285,32 @@ impl HeroData<'_> {
     /// The words picked in the received-words dialog (`view:word`): who left them and what.
     fn word_shown(&self) -> Option<&(String, String)> {
         self.state.words.get(self.view_number("word"))
+    }
+
+    /// The broadcast board's rows on the page shown (`view:pigeon`: 0 waiting, 1 the hero's
+    /// waiting, 2 heard, 3 the hero's heard; `view:pigeon_page`): place, name, line, and the
+    /// seconds left (waiting) and line id.
+    pub(crate) fn pigeon_rows(&self) -> Vec<(usize, String, String, i64, u32)> {
+        let mode = self.view_number("pigeon");
+        let first = self.view_number("pigeon_page") * PIGEON_PAGE;
+        let me = &self.player.name;
+        let now = chrono::Utc::now().timestamp();
+        match mode {
+            0 | 1 => (self.view.sim.world_state().broadcasts.iter())
+                .filter(|l| l.at > now)
+                .enumerate()
+                .filter(|(_, l)| mode == 0 || l.author == *me)
+                .skip(first)
+                .take(PIGEON_PAGE)
+                .map(|(i, l)| (i + 1, l.author.clone(), l.text.clone(), l.at - now, l.id))
+                .collect(),
+            _ => (self.state.broadcasts_heard.iter().rev().enumerate())
+                .filter(|(_, (name, _))| mode == 2 || name == me)
+                .skip(first)
+                .take(PIGEON_PAGE)
+                .map(|(i, (name, text))| (i + 1, name.clone(), text.clone(), 0, 0))
+                .collect(),
+        }
     }
 
     /// The posts of the message board shown (`view:board`), the newest first.
@@ -529,6 +564,30 @@ impl GuiData for HeroData<'_> {
             // Words left for the hero: how many, whether there are words before or after
             // those shown, and whether their sender may be answered (an offline friend).
             "words.count" => self.state.words.len() as f64,
+            // The broadcast board: a row filled, the hero's own waiting line (its move
+            // buttons) or another's (whisper), the mode shown, lines heard.
+            _ if key.starts_with("pigeon.") && key.ends_with(".mine") => {
+                let n: usize = key
+                    .strip_prefix("pigeon.")?
+                    .strip_suffix(".mine")?
+                    .parse()
+                    .ok()?;
+                let mode = self.view_number("pigeon");
+                let row = self.pigeon_rows().into_iter().nth(n)?;
+                u8::from(mode < 2 && row.1 == self.player.name).into()
+            }
+            _ if key.starts_with("pigeon.") && key.ends_with(".other") => {
+                let n: usize = key
+                    .strip_prefix("pigeon.")?
+                    .strip_suffix(".other")?
+                    .parse()
+                    .ok()?;
+                let row = self.pigeon_rows().into_iter().nth(n)?;
+                u8::from(row.1 != self.player.name).into()
+            }
+            "pigeon.mode" => self.view_number("pigeon") as f64,
+            "pigeon.rows" => self.pigeon_rows().len() as f64,
+            "pigeon.heard" => self.state.broadcasts_heard.len() as f64,
             // The message board: its posts, the mode (0 list, 1 writing, 2 reading), the tab
             // chosen (`board.tab.0`).
             "board.count" => self.board_posts().len() as f64,
@@ -749,6 +808,26 @@ impl GuiData for HeroData<'_> {
             "word.to" => Some(self.state.word_to.clone()),
             "word.from" => Some(self.word_shown().map(|w| w.0.clone()).unwrap_or_default()),
             "word.said" => Some(self.word_shown().map(|w| w.1.clone()).unwrap_or_default()),
+            // The broadcast banner's latest line, and the board's rows (`pigeon.0.name`).
+            "pigeon.last.name" | "pigeon.last.text" => {
+                let (name, text) = self.state.broadcasts_heard.last()?;
+                Some(if key.ends_with("name") {
+                    name.clone()
+                } else {
+                    text.clone()
+                })
+            }
+            _ if key.starts_with("pigeon.") && key.matches('.').count() == 2 => {
+                let (n, field) = key.strip_prefix("pigeon.")?.split_once('.')?;
+                let row = self.pigeon_rows().into_iter().nth(n.parse().ok()?);
+                Some(match (row, field) {
+                    (Some(r), "index") => r.0.to_string(),
+                    (Some(r), "name") => r.1,
+                    (Some(r), "text") => r.2.chars().take(32).collect(),
+                    (Some(r), "clock") if r.3 > 0 => format!("{:02}:{:02}", r.3 / 60, r.3 % 60),
+                    _ => String::new(),
+                })
+            }
             "word.text" | "board.text" => {
                 Some(self.state.fields.get(key).cloned().unwrap_or_default())
             }

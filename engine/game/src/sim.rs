@@ -87,6 +87,8 @@ pub struct Sim {
     pub(crate) friend_asks: BTreeMap<EntityId, EntityId>,
     /// Who asked whom to be a trade partner.
     pub(crate) partner_asks: BTreeMap<EntityId, EntityId>,
+    /// The broadcast lines this map has told its players.
+    pub(crate) broadcasts_told: std::collections::BTreeSet<u32>,
     /// Who offered to teach (true) or asked to learn from whom.
     pub(crate) mentor_asks: BTreeMap<(EntityId, EntityId), bool>,
     /// What students gave their mentors since the last flush, and when the next flush is.
@@ -168,6 +170,7 @@ impl Sim {
             friend_asks: BTreeMap::new(),
             partner_asks: BTreeMap::new(),
             mentor_asks: BTreeMap::new(),
+            broadcasts_told: Default::default(),
             pending_gifts: BTreeMap::new(),
             next_gift_flush_ms: 0,
             closed_teams: std::collections::BTreeSet::new(),
@@ -251,6 +254,7 @@ impl Sim {
         self.tick_trades();
         self.prune_booths();
         self.flush_gifts();
+        self.tell_broadcasts();
         self.expire_mentors();
         self.tick_world_events();
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
