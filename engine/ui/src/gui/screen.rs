@@ -244,8 +244,10 @@ impl Gui {
             textures,
             skin: &self.skin,
             names: &self.names,
+            rising: &self.rising,
             place,
             live,
+            alpha: u8::MAX,
         };
         let (fitted, stacked) = self.fitted(painter.ui.ctx(), dialog, data);
         let stretch = (dialog.fit > 0).then(|| Vec2::new(fitted.w as f32, fitted.h as f32));
@@ -515,14 +517,26 @@ impl Painter<'_, '_> {
     }
 }
 
+/// Rising progress bars by (dialog, control): the value shown and when it last stepped.
+pub(crate) type Rising = std::cell::RefCell<std::collections::HashMap<(u32, u32), (f64, f64)>>;
+
+/// How often a rising bar steps (seconds; TQ's 30 ms frame).
+const RISE_STEP: f64 = 0.03;
+
+/// The faint value above a rising bar's fill (TQ's alpha 99).
+const RISE_FAINT: u8 = 99;
+
 struct Painter<'a, 'u> {
     ui: &'u mut egui::Ui,
     textures: &'a mut dyn Textures,
     skin: &'a Skin,
     names: &'a std::collections::HashMap<String, std::collections::HashMap<String, String>>,
+    rising: &'a Rising,
     place: Place,
     /// Controls answer the pointer.
     live: bool,
+    /// How opaque what is drawn is (a rising bar's faint value).
+    alpha: u8,
 }
 
 impl Painter<'_, '_> {
@@ -554,7 +568,30 @@ impl Painter<'_, '_> {
         );
         let min = self.screen(at.x, at.y);
         let rect = Rect::from_min_size(min, size * self.place.scale);
-        self.ui.painter().image(id, rect, uv, Color32::WHITE);
+        let tint = Color32::from_white_alpha(self.alpha);
+        self.ui.painter().image(id, rect, uv, tint);
+    }
+
+    /// What rising bar `control` shows of `value` now: up from what it showed by
+    /// `max / rise` (at least 1) a step, at once down.
+    fn risen(&self, control: &Control, value: f64, max: f64) -> f64 {
+        let now = self.ui.ctx().input(|i| i.time);
+        let mut rising = self.rising.borrow_mut();
+        let (shown, at) = rising
+            .entry((control.parent, control.id))
+            .or_insert((value, now));
+        if *shown >= value {
+            (*shown, *at) = (value, now);
+            return value;
+        }
+        let steps = ((now - *at) / RISE_STEP).floor();
+        if steps >= 1.0 {
+            let step = (max / f64::from(control.rise)).floor().max(1.0);
+            *shown = (*shown + steps * step).min(value);
+            *at += steps * RISE_STEP;
+        }
+        self.ui.ctx().request_repaint();
+        *shown
     }
 
     /// A dialog's or image's picture: its frame (or a piece of it) at `at`, sized `size`
@@ -752,10 +789,18 @@ impl Painter<'_, '_> {
                 let value = data.number(&control.value).unwrap_or(0.0);
                 let max = read(&control.max).unwrap_or(0.0);
                 let min = read(&control.min).unwrap_or(0.0);
-                let f = if max > min {
-                    ((value - min) / (max - min)).clamp(0.0, 1.0) as f32
-                } else {
-                    0.0
+                let part = |v: f64| match max > min {
+                    true => ((v - min) / (max - min)).clamp(0.0, 1.0) as f32,
+                    false => 0.0,
+                };
+                let shown = match control.rise {
+                    0 => value,
+                    _ => self.risen(control, value, max),
+                };
+                // The value risen to, faint above the fill.
+                let fills = match shown < value {
+                    true => vec![(part(value), RISE_FAINT), (part(shown), u8::MAX)],
+                    false => vec![(part(value), u8::MAX)],
                 };
                 let Some(texture) = self.frame(frames, control.frame) else {
                     return;
@@ -768,20 +813,24 @@ impl Painter<'_, '_> {
                         if at.h > 0 { size.y } else { texture.1.y },
                     ),
                 };
-                let (offset, shown) = match control.fill {
-                    Fill::Up => (
-                        Vec2::new(0.0, full.y * (1.0 - f)),
-                        Vec2::new(full.x, full.y * f),
-                    ),
-                    Fill::Right => (Vec2::ZERO, Vec2::new(full.x * f, full.y)),
-                    Fill::Left => (
-                        Vec2::new(full.x * (1.0 - f), 0.0),
-                        Vec2::new(full.x * f, full.y),
-                    ),
-                };
-                if shown.x >= 0.5 && shown.y >= 0.5 {
-                    let part = Rect::from_min_size(offset.to_pos2(), shown);
-                    self.draw(texture, origin + offset, Some(part), Some(shown));
+                for (f, alpha) in fills {
+                    let (offset, shown) = match control.fill {
+                        Fill::Up => (
+                            Vec2::new(0.0, full.y * (1.0 - f)),
+                            Vec2::new(full.x, full.y * f),
+                        ),
+                        Fill::Right => (Vec2::ZERO, Vec2::new(full.x * f, full.y)),
+                        Fill::Left => (
+                            Vec2::new(full.x * (1.0 - f), 0.0),
+                            Vec2::new(full.x * f, full.y),
+                        ),
+                    };
+                    if shown.x >= 0.5 && shown.y >= 0.5 {
+                        let part = Rect::from_min_size(offset.to_pos2(), shown);
+                        self.alpha = alpha;
+                        self.draw(texture, origin + offset, Some(part), Some(shown));
+                        self.alpha = u8::MAX;
+                    }
                 }
                 // Its tooltip over the whole meter (an orb's `current/most`).
                 if let Some(tip) = self.tip_text(control, data).filter(|_| self.live) {

@@ -217,6 +217,10 @@ pub struct Control {
     /// 100), each a binding or a number.
     pub max: String,
     pub min: String,
+    /// A progress bar whose fill climbs to a higher value a step at a time, the value shown
+    /// faint above it meanwhile, and drops at once (`rise=80`: a most's eightieth every 30 ms,
+    /// as TQ's orbs follow CURRENTLIFE).
+    pub rise: u32,
     pub fill: Fill,
     /// A progress bar's image area, drawn as it is at the control's corner (`area=w,h`;
     /// TQ's `CMyProgress::SetWidthAndHeight`); none: the control's size.
@@ -453,6 +457,7 @@ impl Control {
             focus: text("focus"),
             max: text("max"),
             min: text("min"),
+            rise: section.int("rise").unwrap_or(0).max(0) as u32,
             fill,
             area,
             text: text("text"),
@@ -553,6 +558,8 @@ pub struct Gui {
     pub controls: Vec<Control>,
     /// When each dialog shown began to show (UI seconds; a sliding dialog's start).
     opened_at: std::cell::RefCell<std::collections::HashMap<u32, f64>>,
+    /// Rising progress bars: what each shows and when it last stepped (UI seconds).
+    rising: screen::Rising,
     /// Dialogs opened by actions.
     open: BTreeSet<u32>,
     /// Dialogs their `when` shows, as last worked out, and those of them the player closed
@@ -577,6 +584,7 @@ impl Gui {
                 .filter_map(Control::parse)
                 .collect(),
             opened_at: Default::default(),
+            rising: Default::default(),
             open: BTreeSet::new(),
             when_shown: BTreeSet::new(),
             dismissed: BTreeSet::new(),

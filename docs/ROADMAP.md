@@ -819,7 +819,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] stamina x1.5 while Blessed, and extra stamina 1027 (Progress47) above 99 (DlgMain.cpp 703-709, 757-762; progress `min=`, `clock.unix`) (screenshot)
     - [x] stamina up to 150 while Blessed in the rules, and its regeneration: 3 every 2 s, 10 a second sitting, none transformed (attribute `raised_max` / `regen`, `Player::emote` held until it moves or fights; MaxEnergy 0045422f, OnTimer 0041d7a2); the front's MsgUserAttrib 9
     - [ ] no stamina gained while flying (no flying status in the engine yet)
-    - [ ] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136)
+    - [x] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136): `rise=80`, a max's eightieth every 30 ms up to the value shown at alpha 99, down at once (CHero::Process) (screenshot burst)
     - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
     - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills
     - [x] XP skills picked from 189 shown as XpSkillType in the skill box; the box's Magic0 art replaced by the skill picked

@@ -769,6 +769,10 @@ impl Session {
             }
             return;
         }
+        // A chat line said (`say:/level 50`: a command later in a scripted run).
+        if let Some(text) = action.strip_prefix("say:") {
+            return self.input(Input::Say(text.to_owned()));
+        }
         // Talking to NPC `id` as a click on it would (`talk:9999`).
         if let Some(npc) = action.strip_prefix("talk:").and_then(|n| n.parse().ok()) {
             return self.input(Input::Talk(npc));
