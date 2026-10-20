@@ -75,6 +75,9 @@ pub struct GameScreen {
     step_wait: f32,
     /// The player chose Leave the game.
     left: bool,
+    /// UI actions to run once a frame has been drawn (a scripted shot's, after what its lines
+    /// asked has come back).
+    pub later: Vec<String>,
 }
 
 impl GameScreen {
@@ -104,6 +107,7 @@ impl GameScreen {
             bindings,
             touch: TouchOverlay::default(),
             listening: None,
+            later: Vec::new(),
             step_wait: 0.0,
             left: false,
         };
@@ -258,6 +262,9 @@ impl GameScreen {
         }
         let now = ui.input(|i| i.time);
         self.session.advance(seconds, now);
+        for action in std::mem::take(&mut self.later) {
+            self.session.gui_action(&action);
+        }
         self.follow_hero(seconds);
         self.clamp_to_map();
         self.shake = self.shake_at(now);

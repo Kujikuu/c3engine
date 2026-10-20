@@ -6,7 +6,7 @@ use crate::{EntityId, Event, Task};
 use c3_script::quest;
 
 /// The commands and what they do, for `/help`.
-pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
+pub const HELP: &str = "/money N · /wallet CURRENCY N · /train MINUTES · /lay LOOK · /attribute NAME N · /deposit NAME CURRENCY N · /item TYPE [COUNT] · /durability ITEM N · /skill ID · /status ID · /pk · /level N · /heal · /shop NPC · /storage NPC · /talk NPC · /goto X Y · /map ID X Y · /quest ID STATE [KILLS] · /signal NAME [A B C]";
 
 impl Sim {
     /// Runs chat command `line` for player `id`; the answer to show, or why it failed.
@@ -142,6 +142,19 @@ impl Sim {
                 held.durability = value;
                 self.events.push(Event::Dressed { player: id });
                 Ok(format!("Item {item}'s durability set to {value}."))
+            }
+            // An NPC of this look to place, as a script asks (its `on_laid` event when put).
+            "lay" => {
+                let look = u32::try_from(arg(0)?).map_err(|_| "Bad look".to_owned())?;
+                let p = self.players.get_mut(&id).expect("checked above");
+                p.placing = Some("on_laid".into());
+                let asked = crate::Event::PlacementAsked {
+                    player: id,
+                    look,
+                    kind: 0,
+                };
+                self.events.push(asked);
+                Ok(format!("Place NPC look {look}."))
             }
             // Away training this many minutes already, its credit full (as on coming back).
             "train" => {

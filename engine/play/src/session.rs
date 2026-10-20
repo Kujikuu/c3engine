@@ -730,8 +730,11 @@ impl Session {
 
     /// Runs a game UI action as a click would (a question asked: `ask:guild_leave:...`).
     pub fn gui_action(&mut self, action: &str) {
-        // `{hero}`: the hero's id (a scripted look at its own equipment, `view:viewed:{hero}`).
-        let action = action.replace("{hero}", &self.hero.0.to_string());
+        // `{hero}`: the hero's id (a scripted look at its own equipment, `view:viewed:{hero}`);
+        // `{cell}`: where it stands (`place_at:{cell}`).
+        let (x, y) = self.sim.player(self.hero).map_or((0, 0), |p| p.cell);
+        let action = (action.replace("{hero}", &self.hero.0.to_string()))
+            .replace("{cell}", &format!("{x},{y}"));
         for action in self.ui.run_gui_action(&action) {
             self.act(action);
         }
@@ -823,6 +826,11 @@ impl Session {
     /// A click on world point `point`: talk to an NPC, attack a monster, pick up a drop, or
     /// walk there.
     pub fn click(&mut self, point: Vec2) {
+        // Something being placed is put on the cell clicked.
+        let cell = self.world.scene.world_to_cell((point.x, point.y));
+        if self.ui.place_at(cell) {
+            return;
+        }
         // A player clicked while the UI waits for one (trade, a team invite).
         if let Some(player) = self.view.player_at(&self.sim, &self.world, point)
             && let Some(action) = self.ui.take_pick(player)
@@ -895,6 +903,11 @@ impl Session {
             self.hit_at = Some(now);
         }
         self.view.apply(&events, &self.sim, &mut self.world);
+        // What is being placed, where it was put or under the pointer.
+        let pointed = (self.pointer).map(|p| self.world.scene.world_to_cell((p.x, p.y)));
+        let shown =
+            (self.ui.placement()).and_then(|p| Some((p.look, p.cell.or(pointed)?, p.direction)));
+        self.view.preview(&mut self.world, shown);
         self.ui.events(&events, &self.sim, self.hero, now);
         self.audio.events(&events, &self.sim, self.hero);
         self.audio.update(&self.sim, self.hero, now);

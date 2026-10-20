@@ -286,6 +286,15 @@ const SLOW_FRAMES: u32 = 600;
 const SLOW_FPS: f64 = 5.0;
 const LOW_FPS: &str = "low_fps";
 
+/// What is being placed: its look, the cell it was put on (none: following the pointer),
+/// and its facing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Placing {
+    pub look: u32,
+    pub cell: Option<CellPos>,
+    pub direction: u8,
+}
+
 /// The kind of the game's exit question.
 const EXIT: &str = "exit";
 
@@ -433,7 +442,7 @@ pub fn item_name(sim: &Sim, kind: u32) -> String {
 pub struct GameUi {
     chat: chat::Chat,
     /// The simulation asked the hero where to place an NPC (answered next frame).
-    placing: bool,
+    placing: Option<Placing>,
     /// Inputs the UI makes by itself (auto-joining a team), sent next frame.
     auto_inputs: Vec<c3_game::Input>,
     /// The player's volumes as last shown, and the music's level before it was switched off.
@@ -499,6 +508,24 @@ impl GameUi {
     pub fn viewed(&self) -> Option<EntityId> {
         let id = self.gui_state.views.get(VIEWED)?.parse().ok()?;
         Some(EntityId(id))
+    }
+
+    /// What is being placed (TQ's mouse NPC): its look, the cell it was put on (none: it
+    /// follows the pointer), and its facing.
+    pub fn placement(&self) -> Option<Placing> {
+        self.placing
+    }
+
+    /// A click on `cell` while placing: puts it there (the placing window then turns it);
+    /// `false` when nothing is being placed or it already has its cell.
+    pub fn place_at(&mut self, cell: CellPos) -> bool {
+        match &mut self.placing {
+            Some(p) if p.cell.is_none() => {
+                p.cell = Some(cell);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Opens dialog `id` of the game's UI from data.
@@ -1049,6 +1076,33 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            // The placing window (CDlgLay): turned left or right, put there, or let go.
+            "place_left" | "place_right" => {
+                if let Some(p) = &mut self.placing {
+                    let step = if action == "place_left" { 1 } else { 7 };
+                    p.direction = (p.direction + step) % 8;
+                }
+            }
+            "place_ok" => {
+                if let Some(Placing {
+                    cell: Some(cell),
+                    direction,
+                    ..
+                }) = self.placing.take()
+                {
+                    actions.push(UiAction::Game(c3_game::Input::Place { cell, direction }));
+                }
+            }
+            "place_cancel" => self.placing = None,
+            // Put on cell `x,y` as a click there would (`place_at:400,380`).
+            _ if action.starts_with("place_at:") => {
+                let cell = action["place_at:".len()..].split_once(',');
+                if let Some((Ok(x), Ok(y))) =
+                    cell.map(|(x, y)| (x.trim().parse(), y.trim().parse()))
+                {
+                    self.place_at((x, y));
+                }
+            }
             // Offline training: asked from the exit question (the blessed only), started,
             // called off (back to the question), claimed, the result put away.
             "train_ask" => self.gui_state.training_next = Some(TrainingNext::Ask),
@@ -1785,10 +1839,14 @@ impl GameUi {
             }
         }
         for event in events {
-            if let Event::PlacementAsked { player, .. } = *event
+            if let Event::PlacementAsked { player, look, .. } = *event
                 && player == hero
             {
-                self.placing = true;
+                self.placing = Some(Placing {
+                    look,
+                    cell: None,
+                    direction: 0,
+                });
             }
             // Asks of the hero, put to it when the game UI has a prompt (and not auto-taken).
             if !self.gui_state.auto_team {
@@ -1919,6 +1977,7 @@ impl GameUi {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
         self.prefs = view.controls.prefs;
+        self.gui_state.place_fixed = self.placing.is_some_and(|p| p.cell.is_some());
         self.watch_frames(ui.input(|i| i.time));
         self.chat.shown = (self.prefs.chat_lines > 0).then_some(self.prefs.chat_lines as usize);
         self.overlay.show(ui, view);
@@ -1929,8 +1988,13 @@ impl GameUi {
         self.team_options = (player.team)
             .map(|leader| view.sim.team_options(leader))
             .unwrap_or_default();
-        // A placement asked for: where the hero stands, as it faces.
-        if std::mem::take(&mut self.placing) {
+        // A placement asked for, without the game's placing window: where the hero stands,
+        // as it faces.
+        let placing_window = self
+            .gui
+            .as_ref()
+            .is_some_and(|g| g.shows_while("place.fixed"));
+        if !placing_window && self.placing.take().is_some() {
             actions.push(UiAction::Game(c3_game::Input::Place {
                 cell: player.cell,
                 direction: player.direction,

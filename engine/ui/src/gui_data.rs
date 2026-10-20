@@ -83,6 +83,8 @@ pub(crate) struct GuiState {
     pub purchase_asked: Option<String>,
     /// The lock window's bind pressed.
     pub lock_binding: bool,
+    /// Something being placed has its cell (the placing window shows).
+    pub place_fixed: bool,
     /// Offline training: the minutes offered or what it trained (its windows'), and what it
     /// does next.
     pub training: Option<c3_game::TrainingNews>,
@@ -731,6 +733,8 @@ impl GuiData for HeroData<'_> {
                     .or(first)
                     .unwrap_or(0) as f64
             }
+            // Something being placed was put on a cell (the placing window turns it).
+            "place.fixed" => u8::from(self.state.place_fixed).into(),
             // The auto-path menu: how many headings, and the row of the one open.
             "autorun.count" => crate::destinations::roots(self.view).len() as f64,
             "autorun.open" => u8::from(self.number("autorun.open_row").is_some()).into(),

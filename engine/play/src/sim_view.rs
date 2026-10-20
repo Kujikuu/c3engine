@@ -19,6 +19,8 @@ pub struct SimView {
     actors: HashMap<EntityId, usize>,
     /// Actor index of each NPC.
     npcs: HashMap<u32, usize>,
+    /// Actor index of what is being placed (TQ's mouse NPC).
+    preview: Option<usize>,
 }
 
 impl SimView {
@@ -227,9 +229,37 @@ impl SimView {
         }
         let moved = (self.actors.values_mut())
             .chain(self.npcs.values_mut())
+            .chain(self.preview.iter_mut())
             .find(|i| **i == last);
         if let Some(moved) = moved {
             *moved = index;
+        }
+    }
+
+    /// Shows what is being placed (`look` on `cell`, facing `direction`), or no longer.
+    pub fn preview(&mut self, world: &mut World, shown: Option<(u32, CellPos, u8)>) {
+        let Some((look, cell, direction)) = shown else {
+            if let Some(i) = self.preview.take() {
+                self.remove_actor(i, world);
+            }
+            return;
+        };
+        if self.preview.is_none() {
+            let npc = c3_scene::Npc {
+                id: 0,
+                name: String::new(),
+                cell,
+                direction,
+                look,
+                kind: 0,
+                script: String::new(),
+                extra: Default::default(),
+            };
+            self.preview = world.add_npc(&npc);
+        }
+        if let Some(actor) = self.preview.and_then(|i| world.actors.get_mut(i)) {
+            actor.place(cell);
+            actor.direction = direction;
         }
     }
 

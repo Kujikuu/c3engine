@@ -96,13 +96,10 @@ pub fn run(args: GameArgs) -> Result<(), String> {
         for &dialog in &args.open {
             session.open_dialog(dialog);
         }
-        for action in &args.act {
-            session.gui_action(action);
-        }
-        Phase::Game(Box::new(GameScreen::new(
-            session,
-            PlayerControls::load(&title),
-        )))
+        // The scripted actions run once the game has answered what the lines asked.
+        let mut screen = GameScreen::new(session, PlayerControls::load(&title));
+        screen.later = args.act.clone();
+        Phase::Game(Box::new(screen))
     };
     let mut app = GameApp {
         phase,
