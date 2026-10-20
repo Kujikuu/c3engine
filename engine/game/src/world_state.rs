@@ -70,6 +70,9 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// The message boards' posts by board, the newest first.
+    #[serde(default)]
+    pub boards: BTreeMap<String, Vec<Post>>,
     /// Friends: each pair of names, the smaller first.
     #[serde(default)]
     pub friends: std::collections::BTreeSet<(String, String)>,
@@ -238,6 +241,26 @@ impl WorldState {
             }
             WorldChange::Delivered { to } => {
                 self.deliveries.remove(to);
+            }
+            WorldChange::Post {
+                board,
+                author,
+                text,
+                time,
+            } => {
+                let posts = self.boards.entry(board.clone()).or_default();
+                posts.retain(|p| p.author != *author);
+                if !text.is_empty() {
+                    let post = Post {
+                        author: author.clone(),
+                        text: text.clone(),
+                        time: time.clone(),
+                    };
+                    posts.insert(0, post);
+                }
+                if posts.is_empty() {
+                    self.boards.remove(board);
+                }
             }
             WorldChange::Online { name, map, level } => {
                 if let Ok(level) = u32::try_from(*level)
@@ -445,6 +468,14 @@ impl Sim {
             self.deliver_waiting();
         }
     }
+}
+
+/// A post on a message board: who wrote it, what, and when (`YYYYMMDDHHMMSS`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Post {
+    pub author: String,
+    pub text: String,
+    pub time: String,
 }
 
 /// Two names as the friends set keeps them: the smaller first.

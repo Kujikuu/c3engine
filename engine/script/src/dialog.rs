@@ -297,6 +297,16 @@ pub enum WorldChange {
         #[serde(default)]
         pk: i64,
     },
+    /// `author`'s post on message board `board` (one each; TQ's bulletins), or taken down
+    /// (`text` empty).
+    Post {
+        board: String,
+        author: String,
+        #[serde(default)]
+        text: String,
+        #[serde(default)]
+        time: String,
+    },
     /// `delivery` waiting for player `to` until it is on a map.
     Deliver {
         to: String,

@@ -187,6 +187,13 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.npc_windows = vec![[5, 212], [6, 211], [7, 229]];
     // Booth flags (_ROLE_BOOTH_FLAG_NPC 16, Role.h) are where players open booths.
     s.gameplay.booth_spots = vec![16];
+    // The message boards (CDlgLevWord's tabs, channels 2201-2205); the guild's own is the
+    // fourth; posting from level 16 (packets spec B10).
+    s.gameplay.boards = ["Trade", "Friend", "Team", "Guild", "Other"]
+        .map(String::from)
+        .to_vec();
+    s.gameplay.guild_board = Some(3);
+    s.gameplay.board_min_level = 16;
     // Players enter in arrest mode, as the client asks at login (DlgMain.cpp 2176).
     s.gameplay.pk.start_mode = c3_core::settings::PkMode::Arrest;
     s.gameplay.guild_max_members = 800;

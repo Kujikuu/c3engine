@@ -1095,7 +1095,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] UI 148 CDlgListBox (whisper-name history): the 3 audit mismatches fixed (opened by 145-1185, Dialog24 at -3,-4, names bound and picked); what is left is under 145
   - [ ] UI 139 CDlgChat (chat options: filters and colours): draft only, 11 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 239 CDlgBlack (blacklist): draft only, 8 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 240 CDlgLevWord (message board): draft only, 10 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Message boards (packets spec 1111, B10): `gameplay.boards`, a guild's own board, posting from `board_min_level`, one post per author on the world state (ChatChannel::Board, Input::TakeDown, GM take-down); the Conquer front lists pages of 8 and reads posts (MsgMessageBoard 1111, MsgTalk 2201-2205)
+    - [x] engine, UI and front
+    - [ ] posts' text checked (CheckText) and the 2206 system board
+  - [ ] UI 240 CDlgLevWord (message board): 8 of 10 audit mismatches fixed
+    - [x] title Image371-373 by mode; tabs with frame 2 on the one chosen (`chosen=`); list, write and read modes; Send (StrRes 10362), Watch (10363 when none picked), Del, Up/Down/Refresh; OK posts (lines made one), Cancel Button7 / Button2; a row double-clicked whispers its author
+    - [ ] the dim block behind the edit in write and read modes (ShowBlock 0x99000000), the list arrows [240-1]/[240-2], Help
   - [ ] UI 5326 CDlgNorMsg (chat-log line handles): missing, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 218 CDlgLog (chat history viewer): missing, all mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 2232 / 2233 / 2234 native private chat windows and tray: missing, 5 mismatches (docs/conquer_ui_audit.md)

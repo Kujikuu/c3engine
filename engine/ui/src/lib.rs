@@ -263,6 +263,8 @@ const GUILD_NOTICE: &str = "guild.notice";
 const PROMPT_AMOUNT: &str = "prompt.amount";
 /// The words typed for a friend in the leave-word dialog.
 const WORD_TEXT: &str = "word.text";
+/// A message board post as typed.
+const BOARD_TEXT: &str = "board.text";
 /// What the hero's booth cries out, as typed.
 const BOOTH_CRY: &str = "booth.cry";
 /// The chat bar's list of names (TQ's CDlgListBox, hidden once a name is picked).
@@ -542,6 +544,10 @@ impl GameUi {
                     self.system(line, style::BAD);
                 }
             }
+            // An edit given the keyboard (`focus:board.text`).
+            _ if action.starts_with("focus:") => {
+                self.gui_state.focus = Some(action["focus:".len()..].to_owned());
+            }
             // An edit's text cleared (`clear:guild.notice`).
             _ if action.starts_with("clear:") => {
                 self.gui_state.fields.remove(&action["clear:".len()..]);
@@ -787,6 +793,30 @@ impl GameUi {
                     self.gui_state.word_to = from.clone();
                 }
             }
+            // The message board: a post written (its lines made one, as CDlgLevWord::OnBtnOk
+            // does), the picked one read (else StrRes 10363), taken down, its author whispered.
+            "board_post" => {
+                let text = self.gui_state.fields.remove(BOARD_TEXT).unwrap_or_default();
+                let text = text.replace(['\r', '\n'], " ");
+                let board = (self.gui_state.views.get("board")).and_then(|v| v.parse().ok());
+                if !text.trim().is_empty() {
+                    let channel = c3_game::ChatChannel::Board(board.unwrap_or(0));
+                    let to = String::new();
+                    actions.push(UiAction::Game(c3_game::Input::Chat { channel, to, text }));
+                    self.gui_state.views.insert("board_mode".into(), "0".into());
+                }
+            }
+            "board_watch" => {
+                let picked =
+                    (self.gui_state.views.get("board_pick")).and_then(|v| v.parse::<usize>().ok());
+                match picked {
+                    Some(_) => {
+                        self.gui_state.views.insert("board_mode".into(), "2".into());
+                    }
+                    None => self.run_action("tell:ini/StrRes.ini:10363", actions),
+                }
+            }
+            "board_del" | "board_whisper" => self.gui_state.board_pending = Some(action.to_owned()),
             "words_clear" => {
                 self.gui_state.words.clear();
                 self.gui_state.views.remove("word");
@@ -928,6 +958,26 @@ impl GameUi {
     /// is whispered, an offline one gets the leave-word dialog; and a whisper typed: sent, or
     /// to an offline friend asked to be left as words (StrRes 11022, CDlgOfflineMessage).
     fn contact_word(&mut self, view: &GameView, player: &Player, actions: &mut Vec<UiAction>) {
+        let data = gui_data::HeroData {
+            view,
+            player,
+            state: &self.gui_state,
+        };
+        let board_author = (self.gui_state.board_pending.as_ref())
+            .and_then(|_| Some(data.board_picked()?.author.clone()));
+        let board = (self.gui_state.views.get("board")).and_then(|v| v.parse().ok());
+        match (self.gui_state.board_pending.take().as_deref(), board_author) {
+            (Some("board_del"), Some(author)) => {
+                let board = board.unwrap_or(0);
+                actions.push(UiAction::Game(c3_game::Input::TakeDown { board, author }));
+            }
+            (Some("board_whisper"), Some(author)) => {
+                self.gui_state.fields.insert(CHAT_NAME.into(), author);
+                self.gui_state.views.insert("chat".into(), "whisper".into());
+                self.gui_state.focus = Some(CHAT_TEXT.into());
+            }
+            _ => {}
+        }
         let data = gui_data::HeroData {
             view,
             player,
@@ -1390,7 +1440,9 @@ impl GameUi {
                         }
                         // A friend or enemy picked (its details open by the list's action).
                         gui::GuiEvent::Item { list, index }
-                            if list == "friends.rows" || list == "enemies.rows" =>
+                            if list == "friends.rows"
+                                || list == "enemies.rows"
+                                || list == "board.rows" =>
                         {
                             let key = format!("{}_pick", list.trim_end_matches(".rows"));
                             picked_contact = Some((key, index));

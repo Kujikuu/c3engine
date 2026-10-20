@@ -41,7 +41,7 @@ mod world_state;
 /// A map made while playing, as the world state keeps it.
 pub use c3_script::MapCopyView;
 pub use teams::{Mate, TEAM_SIZE, TeamAction, TeamOp};
-pub use world_state::{GUILD_RELATIONS, Guild, WorldState};
+pub use world_state::{GUILD_RELATIONS, Guild, Post, WorldState};
 
 pub use booths::{Booth, BoothAction, MAX_WARES, Ware};
 pub use c3_core::settings::GameplaySettings;

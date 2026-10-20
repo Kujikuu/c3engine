@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 c3-core = { version = "0.1.0", path = "../core" }
 serde = { version = "1.0.229", features = ["derive"] }
 c3-scene = { version = "0.1.0", path = "../scene" }

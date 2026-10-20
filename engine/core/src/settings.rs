@@ -447,6 +447,14 @@ pub struct GameplaySettings {
     /// forge, gem and face NPCs): each `[kind, window number]`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub npc_windows: Vec<[u32; 2]>,
+    /// The message boards players post on, by name (TQ's trade, friend, team, guild and
+    /// other boards); the one each guild has its own of; the level a player posts from.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub boards: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guild_board: Option<u8>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub board_min_level: u32,
     /// NPC kinds that are booth spots: a player there may open a booth (TQ's booth flags).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub booth_spots: Vec<u32>,
@@ -532,6 +540,9 @@ impl Default for GameplaySettings {
             guild_chat_min_fund: 0,
             npc_windows: Vec::new(),
             booth_spots: Vec::new(),
+            boards: Vec::new(),
+            guild_board: None,
+            board_min_level: 0,
             guild_max_members: 0,
             team_exp_range: 0,
             loot_protection_seconds: 0.0,

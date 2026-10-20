@@ -536,6 +536,43 @@ pub fn item_info(i: &ItemInfo) -> Vec<u8> {
     })
 }
 
+/// MsgMessageBoard (1111) action 3: a page of board `channel`'s posts from `index`, each its
+/// author, its words (31 letters) and its time.
+pub fn board_list(index: u16, channel: u16, posts: &[(&str, &str, &str)]) -> Vec<u8> {
+    packet(MESSAGE_BOARD, |w| {
+        w.u16(index).u16(channel).u8(board::LIST);
+        let words: Vec<String> = posts
+            .iter()
+            .map(|p| p.1.chars().take(31).collect())
+            .collect();
+        let mut list = Vec::new();
+        for (post, words) in posts.iter().zip(&words) {
+            list.extend([post.0, words.as_str(), post.2]);
+        }
+        strings(w, &list);
+    })
+}
+
+/// A message board post read: MsgTalk on the board's channel with its time as the suffix.
+pub fn board_words(channel: u16, author: &str, words: &str, time: &str) -> Vec<u8> {
+    packet(TALK, |w| {
+        w.u32(0x00FF_FFFF).u16(channel).u16(0).u32(0).u32(0).u32(0);
+        let words: String = words.chars().take(255).collect();
+        strings(w, &[author, "ALLUSERS", time, &words]);
+    })
+}
+
+pub const MESSAGE_BOARD: u16 = 1111;
+/// MsgMessageBoard actions (MsgBoard.h); the boards' talk channels (_TXTATR_MSG_TRADE on).
+pub mod board {
+    pub const DEL: u8 = 1;
+    pub const GET_LIST: u8 = 2;
+    pub const LIST: u8 = 3;
+    pub const GET_WORDS: u8 = 4;
+    pub const FIRST_CHANNEL: u16 = 2201;
+    pub const PAGE: usize = 8;
+}
+
 /// MsgItemInfoEx (1108): booth `owner`'s ware `i` at `price` (mode 1 silver, 3 CPs).
 pub fn item_info_ex(i: &ItemInfo, owner: u32, price: u32, mode: u8) -> Vec<u8> {
     packet(ITEM_INFO_EX, |w| {
@@ -841,6 +878,14 @@ pub fn dialog_with(action: u8, index: u8, data: u16, text: &str) -> Vec<u8> {
 /// What a client asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
+    /// A message board asked about (1111): its channel (2201-2205), the first post of a
+    /// page, the action (1 take down, 2 list, 4 read) and a name (whose post).
+    Board {
+        index: u16,
+        channel: u16,
+        action: u8,
+        name: String,
+    },
     /// Account login (1051): the password RC5-sealed.
     Account {
         account: String,
@@ -1122,6 +1167,18 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 action,
                 index,
                 text: text.unwrap_or_default(),
+            }
+        }
+        MESSAGE_BOARD => {
+            let index = r.u16()?;
+            let channel = r.u16()?;
+            let action = r.u8()?;
+            let name = (r.u8().ok().filter(|&n| n > 0)).and_then(|_| r.short_str().ok());
+            Request::Board {
+                index,
+                channel,
+                action,
+                name: name.unwrap_or_default(),
             }
         }
         TALK => {

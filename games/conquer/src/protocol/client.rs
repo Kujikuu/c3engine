@@ -463,6 +463,9 @@ pub struct ConquerClient {
     seen_guilds: HashMap<EntityId, u32>,
     /// The owner of the booth whose goods the client asked for.
     booth_asked: Option<EntityId>,
+    /// A message board asked about: its channel, the first post of the page, and whose post
+    /// to read (empty: the page).
+    board_asked: Option<(u16, u16, String)>,
     /// Words friends left, given before the client loaded its map (shown once it has, as
     /// TQ gives them on MsgAction 76).
     held_words: Vec<Vec<u8>>,
@@ -480,6 +483,32 @@ impl ConquerClient {
             _ => None,
         });
         (seen.chain(self.me.as_ref())).find(|p| p.booth.is_some() && booth_id(p.id) == id)
+    }
+
+    /// A message board's page of posts from `index`, or `name`'s post read (packets 1111).
+    fn board(&self, sim: &Sim, channel: u16, index: u16, name: &str) -> Option<Vec<u8>> {
+        let me = self.me.as_ref()?;
+        let board = u8::try_from(channel.checked_sub(pk::board::FIRST_CHANNEL)?).ok()?;
+        let key = sim.board_key(board, &me.name)?;
+        let posts = sim
+            .world_state()
+            .boards
+            .get(&key)
+            .map_or(&[][..], Vec::as_slice);
+        if !name.is_empty() {
+            let post = posts.iter().find(|p| p.author == name)?;
+            return Some(pk::board_words(
+                channel,
+                &post.author,
+                &post.text,
+                &post.time,
+            ));
+        }
+        let page: Vec<(&str, &str, &str)> = (posts.iter().skip(usize::from(index)))
+            .take(pk::board::PAGE)
+            .map(|p| (p.author.as_str(), p.text.as_str(), p.time.as_str()))
+            .collect();
+        Some(pk::board_list(index, channel, &page))
     }
 
     /// Booth `owner`'s goods, last first, and its cry (booth_trade spec §1.5).
@@ -763,6 +792,9 @@ impl ConquerClient {
         let mut out = Vec::new();
         if let Some(owner) = self.booth_asked.take() {
             out.extend(self.booth_goods(owner, sim));
+        }
+        if let Some((channel, index, name)) = self.board_asked.take() {
+            out.extend(self.board(sim, channel, index, &name));
         }
         let hero = self.hero;
         for state in &update.changed {
@@ -1365,6 +1397,10 @@ impl ConquerClient {
                         channel::LEAVE_WORD,
                         self.me.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
                     ),
+                    c3_game::ChatChannel::Board(n) => (
+                        pk::board::FIRST_CHANNEL + u16::from(*n),
+                        "ALLUSERS".to_owned(),
+                    ),
                 };
                 let colour = match on {
                     c3_game::ChatChannel::LeaveWord => 0,
@@ -1913,6 +1949,27 @@ impl ConquerClient {
                 }
             }),
             Request::Ping(packet) => out.push(packet),
+            // A message board: a post taken down, a page listed, a post read.
+            Request::Board {
+                index,
+                channel: code,
+                action: a,
+                name,
+            } => match a {
+                pk::board::DEL => {
+                    if let Some(board) = code.checked_sub(pk::board::FIRST_CHANNEL) {
+                        inputs.push(Input::TakeDown {
+                            board: board as u8,
+                            author: name,
+                        });
+                    }
+                }
+                pk::board::GET_LIST => self.board_asked = Some((code, index, String::new())),
+                pk::board::GET_WORDS if !name.is_empty() => {
+                    self.board_asked = Some((code, index, name));
+                }
+                _ => {}
+            },
             Request::Talk {
                 channel: code,
                 hearer,
@@ -1925,6 +1982,8 @@ impl ConquerClient {
                     channel::GUILD => Some(C::Guild),
                     channel::FRIEND => Some(C::Friend),
                     channel::LEAVE_WORD => Some(C::LeaveWord),
+                    // A post on a message board (2201 trade .. 2205 other).
+                    2201..=2205 => Some(C::Board((code - pk::board::FIRST_CHANNEL) as u8)),
                     _ => None,
                 };
                 inputs.push(match on {

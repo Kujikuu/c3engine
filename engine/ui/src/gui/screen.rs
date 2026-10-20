@@ -565,10 +565,13 @@ impl Painter<'_, '_> {
                     sense
                 };
                 let response = self.ui.interact(rect, id, sense);
+                let chosen = !control.chosen.is_empty() && expression(&control.chosen, data);
                 let frame = if disabled {
                     2
                 } else if latched {
                     1
+                } else if chosen {
+                    2
                 } else if control.kind == ControlKind::Check {
                     usize::from(expression(&control.value, data))
                 } else if response.is_pointer_button_down_on() {

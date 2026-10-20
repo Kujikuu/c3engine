@@ -51,6 +51,8 @@ pub(crate) struct GuiState {
     /// A contact list's row double-clicked: whisper an online friend, leave words for an
     /// offline one (in that dialog).
     pub contact_word: Option<(String, u32)>,
+    /// A message board button needing the post picked: taking it down, whispering its author.
+    pub board_pending: Option<String>,
     /// A whisper waiting to be checked: sent, or (to an offline friend) asked to be left as
     /// words.
     pub whisper: Option<(String, String)>,
@@ -63,6 +65,9 @@ pub(crate) struct GuiState {
     /// bounds it.
     pub steps: Vec<(String, i64, String)>,
 }
+
+/// The posts a message board's page lists (MsgMessageBoard's lists of 8).
+const BOARD_PAGE: usize = 8;
 
 /// The guild members a page lists (CDlgKnightage's MEMBER_PAGE_SIZE).
 const GUILD_PAGE: usize = 10;
@@ -251,6 +256,21 @@ impl HeroData<'_> {
     /// The words picked in the received-words dialog (`view:word`): who left them and what.
     fn word_shown(&self) -> Option<&(String, String)> {
         self.state.words.get(self.view_number("word"))
+    }
+
+    /// The posts of the message board shown (`view:board`), the newest first.
+    fn board_posts(&self) -> &[c3_game::Post] {
+        let sim = self.view.sim;
+        let board = u8::try_from(self.view_number("board")).unwrap_or(0);
+        (sim.board_key(board, &self.player.name))
+            .and_then(|key| sim.world_state().boards.get(&key))
+            .map_or(&[][..], Vec::as_slice)
+    }
+
+    /// The post picked on the board's page (`view:board_pick`).
+    pub(crate) fn board_picked(&self) -> Option<&c3_game::Post> {
+        let row: usize = self.state.views.get("board_pick")?.parse().ok()?;
+        self.board_posts().get(self.view_number("board_page") + row)
     }
 
     /// Whether `name` is the hero's friend and offline (words may be left for it).
@@ -473,6 +493,14 @@ impl GuiData for HeroData<'_> {
             // Words left for the hero: how many, whether there are words before or after
             // those shown, and whether their sender may be answered (an offline friend).
             "words.count" => self.state.words.len() as f64,
+            // The message board: its posts, the mode (0 list, 1 writing, 2 reading), the tab
+            // chosen (`board.tab.0`).
+            "board.count" => self.board_posts().len() as f64,
+            "board.mode" => self.view_number("board_mode") as f64,
+            _ if key.starts_with("board.tab.") => {
+                let tab: usize = key.strip_prefix("board.tab.")?.parse().ok()?;
+                u8::from(self.view_number("board") == tab).into()
+            }
             "word.prev" => u8::from(self.view_number("word") > 0).into(),
             "word.next" => u8::from(self.view_number("word") + 1 < self.state.words.len()).into(),
             "word.can_reply" => u8::from(
@@ -603,7 +631,15 @@ impl GuiData for HeroData<'_> {
             "word.to" => Some(self.state.word_to.clone()),
             "word.from" => Some(self.word_shown().map(|w| w.0.clone()).unwrap_or_default()),
             "word.said" => Some(self.word_shown().map(|w| w.1.clone()).unwrap_or_default()),
-            "word.text" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
+            "word.text" | "board.text" => {
+                Some(self.state.fields.get(key).cloned().unwrap_or_default())
+            }
+            // The post read on the message board.
+            "board.read" => Some(
+                self.board_picked()
+                    .map(|p| p.text.clone())
+                    .unwrap_or_default(),
+            ),
             // A booth slot's price (`booth.theirs.price.0`), empty when the slot is.
             _ if Self::booth_slot(key, "price").is_some() => {
                 let (whose, n) = Self::booth_slot(key, "price")?;
@@ -819,6 +855,19 @@ impl GuiData for HeroData<'_> {
                     .map(|r| r.action.label().to_owned())
                     .collect();
                 let picked = (self.state.views.get("hotkey_pick")).and_then(|v| v.parse().ok());
+                (rows, picked)
+            }
+            // The message board's page of 8: its words (31 letters), author and time, as
+            // CDlgLevWord lists them.
+            "board.rows" => {
+                let first = self.view_number("board_page");
+                let rows = (self.board_posts().iter().skip(first).take(BOARD_PAGE))
+                    .map(|p| {
+                        let title: String = p.text.chars().take(31).collect();
+                        format!("{title}  {}  {}", p.author, p.time)
+                    })
+                    .collect();
+                let picked = (self.state.views.get("board_pick")).and_then(|v| v.parse().ok());
                 (rows, picked)
             }
             // The hero's friends, online first, and its enemies.

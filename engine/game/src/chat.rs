@@ -23,6 +23,8 @@ pub enum ChatChannel {
     Friend,
     /// Words left for a friend who is offline, given when it next comes (TQ's leave words).
     LeaveWord,
+    /// A post on message board `0` (the settings' `boards`), one per author.
+    Board(u8),
 }
 
 /// How long a player waits between leaving words (TQ's 60 s, social spec §5).
@@ -51,6 +53,9 @@ impl Sim {
         }
         if channel == ChatChannel::LeaveWord {
             return self.leave_word(id, &name, to.trim(), &text);
+        }
+        if let ChatChannel::Board(board) = channel {
+            return self.post(id, board, &text);
         }
         let hearer = match channel {
             ChatChannel::Whisper => to.trim().to_owned(),
@@ -105,7 +110,7 @@ impl Sim {
                 }
                 friends
             }
-            ChatChannel::LeaveWord => return,
+            ChatChannel::LeaveWord | ChatChannel::Board(_) => return,
             ChatChannel::Guild => {
                 let Some((guild, _)) = self.world.guild_of(&name) else {
                     self.message(id, "You are in no guild.");
@@ -158,6 +163,63 @@ impl Sim {
         let to = to.to_owned();
         self.change_world(c3_script::WorldChange::Deliver { to, delivery });
         self.message(id, "The message has been sent.");
+    }
+
+    /// The world state's key of message board `board` for player `name`: its guild's own when
+    /// it is the guild board (none outside a guild), else the board's number.
+    pub fn board_key(&self, board: u8, name: &str) -> Option<String> {
+        if usize::from(board) >= self.settings.boards.len() {
+            return None;
+        }
+        match self.settings.guild_board == Some(board) {
+            true => Some(format!("{board}:{}", self.world.guild_of(name)?.0)),
+            false => Some(board.to_string()),
+        }
+    }
+
+    /// Player `id` posts `text` on message board `board` (in place of its post there): from
+    /// the board level up (social spec, MsgMessageBoard 1111).
+    fn post(&mut self, id: EntityId, board: u8, text: &str) {
+        let Some(p) = self.players.get(&id) else {
+            return;
+        };
+        if p.level < self.settings.board_min_level {
+            let level = self.settings.board_min_level;
+            return self.message(id, format!("You must be level {level} to post."));
+        }
+        let author = p.name.clone();
+        let Some(board) = self.board_key(board, &author) else {
+            return self.message(id, "You are in no guild.");
+        };
+        let time = chrono::Local::now().format("%Y%m%d%H%M%S").to_string();
+        let text = text.to_owned();
+        self.change_world(c3_script::WorldChange::Post {
+            board,
+            author,
+            text,
+            time,
+        });
+    }
+
+    /// Player `id` takes `author`'s post off message board `board`: its own, or anyone's for
+    /// a game master (TQ's GM/PM delete).
+    pub(crate) fn take_down(&mut self, id: EntityId, board: u8, author: &str) {
+        let Some(name) = self.players.get(&id).map(|p| p.name.clone()) else {
+            return;
+        };
+        let author = match self.settings.is_gm(&name) && !author.is_empty() {
+            true => author.to_owned(),
+            false => name.clone(),
+        };
+        if let Some(board) = self.board_key(board, &name) {
+            let (text, time) = (String::new(), String::new());
+            self.change_world(c3_script::WorldChange::Post {
+                board,
+                author,
+                text,
+                time,
+            });
+        }
     }
 
     /// Chat lines for players on other maps, by their names (the host carries them).

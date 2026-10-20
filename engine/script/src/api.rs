@@ -1944,6 +1944,7 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::MapCopy { .. }
         | WorldChange::Online { .. }
         | WorldChange::Deliver { .. }
+        | WorldChange::Post { .. }
         | WorldChange::Delivered { .. } => {}
     }
 }

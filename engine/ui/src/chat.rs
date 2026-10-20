@@ -158,6 +158,8 @@ impl Chat {
                     C::Guild => (&look.guild, &look.everyone),
                     C::Friend => (&look.friend, &look.everyone),
                     C::LeaveWord => (&look.leave_word, hearer),
+                    // Board posts are read on their board, not said.
+                    C::Board(_) => return,
                 };
                 let clock = match look.clock {
                     true => {
@@ -185,6 +187,7 @@ impl Chat {
                     c3_game::ChatChannel::Guild => "[Guild] ",
                     c3_game::ChatChannel::Friend => "[Friend] ",
                     c3_game::ChatChannel::LeaveWord => "[Message] ",
+                    c3_game::ChatChannel::Board(_) => "[Board] ",
                 };
                 Some((format!("{tag}{name}: {text}"), style::TEXT))
             }

@@ -303,6 +303,9 @@ pub struct Control {
     pub disabled: String,
     /// A button held down once used (`latched=trade.i_agreed`): its frame 1, no clicks.
     pub latched: String,
+    /// A tab button showing it is the one chosen (`chosen=board.tab.0`): its frame 2, still
+    /// clickable (TQ's SetCurFrame(2)).
+    pub chosen: String,
     /// The most characters an edit takes (0: any), or a binding that says (`limit_of=`).
     pub limit: usize,
     pub limit_of: String,
@@ -428,6 +431,7 @@ impl Control {
             digits: section.int("digits").is_some_and(|d| d != 0),
             disabled: text("disabled"),
             latched: text("latched"),
+            chosen: text("chosen"),
             limit: section.int("limit").unwrap_or(0).max(0) as usize,
             limit_of: text("limit_of"),
             mark: text("mark"),

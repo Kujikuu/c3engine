@@ -2395,3 +2395,47 @@ fn words_left_for_an_offline_friend_wait_until_it_comes() {
     assert!(given, "Bob gets Ann's words when he comes");
     assert!(sim.world_state().deliveries.is_empty());
 }
+
+#[test]
+fn a_message_board_keeps_one_post_per_author() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    sim.set_settings(GameplaySettings {
+        boards: vec!["Trade".into(), "Other".into()],
+        board_min_level: 16,
+        gm_everyone: false,
+        ..GameplaySettings::default()
+    });
+    let low = sim.add_player("Low", (5, 5), 10);
+    let a = sim.add_player("Ann", (5, 6), 20);
+    let b = sim.add_player("Bob", (5, 7), 20);
+    let post = |text: &str| Input::Chat {
+        channel: crate::ChatChannel::Board(0),
+        to: String::new(),
+        text: text.into(),
+    };
+    sim.input(low, post("too young"));
+    sim.input(a, post("selling a blade"));
+    sim.input(a, post("selling two blades"));
+    sim.input(b, post("buying gems"));
+    let board = |sim: &Sim| -> Vec<(String, String)> {
+        (sim.world_state().boards.get("0").into_iter().flatten())
+            .map(|p| (p.author.clone(), p.text.clone()))
+            .collect()
+    };
+    assert_eq!(
+        board(&sim),
+        [
+            ("Bob".to_owned(), "buying gems".to_owned()),
+            ("Ann".to_owned(), "selling two blades".to_owned())
+        ]
+    );
+    sim.input(
+        b,
+        Input::TakeDown {
+            board: 0,
+            author: "Ann".into(),
+        },
+    );
+    assert_eq!(board(&sim).len(), 1, "Bob takes down his own, not Ann's");
+    assert_eq!(board(&sim)[0].0, "Ann");
+}
