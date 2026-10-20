@@ -40,6 +40,7 @@ SLOTS = {
 # message board the middle (OnMainLeaveWord), improve / faces / gems / booths all three.
 CLEARS = {
     137: "right",
+    138: "131,160,269",
     240: "middle",
     211: "left,right",
     212: "left,right",

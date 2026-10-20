@@ -903,10 +903,35 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the suspicious-item reif effect
     - [ ] repair mode
     - [ ] slide-in from the right; bag and 287 hiding each other
-  - [ ] UI 131 CDlgQuery (status): partial, 11 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 132 CDlgQuery_Role (role page): partial, 5 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 134 CDlgQueryWeapon (weapon skills page): partial, 6 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 135 CDlgEquip (equipment page): partial, 7 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 131 CDlgQuery (status): 6 of 11 audit mismatches fixed
+    - [x] tab checks lit for their page, the role's first (check values take `when` expressions); the weapons' tab a pixel lower
+    - [x] opens only when the right part is free of a shop, warehouse, workbench, lock list or guild (`blocked=`); the right part's rule closes others
+    - [x] hidden by shop close and setup (`clears=131,160,269`); Esc closes it
+    - [ ] skills tab 1028 and page 163
+    - [ ] power button 1464, battle-power digits and 286/287
+    - [ ] help 1667 by page (CDlgHelp 215)
+    - [ ] slide-in, open/close sounds; hotkeys 20/21/22/43
+  - [ ] UI 132 CDlgQuery_Role (role page): 3 of 5 audit mismatches fixed
+    - [x] PK in the client's colours (red 20-99, yellow below 0, black from 100)
+    - [x] spouse and guild "None" (StrRes 10075) when there is none (text bindings count as set when not empty)
+    - [x] add buttons play AddPoint.wav
+    - [ ] the PK title prefix from Common.ini [PkTitle]
+    - [ ] the details from GetMinAtk/GetMaxAtk/GetDef with item additions and gem percents rather than the rules' shown values
+  - [ ] UI 134 CDlgQueryWeapon (weapon skills page): 1 of 6 audit mismatches fixed
+    - [x] "other" holds every type that is neither 4xx nor 5xx (attribute ranges between commas)
+    - [ ] levels as Weaponlevel5/1/20 pips
+    - [ ] a clicked icon's name, level, exp percent and description
+    - [ ] paging by 6 while more exist
+    - [ ] arrival order and level-0 skills
+    - [ ] help topic 11
+  - [ ] UI 135 CDlgEquip (equipment page): 3 of 7 audit mismatches fixed
+    - [x] treasure 1679 and mount 1680 places
+    - [x] left hand only for professions that hold one, over Image160
+    - [x] hover tooltips; pick-up and put-down to wear and take off (UI engine: items in grids)
+    - [ ] donation and nobility images (nob_<rank>64)
+    - [ ] the hero's model at +80,+225
+    - [ ] double-click to take off; requirement checks on wearing
+    - [ ] colour variants and +N
   - [ ] UI 163 CDlgSkill (skills page of 131): missing, 1 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 286 CDlgBattlePower: draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 287 CDlgBattlePowerDetail: draft only, 4 mismatches (docs/conquer_ui_audit.md)

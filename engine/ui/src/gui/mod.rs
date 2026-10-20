@@ -221,7 +221,8 @@ pub struct Control {
     /// The screen part a dialog takes (`left`, `middle`, `right`; TQ's CDlgMain owners):
     /// opening it closes the one there. None: it closes nothing (the HUD strips).
     pub slot: String,
-    /// Other parts a dialog clears as it opens (`clears=right`; a trade).
+    /// Other parts, or dialogs by number, a dialog clears as it opens (`clears=right`: a
+    /// trade; `clears=131,160`: the setup hiding the status).
     pub clears: String,
     /// Esc closes the dialog too, with the right part's (the bag).
     pub esc: bool,
@@ -231,6 +232,9 @@ pub struct Control {
     pub hides: Vec<u32>,
     /// Numbers in its text with thousands commas (`commas=1`; TQ's StringChange).
     pub commas: bool,
+    /// Dialogs that keep it from opening while they show (`blocked=152,161`: the status not
+    /// over a shop or warehouse, as OnMainQuery checks the right part's owner).
+    pub blocked: Vec<u32>,
     /// A grid whose items are picked up with the left button and put down in another grid,
     /// the right button using one (`pick=1`; TQ's CMyGrid).
     pub pick: bool,
@@ -351,6 +355,7 @@ impl Control {
             opens: ids("opens"),
             hides: ids("hides"),
             commas: section.int("commas").is_some_and(|c| c != 0),
+            blocked: ids("blocked"),
             pick: section.int("pick").is_some_and(|p| p != 0),
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
@@ -484,13 +489,18 @@ impl Gui {
             self.open.insert(id);
             return;
         };
-        let parts: Vec<&str> = std::iter::once(dialog.slot.as_str())
+        if dialog.blocked.iter().any(|&b| self.showing(b)) {
+            return;
+        }
+        let cleared: Vec<&str> = std::iter::once(dialog.slot.as_str())
             .chain(dialog.clears.split(',').map(str::trim))
             .filter(|p| !p.is_empty())
             .collect();
         let taken: Vec<u32> = (self.dialogs())
-            .filter(|d| d.id != id && self.open.contains(&d.id))
-            .filter(|d| parts.contains(&d.slot.as_str()))
+            .filter(|d| d.id != id && self.showing(d.id))
+            .filter(|d| {
+                cleared.contains(&d.slot.as_str()) || cleared.contains(&d.id.to_string().as_str())
+            })
             .map(|d| d.id)
             .collect();
         let opens = dialog.opens.clone();
@@ -502,6 +512,11 @@ impl Gui {
         for with in opens {
             self.open(with);
         }
+    }
+
+    /// Whether dialog `id` shows: opened, or shown by its `when` and not closed.
+    fn showing(&self, id: u32) -> bool {
+        self.open.contains(&id) || (self.when_shown.contains(&id) && !self.dismissed.contains(&id))
     }
 
     /// Closes dialog `id` (dismissing it when its `when` shows it), and those it hides.
@@ -539,12 +554,8 @@ impl Gui {
     /// Esc: closes the right part's dialog and those Esc closes with it (the bag), as TQ's
     /// shell does; whether one was open.
     pub fn escape(&mut self) -> bool {
-        let showing = |d: &Control| {
-            self.open.contains(&d.id)
-                || (self.when_shown.contains(&d.id) && !self.dismissed.contains(&d.id))
-        };
         let closing: Vec<u32> = (self.dialogs())
-            .filter(|d| showing(d) && (d.slot == "right" || d.esc))
+            .filter(|d| self.showing(d.id) && (d.slot == "right" || d.esc))
             .map(|d| d.id)
             .collect();
         for &id in &closing {
@@ -617,8 +628,7 @@ impl Gui {
 
     /// Opens dialog `id`, or closes it when it shows; whether it shows now.
     pub fn toggle(&mut self, id: u32) -> bool {
-        let by_when = self.when_shown.contains(&id) && !self.dismissed.contains(&id);
-        if self.open.contains(&id) || by_when {
+        if self.showing(id) {
             self.shut(id);
             return false;
         }

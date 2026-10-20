@@ -132,9 +132,14 @@ impl HeroData<'_> {
     fn attr_entry(&self, key: &str) -> Option<(i64, i64)> {
         let spec = key.split_once('.')?.1.split_once('.')?.1;
         let (prefix, rest) = spec.split_once('.')?;
-        let (range, n) = rest.split_once('.')?;
-        let (low, high) = range.split_once('-')?;
-        let (low, high): (i64, i64) = (low.parse().ok()?, high.parse().ok()?);
+        let (ranges, n) = rest.split_once('.')?;
+        // `low-high`, or several between commas (`0-399,600-999999`).
+        let ranges: Vec<(i64, i64)> = (ranges.split(','))
+            .map(|r| {
+                let (low, high) = r.split_once('-')?;
+                Some((low.parse().ok()?, high.parse().ok()?))
+            })
+            .collect::<Option<_>>()?;
         let (n, group) = n.split_once('+').map_or((n, None), |(n, g)| (n, Some(g)));
         let offset = group
             .and_then(|g| self.state.views.get(g))
@@ -144,7 +149,8 @@ impl HeroData<'_> {
         let mut found: Vec<(i64, i64)> = (self.player.attributes.iter())
             .filter_map(|(name, &value)| {
                 let number: i64 = name.strip_prefix(prefix)?.parse().ok()?;
-                ((low..=high).contains(&number) && value > 0).then_some((number, value))
+                let within = ranges.iter().any(|&(low, high)| (low..=high).contains(&number));
+                (within && value > 0).then_some((number, value))
             })
             .collect();
         found.sort_unstable();

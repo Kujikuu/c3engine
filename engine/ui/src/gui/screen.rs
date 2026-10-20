@@ -335,14 +335,24 @@ pub(super) fn holds(control: &Control, data: &dyn GuiData) -> bool {
 /// between `&`; a term is a binding set (not 0), `!` one unset, or a comparison of a binding
 /// with a number or another binding (`hero.level>=70`).
 fn set(control: &Control, data: &dyn GuiData) -> bool {
+    expression(&control.when, data)
+}
+
+/// Whether a `when`-style expression holds (a check's lit frame takes one too). A binding is
+/// set when its number is not 0, or, without a number, when its text is not empty.
+fn expression(text: &str, data: &dyn GuiData) -> bool {
+    let is_set = |w: &str| match data.number(w) {
+        Some(v) => v != 0.0,
+        None => data.text(w).is_some_and(|t| !t.is_empty()),
+    };
     let holds = |w: &str| match compare(w, data) {
         Some(holds) => holds,
         None => match w.strip_prefix('!') {
-            Some(w) => data.number(w).is_none_or(|v| v == 0.0),
-            None => data.number(w).is_some_and(|v| v != 0.0),
+            Some(w) => !is_set(w),
+            None => is_set(w),
         },
     };
-    (control.when.split('|').filter(|w| !w.is_empty())).any(|w| w.split('&').all(holds))
+    (text.split('|').filter(|w| !w.is_empty())).any(|w| w.split('&').all(holds))
 }
 
 /// A comparison term (`a>=b`, `<=`, `!=`, `>`, `<`, `=`), each side a number or a binding
@@ -526,7 +536,7 @@ impl Painter<'_, '_> {
                 };
                 let response = self.ui.interact(rect, id, sense);
                 let frame = if control.kind == ControlKind::Check {
-                    usize::from(data.number(&control.value).is_some_and(|v| v != 0.0))
+                    usize::from(expression(&control.value, data))
                 } else if response.is_pointer_button_down_on() {
                     1
                 } else if self.live && response.hovered() && frames.len() > 2 {
