@@ -235,6 +235,9 @@ pub struct Control {
     /// Dialogs that keep it from opening while they show (`blocked=152,161`: the status not
     /// over a shop or warehouse, as OnMainQuery checks the right part's owner).
     pub blocked: Vec<u32>,
+    /// A grid showing its list from the number view group `<group>` holds (`offset=shop_page`;
+    /// a shop's later pages).
+    pub offset: String,
     /// A grid whose items are picked up with the left button and put down in another grid,
     /// the right button using one (`pick=1`; TQ's CMyGrid).
     pub pick: bool,
@@ -357,6 +360,7 @@ impl Control {
             commas: section.int("commas").is_some_and(|c| c != 0),
             blocked: ids("blocked"),
             pick: section.int("pick").is_some_and(|p| p != 0),
+            offset: text("offset"),
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),

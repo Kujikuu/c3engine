@@ -260,8 +260,16 @@ pub fn table_templates() -> Vec<Table> {
                 int("id", "The row"),
                 int("npc", "The NPC selling"),
                 int("item", "The item type sold"),
+                text(
+                    "currency",
+                    "The currency it is sold for (empty: the item's own)",
+                ),
             ],
-            vec![ints(&[1, 1, 1]).collect()],
+            vec![
+                ints(&[1, 1, 1])
+                    .chain([Value::Text(String::new())])
+                    .collect(),
+            ],
         ),
         table(
             SKILLS,
@@ -405,6 +413,8 @@ pub struct DataRules {
     items: HashMap<u32, ItemType>,
     levels: BTreeMap<u32, Level>,
     shops: HashMap<u32, Vec<u32>>,
+    /// The currency an NPC sells an item for, when not the item's own.
+    shop_currencies: HashMap<(u32, u32), String>,
     skills: HashMap<u32, SkillType>,
     /// Skills at their ranks above the first, by skill and rank.
     skill_ranks: HashMap<(u32, u32), SkillType>,
@@ -548,10 +558,12 @@ impl DataRules {
                 STATUSES => self.read_statuses(t),
                 SHOPS => {
                     for row in rows(t) {
-                        self.shops
-                            .entry(row.uint("npc"))
-                            .or_default()
-                            .push(row.uint("item"));
+                        let (npc, item) = (row.uint("npc"), row.uint("item"));
+                        self.shops.entry(npc).or_default().push(item);
+                        let currency = row.text("currency");
+                        if !currency.is_empty() {
+                            (self.shop_currencies).insert((npc, item), currency.to_owned());
+                        }
                     }
                 }
                 _ => {}
@@ -1029,6 +1041,10 @@ impl Rules for DataRules {
 
     fn shop(&self, npc: u32) -> &[u32] {
         self.shops.get(&npc).map_or(&[], Vec::as_slice)
+    }
+
+    fn shop_currency(&self, npc: u32, kind: u32) -> Option<&str> {
+        self.shop_currencies.get(&(npc, kind)).map(String::as_str)
     }
 
     fn skill(&self, id: u32) -> Option<&SkillType> {

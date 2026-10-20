@@ -179,6 +179,19 @@ pub struct ItemType {
     pub facts: std::collections::BTreeMap<String, i64>,
 }
 
+impl ItemType {
+    /// Its price in `currency` (empty: the money): its price in its own currency, else its
+    /// `price_<currency>` fact (a CP price beside a silver one); none when it has no price
+    /// there.
+    pub fn price_in(&self, currency: &str) -> Option<u64> {
+        if currency == self.currency {
+            return Some(self.price);
+        }
+        let price = *self.facts.get(&format!("price_{currency}"))?;
+        u64::try_from(price).ok().filter(|&p| p > 0)
+    }
+}
+
 /// What a skill is aimed at.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SkillTarget {
@@ -327,6 +340,12 @@ pub trait Rules: std::any::Any {
     /// Item types NPC `npc` sells (empty if it has no shop).
     fn shop(&self, npc: u32) -> &[u32];
 
+    /// The currency NPC `npc` sells item type `kind` for, when not the item's own (TQ's CP
+    /// shops: `cq_goods.moneytype`).
+    fn shop_currency(&self, _npc: u32, _kind: u32) -> Option<&str> {
+        None
+    }
+
     /// A skill players may learn.
     fn skill(&self, _id: u32) -> Option<&SkillType> {
         None
@@ -392,5 +411,22 @@ pub trait Rules: std::any::Any {
 
     fn take_problems(&self) -> Vec<String> {
         Vec::new()
+    }
+}
+
+#[cfg(test)]
+mod price_tests {
+    use super::ItemType;
+
+    #[test]
+    fn an_item_is_priced_in_its_currency_or_by_its_fact() {
+        let mut t = ItemType {
+            price: 300,
+            ..Default::default()
+        };
+        t.facts.insert("price_CPs".into(), 27);
+        assert_eq!(t.price_in(""), Some(300));
+        assert_eq!(t.price_in("CPs"), Some(27));
+        assert_eq!(t.price_in("Gold"), None);
     }
 }

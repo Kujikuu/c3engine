@@ -935,7 +935,16 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 163 CDlgSkill (skills page of 131): missing, 1 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 286 CDlgBattlePower: draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 287 CDlgBattlePowerDetail: draft only, 4 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 152 CDlgNpcBuy (NPC shop): partial, 14 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 152 CDlgNpcBuy (NPC shop): 6 of 14 audit mismatches fixed
+    - [x] CP shops draw Dialog58 and hide Fix (`shop.priced_in.CPs`); wares are sold for the shop's currency (`cq_goods.moneytype` → the shops table's `currency`, items' `price_CPs`; `Rules::shop_currency`, `ItemType::price_in`)
+    - [x] paging 20 wares with Button203/204 and ChangePage.wav (`offset=` grids, `view_step:` bounded by `count.<list>`)
+    - [x] buying by the right button or a drag onto the bag; selling by a drag from the bag
+    - [x] Esc closes it; the frame a pixel up
+    - [ ] Fix 1105: the repair cursor and prompt
+    - [ ] help 1667 (CDlgHelp, 45 for CP shops)
+    - [ ] a CP buy asks the amount (290); a valuable sold asks first (IMPTITEM_CONFIRM)
+    - [ ] price rows in the tooltip; +N and colour on wares
+    - [ ] slide-in and DlgOpen/DlgClose; refused while trading or with an NPC booth open
   - [ ] UI 161 CDlgDepot (warehouse): partial, 14 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 141 CDlgGroup (team): partial, 13 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 268 CMenuGroup (team options): partial, 3 mismatches (docs/conquer_ui_audit.md)

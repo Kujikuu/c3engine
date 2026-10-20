@@ -36,6 +36,9 @@ pub(crate) struct GuiState {
     pub answering: bool,
     /// The item picked up from a grid: its list and slot.
     pub held: Option<(String, usize)>,
+    /// View-number steps asked for (`view_step:`): the group, the step and the binding that
+    /// bounds it.
+    pub steps: Vec<(String, i64, String)>,
 }
 
 /// The most items a workbench holds.
@@ -149,7 +152,9 @@ impl HeroData<'_> {
         let mut found: Vec<(i64, i64)> = (self.player.attributes.iter())
             .filter_map(|(name, &value)| {
                 let number: i64 = name.strip_prefix(prefix)?.parse().ok()?;
-                let within = ranges.iter().any(|&(low, high)| (low..=high).contains(&number));
+                let within = ranges
+                    .iter()
+                    .any(|&(low, high)| (low..=high).contains(&number));
                 (within && value > 0).then_some((number, value))
             })
             .collect();
@@ -240,6 +245,23 @@ impl GuiData for HeroData<'_> {
             "team.auto" => u8::from(self.state.auto_team).into(),
             // A question shows, of kind `<kind>` (`prompt.kind.<kind>`).
             "prompt.open" => u8::from(self.state.prompt.is_some()).into(),
+            // The open shop's wares are priced in currency `<name>` (`shop.priced_in.CPs`; TQ's
+            // CP shops).
+            _ if key.starts_with("shop.priced_in.") => {
+                let currency = key.strip_prefix("shop.priced_in.")?;
+                let rules = self.view.sim.rules();
+                let Some(npc) = p.shop else {
+                    return Some(0.0);
+                };
+                let first = rules.shop(npc).first().copied();
+                let priced = first.and_then(|kind| {
+                    let own = rules.item(kind).map(|t| t.currency.as_str());
+                    rules.shop_currency(npc, kind).or(own)
+                });
+                u8::from(priced == Some(currency)).into()
+            }
+            // How many items list `<list>` holds (`count.shop.items`).
+            _ if key.starts_with("count.") => self.items(key.strip_prefix("count.")?).len() as f64,
             "skill.picked" => u8::from(self.state.picked_skill.is_some()).into(),
             // The hero has skills (the strip opens only then).
             "hero.has_skills" => u8::from(!p.skills.is_empty()).into(),
@@ -397,6 +419,10 @@ impl GuiData for HeroData<'_> {
 
     fn holding(&self) -> bool {
         self.state.held.is_some()
+    }
+
+    fn view_number(&self, group: &str) -> usize {
+        (self.state.views.get(group)).map_or(0, |v| v.parse().unwrap_or(0))
     }
 
     fn item_tip(&self, key: &str, index: usize) -> Option<String> {

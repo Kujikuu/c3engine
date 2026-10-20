@@ -60,6 +60,10 @@ pub trait GuiData {
     fn holding(&self) -> bool {
         false
     }
+    /// The number view group `group` holds (a grid's page offset; 0 when none).
+    fn view_number(&self, _group: &str) -> usize {
+        0
+    }
 }
 
 /// What the player did on the UI.
@@ -735,12 +739,21 @@ impl Painter<'_, '_> {
             ControlKind::Grid => {
                 let items = data.items(&control.value);
                 let looks = data.item_looks(&control.value);
+                // A paged grid shows its list from the page's first item.
+                let first = match control.offset.as_str() {
+                    "" => 0,
+                    group => data.view_number(group),
+                };
                 let cell = Vec2::new(
                     rect.width() / control.cols as f32,
                     rect.height() / control.rows as f32,
                 );
-                for index in 0..(control.cols * control.rows) as usize {
-                    let (col, row) = (index as u32 % control.cols, index as u32 / control.cols);
+                for cell_index in 0..(control.cols * control.rows) as usize {
+                    let index = first + cell_index;
+                    let (col, row) = (
+                        cell_index as u32 % control.cols,
+                        cell_index as u32 / control.cols,
+                    );
                     let slot = Rect::from_min_size(
                         rect.min + Vec2::new(col as f32 * cell.x, row as f32 * cell.y),
                         cell,

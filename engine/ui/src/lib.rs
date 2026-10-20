@@ -485,6 +485,17 @@ impl GameUi {
                         .insert(group.to_owned(), name.to_owned());
                 }
             }
+            // View group `<group>`'s number moved by `<step>`, kept from 0 to below what
+            // binding `<max>` reads (`view_step:shop_page:20:count.shop.items`: a shop's next
+            // page); worked out with the game's data.
+            _ if action.starts_with("view_step:") => {
+                let mut parts = action["view_step:".len()..].splitn(3, ':');
+                if let (Some(group), Some(step)) = (parts.next(), parts.next()) {
+                    let step = step.parse().unwrap_or(0);
+                    let max = parts.next().unwrap_or_default().to_owned();
+                    self.gui_state.steps.push((group.to_owned(), step, max));
+                }
+            }
             _ if action.starts_with("guild_tab:") => {
                 self.gui_state.guild_tab = action.trim_start_matches("guild_tab:").to_owned();
             }
@@ -1034,11 +1045,22 @@ impl GameUi {
                 if let Some((list, index)) = &held {
                     draw_held(ui, &data, list, *index, icons);
                 }
+                let steps: Vec<(String, String)> = (data.state.steps.iter())
+                    .filter_map(|(group, step, max)| {
+                        let now = gui::GuiData::view_number(&data, group) as i64;
+                        let next = now + step;
+                        let limit = gui::GuiData::number(&data, max).map(|m| m as i64);
+                        let fits = next >= 0 && limit.is_none_or(|m| next < m);
+                        fits.then(|| (group.clone(), next.to_string()))
+                    })
+                    .collect();
                 self.gui_state.focus = None;
                 self.gui_state.held = held;
                 if std::mem::take(&mut self.gui_state.answering) {
                     actions.extend(typed_answer(&self.gui_state, player));
                 }
+                self.gui_state.steps.clear();
+                self.gui_state.views.extend(steps);
                 if let Some(n) = self.gui_state.picking.take() {
                     self.gui_state.picked_skill = player.skills.get(n).copied();
                 }

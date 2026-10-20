@@ -507,9 +507,13 @@ const ITEM_FACTS: [(&str, &str); 11] = [
     ("magic_def", "Magic defence"),
 ];
 
+/// An item's CP price beside its silver one (`emoney_price`), for the CP shops.
+const CP_PRICE: &str = "price_CPs";
+
 fn items(t: &Table) -> Table {
     let extra: Vec<(&str, ColumnKind, &str)> = (ITEM_FACTS.iter())
         .map(|(column, doc)| (*column, ColumnKind::Int, *doc))
+        .chain([(CP_PRICE, ColumnKind::Int, "Its price in CPs, in a CP shop")])
         .chain(
             GEMS.iter()
                 .map(|(_, column, doc, _)| (*column, ColumnKind::Int, *doc)),
@@ -569,6 +573,7 @@ fn items(t: &Table) -> Table {
                 .iter()
                 .map(|(column, _)| (*column, int(r.int(column)))),
         );
+        values.push((CP_PRICE, int(r.int("emoney_price"))));
         out.row(&values);
     }
     out.table
@@ -591,13 +596,19 @@ fn levels(t: &Table) -> Table {
     out.table
 }
 
+/// What NPCs sell (`cq_goods`); a ware of `moneytype` 1 is sold for CPs (the VIP shop).
 fn shops(t: &Table) -> Table {
     let mut out = Out::new(c3_play::data_rules::SHOPS, &[]);
     for (i, r) in rows(t).enumerate() {
+        let currency = match r.int("moneytype") {
+            1 => crate::module::CONQUER_POINTS,
+            _ => "",
+        };
         out.row(&[
             ("id", int(i as i64 + 1)),
             ("npc", int(r.int("ownerid"))),
             ("item", int(r.int("itemtype"))),
+            ("currency", text(currency)),
         ]);
     }
     out.table

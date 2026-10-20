@@ -573,8 +573,13 @@ impl Sim {
         if !self.npc_in_reach(p.cell, npc) || !self.rules.shop(npc).contains(&kind) {
             return;
         }
-        let Some((price, currency)) = self.rules.item(kind).map(|t| (t.price, t.currency.clone()))
-        else {
+        // The shop's currency for it, else the item's own.
+        let Some(t) = self.rules.item(kind) else {
+            return;
+        };
+        let currency =
+            (self.rules.shop_currency(npc, kind)).map_or_else(|| t.currency.clone(), str::to_owned);
+        let Some(price) = t.price_in(&currency) else {
             return;
         };
         if self.funds(p, &currency) < price {
