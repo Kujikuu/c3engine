@@ -1461,8 +1461,10 @@ type=text",
         );
         assert_eq!(
             fill_first("EXP = %0.2f EXP Ball", "1.5"),
-            "EXP = 1.5 EXP Ball"
+            "EXP = 1.50 EXP Ball",
+            "a number as its conversion asks"
         );
+        assert_eq!(fill_first("Level %d", "7.9"), "Level 7");
     }
 
     #[test]
