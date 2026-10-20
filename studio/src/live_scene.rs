@@ -83,7 +83,10 @@ impl LiveScene {
         self.npcs.sync(&scene.npcs, game, renderer);
         let now = view.time_ms;
         let cells: Vec<_> = (self.npcs.actors.iter())
-            .map(|a| a.draw_cell(scene, now))
+            .map(|a| c3_render::scene_view::ActorSpot {
+                cell: a.draw_cell(scene, now),
+                shadow: None,
+            })
             .collect();
         let actors = &mut self.npcs.actors;
         let tilt = self.view.tilt_deg();

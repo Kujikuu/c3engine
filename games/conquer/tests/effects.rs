@@ -59,3 +59,11 @@ fn jumps_and_run_steps_leave_ground_effects() {
     assert_eq!(c.map_effect(3, 130, 3, false), None);
     assert!(c.load_effect("Dust").is_ok());
 }
+
+#[test]
+fn roles_have_the_simple_shadow() {
+    let Some(c) = content() else { return };
+    let shadow = c.role_shadow().expect("SimpleShadow loads");
+    let opaque = shadow.rgba.chunks(4).filter(|p| p[3] > 0).count();
+    assert!(opaque > 0);
+}

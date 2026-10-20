@@ -26,6 +26,8 @@ pub enum JumpRefused {
     TooHigh,
     /// Nowhere to stand there (blocked, or someone stands on it).
     NoFooting,
+    /// Transformed into something that doesn't jump.
+    Transformed,
 }
 
 /// The cells on the straight line from `from` to `to`, both ends included.
@@ -149,6 +151,12 @@ impl Sim {
         let Some(p) = self.players.get(&id).filter(|p| p.is_alive()) else {
             return Err(JumpRefused::NoFooting);
         };
+        let look = (p.transform).and_then(|(m, _)| Some(self.rules.monster(m)?.look));
+        if let (Some(look), Some(jumps)) = (look, &self.settings.transform_jumps)
+            && !jumps.contains(&look)
+        {
+            return Err(JumpRefused::Transformed);
+        }
         if distance(p.cell, to) > self.settings.jump_range {
             return Err(JumpRefused::TooFar);
         }

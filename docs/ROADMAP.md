@@ -870,11 +870,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] other players' jumps shown the same way; a jump asked mid-air made on landing (the client's command queue)
     - [x] the effect an action leaves on the map (ActionMap3DEffect.ini by look, action, terrain): Dust or WaterSplash where a jump lands, RunDust after each run step
     - [ ] the arc over uneven ground (GetJumpHeight's begin, highest and end altitudes less the base altitude)
-    - [ ] the jump shadow (GetJumpShadowHeight)
+    - [x] role shadows: the game's ground picture under every role (Conquer: common.ani SimpleShadow, CRole::Show's SHADOW_SIMPLE: 1.5% of the zoom, a quarter up from the feet, 70%), drawn just before its role in the painter's order; it stays on the ground through a jump (GetJumpShadowHeight over flat ground)
+    - [ ] ghosts drawn as ghosts (the Transform.ini 98/99 looks) and casting no shadow
+    - [ ] the projected model shadow (SHADOW_REAL, SetLightOffset 300,-300,-1000 at 0.35)
     - [ ] flying (USERSTATUS_FLY: 100 high at most, FLY_MOVE instead of the jump motion)
-    - [ ] no jump within 3 s of a transform, and only for jump-able transforms (Transform.ini)
+    - [x] a transformed hero jumps only as a look Transform.ini marks `Jump=1` (`transform_jumps`); the client's 3 s wait covers the time between casting and the server's change, which the engine's instant transform doesn't have
     - [ ] ActionCtrl.ini movement curves (the monster and mount looks it lists)
-    - [ ] the name and life bar raised to 130% of the zoom mid-jump
+    - [x] the name and life bar raised to 130% of the zoom mid-jump (CPlayer::ShowLife)
   - [ ] UI 5278 CDlgMipmap / radar (minimap): 3 of 5 audit mismatches fixed
     - [x] the radar as CRadar's crop: MiniMap.ani's picture upright in a 170x128 box top right, at 0xaa, around the hero and clamped to the picture (`ui.radar_box`)
     - [x] hero mark (MiniMap.ani hero) and teammates (PlayerFlag, TeamLeader); no monster/NPC dots, as the native client

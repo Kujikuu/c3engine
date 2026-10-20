@@ -259,7 +259,7 @@ impl<K> SceneView<K> {
         assets: &dyn SceneAssets,
         renderer: &mut Renderer,
         view: &View,
-        actors: &[CellPos],
+        actors: &[ActorSpot],
         mut pose_actor: impl FnMut(usize, &mut Poser<K>),
     ) {
         let layers = self.layers;
@@ -298,7 +298,7 @@ impl<K> SceneView<K> {
                 .collect(),
             false => Vec::new(),
         };
-        let cells: Vec<CellPos> = (actors.iter().copied())
+        let cells: Vec<CellPos> = (actors.iter().map(|a| a.cell))
             .chain(effects.iter().map(|&e| self.effects[e].cell))
             .collect();
         let objects = match layers.objects {
@@ -334,6 +334,11 @@ impl<K> SceneView<K> {
                 }
                 ObjectDraw::Actor(item) => item,
             };
+            if let Some(shadow) = actors.get(item as usize).and_then(|a| a.shadow) {
+                let at = self.sprites.len() as u32;
+                self.sprites.push(shadow);
+                self.order.push(DrawCmd::Sprites(at..at + 1));
+            }
             let mut poser = Poser {
                 renderer: &mut *renderer,
                 assets,
@@ -394,6 +399,14 @@ impl<K> SceneView<K> {
             light: Default::default(),
         }
     }
+}
+
+/// An actor as the painter's order sees it: the cell it is drawn on, and the shadow under it
+/// (drawn just before it).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ActorSpot {
+    pub cell: CellPos,
+    pub shadow: Option<Sprite>,
 }
 
 /// The painter's order of 3D items alone, when objects are hidden.

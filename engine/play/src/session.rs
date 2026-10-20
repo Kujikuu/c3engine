@@ -28,6 +28,8 @@ use std::rc::Rc;
 const START_SEARCH: i32 = 50;
 /// World pixels above an actor's feet where its name and numbers go.
 const HEAD_HEIGHT: f32 = 110.0;
+/// How much higher names sit mid-jump (TQ's `CPlayer::ShowLife`: 130% of the zoom, not 90%).
+const JUMP_HEAD_RAISE: f32 = 40.0;
 
 /// Where the game runs.
 enum Link {
@@ -874,6 +876,7 @@ impl Session {
             Err(c3_game::JumpRefused::TooFar) => "You can't jump that far!",
             Err(c3_game::JumpRefused::TooHigh) => "You can't jump that high!",
             Err(c3_game::JumpRefused::NoFooting) => "You can't stop here!",
+            Err(c3_game::JumpRefused::Transformed) => return,
         };
         self.ui.system(refused, style::BAD);
     }
@@ -975,7 +978,12 @@ impl Session {
     ) -> Vec<UiAction> {
         let head = |id: EntityId| {
             let feet = self.view.feet(&self.world, id)?;
-            Some(screen.to_screen(feet - Vec2::Y * HEAD_HEIGHT))
+            let raise = if self.view.jumping(&self.world, id) {
+                JUMP_HEAD_RAISE
+            } else {
+                0.0
+            };
+            Some(screen.to_screen(feet - Vec2::Y * (HEAD_HEIGHT + raise)))
         };
         let cell = |c: CellPos| screen.to_screen(Vec2::from(self.world.scene.cell_to_world(c)));
         let npc_head = |c: CellPos| {

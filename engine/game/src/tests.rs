@@ -2954,4 +2954,14 @@ fn jumps_keep_to_range_height_and_footing() {
     );
     sim.input(hero, Input::Jump((8, 2)));
     assert_eq!(sim.player(hero).unwrap().cell, (8, 2));
+    // Transformed into a slime, which isn't among the looks that jump.
+    sim.set_settings(GameplaySettings {
+        transform_jumps: Some(vec![]),
+        ..sim.settings().clone()
+    });
+    sim.players.get_mut(&hero).unwrap().transform = Some((SLIME, u64::MAX));
+    assert_eq!(
+        sim.can_jump(hero, (9, 2)),
+        Err(crate::JumpRefused::Transformed)
+    );
 }

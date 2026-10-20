@@ -515,6 +515,8 @@ pub struct GameplaySettings {
     /// How far the ground on a jump's way may rise above where the player stands (map height
     /// units; 0: any).
     pub jump_height: i32,
+    /// The looks of the monsters a transformed player can still jump as (`None`: any).
+    pub transform_jumps: Option<Vec<u32>>,
     /// Cells within which "attack nearest" looks for a monster.
     pub attack_search: i32,
     /// Cells a monster chases away from its spawn area before giving up.
@@ -705,6 +707,7 @@ impl Default for GameplaySettings {
             trade_range: 18,
             jump_range: 16,
             jump_height: 0,
+            transform_jumps: None,
             attack_search: 10,
             monster_leash: 24,
             monster_wander: 4,

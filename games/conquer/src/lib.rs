@@ -83,6 +83,8 @@ struct Tables {
     /// `ActionMap3DEffect.ini`: look·10⁶ + action·10³ + terrain → the map effect and whether
     /// it shows where the action ends (else where it begins).
     map_effects: HashMap<u32, (String, bool)>,
+    /// `Transform.ini`: the transform looks with `Jump=1`.
+    transform_jumps: Vec<u32>,
     /// `Monster.dat` (encrypted): monster type id → drawing size in percent.
     monster_zoom: HashMap<u32, u32>,
     sounds: sound::SoundTables,
@@ -128,6 +130,10 @@ impl Tables {
             ]
             .map(|name| character::parse_action_effects(&bytes(name))),
             map_effects: character::parse_map_effects(&bytes("ActionMap3DEffect.ini")),
+            transform_jumps: (Ini::parse(&bytes("Transform.ini")).sections.iter())
+                .filter(|s| s.get("Jump").is_some_and(|j| j.trim() == "1"))
+                .filter_map(|s| s.name.trim().parse().ok())
+                .collect(),
             monster_zoom: monster_zoom(&bytes("Monster.dat")),
             sounds: sound::SoundTables::parse(
                 &bytes("ActionSound.ini"),
@@ -181,6 +187,11 @@ impl Content {
     }
 
     /// How large monster type `kind` is drawn, in percent (100 when `Monster.dat` doesn't say).
+    /// The transform looks a hero can jump as (`C3DRoleData::GetTransformJumpAble`).
+    pub fn transform_jumps(&self) -> Vec<u32> {
+        self.tables.transform_jumps.clone()
+    }
+
     pub fn monster_zoom(&self, kind: u32) -> f32 {
         self.tables.monster_zoom.get(&kind).copied().unwrap_or(100) as f32
     }
@@ -531,6 +542,16 @@ impl Content {
 
     pub fn radar_mark(&self, kind: &str) -> Option<Image> {
         let (_, file, section) = RADAR_MARKS.iter().find(|(k, _, _)| *k == kind)?;
+        self.ani_image(file, section)
+    }
+
+    /// The ground shadow under every role (`ani/common.ani` `SimpleShadow`, CRole::Show).
+    pub fn role_shadow(&self) -> Option<Image> {
+        self.ani_image("ani/common.ani", "SimpleShadow")
+    }
+
+    /// The first picture of section `section` of ani file `file`.
+    fn ani_image(&self, file: &str, section: &str) -> Option<Image> {
         let ani = Ani::parse(&self.fs.read(file)?).ok()?;
         self.load_image(&ani.get(section)?.frame_str(0)?)
     }

@@ -260,6 +260,20 @@ impl Actor {
         std::mem::take(&mut self.map_marks)
     }
 
+    /// Its shadow, a `size` picture on the ground under it (TQ's `CRole::Show`: scaled by
+    /// 1.5% of the zoom, a quarter of its height above the feet, at 70%; it stays on the
+    /// ground through a jump). Roles cast one, plain models don't.
+    pub fn shadow(&self, scene: &Scene, now_ms: u64, size: Vec2) -> Option<[f32; 4]> {
+        use crate::character::LookKind;
+        let casts = matches!(
+            self.look.kind,
+            LookKind::Player | LookKind::Monster | LookKind::Npc
+        );
+        let feet = self.position(scene, now_ms);
+        let size = size * self.zoom_percent * 0.015;
+        casts.then_some([feet.x - size.x / 2.0, feet.y - size.y / 4.0, size.x, size.y])
+    }
+
     /// How high above the ground the actor is drawn at `now_ms` (mid-jump).
     pub fn lift(&self, now_ms: u64) -> f32 {
         match &self.step {

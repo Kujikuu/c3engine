@@ -10,7 +10,7 @@ use crate::actor::{self, Actor, ActorPart};
 use crate::module::GameModule;
 use c3_render::camera::Camera2d;
 use c3_render::effect::camera_eye;
-use c3_render::scene_view::SceneView;
+use c3_render::scene_view::{ActorSpot, SceneView};
 use c3_render::{Frame, Light, MeshDraw, Renderer, View};
 use c3_scene::Scene;
 use glam::Vec2;
@@ -33,6 +33,8 @@ pub struct World {
     /// Colour (linear) around and behind the map.
     pub background: [f64; 4],
     pub light: Light,
+    /// The game's role shadow, uploaded (`None` until the first prepare) with its size.
+    shadow: Option<Option<(c3_render::TextureId, Vec2)>>,
 }
 
 /// The scene light `graphics` asks for.
@@ -75,6 +77,7 @@ impl World {
                 c3_core::settings::GraphicsSettings::default().background,
             ),
             light: Light::default(),
+            shadow: None,
         };
         world.mark_portals();
         world
@@ -338,14 +341,30 @@ impl World {
             time_ms: self.now_ms(),
         };
         let now = view.time_ms;
-        let cells: Vec<_> = (self.actors.iter())
-            .map(|a| a.draw_cell(&self.scene, now))
+        let game = &*self.game;
+        let shadow = *self.shadow.get_or_insert_with(|| {
+            let image = game.role_shadow()?;
+            let size = Vec2::new(image.width as f32, image.height as f32);
+            Some((renderer.upload_texture(&image), size))
+        });
+        let spots: Vec<ActorSpot> = (self.actors.iter())
+            .map(|a| ActorSpot {
+                cell: a.draw_cell(&self.scene, now),
+                shadow: shadow.and_then(|(texture, size)| {
+                    Some(c3_render::Sprite {
+                        rect: a.shadow(&self.scene, now, size)?,
+                        uv: [0.0, 0.0, 1.0, 1.0],
+                        texture: Some(texture),
+                        tint: [1.0, 1.0, 1.0, 0.7],
+                    })
+                }),
+            })
             .collect();
-        let (scene, game, actors) = (&self.scene, &*self.game, &mut self.actors);
+        let (scene, actors) = (&self.scene, &mut self.actors);
         let tilt_deg = self.view.tilt_deg();
         let eye = camera_eye(view.center);
         self.view
-            .prepare(scene, game.assets(), renderer, &view, &cells, |a, poser| {
+            .prepare(scene, game.assets(), renderer, &view, &spots, |a, poser| {
                 actor::pose_actor(actors, a, poser, scene, game, tilt_deg, now, eye);
             });
     }

@@ -303,6 +303,12 @@ impl SimView {
         Some(actor.position(&world.scene, now) - Vec2::Y * actor.lift(now))
     }
 
+    /// Whether `id`'s actor is mid-jump.
+    pub fn jumping(&self, world: &World, id: EntityId) -> bool {
+        let actor = self.actor(id).and_then(|i| world.actors.get(i));
+        actor.is_some_and(|a| a.lift(world.now_ms()) > 0.0)
+    }
+
     /// Where `id`'s actor stands on the ground now.
     pub fn ground(&self, world: &World, id: EntityId) -> Option<Vec2> {
         let actor = world.actors.get(self.actor(id)?)?;

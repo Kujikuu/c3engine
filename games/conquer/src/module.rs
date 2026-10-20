@@ -442,7 +442,10 @@ impl GameModule for ConquerModule {
     }
 
     fn default_settings(&self) -> ProjectSettings {
-        conquer_settings()
+        let mut s = conquer_settings();
+        // A transformed hero jumps only as a look Transform.ini lets jump (CHero::Jump).
+        s.gameplay.transform_jumps = Some(self.content.transform_jumps());
+        s
     }
 
     fn rules(&self) -> Arc<dyn GameRules> {
@@ -570,6 +573,10 @@ impl GameModule for ConquerModule {
 
     fn radar_mark(&self, kind: &str) -> Option<Image> {
         self.content.radar_mark(kind)
+    }
+
+    fn role_shadow(&self) -> Option<Image> {
+        self.content.role_shadow()
     }
 
     fn click_effect(&self) -> Option<String> {

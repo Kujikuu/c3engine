@@ -223,6 +223,10 @@ impl GameModule for ProjectGame {
         self.game.radar_mark(kind)
     }
 
+    fn role_shadow(&self) -> Option<Image> {
+        self.game.role_shadow()
+    }
+
     fn skill_media(&self, skill: &SkillType) -> (Option<String>, Option<String>) {
         self.game.skill_media(skill)
     }

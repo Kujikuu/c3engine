@@ -248,6 +248,11 @@ pub trait GameModule {
         let _ = (key, map_ids);
         None
     }
+    /// The picture on the ground under each role (TQ's `SimpleShadow`); none: no shadows.
+    fn role_shadow(&self) -> Option<Image> {
+        None
+    }
+
     /// The picture the radar marks `kind` with (`hero`, `player`, `leader`) in place of its
     /// dot; none: the dot.
     fn radar_mark(&self, kind: &str) -> Option<Image> {
