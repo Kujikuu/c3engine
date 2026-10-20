@@ -528,6 +528,8 @@ pub struct GameUi {
     team_options: (bool, bool, bool),
     /// Whether the hero's team invites on its own, when the hero leads it.
     team_auto: Option<bool>,
+    /// Whether a shop of the hero's is open.
+    shop_shown: bool,
     overlay: hud::Overlay,
     bag_open: bool,
     quests_open: bool,
@@ -764,6 +766,17 @@ impl GameUi {
                     let max = parts.next().unwrap_or_default().to_owned();
                     self.gui_state.steps.push((group.to_owned(), step, max));
                 }
+            }
+            // A shop reached from anywhere, opened or, while a shop shows, closed; not over the
+            // warehouse (TQ's CMD_EMONEY_SHOP_OPEN_5065).
+            _ if action.starts_with("shop_toggle:") => {
+                let npc = action["shop_toggle:".len()..].parse().unwrap_or(0);
+                let input = match (self.shop_shown, self.gui_state.storage.is_some()) {
+                    (true, _) => Some(c3_game::Input::CloseShop),
+                    (false, true) => None,
+                    (false, false) => Some(c3_game::Input::OpenShop(npc)),
+                };
+                actions.extend(input.map(UiAction::Game));
             }
             // A page opened in the browser, its address from a name file
             // (`url:ini/StrRes.ini:10366`, `url:ini/Common.ini:Emoney.URL`).
@@ -2504,6 +2517,7 @@ impl GameUi {
             .unwrap_or_default();
         self.team_auto =
             (player.team == Some(view.hero)).then(|| view.sim.auto_inviting(view.hero));
+        self.shop_shown = player.shop.is_some();
         // A placement asked for, without the game's placing window: where the hero stands,
         // as it faces.
         let placing_window = self

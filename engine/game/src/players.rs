@@ -696,11 +696,24 @@ impl Sim {
     }
 
     /// Buys one `kind` from NPC `npc`'s shop.
+    /// Player `id` opens shop `npc`, one reached from anywhere (TQ's CP Mall).
+    pub(crate) fn open_remote_shop(&mut self, id: EntityId, npc: u32) {
+        if !self.settings.remote_shops.contains(&npc) || self.rules.shop(npc).is_empty() {
+            return;
+        }
+        let Some(p) = self.living(id) else {
+            return;
+        };
+        p.shop = Some(npc);
+        self.events.push(Event::ShopOpened { player: id, npc });
+    }
+
     pub fn buy(&mut self, id: EntityId, npc: u32, kind: u32) {
         let Some(p) = self.players.get(&id) else {
             return;
         };
-        if !self.npc_in_reach(p.cell, npc) || !self.rules.shop(npc).contains(&kind) {
+        let reached = self.npc_in_reach(p.cell, npc) || self.settings.remote_shops.contains(&npc);
+        if !reached || !self.rules.shop(npc).contains(&kind) {
             return;
         }
         // The shop's currency for it, else the item's own.

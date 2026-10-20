@@ -914,9 +914,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 295 CDlgPigeonBanner5065 (broadcast banner line): 3 of 6 audit mismatches fixed
     - [x] always shown; ad_query toggles 294; the latest line heard (name in 0xaaffaa, StrRes 100018, the line); the chat menu's ad_channel picks the broadcast channel
     - [ ] placed by the line slider, Ctrl+click whisper, tip 11042 and the "Pigeon" effect
-  - [ ] UI 289 CDlgEmoneyShop5065 (CP-Mall button): 1 of 2 audit mismatches fixed
+  - [x] UI 289 CDlgEmoneyShop5065 (CP-Mall button): the 2 audit mismatches fixed
     - [x] shown from level 70, after a second rebirth or with CPs, as RefreshEmoneyShopVisibility5065
-    - [ ] its click opens the CP shop (2888) and plays BtnClick
+    - [x] its click opens the CP shop (2888) and plays BtnClick (`shop_toggle:2888`, `gameplay.remote_shops`, `Input::OpenShop`; bought from anywhere)
   - [ ] UI 173 CDlgTask (NPC talk): 11 of 16 audit mismatches fixed
     - [x] words run together (`dialogue.said`) and wrapped at 420
     - [x] answers in two columns at 20 and 282, 210 wide, wrapped, from y 104 at least, 8 at most (`step`, `cell`, `wrap`, `limit`, `min_y` on lists)

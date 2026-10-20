@@ -44,6 +44,8 @@ pub enum Input {
         item: u32,
     },
     CloseShop,
+    /// Opens a shop the player reaches from anywhere (the settings' `remote_shops`).
+    OpenShop(u32),
     /// Use or wear bag item `id`.
     Use(u32),
     /// Use bag item `item` on item `target` (bag or worn): a gem, an upgrade stone.
@@ -216,6 +218,7 @@ impl Sim {
             Input::Buy { npc, kind } => self.buy(id, npc, kind),
             Input::Sell { npc, item } => self.sell(id, npc, item),
             Input::CloseShop => self.close_shop(id),
+            Input::OpenShop(npc) => self.open_remote_shop(id, npc),
             Input::Revive => self.revive(id),
             Input::SetPkMode(mode) => self.set_pk_mode(id, mode),
             Input::GuildNotice(text) => self.guild_notice(id, &text),

@@ -161,6 +161,33 @@ impl Rules for FormulaRules {
         self.inner.shop(npc)
     }
 
+    fn shop_currency(&self, npc: u32, kind: u32) -> Option<&str> {
+        self.inner.shop_currency(npc, kind)
+    }
+
+    fn sell_price(&self, kind: u32) -> u64 {
+        self.inner.sell_price(kind)
+    }
+
+    fn shown(&self, player: &Fighter) -> Vec<(String, i64)> {
+        self.inner.shown(player)
+    }
+
+    fn may_marry(&self, a: &Fighter, b: &Fighter) -> bool {
+        self.inner.may_marry(a, b)
+    }
+
+    fn team_exp(
+        &self,
+        member: &Fighter,
+        target: &Fighter,
+        kill: u64,
+        newbie: bool,
+        spouse: bool,
+    ) -> u64 {
+        self.inner.team_exp(member, target, kill, newbie, spouse)
+    }
+
     fn skill(&self, id: u32) -> Option<&SkillType> {
         self.inner.skill(id)
     }

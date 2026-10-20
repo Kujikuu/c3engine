@@ -659,6 +659,9 @@ pub struct GameplaySettings {
     /// where it is granted at once (TQ's business state).
     pub merchant_days: u32,
     pub merchant_now_maps: Vec<u32>,
+    /// Shops (by NPC) a player opens and buys from anywhere (TQ's CP Mall, 2888).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remote_shops: Vec<u32>,
     /// The faces a player may pick by its body (`[first body, last body, first face, last
     /// face]`), and what a change costs (TQ's face NPC: 500 silver).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -784,6 +787,7 @@ impl Default for GameplaySettings {
             face_cost: 0,
             partner_probation_secs: 0,
             merchant_days: 0,
+            remote_shops: Vec::new(),
             merchant_now_maps: Vec::new(),
             boards: Vec::new(),
             guild_board: None,

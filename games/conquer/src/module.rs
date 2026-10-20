@@ -381,6 +381,8 @@ pub fn conquer_settings() -> ProjectSettings {
     }
     // Merchant accounts wait 5 days (FUN_00429094; the maps that grant at once aren't known).
     s.gameplay.merchant_days = 5;
+    // The CP Mall (Shop.dat's VIPSHOP 2888), opened by the HUD's button from anywhere.
+    s.gameplay.remote_shops = vec![2888];
     // Killing the heaven-blessed unblessed curses (ProcessPk 00418ee3).
     s.gameplay.pk.curse_status = (crate::rules::TQ_STATUS + crate::rules::CURSE) as u32;
     s.gameplay.pk.curse_guard = "blessing_until".into();
