@@ -287,6 +287,15 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
             ("cost_attribute", text(cost.0)),
             ("cost", int(cost.1)),
             ("rank_attribute", text(format!("{MAGIC_LEVEL_PREFIX}{id}"))),
+            // The client's lists: magic (use_xp 0), XP skills (1), Kongfu (2) (HeroMagic.cpp).
+            (
+                "group",
+                text(match r.int("use_xp") {
+                    1 => "xp",
+                    2 => "kongfu",
+                    _ => "magic",
+                }),
+            ),
         ];
         row.extend(magic_numbers(&r));
         skills.row(&row);

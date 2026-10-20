@@ -142,6 +142,29 @@ impl ControlKind {
     }
 }
 
+/// A dialog's width from a count (see [`Control::stretch`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Stretch {
+    pub count: String,
+    pub step: i32,
+    pub pad: i32,
+    pub max: i32,
+}
+
+impl Stretch {
+    fn parse(text: &str) -> Option<Self> {
+        let mut parts = text.split(',').map(str::trim);
+        let count = parts.next().filter(|c| !c.is_empty())?.to_owned();
+        let mut number = || parts.next().and_then(|n| n.parse().ok());
+        Some(Self {
+            count,
+            step: number()?,
+            pad: number().unwrap_or(0),
+            max: number().unwrap_or(i32::MAX),
+        })
+    }
+}
+
 /// Where a text control's text sits in its width.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Align {
@@ -244,6 +267,10 @@ pub struct Control {
     /// Dialogs that keep it from opening while they show (`blocked=152,161`: the status not
     /// over a shop or warehouse, as OnMainQuery checks the right part's owner).
     pub blocked: Vec<u32>,
+    /// A dialog as wide as a count of what it shows (`stretch=skill_count.magic,50,18,10`:
+    /// that many at most, `step` each, `pad` more) and against the layout's right edge (TQ's
+    /// skill strips, MoveWindow by their skill count).
+    pub stretch: Option<Stretch>,
     /// A grid showing its list from the number view group `<group>` holds (`offset=shop_page`;
     /// a shop's later pages).
     pub offset: String,
@@ -381,6 +408,7 @@ impl Control {
             blocked: ids("blocked"),
             pick: section.int("pick").is_some_and(|p| p != 0),
             offset: text("offset"),
+            stretch: Stretch::parse(section.get("stretch").unwrap_or_default()),
             when: text("when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),

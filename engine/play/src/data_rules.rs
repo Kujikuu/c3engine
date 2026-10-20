@@ -312,6 +312,10 @@ fn skill_columns() -> Vec<Column> {
             "rank_attribute",
             "The player attribute holding the caster's rank of it (the skill_ranks table); empty: one rank",
         ),
+        text(
+            "group",
+            "The game's group for it, as its UI lists skills apart; empty: none",
+        ),
     ]
 }
 
@@ -363,6 +367,7 @@ fn skill_rows() -> Vec<Vec<Value>> {
         row.push(Value::Text(String::new()));
         row.push(Value::Int(numbers[6]));
         row.extend([Value::Text(String::new()), Value::Int(0)]);
+        row.push(Value::Text(String::new()));
         row.push(Value::Text(String::new()));
         row
     };
@@ -682,6 +687,7 @@ impl DataRules {
                 cost_attribute: row.text("cost_attribute").trim().to_owned(),
                 cost: row.int("cost"),
                 rank_attribute: row.text("rank_attribute").trim().to_owned(),
+                group: row.text("group").trim().to_owned(),
             };
             self.skills.insert(id, skill);
         }

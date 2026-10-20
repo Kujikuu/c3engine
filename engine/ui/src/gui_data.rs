@@ -105,6 +105,13 @@ impl HeroData<'_> {
     /// The hero's own items a list shows, in slot order: its bag, what it wears (all, or in
     /// slot `n`: `hero.worn.<n>`), what it offers in a trade, a workbench slot, the open
     /// warehouse; none for a list of item types (a shop's).
+    /// The hero's skills in group `group`, in the order it learned them.
+    fn skills_in<'b>(&'b self, group: &'b str) -> impl Iterator<Item = u32> + 'b {
+        let rules = self.view.sim.rules();
+        (self.player.skills.iter().copied())
+            .filter(move |&s| rules.skill(s).is_some_and(|t| t.group == group))
+    }
+
     /// The hero's team, the leader first: as a server sends it, else as the local game has it.
     pub(crate) fn team(&self) -> Vec<c3_game::Mate> {
         match self.player.mates.is_empty() {
@@ -333,14 +340,19 @@ impl GuiData for HeroData<'_> {
             // How many items list `<list>` holds (`count.shop.items`).
             _ if key.starts_with("count.") => self.items(key.strip_prefix("count.")?).len() as f64,
             "skill.picked" => u8::from(self.state.picked_skill.is_some()).into(),
-            // The skill picked costs attribute `<attr>` (`skill.picked_by.xp`: an XP skill).
-            _ if key.starts_with("skill.picked_by.") => {
-                let attr = key.strip_prefix("skill.picked_by.")?;
+            // The skill picked is in group `<group>` (`skill.picked_in.xp`: an XP skill), and how
+            // many of its skills the hero has in a group (`skill_count.magic`).
+            _ if key.starts_with("skill.picked_in.") => {
+                let group = key.strip_prefix("skill.picked_in.")?;
                 let skill = self
                     .state
                     .picked_skill
                     .and_then(|s| self.view.sim.rules().skill(s));
-                u8::from(skill.is_some_and(|t| t.cost_attribute == attr)).into()
+                u8::from(skill.is_some_and(|t| t.group == group)).into()
+            }
+            _ if key.starts_with("skill_count.") => {
+                let group = key.strip_prefix("skill_count.")?;
+                self.skills_in(group).count() as f64
             }
             // The hero has skills (the strip opens only then).
             "hero.has_skills" => u8::from(!p.skills.is_empty()).into(),
@@ -411,20 +423,11 @@ impl GuiData for HeroData<'_> {
             }
             // The skill picked for the right button (its type).
             "skill.picked" => self.state.picked_skill.map(|s| s.to_string()),
-            // The hero's `n`th skill that costs attribute `<attr>` (`skill_by.xp.0`: its first
-            // XP skill), or that does not (`skill_not.xp.0`).
-            _ if key.starts_with("skill_by.") || key.starts_with("skill_not.") => {
-                let (by, rest) = key.split_once('.')?;
-                let (attr, n) = rest.rsplit_once('.')?;
+            // The hero's `n`th skill in group `<group>` (`skill_in.xp.0`: its first XP skill).
+            _ if key.starts_with("skill_in.") => {
+                let (group, n) = key.strip_prefix("skill_in.")?.rsplit_once('.')?;
                 let n: usize = n.parse().ok()?;
-                let rules = self.view.sim.rules();
-                let costs = |s: &u32| rules.skill(*s).is_some_and(|t| t.cost_attribute == attr);
-                let mut skills = self
-                    .player
-                    .skills
-                    .iter()
-                    .filter(|s| costs(s) == (by == "skill_by"));
-                Some(skills.nth(n)?.to_string())
+                Some(self.skills_in(group).nth(n)?.to_string())
             }
             // The hero's skill `n` (its type), none past the last.
             _ if key.starts_with("skill.") => {

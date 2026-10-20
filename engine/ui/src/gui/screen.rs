@@ -140,8 +140,8 @@ impl Gui {
             d.screen == self.screen && !d.when.is_empty() && set(d, data) && !self.dismissed(d.id)
         };
         for dialog in self.dialogs().filter(|d| self.is_open(d) || shown(d)) {
-            let place = self.place(dialog, area);
             let r = self.fitted(ctx, dialog, data).0;
+            let place = self.place_rect(r, area);
             let size = Vec2::new(r.w.max(0) as f32, r.h.max(0) as f32) * place.scale;
             egui::Area::new(egui::Id::unique(("gui dialog", dialog.id)))
                 .fixed_pos(place.origin)
@@ -157,11 +157,16 @@ impl Gui {
 
     /// Where `dialog` sits when the UI is drawn over `area`.
     pub fn place(&self, dialog: &Control, area: Rect) -> Place {
+        self.place_rect(self.rect(dialog), area)
+    }
+
+    /// Where a dialog laid out at `r` sits when the UI is drawn over `area`.
+    fn place_rect(&self, r: GuiRect, area: Rect) -> Place {
         let [bw, bh] = self.layout.base().map(|v| v as f32);
         let scale = (area.width() / bw).min(area.height() / bh);
         Place {
             scale,
-            origin: anchored(area, [bw, bh], scale, self.rect(dialog)),
+            origin: anchored(area, [bw, bh], scale, r),
         }
     }
 
@@ -257,6 +262,11 @@ impl Gui {
         if dialog.fit > 0 {
             let bottom = stacked.iter().map(|(_, r)| r.y + r.h).max().unwrap_or(0);
             place.h = (bottom + FIT_PAD).max(dialog.fit);
+        }
+        if let Some(s) = &dialog.stretch {
+            let count = data.number(&s.count).unwrap_or(0.0).max(0.0) as i32;
+            place.w = count.min(s.max) * s.step + s.pad;
+            place.x = self.layout.base()[0] - place.w;
         }
         (place, stacked)
     }

@@ -270,6 +270,9 @@ pub struct SkillType {
     /// The player attribute holding the caster's rank (level) of the skill, each rank its
     /// own numbers ([`Rules::skill_at`]); empty: one rank.
     pub rank_attribute: String,
+    /// The game's group for it, as its UI lists skills apart (Conquer's magic, XP and
+    /// Kongfu skills); empty: none.
+    pub group: String,
 }
 
 /// Something a monster leaves on the ground when it dies.

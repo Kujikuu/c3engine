@@ -843,17 +843,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] the log under the bar is the engine's egui box, not g_objGameMsg's three areas (Message rendering)
     - [ ] 139 CDlgChat and 274 CDlgTalkAct are still drafts
   - [ ] UI 174 CMenuTalk (channel menu): partial, 2 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 188 CDlgMagic (normal-magic skill strip): 3 of 11 audit mismatches fixed
+  - [ ] UI 188 CDlgMagic (normal-magic skill strip): 6 of 11 audit mismatches fixed
     - [x] a click picks the skill for the skill box and hides 188 and 214 (ON_MAGIC_CHOOSE)
     - [x] the engine's egui skill bar is not drawn when the game UI shows the skills
     - [x] the opener does nothing without skills
-    - [ ] right-aligned and sized by skill count (x = 1024 - n*50 - 18)
+    - [x] right-aligned and sized by skill count (x = 1024 - n*50 - 18; `stretch=`)
     - [ ] paging 1275/1276 past 10 skills
-    - [x] XP skills left out of the strip (`skill_not.xp.N`)
+    - [x] only magic skills (use_xp 0) in the strip: skills carry the game's group (`SkillType::group`, `skill_in.<group>.N`); Kongfu in 214, XP in 189
     - [ ] skills listed as GetMagicByIndex does (no dwScreenRepresent 3, no transform magics while transformed; Kongfu skills in 214)
     - [ ] disabled skills covered (Image0) and not pickable
     - [ ] hover tooltip and drag to the quick bar
-    - [ ] the opener also toggles 214 and hides 189
+    - [x] the opener also toggles 214
+    - [ ] the opener hides 189
     - [ ] 140 / 191 opening no longer close it (window model)
     - [ ] hidden on death and booth close
   - [ ] UI 5278 CDlgMipmap / radar (minimap): 3 of 5 audit mismatches fixed
@@ -1009,11 +1010,16 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] placed bottom right as the client moves it, not by GUI.ini
     - [ ] XpSkillType5 revive-here (needs Blessed and a revive-here map; StrRes 10484/10485), and the 20 s ghost gate message (100033)
     - [x] XP-full mode: the XP skills (`skill_by.xp.N`) as XpSkillType<type>; one aimed at the hero cast at once, another picked into the skill box (`use_skill:`), shown on XP full
-    - [ ] the strip as wide as its XP skills (MoveActionStrip), hidden when XP empties mid-pick
+    - [x] the strip as wide as its XP skills (MoveActionStrip)
     - [ ] paging 1277/1278
     - [ ] land, abort-transform and booth-close modes
     - [ ] checked live with a dead hero
-  - [ ] UI 214 CDlgKongfu (Kongfu skill strip): draft only, 5 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 214 CDlgKongfu (Kongfu skill strip): 4 of 5 audit mismatches fixed
+    - [x] opened with 188 by the skill box
+    - [x] the hero's Kongfu skills (use_xp 2) as MagicSkillType; a click picks one for the skill box and hides both strips
+    - [x] right-aligned at y 768-223, as wide as its skills
+    - [x] a Kongfu-only skill list (`skill_in.kongfu.N`)
+    - [ ] paging 1279/1280 past 10
   - [ ] UI 133 CDlgKnightage (guild): partial, 20 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 257 CDlgFacState (guild member info): draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 160 CDlgFriend (friends): draft only, 12 mismatches (docs/conquer_ui_audit.md)
