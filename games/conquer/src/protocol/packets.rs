@@ -195,6 +195,8 @@ pub mod channel {
     pub const FRIEND: u16 = 2009;
     /// A guild's announcement, set by its leader and told to its members (_TXTATR_SYNANNOUNCEG).
     pub const GUILD_NOTICE: u16 = 2111;
+    /// A booth's cry (_TXTATR_CRYOUT).
+    pub const CRY: u16 = 2104;
     pub const TALK: u16 = 2007;
     pub const SYSTEM: u16 = 2005;
     pub const ENTRANCE: u16 = 2101;
@@ -203,6 +205,11 @@ pub mod channel {
 /// MsgAction actions.
 pub mod action {
     pub const ENTER_MAP: u16 = 74;
+    /// A booth opened in front of the hero (echoed with the booth's id), closed, and a
+    /// player's booth cry asked (booth_trade spec §1.1).
+    pub const CREATE_BOOTH: u16 = 111;
+    pub const DESTROY_BOOTH: u16 = 114;
+    pub const QUERY_CRY: u16 = 115;
     pub const GET_ITEMS: u16 = 75;
     pub const GET_FRIENDS: u16 = 76;
     pub const GET_PROFICIENCIES: u16 = 77;
@@ -321,6 +328,14 @@ pub mod item {
     pub const REPAIR: u16 = 14;
     /// Fireworks over a player (data 0xFF), as a wedding has.
     pub const FIREWORKS: u16 = 26;
+    /// Booths (MsgItem.h ITEMACT_BOOTH_*): a booth's goods asked (data the booth); a bag item
+    /// set out for money or CPs (data the price), taken back or gone (data the booth),
+    /// bought (data the booth).
+    pub const BOOTH_QUERY: u16 = 21;
+    pub const BOOTH_ADD: u16 = 22;
+    pub const BOOTH_DEL: u16 = 23;
+    pub const BOOTH_BUY: u16 = 24;
+    pub const BOOTH_ADD_CPS: u16 = 29;
 }
 
 /// The client cues Conquer's front sends (`client_cue`): a MsgAction of an action type (with
@@ -518,6 +533,41 @@ pub fn item_info(i: &ItemInfo) -> Vec<u8> {
             .u16(0);
     })
 }
+
+/// MsgItemInfoEx (1108): booth `owner`'s ware `i` at `price` (mode 1 silver, 3 CPs).
+pub fn item_info_ex(i: &ItemInfo, owner: u32, price: u32, mode: u8) -> Vec<u8> {
+    packet(ITEM_INFO_EX, |w| {
+        w.u32(i.id)
+            .u32(owner)
+            .u32(price)
+            .u32(i.kind)
+            .u16(i.amount)
+            .u16(i.limit)
+            .u8(mode)
+            .u8(i.ident)
+            .u8(0)
+            .u8(0)
+            .u32(0)
+            .u8(i.gem1)
+            .u8(i.gem2)
+            .u8(0)
+            .u8(0)
+            .u8(i.plus)
+            .u8(i.bless)
+            .u8(i.enchant)
+            .u8(0)
+            .u32(i.data)
+            .u16(0)
+            .u16(0)
+            .u16(i.color)
+            .u16(0);
+    })
+}
+
+pub const ITEM_INFO_EX: u16 = 1108;
+/// MsgItemInfoEx modes: a booth's ware priced in silver, in CPs.
+pub const ITEM_EX_BOOTH: u8 = 1;
+pub const ITEM_EX_BOOTH_CPS: u8 = 3;
 
 /// MsgTrade `action` with `data`.
 pub fn trade(data: u32, action: u16) -> Vec<u8> {
@@ -753,6 +803,19 @@ pub fn lay_npc(look: u32, kind: u16) -> Vec<u8> {
 
 /// MsgNpc's action asking the client to place an NPC.
 const LAY_NPC: u16 = 5;
+
+/// MsgNpc EVENT_LEAVEMAP: NPC `id` (a booth) leaves the client's map.
+pub fn npc_gone(id: u32) -> Vec<u8> {
+    packet(NPC, |w| {
+        w.u32(id).u32(0).u16(NPC_LEAVE_MAP).u16(0);
+    })
+}
+
+const NPC_LEAVE_MAP: u16 = 2;
+
+/// A booth NPC (_ROLE_BOOTH_NPC) and its look (400 and its facing).
+pub const BOOTH_NPC: u16 = 14;
+pub const BOOTH_LOOK: u16 = 400;
 
 /// One part of an NPC dialog.
 pub fn dialog(action: u8, index: u8, text: &str) -> Vec<u8> {

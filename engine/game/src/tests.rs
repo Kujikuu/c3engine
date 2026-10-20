@@ -2330,6 +2330,12 @@ fn a_booth_sells_its_wares_and_closes_when_its_owner_walks() {
         .any(|e| matches!(e, Event::BoothOffered { player, spot: 900 } if player == s));
     assert!(offered, "a free spot offers a booth");
     sim.input(s, Input::Booth(B::Open(900)));
+    let booth = sim.player(s).unwrap().booth.clone().unwrap();
+    assert_eq!(
+        (sim.player(s).unwrap().cell, booth.cell),
+        ((10, 12), (10, 13)),
+        "the owner two cells out along the spot's facing, the booth one more"
+    );
     let armor = sim.player(s).unwrap().bag[0].id;
     sim.input(
         s,

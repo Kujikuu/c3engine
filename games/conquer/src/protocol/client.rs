@@ -213,6 +213,11 @@ fn stored(i: &c3_game::Item, sim: &Sim) -> pk::Stored {
 /// Item `i` as MsgItemInfo: its durability in hundredths (or how many are stacked), and its
 /// numbers by the settings' item attribute names (Conquer's: plus, gems, bless...).
 fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> {
+    pk::item_info(&item_fields(i, position, action, sim))
+}
+
+/// Item `i`'s fields as the item packets carry them.
+fn item_fields(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> pk::ItemInfo {
     let t = sim.rules().item(i.kind);
     let names = &sim.settings().item_attributes;
     let attr = |name: &str| {
@@ -233,7 +238,7 @@ fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> 
         None => (1, 1),
     };
     let short = |v: u32| u16::try_from(v).unwrap_or(u16::MAX);
-    pk::item_info(&pk::ItemInfo {
+    pk::ItemInfo {
         id: i.id,
         kind: i.kind,
         amount: short(amount),
@@ -248,7 +253,60 @@ fn item_info(i: &c3_game::Item, position: u8, action: u8, sim: &Sim) -> Vec<u8> 
         bless: byte("bless"),
         enchant: byte("enchant"),
         color: u16::try_from(attr("color").clamp(0, i32::from(u16::MAX))).unwrap_or(0),
-    })
+    }
+}
+
+/// Client ids of booths (TQ's dynamic NPC range 100001-199999), one per owner.
+const BOOTH_IDS: u32 = 100_001;
+
+fn booth_id(owner: EntityId) -> u32 {
+    BOOTH_IDS + owner.0 % 99_999
+}
+
+/// The booth flag NPCs, where players open booths (Role.h _ROLE_BOOTH_FLAG_NPC).
+const BOOTH_FLAG: u32 = 16;
+
+/// How player `owner`'s booth changed for a client (booth_trade spec §1.1, §1.4): its NPC
+/// shown (with its cry) or gone, wares gone; to the owner itself, wares set out echoed.
+pub(super) fn booth_changes(
+    (owner, name): (EntityId, &str),
+    old: Option<&c3_game::Booth>,
+    new: Option<&c3_game::Booth>,
+    to_owner: bool,
+) -> Vec<Vec<u8>> {
+    let id = booth_id(owner);
+    let mut out = Vec::new();
+    match (old, new) {
+        (_, Some(b)) if old.is_none_or(|o| o.cell != b.cell) => {
+            let look = pk::BOOTH_LOOK + u16::from(b.direction % 8);
+            out.push(pk::npc_info(id, cell16(b.cell), look, pk::BOOTH_NPC, name));
+            if !b.cry.is_empty() {
+                out.push(pk::talk(channel::CRY, name, "ALLUSERS", &b.cry, WHITE));
+            }
+        }
+        (Some(_), None) => out.push(pk::npc_gone(id)),
+        _ => {}
+    }
+    let before = old.map_or(&[][..], |b| &b.wares);
+    let now = new.map_or(&[][..], |b| &b.wares);
+    let listed = |wares: &[c3_game::Ware], item: u32| wares.iter().any(|w| w.item.id == item);
+    if new.is_some() {
+        for w in before.iter().filter(|w| !listed(now, w.item.id)) {
+            out.push(pk::item_action(w.item.id, id, item::BOOTH_DEL));
+        }
+    }
+    if to_owner {
+        for w in now.iter().filter(|w| !listed(before, w.item.id)) {
+            let add = if w.currency.is_empty() {
+                item::BOOTH_ADD
+            } else {
+                item::BOOTH_ADD_CPS
+            };
+            let price = u32::try_from(w.price).unwrap_or(u32::MAX);
+            out.push(pk::item_action(w.item.id, price, add));
+        }
+    }
+    out
 }
 
 /// NPC `n` as MsgNpcInfo: its look with its facing.
@@ -403,11 +461,47 @@ pub struct ConquerClient {
     roster: Vec<(String, u32, bool)>,
     /// The guild of each player in view that has one.
     seen_guilds: HashMap<EntityId, u32>,
+    /// The owner of the booth whose goods the client asked for.
+    booth_asked: Option<EntityId>,
 }
 
 impl ConquerClient {
     fn hero_id(&self) -> u32 {
         self.hero.map_or(0, Ids::player)
+    }
+
+    /// The player in view (or the hero) keeping booth `id`.
+    fn booth_owner(&self, id: u32) -> Option<&Player> {
+        let seen = self.seen.values().filter_map(|(s, _)| match s {
+            EntityState::Player(p) => Some(&**p),
+            _ => None,
+        });
+        (seen.chain(self.me.as_ref())).find(|p| p.booth.is_some() && booth_id(p.id) == id)
+    }
+
+    /// Booth `owner`'s goods, last first, and its cry (booth_trade spec §1.5).
+    fn booth_goods(&self, owner: EntityId, sim: &Sim) -> Vec<Vec<u8>> {
+        let Some(p) = sim.player(owner) else {
+            return Vec::new();
+        };
+        let Some(b) = &p.booth else {
+            return Vec::new();
+        };
+        let id = booth_id(owner);
+        let mut out: Vec<Vec<u8>> = (b.wares.iter().rev())
+            .map(|w| {
+                let mode = match w.currency.is_empty() {
+                    true => pk::ITEM_EX_BOOTH,
+                    false => pk::ITEM_EX_BOOTH_CPS,
+                };
+                let price = u32::try_from(w.price).unwrap_or(u32::MAX);
+                pk::item_info_ex(&item_fields(&w.item, 0, 0, sim), id, price, mode)
+            })
+            .collect();
+        if !b.cry.is_empty() {
+            out.push(pk::talk(channel::CRY, &p.name, "ALL", &b.cry, WHITE));
+        }
+        out
     }
 
     /// Lets the client in: the login answer, the hero and what it carries.
@@ -571,10 +665,30 @@ impl ConquerClient {
     fn hero_changes(&self, old: &Player, new: &Player, sim: &Sim) -> Vec<Vec<u8>> {
         let rules = sim.rules();
         let id = self.hero_id();
+        let mut booth = Vec::new();
+        // A booth opened: its id echoed, the client then sits its hero (CBoothManager::Open).
+        if let (None, Some(b)) = (&old.booth, &new.booth) {
+            let dir = u16::from(b.direction);
+            let data = booth_id(new.id);
+            booth.push(pk::action(
+                id,
+                action::CREATE_BOOTH,
+                data,
+                cell16(b.cell),
+                dir,
+            ));
+        }
+        booth.extend(booth_changes(
+            (new.id, &new.name),
+            old.booth.as_ref(),
+            new.booth.as_ref(),
+            true,
+        ));
         // Skills learned, or whose level or experience changed.
         let changed = (new.skills.iter())
             .filter(|s| !old.skills.contains(s) || magic_info(old, **s) != magic_info(new, **s));
-        let mut out: Vec<Vec<u8>> = changed.map(|s| magic_info(new, *s)).collect();
+        let mut out = booth;
+        out.extend(changed.map(|s| magic_info(new, *s)));
         let before = weapon_skills(old);
         out.extend(
             (weapon_skills(new).into_iter())
@@ -643,6 +757,9 @@ impl ConquerClient {
     /// Shows the client what changed around its hero.
     pub fn update(&mut self, update: &WorldUpdate, sim: &Sim, ids: &mut Ids) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
+        if let Some(owner) = self.booth_asked.take() {
+            out.extend(self.booth_goods(owner, sim));
+        }
         let hero = self.hero;
         for state in &update.changed {
             let id = state.id();
@@ -672,6 +789,15 @@ impl ConquerClient {
                     &[(attr::STATUS, status(p, sim.rules()).into())],
                 ));
             }
+            if let EntityState::Player(p) = state
+                && self.entered
+            {
+                let old = match self.seen.get(&id) {
+                    Some((EntityState::Player(o), _)) => o.booth.as_ref(),
+                    _ => None,
+                };
+                out.extend(booth_changes((p.id, &p.name), old, p.booth.as_ref(), false));
+            }
             let fresh = self
                 .seen
                 .get(&id)
@@ -688,6 +814,11 @@ impl ConquerClient {
             if let Some((old, _)) = self.seen.remove(id) {
                 self.cells.remove(id);
                 if self.entered {
+                    if let EntityState::Player(p) = &old
+                        && p.booth.is_some()
+                    {
+                        out.push(pk::npc_gone(booth_id(p.id)));
+                    }
                     out.push(despawn(&old, ids));
                 }
             }
@@ -1469,6 +1600,23 @@ impl ConquerClient {
                 }
                 action::GHOST => inputs.push(Input::Ghost),
                 action::SET_PK_MODE => inputs.push(Input::SetPkMode(pk_mode(data))),
+                // A booth opened at the flag beside the hero, closed; a player's cry asked.
+                action::CREATE_BOOTH => {
+                    let flags = (self.npcs.iter()).filter(|n| n.kind == BOOTH_FLAG);
+                    let near = flags.min_by_key(|n| c3_game::distance(n.cell, me.cell));
+                    if let Some(n) = near.filter(|n| c3_game::distance(n.cell, me.cell) <= 3) {
+                        inputs.push(Input::Booth(c3_game::BoothAction::Open(n.id)));
+                    }
+                }
+                action::DESTROY_BOOTH => inputs.push(Input::Booth(c3_game::BoothAction::Close)),
+                action::QUERY_CRY => {
+                    let owner = ids.entity(data).and_then(|e| self.seen.get(&e));
+                    if let Some((EntityState::Player(p), _)) = owner
+                        && let Some(b) = p.booth.as_ref().filter(|b| !b.cry.is_empty())
+                    {
+                        out.push(pk::talk(channel::CRY, &p.name, "ALL", &b.cry, WHITE));
+                    }
+                }
                 _ => {}
             },
             Request::Walk { dir, run } => {
@@ -1555,6 +1703,29 @@ impl ConquerClient {
                     items: vec![item_id],
                     value: 0,
                 }),
+                // Booths: goods asked, a ware set out (silver or CPs), taken back, bought.
+                item::BOOTH_QUERY => self.booth_asked = self.booth_owner(data).map(|p| p.id),
+                item::BOOTH_ADD | item::BOOTH_ADD_CPS => {
+                    let currency = match a {
+                        item::BOOTH_ADD => String::new(),
+                        _ => crate::module::CONQUER_POINTS.to_owned(),
+                    };
+                    inputs.push(Input::Booth(c3_game::BoothAction::Add {
+                        item: item_id,
+                        price: data.into(),
+                        currency,
+                    }));
+                }
+                item::BOOTH_DEL => inputs.push(Input::Booth(c3_game::BoothAction::Remove(item_id))),
+                item::BOOTH_BUY => {
+                    if let Some(owner) = self.booth_owner(data).map(|p| p.id) {
+                        let buy = c3_game::BoothAction::Buy {
+                            owner,
+                            item: item_id,
+                        };
+                        inputs.push(Input::Booth(buy));
+                    }
+                }
                 _ => {}
             },
             Request::Guild {
@@ -1728,8 +1899,9 @@ impl ConquerClient {
                     _ => None,
                 };
                 inputs.push(match on {
-                    // A leader's guild announcement.
+                    // A leader's guild announcement; a booth's cry.
                     _ if code == channel::GUILD_NOTICE => Input::GuildNotice(words),
+                    _ if code == channel::CRY => Input::Booth(c3_game::BoothAction::Cry(words)),
                     // Commands and talk go as they are.
                     Some(on) if !words.starts_with('/') => Input::Chat {
                         channel: on,

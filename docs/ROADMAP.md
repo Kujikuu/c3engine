@@ -1135,8 +1135,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 212 CDlgNpcFace (change avatar): draft only, 6 mismatches (docs/conquer_ui_audit.md)
   - [ ] Booths: players sell from booth spots (engine/game booths.rs, `gameplay.booth_spots`; Conquer's ShopFlag NPCs, kind 16)
     - [x] a free spot offers a booth (StrRes 10364, DlgConfirm mode 13); its owner stands beside it; wares from the bag at a price in money or another currency, up to 20; others who come to the spot see them and buy (the item and the money change hands); the booth closes when its owner closes it, walks, jumps or leaves
-    - [ ] the booth carpet NPC (type 14) and the owner sitting (_ACTION_SITDOWN), the cry shown to others
-    - [ ] the Conquer front: MsgAction 111/114 (create/destroy booth), MsgItem booth listing, buying and the booth NPC
+    - [x] TQ's placement: the owner two cells out from the spot along its facing, the booth one more; wares drop off when their items leave the bag; the owner told who paid (STR_BOOTH_BUY_sds)
+    - [x] the Conquer front: MsgAction 111/114/115, MsgItem 21/22/23/24/29, MsgItemInfoEx 1108, the booth NPC (kind 14, look 400 + facing) shown and gone, the cry on MsgTalk 2104 (docs/conquer5065_protocol.md)
+    - [ ] the engine's own client draws no booth carpet and the owner doesn't sit; the cry isn't shown to others there
+    - [ ] the front's booth flow checked with the live Conquer.exe
+    - [ ] the lowest price (item value / 5, STR_BOOTH_LOW_PRICE) and the owner's 1e9 money limit
     - [ ] items locked, suspicious or protected refused (MyShellDlg.cpp 4421-4461); a CP ware asks first (BOOTH_EMONEY_BUY_CONFIRM_5065)
   - [ ] UI 233 CDlgMpcBooth (own booth): 9 of 11 audit mismatches fixed
     - [x] shown with the bag while the hero keeps a booth; Dialog34, six slots a page (Up/Down), each item (tooltip, glow), its price with commas and its Dialog56/57 coin; GetBack under filled slots; Change never drawn (DlgMpcBooth.cpp 252-347)

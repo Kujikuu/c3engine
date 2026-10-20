@@ -238,6 +238,7 @@ impl Sim {
         self.tick_timers();
         self.tick_transforms();
         self.tick_trades();
+        self.prune_booths();
         self.tick_world_events();
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {

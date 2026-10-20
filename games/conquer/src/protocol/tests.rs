@@ -329,3 +329,71 @@ fn msg_friend_is_the_clients_size_and_reads_back() {
         }
     );
 }
+
+#[test]
+fn msg_item_info_ex_is_the_clients_size() {
+    let info = pk::ItemInfo {
+        id: 9,
+        kind: 480_000,
+        amount: 1,
+        limit: 1,
+        action: 0,
+        ident: 0,
+        position: 0,
+        data: 0,
+        gem1: 0,
+        gem2: 0,
+        plus: 3,
+        bless: 0,
+        enchant: 0,
+        color: 3,
+    };
+    let packet = pk::item_info_ex(&info, 100_005, 250, pk::ITEM_EX_BOOTH_CPS);
+    assert_eq!(packet.len(), 0x34, "MsgItemInfoEx.h static_assert");
+    assert_eq!((u32_at(&packet, 4), u32_at(&packet, 8)), (9, 100_005));
+    assert_eq!((u32_at(&packet, 12), u32_at(&packet, 16)), (250, 480_000));
+    assert_eq!(packet[0x18], pk::ITEM_EX_BOOTH_CPS, "action at 0x18");
+    assert_eq!(packet[0x24], 3, "magic3 (plus) after the gems at 0x20");
+    assert_eq!(
+        u16::from_le_bytes([packet[0x30], packet[0x31]]),
+        3,
+        "color at 0x30"
+    );
+}
+
+#[test]
+fn a_booth_shows_as_an_npc_and_echoes_its_wares_to_its_owner() {
+    use c3_game::{Booth, Item, Ware};
+    let owner = (c3_game::EntityId(4), "Ann");
+    let mut booth = Booth {
+        spot: 50,
+        cell: (240, 273),
+        direction: 6,
+        ..Booth::default()
+    };
+    let opened = super::client::booth_changes(owner, None, Some(&booth), false);
+    assert_eq!(opened.len(), 1);
+    assert_eq!(
+        u16::from_le_bytes([opened[0][2], opened[0][3]]),
+        pk::NPC_INFO
+    );
+    let ware = |id, currency: &str| Ware {
+        item: Item::new(id, 480_000, None),
+        price: 100,
+        currency: currency.into(),
+    };
+    let mut stocked = booth.clone();
+    stocked.wares = vec![ware(1, ""), ware(2, "CPs")];
+    let echoed = super::client::booth_changes(owner, Some(&booth), Some(&stocked), true);
+    let actions: Vec<u16> = echoed
+        .iter()
+        .map(|p| u16::from_le_bytes([p[12], p[13]]))
+        .collect();
+    assert_eq!(actions, [pk::item::BOOTH_ADD, pk::item::BOOTH_ADD_CPS]);
+    booth.wares = vec![ware(2, "CPs")];
+    let sold = super::client::booth_changes(owner, Some(&stocked), Some(&booth), false);
+    assert_eq!(sold.len(), 1);
+    assert_eq!((u32_at(&sold[0], 4), u32_at(&sold[0], 8)), (1, 100_005));
+    let closed = super::client::booth_changes(owner, Some(&booth), None, false);
+    assert_eq!(u16::from_le_bytes([closed[0][2], closed[0][3]]), pk::NPC);
+}

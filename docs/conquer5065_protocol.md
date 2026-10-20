@@ -794,6 +794,24 @@ Actions:
 - Action 102 TASKID: the interface launches a task (id @4).
 - Redux handler: `GameServer.cs:1484-1503`.
 
+### Booths (`BoothManager.cpp`, `Booth.cpp`, `MsgItemInfoEx.h`; TQ booth_trade spec §1)
+
+- The client handles a click on a booth flag (NPC type 16) itself: confirm (StrRes 10364),
+  walk two cells out from the flag along its facing, then MsgAction 111 with the cell in
+  front (facing 6). The server echoes 111 with `data` = the booth's id; the client then sits.
+  MsgAction 114 closes the booth; 115 (`data` a player) asks for its cry.
+- The booth is an NPC of its own: MsgNpcInfo 2030 with kind 14, look 400 + facing, the owner's
+  name. It leaves with MsgNpc 2031 action 2. Ids sit in the dynamic NPC range 100001-199999.
+- MsgItem 1009: 21 asks booth `data`'s goods; 22 / 29 set bag item `id` out at silver / CP
+  price `data` (echoed to the owner on success, the client then takes it out of its bag);
+  23 takes it back or tells viewers it is gone (`data` the booth); 24 buys `id` from booth
+  `data`.
+- MsgItemInfoEx 1108 (0x34 bytes): id u32, owner (the booth) u32, price u32, type u32,
+  amount u16, limit u16, mode u8 (1 silver, 3 CPs) at 0x18, status u8, position u8, pad,
+  socket progress u32, gem1, gem2, magic1, magic2, magic3 (plus), bless, enchant, pad at 0x20,
+  data u32 at 0x28, suspicious u16, lock u16, color u16 at 0x30, pad.
+- The cry is MsgTalk channel 2104.
+
 ### Other login-time packets (optional)
 
 - **MsgWeaponSkill 1025** (`MsgWeaponSkill.h:26-34`): `@4 u32 type`, `@8 u16 level`, `@10 u16 reserved`, `@12 u32 exp`, size **16**. Redux sends size 14 (buffer 22 - 8, `[1025] WeaponProficiency.cs:25-31`), so its exp is truncated. Use 16.
