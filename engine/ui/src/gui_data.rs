@@ -21,6 +21,8 @@ pub(crate) struct GuiState {
     pub mana_seen: bool,
     /// A page to open in the browser (`url:` actions), opened next frame.
     pub open_url: Option<String>,
+    /// The game UI's dialogs showing, as last drawn (`dialog.<id>`).
+    pub dialogs_shown: Vec<u32>,
     /// The game UI's name files, read as tables (`table:<file>|<key>`).
     pub tables: std::collections::HashMap<String, std::collections::HashMap<String, String>>,
     /// The hero's friends online as last seen (none before the first look).
@@ -1273,6 +1275,11 @@ impl GuiData for HeroData<'_> {
             "nobility.query" => self.view_number("nobility_query") as f64,
             "pigeon.rows" => self.pigeon_rows().len() as f64,
             "pigeon.heard" => self.state.broadcasts_heard.len() as f64,
+            // Whether game UI dialog `<id>` shows (`dialog.9189`).
+            _ if key.starts_with("dialog.") => {
+                let id: u32 = key.strip_prefix("dialog.")?.parse().ok()?;
+                u8::from(self.state.dialogs_shown.contains(&id)).into()
+            }
             // The level broadcasts start from.
             "broadcast.min_level" => self.view.sim.settings().broadcast.min_level.into(),
             // The banner shows the last line heard since it was cleared.

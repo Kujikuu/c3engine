@@ -416,6 +416,11 @@ pub(super) fn holds(control: &Control, data: &dyn GuiData) -> bool {
     set(control, data)
 }
 
+/// Whether a `when`-style expression holds.
+pub(super) fn expression_holds(text: &str, data: &dyn GuiData) -> bool {
+    expression(text, data)
+}
+
 /// Whether `control`'s `when` holds: alternatives between `|`, each of terms all holding
 /// between `&`; a term is a binding set (not 0), `!` one unset, or a comparison of a binding
 /// with a number or another binding (`hero.level>=70`).

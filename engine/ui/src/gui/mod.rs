@@ -366,6 +366,9 @@ pub struct Control {
     /// it (a shop: `hero.shop`), in place of the engine's own window; a control in a dialog
     /// shows only then (a text box a page asks for).
     pub when: String,
+    /// While it holds, the dialog is closed (`shut_when=hero.life=0|booth.mine`: TQ's skill
+    /// strips hidden on death and with a booth open).
+    pub shut_when: String,
     /// The screen a dialog belongs to (`login`, `servers`, `characters`, `create`,
     /// `loading`); empty: the game's.
     pub screen: String,
@@ -559,6 +562,7 @@ impl Control {
             offset: text("offset"),
             stretch: Stretch::parse(section.get("stretch").unwrap_or_default()),
             when: text("when"),
+            shut_when: text("shut_when"),
             screen: text("screen").to_ascii_lowercase(),
             password: section.int("password").is_some_and(|p| p != 0),
             digits: section.int("digits").is_some_and(|d| d != 0),
@@ -854,6 +858,15 @@ impl Gui {
             .map(|d| d.id)
             .collect();
         self.dismissed.retain(|id| shown.contains(id));
+        // Dialogs their `shut_when` closes.
+        let shut: Vec<u32> = (self.dialogs())
+            .filter(|d| !d.shut_when.is_empty() && screen::expression_holds(&d.shut_when, data))
+            .filter(|d| self.showing(d.id))
+            .map(|d| d.id)
+            .collect();
+        for id in shut {
+            self.shut(id);
+        }
         // A dialog its `when` starts showing takes its part and opens its company (a shop
         // and the bag); one it no longer shows closes those it hides (a booth's cry).
         let came: Vec<u32> = shown.difference(&self.when_shown).copied().collect();
@@ -872,6 +885,14 @@ impl Gui {
                 self.shut(other);
             }
         }
+    }
+
+    /// The dialogs showing now (opened, or shown by their `when` and not closed).
+    pub fn showing_ids(&self) -> Vec<u32> {
+        (self.dialogs())
+            .filter(|d| self.showing(d.id))
+            .map(|d| d.id)
+            .collect()
     }
 
     /// Whether the player closed dialog `id` while its `when` shows it.

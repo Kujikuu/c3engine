@@ -874,9 +874,9 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] disabled skills covered (Image0) and not pickable
     - [ ] hover tooltip and drag to the quick bar
     - [x] the opener also toggles 214
-    - [ ] the opener hides 189
-    - [ ] 140 / 191 opening no longer close it (window model)
-    - [ ] hidden on death and booth close
+    - [x] the opener hides 189 (over the XP strip it hides it and opens 188; `dialog.<id>`)
+    - [x] 140 / 191 opening no longer close it (window model: none of them takes a part)
+    - [x] hidden on death and booth close (`shut_when=hero.life=0|booth.mine`, 188 and 214)
   - [ ] Conquer's jump as the client does it (checked against the 5065 client source: CHero::Jump, CanJump, CRole::Jump, GetJumpHeight, GetFrameInterval, CRole::Show, ProcessAction)
     - [x] Ctrl+click jumps (an engine `Jump` action, bound `Mouse Ctrl Left`; a chorded click is no walk); rules shared by client and sim: 16 cells (StrRes 100032), the ground on the way at most 200 above the start (100022), walkable and nobody living there (100023)
     - [x] the jump motion (130) over the way, its frames stretched by distance (× d/300 + 1, 33 ms least), along a sine arc peaking d/3 + 20 midway; the body turned to the path's exact angle; names and picking follow the body up

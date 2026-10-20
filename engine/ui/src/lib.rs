@@ -2569,6 +2569,7 @@ impl GameUi {
                 player,
                 state: &self.gui_state,
             });
+            self.gui_state.dialogs_shown = gui.showing_ids();
         }
         match &self.gui {
             Some(gui) => {
