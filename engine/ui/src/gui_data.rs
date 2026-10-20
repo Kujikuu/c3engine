@@ -23,6 +23,12 @@ pub(crate) struct GuiState {
     pub exp_gain: Option<(u64, std::time::Instant)>,
     /// Screen move is on.
     pub screen_move: bool,
+    /// The lock suggestions (TQ's CDlgFurnishment5065): the items listed, those ever listed
+    /// (a new one opens the list again), the page shown, and whether it shows.
+    pub suggest: Vec<u32>,
+    pub suggest_seen: std::collections::HashSet<u32>,
+    pub suggest_page: usize,
+    pub suggest_shown: bool,
     /// The merchant box's mode (TQ's CDlgBusinessConfirm: 1 apply, 2 waiting, 3 dissolve),
     /// kept after it closes, the days waited, and whether it shows.
     pub merchant_mode: u8,
@@ -198,7 +204,40 @@ pub(crate) struct TradeView {
     pub i_agreed: bool,
 }
 
+/// Lock suggestions a page.
+pub(crate) const SUGGEST_ROWS: usize = 9;
+
 impl GuiState {
+    /// Lists the hero's free items worth locking it hasn't been shown yet, and shows the list
+    /// when there are; locked or gone ones leave it (a merchant is shown none).
+    pub(crate) fn follow_suggestions(&mut self, sim: &c3_game::Sim, p: &c3_game::Player) {
+        let carried = || p.bag.iter().chain(&p.equipment);
+        self.suggest
+            .retain(|id| carried().any(|i| i.id == *id && i.lock == 0));
+        if p.merchant == c3_game::MERCHANT {
+            return;
+        }
+        let rules = sim.rules();
+        let new: Vec<u32> = carried()
+            .filter(|i| i.lock == 0 && !self.suggest_seen.contains(&i.id))
+            .filter(|i| rules.lock_worthy(sim, p, i))
+            .map(|i| i.id)
+            .collect();
+        if !new.is_empty() {
+            self.suggest_seen.extend(&new);
+            self.suggest.extend(new);
+            self.suggest_shown = true;
+        }
+        let pages = self.suggest.len().div_ceil(SUGGEST_ROWS).max(1);
+        self.suggest_page = self.suggest_page.min(pages - 1);
+    }
+
+    /// The list closed: emptied, its page back to the first.
+    pub(crate) fn close_suggestions(&mut self) {
+        (self.suggest_shown, self.suggest_page) = (false, 0);
+        self.suggest.clear();
+    }
+
     /// What the hero is told about its trade.
     pub fn trade_news(&mut self, partner: c3_game::EntityId, news: &c3_game::TradeNews) {
         use c3_game::TradeNews as N;
@@ -491,6 +530,12 @@ impl HeroData<'_> {
             "hero.equipment" => p.equipment.iter().collect(),
             // The item picked in the lock window.
             "lock.item" => self.lock_item().into_iter().collect(),
+            // The lock suggestions on the page shown, nine a page.
+            "suggest.items" => (self.state.suggest.iter())
+                .skip(self.state.suggest_page * SUGGEST_ROWS)
+                .take(SUGGEST_ROWS)
+                .filter_map(|id| p.bag.iter().chain(&p.equipment).find(|i| i.id == *id))
+                .collect(),
             // What the open chest holds.
             "chest.items" => (p.chests.get(&self.state.chest?))
                 .map_or_else(Vec::new, |items| items.iter().collect()),
@@ -626,6 +671,18 @@ impl GuiData for HeroData<'_> {
             "hero.running" => f64::from(u8::from(p.running)),
             "ui.radar" => f64::from(u8::from(self.state.radar.visible)),
             "ui.screen_move" => f64::from(u8::from(self.state.screen_move)),
+            // The lock suggestions: shown, how many on the page, the page and the pages.
+            "suggest.open" => f64::from(u8::from(self.state.suggest_shown)),
+            "suggest.count" => {
+                let left = self
+                    .state
+                    .suggest
+                    .len()
+                    .saturating_sub(self.state.suggest_page * SUGGEST_ROWS);
+                left.min(SUGGEST_ROWS) as f64
+            }
+            "suggest.page" => (self.state.suggest_page + 1) as f64,
+            "suggest.pages" => self.state.suggest.len().div_ceil(SUGGEST_ROWS).max(1) as f64,
             // The merchant box: shown, its mode, the days' picture (BusinessNum frame N-1).
             "merchant.open" => f64::from(u8::from(self.state.merchant_shown)),
             "merchant.mode" => f64::from(self.state.merchant_mode),
@@ -1164,6 +1221,17 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // A lock suggestion's name, by its row on the page (`suggest.name.2`).
+            _ if key.starts_with("suggest.name.") => {
+                let row: usize = key.strip_prefix("suggest.name.")?.parse().ok()?;
+                let id = *self
+                    .state
+                    .suggest
+                    .get(self.state.suggest_page * SUGGEST_ROWS + row)?;
+                let p = self.player;
+                let item = p.bag.iter().chain(&p.equipment).find(|i| i.id == id)?;
+                Some(self.view.item_name(item.kind))
+            }
             // How far into its level the hero is, in percent to three places.
             "hero.exp_rate" => {
                 let next = self.number("hero.exp_next").filter(|n| *n > 0.0)?;

@@ -1224,6 +1224,28 @@ impl GameUi {
             "effigy_close" => actions.push(UiAction::Effigy(EffigyAction::Close)),
             // The protection tip: OK, or offering the trade's other side a partnership.
             "protect_ok" => self.gui_state.protect_tip = None,
+            // The lock suggestions: lock a row's item (no question), all of them, page, OK.
+            _ if action.starts_with("suggest_bind:") => {
+                let row: usize = action["suggest_bind:".len()..]
+                    .parse()
+                    .unwrap_or(usize::MAX);
+                let at = self.gui_state.suggest_page * gui_data::SUGGEST_ROWS + row;
+                if at < self.gui_state.suggest.len() {
+                    let item = self.gui_state.suggest.remove(at);
+                    actions.push(UiAction::Game(c3_game::Input::Lock(item)));
+                }
+            }
+            "suggest_bind_all" => {
+                for item in std::mem::take(&mut self.gui_state.suggest) {
+                    actions.push(UiAction::Game(c3_game::Input::Lock(item)));
+                }
+                self.gui_state.close_suggestions();
+            }
+            "suggest_ok" => self.gui_state.close_suggestions(),
+            "suggest_prev" => {
+                self.gui_state.suggest_page = self.gui_state.suggest_page.saturating_sub(1);
+            }
+            "suggest_next" => self.gui_state.suggest_page += 1,
             // The merchant box: apply, call off, close; each hides it, keeping its mode.
             "merchant_apply" | "merchant_cancel" | "merchant_close" => {
                 self.gui_state.merchant_shown = false;
@@ -2299,6 +2321,10 @@ impl GameUi {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
         self.prefs = view.controls.prefs;
+        // Items worth locking the hero hasn't been shown (CDlgFurnishment5065).
+        if let Some(p) = view.sim.player(view.hero) {
+            self.gui_state.follow_suggestions(view.sim, p);
+        }
         // The radar opens as the player last left it (MapModeRecord).
         if !self.gui_state.radar_restored {
             self.gui_state.radar.visible = !self.prefs.radar_shut;

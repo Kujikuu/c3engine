@@ -347,6 +347,12 @@ pub trait Rules: std::any::Any {
         false
     }
 
+    /// Whether `owner`'s free `item` is worth locking, so the game suggests it (TQ's lock
+    /// suggestion list). None by default.
+    fn lock_worthy(&self, _sim: &crate::Sim, _owner: &crate::Player, _item: &crate::Item) -> bool {
+        false
+    }
+
     /// Whether combine work `kind` refuses a protected item at place `at` of its list (TQ's
     /// compose minors, every item a craft takes). None by default.
     fn protects_work(&self, _kind: u32, _at: usize) -> bool {

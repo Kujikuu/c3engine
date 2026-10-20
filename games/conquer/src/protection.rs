@@ -176,6 +176,11 @@ impl Rules for ConquerRules {
         protected(sim, owner, item)
     }
 
+    /// CanEnterFurnishment5065: equipment scoring more than 7.
+    fn lock_worthy(&self, sim: &Sim, _owner: &Player, item: &Item) -> bool {
+        (1..=8).contains(&sort(item.kind)) && score(sim, item) > 7
+    }
+
     fn protects_work(&self, kind: u32, at: usize) -> bool {
         match kind {
             COMPOSE => at >= 1,

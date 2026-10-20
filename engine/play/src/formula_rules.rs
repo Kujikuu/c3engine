@@ -61,6 +61,15 @@ impl Rules for FormulaRules {
         self.inner.protects_work(kind, at)
     }
 
+    fn lock_worthy(
+        &self,
+        sim: &c3_game::Sim,
+        owner: &c3_game::Player,
+        item: &c3_game::Item,
+    ) -> bool {
+        self.inner.lock_worthy(sim, owner, item)
+    }
+
     fn item(&self, kind: u32) -> Option<&ItemType> {
         self.inner.item(kind)
     }
