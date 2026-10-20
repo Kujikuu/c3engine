@@ -83,6 +83,11 @@ pub enum GuiEvent {
         field: String,
         text: String,
     },
+    /// Slider `field` moved to `value`.
+    Slid {
+        field: String,
+        value: u32,
+    },
     /// Item `index` of grid `list` picked up, and the item held put on slot `index` of
     /// `list` (a `pick` grid).
     Pick {
@@ -645,6 +650,41 @@ impl Painter<'_, '_> {
                     super::Align::Right => rect.right() - galley.size().x,
                 };
                 (self.ui.painter()).galley(Pos2::new(left, rect.top()), galley, Color32::WHITE);
+            }
+            ControlKind::Slider => {
+                let max: f32 = (control.max.parse().ok())
+                    .or_else(|| data.number(&control.max).map(|m| m as f32))
+                    .unwrap_or(100.0)
+                    .max(1.0);
+                let value = data.number(&control.value).unwrap_or(0.0) as f32;
+                let travel = control.travel as f32 * self.place.scale;
+                let frames = self.skin.frames(&control.ani);
+                let Some(thumb) = self.frame(frames, 0) else {
+                    return;
+                };
+                let along = (value / max).clamp(0.0, 1.0) * travel;
+                let thumb_size = thumb.1 * self.place.scale;
+                let track =
+                    Rect::from_min_size(rect.min, Vec2::new(travel + thumb_size.x, thumb_size.y));
+                let id = (self.ui.scope_id()).with(("gui slider", control.parent, control.id));
+                let sense = if self.live {
+                    egui::Sense::click_and_drag()
+                } else {
+                    egui::Sense::hover()
+                };
+                let response = self.ui.interact(track, id, sense);
+                if let Some(at) = response.interact_pointer_pos()
+                    && (response.dragged() || response.clicked())
+                    && travel > 0.0
+                {
+                    let x = (at.x - rect.left() - thumb_size.x / 2.0).clamp(0.0, travel);
+                    events.push(GuiEvent::Slid {
+                        field: control.value.clone(),
+                        value: (x / travel * max).round() as u32,
+                    });
+                }
+                let at = origin + Vec2::new(along / self.place.scale, 0.0);
+                self.draw(thumb, at, None, None);
             }
             ControlKind::Model => {
                 if let Some(texture) = data.image(&control.value) {

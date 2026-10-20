@@ -350,6 +350,9 @@ impl GuiData for HeroData<'_> {
                 self.team().get(n)?.look.into()
             }
             "team.picked_member" => u8::from(self.picked_member().is_some()).into(),
+            // The player's music and sound volumes, 0 to 100.
+            "prefs.music" => f64::from(self.view.controls.prefs.music * 100.0).round(),
+            "prefs.sound" => f64::from(self.view.controls.prefs.sound * 100.0).round(),
             // The hero is in a guild; its rank and what it gave; how many members it has.
             "guild.in" => u8::from(self.view.sim.world_state().guild_of(&p.name).is_some()).into(),
             "guild.rank_value" => self.view.sim.world_state().guild_of(&p.name)?.1 as f64,

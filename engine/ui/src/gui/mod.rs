@@ -122,6 +122,8 @@ pub enum ControlKind {
     List,
     /// A 3D look drawn by the host (`value` names it: `front.look`, `front.look:1`).
     Model,
+    /// A thumb (`ani`) moved along `travel` pixels for `value`, 0 to `max` (TQ's CMySlider).
+    Slider,
 }
 
 impl ControlKind {
@@ -137,6 +139,7 @@ impl ControlKind {
             "edit" => Self::Edit,
             "list" => Self::List,
             "model" => Self::Model,
+            "slider" => Self::Slider,
             _ => return None,
         })
     }
@@ -243,6 +246,8 @@ pub struct Control {
     pub cell: i32,
     pub wrap: bool,
     pub hover: Option<[u8; 3]>,
+    /// How far a slider's thumb travels, in layout pixels (`travel=80`).
+    pub travel: i32,
     /// A stacked control comes no higher than this (`min_y=`; under an NPC's face).
     pub min_y: i32,
     /// A stacked control beside the one before it, at its height (`beside=1`; a button by
@@ -399,6 +404,7 @@ impl Control {
             wrap: section.int("wrap").is_some_and(|w| w != 0),
             hover: section.get("hover").map(|_| rgb("hover")),
             min_y: section.int("min_y").unwrap_or(0),
+            travel: section.int("travel").unwrap_or(0).max(0),
             beside: section.int("beside").is_some_and(|b| b != 0),
             open: text("open"),
             slot: text("slot"),

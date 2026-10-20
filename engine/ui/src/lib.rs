@@ -353,6 +353,9 @@ pub struct GameUi {
     placing: bool,
     /// Inputs the UI makes by itself (auto-joining a team), sent next frame.
     auto_inputs: Vec<c3_game::Input>,
+    /// The player's volumes as last shown, and the music's level before it was switched off.
+    prefs: c3_core::settings::PlayerPrefs,
+    music_before: f32,
     /// The hero's team's options as last drawn (closed, keeping money, sharing items).
     team_options: (bool, bool, bool),
     overlay: hud::Overlay,
@@ -438,6 +441,19 @@ impl GameUi {
                 return;
             }
             gui::GuiEvent::Item { .. } | gui::GuiEvent::Pick { .. } | gui::GuiEvent::Put { .. } => {
+                return;
+            }
+            // The player's volumes moved on the game UI's sliders.
+            gui::GuiEvent::Slid { field, value } => {
+                let mut prefs = self.prefs;
+                let level = (value as f32 / 100.0).clamp(0.0, 1.0);
+                match field.as_str() {
+                    "prefs.music" => prefs.music = level,
+                    "prefs.sound" => prefs.sound = level,
+                    _ => return,
+                }
+                self.prefs = prefs;
+                actions.push(UiAction::SetPrefs(prefs));
                 return;
             }
             gui::GuiEvent::EditKey { field, key } => {
@@ -751,6 +767,31 @@ impl GameUi {
             "close_shop" => actions.push(UiAction::CloseShop),
             "close_dialogue" => actions.push(UiAction::CloseDialogue),
             "run" => actions.push(UiAction::ToggleRun),
+            // The window full screen or not (`fullscreen:on|off`; the setup's mode buttons).
+            _ if action.starts_with("fullscreen:") => {
+                let mut prefs = self.prefs;
+                prefs.fullscreen = action.ends_with(":on");
+                self.prefs = prefs;
+                actions.push(UiAction::SetPrefs(prefs));
+            }
+            // Leaving the game (the setup's Exit).
+            "leave" => actions.push(UiAction::Leave),
+            // The music off, or back at the level it had (the setup's music switch).
+            "music_switch" => {
+                let mut prefs = self.prefs;
+                if prefs.music > 0.0 {
+                    self.music_before = prefs.music;
+                    prefs.music = 0.0;
+                } else {
+                    prefs.music = if self.music_before > 0.0 {
+                        self.music_before
+                    } else {
+                        1.0
+                    };
+                }
+                self.prefs = prefs;
+                actions.push(UiAction::SetPrefs(prefs));
+            }
             other => {
                 let id = |prefix: &str| other.strip_prefix(prefix).and_then(|i| i.parse().ok());
                 if let Some(gui) = &mut self.gui {
@@ -1051,6 +1092,7 @@ impl GameUi {
     ) -> Vec<UiAction> {
         let mut actions = Vec::new();
         fonts::use_game_font(ui);
+        self.prefs = view.controls.prefs;
         self.overlay.show(ui, view);
         let Some(player) = view.player() else {
             return actions;

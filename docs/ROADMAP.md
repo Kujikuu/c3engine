@@ -801,7 +801,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] images picked by a binding (an image's section from its value: the picked skill)
     - [x] disabled button frames (`disabled=`: frame 2, no clicks)
     - [x] latched button frames (`latched=`: frame 1, no clicks)
-    - [ ] sliders and multi-line edits
+    - [x] sliders (`type=slider`)
+    - [ ] multi-line edits
   - [ ] UI engine: the dialogs the server opens (window numbers and events) wired for every dialog that has one
   - [ ] UI engine: the engine's own widgets (skill bar, radar circle, chat log, quest windows) hidden where the game draws its own
   - [ ] UI 130 CDlgMain (main bar): 6 of 19 audit mismatches fixed (docs/conquer_ui_audit.md)
@@ -1064,7 +1065,16 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] Delete asks first (10400) and forgets the enemy
     - [ ] face 1427
     - [ ] view equipment 1429; nobility / business images
-  - [ ] UI 138 CDlgSetup (options): draft only (unreachable), 17 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 138 CDlgSetup (options): 11 of 17 audit mismatches fixed
+    - [x] reachable from the main bar's setup button; middle part, hiding the status and friends' pages
+    - [x] music and sound sliders (a slider control kind: Slider0 along 80) bound to the player's volumes, live
+    - [x] the music switch (off, or back to its level); window / full screen buttons set the window
+    - [x] Return and close; Exit leaves the game; Hotkey opens 231, Other 255
+    - [x] Dialog10 two pixels down; the spurious drafted 1075/1084-1086 gone
+    - [ ] delete role (confirm, password)
+    - [ ] shadow buttons 1072/1077, show-names 1083 and KO-count 1087 checks (engine options)
+    - [ ] the resolution radios 1533/1534 (Picture100)
+    - [ ] help 1667 (topic 19); user hotkey 45
   - [ ] UI 231 CDlgSetup_Hotkey (IDD_DIALOG_HOTKEY): draft only, 8 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 255 CDlgOther (setup "Other": furniture): draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 302 CDlgSetup_Graph (low-FPS restart prompt): draft only, 5 mismatches (docs/conquer_ui_audit.md)

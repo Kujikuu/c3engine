@@ -289,7 +289,8 @@ impl FrontEnd {
             GuiEvent::Sound(_)
             | GuiEvent::EditKey { .. }
             | GuiEvent::Pick { .. }
-            | GuiEvent::Put { .. } => {}
+            | GuiEvent::Put { .. }
+            | GuiEvent::Slid { .. } => {}
         }
     }
 
