@@ -68,6 +68,89 @@ pub mod business {
     pub const ADD: u8 = 5;
 }
 
+/// MsgMentor5065 (2065): a mentor action between two players, its data and names
+/// (MsgMentor5065.h, 0x14 bytes before the strings).
+pub fn mentor(action: u8, first: u32, second: u32, data: u32, names: &[&str]) -> Vec<u8> {
+    packet(MENTOR, |w| {
+        w.u8(action)
+            .u8(0)
+            .u8(0)
+            .u8(0)
+            .u32(first)
+            .u32(second)
+            .u32(data);
+        strings(w, names);
+    })
+}
+
+/// One of the hero's mentor relations (MsgMentorMember5065 2066, 0x44 bytes before the
+/// strings [mentor, student, spouse]): the hero's id, the member's, its level, profession,
+/// PK points, whether it is online and what it gave (time, blessed hours, item points).
+pub struct MentorMember<'a> {
+    pub action: u8,
+    pub identity: u32,
+    pub member: u32,
+    pub level: u8,
+    pub profession: u8,
+    pub pk: u16,
+    pub online: bool,
+    pub gifts: (u32, u16, u16),
+    pub names: [&'a str; 3],
+}
+
+pub fn mentor_member(m: &MentorMember) -> Vec<u8> {
+    packet(MENTOR_MEMBER, |w| {
+        w.u8(m.action)
+            .u8(0)
+            .u8(0)
+            .u8(0)
+            .u32(m.identity)
+            .u32(m.member);
+        w.u32(0).u32(0).u32(0).u32(0);
+        w.u8(m.level).u8(m.profession).u16(m.pk).u32(0);
+        w.u32(0).u32(0);
+        w.u8(u8::from(m.online)).u8(0).u8(0).u8(0).u32(0);
+        w.u32(m.gifts.0).u32(0).u16(m.gifts.1).u16(m.gifts.2);
+        strings(w, &m.names);
+    })
+}
+
+/// What a mentor's students gave, to claim (MsgMentorContribution5065 2067 action 4).
+pub fn mentor_prize(action: u8, identity: u32, gifts: (u32, u16, u16)) -> Vec<u8> {
+    packet(MENTOR_PRIZE, |w| {
+        w.u8(action)
+            .u8(0)
+            .u8(0)
+            .u8(0)
+            .u32(identity)
+            .u32(0)
+            .u32(0)
+            .u32(0);
+        w.u32(gifts.0).u32(0).u16(gifts.1).u16(gifts.2);
+        strings(w, &[]);
+    })
+}
+
+pub const MENTOR: u16 = 2065;
+pub const MENTOR_MEMBER: u16 = 2066;
+pub const MENTOR_PRIZE: u16 = 2067;
+/// MsgMentor5065 / member / contribution actions (MsgMentor5065.h).
+pub mod mentor {
+    pub const TEACH: u8 = 1;
+    pub const LEARN: u8 = 2;
+    pub const LEAVE: u8 = 3;
+    pub const DISMISS: u8 = 4;
+    pub const TEACHER_RESPONSE: u8 = 8;
+    pub const STUDENT_RESPONSE: u8 = 9;
+    pub const MEMBER_TEACHER: u8 = 1;
+    pub const MEMBER_STUDENT: u8 = 2;
+    pub const MEMBER_STUDENT_END: u8 = 3;
+    pub const CLAIM_EXP: u8 = 1;
+    pub const CLAIM_BLESS: u8 = 2;
+    pub const CLAIM_ITEM: u8 = 3;
+    pub const AVAILABLE: u8 = 4;
+}
+
 /// A guild action about a guild or player (MsgSyndicate).
 pub const GUILD: u16 = 1107;
 pub mod guild {
@@ -897,6 +980,18 @@ pub fn dialog_with(action: u8, index: u8, data: u16, text: &str) -> Vec<u8> {
 /// What a client asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
+    /// A mentor action (2065): the action, two players' ids and its data.
+    Mentor {
+        action: u8,
+        first: u32,
+        second: u32,
+        data: u32,
+    },
+    /// The hero's mentor relations asked for (2066), or what its students gave (2067).
+    MentorMembers,
+    MentorPrize {
+        action: u8,
+    },
     /// A trade partner asked about (2046): the action and the player's or partner's id.
     Business {
         action: u8,
@@ -1193,6 +1288,18 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 text: text.unwrap_or_default(),
             }
         }
+        MENTOR => {
+            let action = r.u8()?;
+            r.skip(3)?;
+            Request::Mentor {
+                action,
+                first: r.u32()?,
+                second: r.u32()?,
+                data: r.u32()?,
+            }
+        }
+        MENTOR_MEMBER => Request::MentorMembers,
+        MENTOR_PRIZE => Request::MentorPrize { action: r.u8()? },
         BUSINESS => {
             let id = r.u32()?;
             Request::Business {

@@ -200,6 +200,12 @@ pub enum Event {
     BoothChanged {
         owner: EntityId,
     },
+    /// `from` offers to teach `player` (`teach`), or asks to learn from it.
+    MentorAsked {
+        player: EntityId,
+        from: EntityId,
+        teach: bool,
+    },
     /// `from` asks `player` to be trade partners.
     PartnerAsked {
         player: EntityId,

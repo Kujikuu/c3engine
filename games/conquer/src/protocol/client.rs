@@ -463,6 +463,11 @@ pub struct ConquerClient {
     seen_guilds: HashMap<EntityId, u32>,
     /// The owner of the booth whose goods the client asked for.
     booth_asked: Option<EntityId>,
+    /// The hero's mentor and students as the client was last told (`None`: not yet), and
+    /// whether it asked for them or for what students gave.
+    mentors_told: Option<(String, Vec<String>)>,
+    mentors_asked: bool,
+    prize_asked: bool,
     /// The trade partners the client was told of: online or not (`None`: none told yet).
     partners_told: Option<BTreeMap<String, bool>>,
     /// A message board asked about: its channel, the first post of the page, and whose post
@@ -866,6 +871,7 @@ impl ConquerClient {
             out.extend(self.guild_changes(sim));
             out.extend(self.contact_changes(sim));
             out.extend(self.partner_changes(sim));
+            out.extend(self.mentor_changes(sim));
             let mut shown = Vec::new();
             for (at, event) in update.events.iter().enumerate() {
                 if shown.contains(&at) {
@@ -997,6 +1003,91 @@ impl ConquerClient {
         }
         self.enemies_told = told.pop();
         self.friends_told = told.pop();
+        out
+    }
+
+    /// The hero's mentor and students when they changed or the client asked (MsgMentorMember
+    /// 2066: the mentor, each student, the end), and what its students gave when asked.
+    fn mentor_changes(&mut self, sim: &Sim) -> Vec<Vec<u8>> {
+        use pk::mentor as m;
+        let Some(p) = self.hero.and_then(|h| sim.player(h)) else {
+            return Vec::new();
+        };
+        let world = sim.world_state();
+        let mentor = world
+            .mentors
+            .get(&p.name)
+            .map(|l| l.mentor.clone())
+            .unwrap_or_default();
+        let students = world.students_of(&p.name);
+        let now = (mentor.clone(), students.clone());
+        let mut out = Vec::new();
+        if std::mem::take(&mut self.prize_asked) {
+            let pool = world.mentor_pools.get(&p.name).copied().unwrap_or_default();
+            let short = |v: i64| u16::try_from(v.max(0)).unwrap_or(u16::MAX);
+            let gifts = (
+                u32::try_from(pool.time.max(0)).unwrap_or(u32::MAX),
+                short(pool.bless),
+                short(pool.items),
+            );
+            out.push(pk::mentor_prize(m::AVAILABLE, self.hero_id(), gifts));
+        }
+        if self.mentors_told.as_ref() == Some(&now) && !std::mem::take(&mut self.mentors_asked) {
+            return out;
+        }
+        self.mentors_told = Some(now);
+        let hero = self.hero_id();
+        let online = |n: &str| world.online.contains_key(n) || sim.players().any(|q| q.name == n);
+        let level =
+            |n: &str| u8::try_from(world.levels.get(n).copied().unwrap_or(0)).unwrap_or(u8::MAX);
+        if !mentor.is_empty() {
+            let id = self.contact_id(&mentor);
+            out.push(pk::mentor_member(&pk::MentorMember {
+                action: m::MEMBER_TEACHER,
+                identity: hero,
+                member: id,
+                level: level(&mentor),
+                profession: 0,
+                pk: 0,
+                online: online(&mentor),
+                gifts: (0, 0, 0),
+                names: [&mentor, &p.name, ""],
+            }));
+        }
+        for student in &students {
+            let given = (world.mentor_gifts.get(&(p.name.clone(), student.clone())))
+                .copied()
+                .unwrap_or_default();
+            let short = |v: i64| u16::try_from(v.max(0)).unwrap_or(u16::MAX);
+            let gifts = (
+                u32::try_from(given.time.max(0)).unwrap_or(u32::MAX),
+                short(given.bless),
+                short(given.items),
+            );
+            let id = self.contact_id(student);
+            out.push(pk::mentor_member(&pk::MentorMember {
+                action: m::MEMBER_STUDENT,
+                identity: hero,
+                member: id,
+                level: level(student),
+                profession: 0,
+                pk: 0,
+                online: online(student),
+                gifts,
+                names: [&p.name, student, ""],
+            }));
+        }
+        out.push(pk::mentor_member(&pk::MentorMember {
+            action: m::MEMBER_STUDENT_END,
+            identity: hero,
+            member: 0,
+            level: 0,
+            profession: 0,
+            pk: 0,
+            online: false,
+            gifts: (0, 0, 0),
+            names: ["", "", ""],
+        }));
         out
     }
 
@@ -1503,6 +1594,24 @@ impl ConquerClient {
             }
             // A player's emote, to everyone who sees it (the hero too).
             // Another player asks the hero to be friends (the client says so in its log).
+            // A mentor's offer (8, with its battle power) or a would-be student's ask (9).
+            Event::MentorAsked {
+                player,
+                from,
+                teach,
+            } if Some(*player) == hero => {
+                let (Some(who), Some(name)) = (
+                    self.client_id(*from, ids),
+                    sim.player(*from).map(|q| q.name.clone()),
+                ) else {
+                    return Vec::new();
+                };
+                let action = match teach {
+                    true => pk::mentor::TEACHER_RESPONSE,
+                    false => pk::mentor::STUDENT_RESPONSE,
+                };
+                vec![pk::mentor(action, who, self.hero_id(), 0, &[&name])]
+            }
             Event::PartnerAsked { player, from } if Some(*player) == hero => {
                 let (Some(who), Some(name)) = (
                     self.client_id(*from, ids),
@@ -1917,6 +2026,50 @@ impl ConquerClient {
                     _ => None,
                 };
                 inputs.extend(input.map(Input::Friend));
+            }
+            // Mentors: offering to teach, asking to learn, answering either, leaving one's
+            // mentor, sending a student away; the relations and what students gave asked for;
+            // claiming it.
+            Request::Mentor {
+                action: a,
+                first,
+                second,
+                data,
+            } => {
+                use c3_game::MentorAction as M;
+                use pk::mentor as m;
+                let name = |id: u32| {
+                    (ids.entity(id).and_then(|e| self.seen.get(&e)))
+                        .and_then(|(s, _)| match s {
+                            EntityState::Player(p) => Some(p.name.clone()),
+                            _ => None,
+                        })
+                        .or_else(|| self.contact_name(id))
+                };
+                let input = match a {
+                    m::TEACH => ids.entity(second).map(M::Teach),
+                    m::LEARN => ids.entity(second).map(M::Learn),
+                    m::TEACHER_RESPONSE if data != 0 => ids.entity(first).map(M::Learn),
+                    m::STUDENT_RESPONSE if data != 0 => ids.entity(first).map(M::Teach),
+                    m::TEACHER_RESPONSE | m::STUDENT_RESPONSE => ids.entity(first).map(M::Refuse),
+                    m::LEAVE => Some(M::Leave),
+                    m::DISMISS => name(second).map(M::Expel),
+                    _ => None,
+                };
+                inputs.extend(input.map(Input::Mentor));
+            }
+            Request::MentorMembers => self.mentors_asked = true,
+            Request::MentorPrize { action: a } => {
+                use c3_game::{MentorAction as M, MentorGift as G};
+                use pk::mentor as m;
+                let gift = match a {
+                    m::CLAIM_EXP => Some(G::Exp),
+                    m::CLAIM_BLESS => Some(G::Bless),
+                    m::CLAIM_ITEM => Some(G::Item),
+                    _ => None,
+                };
+                inputs.extend(gift.map(|g| Input::Mentor(M::Claim(g))));
+                self.prize_asked = true;
             }
             // Asking a player to be a trade partner (or asking back), turning one down,
             // ending a partnership.

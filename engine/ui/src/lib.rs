@@ -403,6 +403,8 @@ impl GameUi {
             "guild_apply" => Input::Guild(G::Apply(player)),
             "friend_add" => Input::Friend(c3_game::FriendAction::Ask(player)),
             "partner_add" => Input::Partner(c3_game::PartnerAction::Ask(player)),
+            "mentor_teach" => Input::Mentor(c3_game::MentorAction::Teach(player)),
+            "mentor_learn" => Input::Mentor(c3_game::MentorAction::Learn(player)),
             _ => return None,
         };
         Some(UiAction::Game(input))
@@ -818,6 +820,22 @@ impl GameUi {
                 }
             }
             "board_del" | "board_whisper" => self.gui_state.board_pending = Some(action.to_owned()),
+            // Mentors: leaving the hero's mentor; claiming what students gave
+            // (`mentor_claim:exp|bless|item`).
+            "mentor_leave" => {
+                let leave = c3_game::Input::Mentor(c3_game::MentorAction::Leave);
+                actions.push(UiAction::Game(leave));
+            }
+            _ if action.starts_with("mentor_claim:") => {
+                use c3_game::MentorGift as G;
+                let gift = match &action["mentor_claim:".len()..] {
+                    "exp" => G::Exp,
+                    "bless" => G::Bless,
+                    _ => G::Item,
+                };
+                let claim = c3_game::Input::Mentor(c3_game::MentorAction::Claim(gift));
+                actions.push(UiAction::Game(claim));
+            }
             "words_clear" => {
                 self.gui_state.words.clear();
                 self.gui_state.views.remove("word");
@@ -1054,6 +1072,17 @@ impl GameUi {
             }
             Event::Proposed { player, from } if player == hero => {
                 ("marriage", from, Input::AcceptProposal(from))
+            }
+            Event::MentorAsked {
+                player,
+                from,
+                teach,
+            } if player == hero => {
+                use c3_game::MentorAction as M;
+                match teach {
+                    true => ("mentor_offer", from, Input::Mentor(M::Learn(from))),
+                    false => ("mentor_ask", from, Input::Mentor(M::Teach(from))),
+                }
             }
             Event::PartnerAsked { player, from } if player == hero => (
                 "partner",
@@ -1449,6 +1478,7 @@ impl GameUi {
                             if list == "friends.rows"
                                 || list == "enemies.rows"
                                 || list == "partners.rows"
+                                || list == "students.rows"
                                 || list == "board.rows" =>
                         {
                             let key = format!("{}_pick", list.trim_end_matches(".rows"));
@@ -1497,6 +1527,7 @@ impl GameUi {
                         use c3_game::{FriendAction as F, Input, PartnerAction as P};
                         let drop = match list.as_str() {
                             "enemies" => Input::Friend(F::Forget(name)),
+                            "students" => Input::Mentor(c3_game::MentorAction::Expel(name)),
                             "partners" => Input::Partner(P::Break(name)),
                             _ => Input::Friend(F::Remove(name)),
                         };

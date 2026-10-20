@@ -323,6 +323,30 @@ impl Default for NewCharacter {
 /// The money cut: a teammate below level `picker_below` picking up the money of a teammate of
 /// level `owner_from` or more, at least `gap` levels above it, gives the owner `percent` of it
 /// (0: none).
+/// Mentors and students (TQ's Guide.dll, adapters spec §5).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MentorSettings {
+    /// The level a mentor needs before its first rebirth (0: no mentors).
+    pub min_level: u32,
+    /// The levels a mentor needs above its student, by the mentor's rebirths (none past the
+    /// list); a reborn mentor may also teach one reborn fewer times.
+    pub gaps: Vec<u32>,
+    /// How many students a mentor keeps by its level: `[from, to, students]`.
+    pub students: Vec<[u32; 3]>,
+    /// What a student's gains give: `[generation (0 its mentor, 1 the mentor's mentor), from
+    /// level, to level, percent of its time]`.
+    pub shares: Vec<[u32; 4]>,
+    /// Students give nothing from this level up (0: always).
+    pub max_student_level: u32,
+    /// What leaving a mentor costs, and the hours it may be undone before it is final.
+    pub leave_cost: u64,
+    pub leave_hours: i64,
+    /// The status blessed hours put on the mentor, and the item 100 item points buy.
+    pub bless_status: u32,
+    pub item: u32,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TeamMoneyCut {
@@ -405,6 +429,9 @@ pub struct GameplaySettings {
     pub currencies: Vec<String>,
     /// Crime and PK points: who gets a bad name for fighting other players.
     pub pk: PkSettings,
+    /// Mentors and students (off while `min_level` is 0).
+    #[serde(default)]
+    pub mentor: MentorSettings,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -535,6 +562,7 @@ impl Default for GameplaySettings {
             currency: "Gold".into(),
             currencies: Vec::new(),
             pk: PkSettings::default(),
+            mentor: MentorSettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),

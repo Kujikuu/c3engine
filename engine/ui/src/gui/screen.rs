@@ -378,6 +378,24 @@ fn expression(text: &str, data: &dyn GuiData) -> bool {
     (text.split('|').filter(|w| !w.is_empty())).any(|w| w.split('&').all(holds))
 }
 
+/// `text` with its first printf conversion (`%s`, `%d`, `%u`, `%0.2f`, ...) replaced by `with`
+/// (a names-file string's blank filled).
+fn fill_first(text: &str, with: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut at = 0;
+    while let Some(start) = text[at..].find('%').map(|i| at + i) {
+        let mut end = start + 1;
+        while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'.') {
+            end += 1;
+        }
+        if end < bytes.len() && b"sdufx".contains(&bytes[end]) {
+            return format!("{}{with}{}", &text[..start], &text[end + 1..]);
+        }
+        at = start + 1;
+    }
+    text.to_owned()
+}
+
 /// A comparison term (`a>=b`, `<=`, `!=`, `>`, `<`, `=`), each side a number or a binding
 /// (unknown: 0); none when the term has no comparison.
 fn compare(term: &str, data: &dyn GuiData) -> Option<bool> {
@@ -640,7 +658,7 @@ impl Painter<'_, '_> {
                     text = name.clone();
                 }
                 if !control.fill_in.is_empty() {
-                    text = text.replacen("%s", &expand(&control.fill_in, data), 1);
+                    text = fill_first(&text, &expand(&control.fill_in, data));
                 }
                 if control.commas {
                     text = with_commas(&text);

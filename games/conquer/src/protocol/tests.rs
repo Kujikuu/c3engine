@@ -397,3 +397,23 @@ fn a_booth_shows_as_an_npc_and_echoes_its_wares_to_its_owner() {
     let closed = super::client::booth_changes(owner, Some(&booth), None, false);
     assert_eq!(u16::from_le_bytes([closed[0][2], closed[0][3]]), pk::NPC);
 }
+
+#[test]
+fn msg_mentor_member_puts_its_strings_at_0x44() {
+    let packet = pk::mentor_member(&pk::MentorMember {
+        action: pk::mentor::MEMBER_STUDENT,
+        identity: 1_000_001,
+        member: 3_500_000_002,
+        level: 50,
+        profession: 10,
+        pk: 0,
+        online: true,
+        gifts: (600, 2, 150),
+        names: ["Master", "Pupil", ""],
+    });
+    assert_eq!(packet.len(), 0x44 + 1 + (1 + 6) + (1 + 5) + 1);
+    assert_eq!(u32_at(&packet, 0x0C), 3_500_000_002, "the member at 0x0C");
+    assert_eq!((packet[0x20], packet[0x30]), (50, 1), "level at 0x20, online at 0x30");
+    assert_eq!(u32_at(&packet, 0x38), 600, "the time given at 0x38");
+    assert_eq!(packet[0x44], 3, "three strings");
+}

@@ -87,6 +87,11 @@ pub struct Sim {
     pub(crate) friend_asks: BTreeMap<EntityId, EntityId>,
     /// Who asked whom to be a trade partner.
     pub(crate) partner_asks: BTreeMap<EntityId, EntityId>,
+    /// Who offered to teach (true) or asked to learn from whom.
+    pub(crate) mentor_asks: BTreeMap<(EntityId, EntityId), bool>,
+    /// What students gave their mentors since the last flush, and when the next flush is.
+    pub(crate) pending_gifts: BTreeMap<(String, String), crate::Gifts>,
+    pub(crate) next_gift_flush_ms: u64,
     pub(crate) closed_teams: std::collections::BTreeSet<EntityId>,
     /// Teams (by leader) whose members keep their money from each other, and those sharing
     /// items.
@@ -162,6 +167,9 @@ impl Sim {
             guild_applies: BTreeMap::new(),
             friend_asks: BTreeMap::new(),
             partner_asks: BTreeMap::new(),
+            mentor_asks: BTreeMap::new(),
+            pending_gifts: BTreeMap::new(),
+            next_gift_flush_ms: 0,
             closed_teams: std::collections::BTreeSet::new(),
             teams_keeping_money: std::collections::BTreeSet::new(),
             teams_sharing_items: std::collections::BTreeSet::new(),
@@ -242,6 +250,8 @@ impl Sim {
         self.tick_transforms();
         self.tick_trades();
         self.prune_booths();
+        self.flush_gifts();
+        self.expire_mentors();
         self.tick_world_events();
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {

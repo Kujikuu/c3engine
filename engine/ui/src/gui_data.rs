@@ -66,6 +66,18 @@ pub(crate) struct GuiState {
     pub steps: Vec<(String, i64, String)>,
 }
 
+/// The hero's mentorship, if it has a mentor.
+fn world_mentor<'a>(data: &HeroData<'a>) -> Option<&'a c3_game::Mentorship> {
+    data.view.sim.world_state().mentors.get(&data.player.name)
+}
+
+/// Time at a level as exp balls of 600 (CDlgMentorContribution's MentorContributionExpBalls),
+/// two decimals.
+fn exp_balls(time: i64) -> String {
+    let hundredths = time.max(0) * 1000 / 600 / 10;
+    format!("{}.{:02}", hundredths / 100, hundredths % 100)
+}
+
 /// The posts a message board's page lists (MsgMessageBoard's lists of 8).
 const BOARD_PAGE: usize = 8;
 
@@ -192,6 +204,11 @@ impl HeroData<'_> {
             "partners" => (world.partners_of(&self.player.name).into_iter())
                 .map(|(name, _)| name)
                 .collect(),
+            // The hero's students, and its mentor (one name).
+            "students" => world.students_of(&self.player.name),
+            "mentor" => (world.mentors.get(&self.player.name))
+                .map(|m| vec![m.mentor.clone()])
+                .unwrap_or_default(),
             _ => return Vec::new(),
         };
         let online = |n: &String| {
@@ -521,6 +538,40 @@ impl GuiData for HeroData<'_> {
                 u8::from(self.view_number("board") == tab).into()
             }
             "word.prev" => u8::from(self.view_number("word") > 0).into(),
+            // The hero's mentor: whether it has one and is leaving it (the days left), its
+            // students and whether it may take in more, a student's row filled, and what its
+            // students gave (time, blessed hours, item points).
+            "mentor.has" => u8::from(world_mentor(self).is_some()).into(),
+            "mentor.leaving" => u8::from(world_mentor(self).is_some_and(|m| m.left != 0)).into(),
+            "mentor.leave_days" => {
+                let m = world_mentor(self).filter(|m| m.left != 0)?;
+                let hours = self.view.sim.settings().mentor.leave_hours;
+                let left = m.left + hours - chrono::Utc::now().timestamp() / 3600;
+                (left.max(0) / 24 + 1) as f64
+            }
+            "mentor.students_count" => self.contacts("students").len() as f64,
+            "mentor.can_take" => {
+                let m = &self.view.sim.settings().mentor;
+                let limit = (m.students.iter())
+                    .find(|[from, to, _]| (*from..=*to).contains(&p.level))
+                    .map_or(0, |r| r[2]) as usize;
+                let alive = p.is_alive() && m.min_level > 0;
+                u8::from(alive && self.contacts("students").len() < limit).into()
+            }
+            _ if key.starts_with("mentor.student.") => {
+                let n: usize = key.strip_prefix("mentor.student.")?.parse().ok()?;
+                u8::from(n < self.contacts("students").len()).into()
+            }
+            "mentor.pool.time" | "mentor.pool.bless" | "mentor.pool.items" => {
+                let pool = (self.view.sim.world_state().mentor_pools.get(&p.name))
+                    .copied()
+                    .unwrap_or_default();
+                match key {
+                    "mentor.pool.time" => pool.time as f64,
+                    "mentor.pool.bless" => pool.bless as f64,
+                    _ => pool.items as f64,
+                }
+            }
             // The hero's trade partners, and the hours of trial left with the one in row `n`.
             "partners.count" => self.contacts("partners").len() as f64,
             _ if key.starts_with("partner.trial.") => {
@@ -653,6 +704,47 @@ impl GuiData for HeroData<'_> {
             // Who asked the question shown, and its kind.
             "prompt.name" => Some(self.state.prompt.as_ref()?.name.clone()),
             "prompt.kind" => Some(self.state.prompt.as_ref()?.kind.clone()),
+            // The hero's mentor's name; what its students gave, as CDlgMentorContribution
+            // words it (time as exp balls of 600, item points as hundredths); the top giver of
+            // each kind (`mentor.top.0.name`) and its share.
+            "mentor.name" => Some(
+                world_mentor(self)
+                    .map(|m| m.mentor.clone())
+                    .unwrap_or_default(),
+            ),
+            "mentor.pool.balls" | "mentor.pool.hours" | "mentor.pool.stones" => {
+                let pool = (self
+                    .view
+                    .sim
+                    .world_state()
+                    .mentor_pools
+                    .get(&self.player.name))
+                .copied()
+                .unwrap_or_default();
+                Some(match key {
+                    "mentor.pool.balls" => exp_balls(pool.time),
+                    "mentor.pool.hours" => pool.bless.to_string(),
+                    _ => format!("{}.{:02}", pool.items / 100, pool.items % 100),
+                })
+            }
+            _ if key.starts_with("mentor.top.") => {
+                let (kind, field) = key.strip_prefix("mentor.top.")?.split_once('.')?;
+                let kind: usize = kind.parse().ok()?;
+                let gifts = &self.view.sim.world_state().mentor_gifts;
+                let value = |g: &c3_game::Gifts| [g.time, g.bless, g.items][kind.min(2)];
+                let top = (gifts.iter())
+                    .filter(|((m, _), g)| *m == self.player.name && value(g) > 0)
+                    .max_by_key(|(_, g)| value(g));
+                Some(match (top, field) {
+                    (Some(((_, s), _)), "name") => s.clone(),
+                    (Some((_, g)), "value") => match kind {
+                        0 => exp_balls(g.time),
+                        1 => g.bless.to_string(),
+                        _ => format!("{}.{:02}", g.items / 100, g.items % 100),
+                    },
+                    _ => String::new(),
+                })
+            }
             // The leave-word dialog's friend and the words shown in the received ones.
             "word.to" => Some(self.state.word_to.clone()),
             "word.from" => Some(self.word_shown().map(|w| w.0.clone()).unwrap_or_default()),
@@ -898,7 +990,7 @@ impl GuiData for HeroData<'_> {
                 (rows, picked)
             }
             // The hero's friends, online first, and its enemies.
-            "friends.rows" | "enemies.rows" | "partners.rows" => {
+            "friends.rows" | "enemies.rows" | "partners.rows" | "students.rows" => {
                 let list = key.trim_end_matches(".rows");
                 let picked =
                     (self.state.views.get(&format!("{list}_pick"))).and_then(|v| v.parse().ok());

@@ -1946,6 +1946,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Deliver { .. }
         | WorldChange::Post { .. }
         | WorldChange::Partnership { .. }
+        | WorldChange::Mentorship { .. }
+        | WorldChange::MentorGift { .. }
         | WorldChange::Delivered { .. } => {}
     }
 }

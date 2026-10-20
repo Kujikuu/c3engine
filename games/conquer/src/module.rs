@@ -187,6 +187,35 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.npc_windows = vec![[5, 212], [6, 211], [7, 229]];
     // Booth flags (_ROLE_BOOTH_FLAG_NPC 16, Role.h) are where players open booths.
     s.gameplay.booth_spots = vec![16];
+    // Mentors (adapters spec §5, cq_tutor_type and cq_student_type): level 70, a gap of 30 /
+    // 20 / 10 levels by the mentor's rebirths, students by its level, a share of a student's
+    // time below 130 (to the mentor's mentor from 110), 50,000 silver and 72 hours to leave,
+    // blessing (status 9876) and +1 stones (730001).
+    s.gameplay.mentor = c3_core::settings::MentorSettings {
+        min_level: 70,
+        gaps: vec![30, 20, 10],
+        students: vec![
+            [70, 109, 2],
+            [110, 119, 3],
+            [120, 129, 5],
+            [130, 133, 7],
+            [134, 140, 10],
+        ],
+        shares: vec![
+            [0, 1, 69, 2],
+            [0, 70, 99, 3],
+            [0, 100, 109, 5],
+            [0, 110, 119, 7],
+            [0, 120, 140, 10],
+            [1, 110, 119, 1],
+            [1, 120, 140, 2],
+        ],
+        max_student_level: 130,
+        leave_cost: 50_000,
+        leave_hours: 72,
+        bless_status: 9876,
+        item: 730_001,
+    };
     // Trade partners are on trial for 3 days (social spec §3, PROBATION 259200).
     s.gameplay.partner_probation_secs = 259_200;
     // The message boards (CDlgLevWord's tabs, channels 2201-2205); the guild's own is the

@@ -400,6 +400,7 @@ impl GameRules for DataGameRules {
 #[derive(Debug, Clone, Copy)]
 struct Level {
     exp: u64,
+    time: u64,
     stats: Stats,
 }
 
@@ -603,6 +604,7 @@ impl DataRules {
         for row in rows(t) {
             let level = Level {
                 exp: row.int("exp").max(0) as u64,
+                time: row.int("time").max(0) as u64,
                 stats: Stats {
                     attack_range: 1,
                     ..row.stats()
@@ -934,6 +936,10 @@ impl Rules for DataRules {
         stats.attack_ms = 1000;
         stats.step_ms = 500;
         stats
+    }
+
+    fn level_time(&self, level: u32) -> Option<u64> {
+        self.levels.get(&level).map(|l| l.time).filter(|t| *t > 0)
     }
 
     fn level_exp(&self, level: u32) -> Option<u64> {

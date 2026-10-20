@@ -2465,3 +2465,34 @@ fn trade_partners_ask_both_ways_and_an_offline_one_is_told_of_the_end() {
         "words wait for Bob"
     );
 }
+
+#[test]
+fn a_mentor_teaches_a_student_far_enough_below_and_may_send_it_away() {
+    use crate::MentorAction as M;
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    sim.set_settings(GameplaySettings {
+        mentor: c3_core::settings::MentorSettings {
+            min_level: 70,
+            gaps: vec![30],
+            students: vec![[70, 140, 2]],
+            leave_cost: 100,
+            leave_hours: 72,
+            ..Default::default()
+        },
+        ..GameplaySettings::default()
+    });
+    let m = sim.add_player("Master", (5, 5), 80);
+    let near = sim.add_player("Near", (6, 5), 60);
+    let s = sim.add_player("Pupil", (7, 5), 40);
+    sim.input(m, Input::Mentor(M::Teach(near)));
+    assert!(sim.world_state().mentors.is_empty(), "only 20 levels apart");
+    sim.input(m, Input::Mentor(M::Teach(s)));
+    let asked = (sim.take_events().into_iter())
+        .any(|e| matches!(e, Event::MentorAsked { player, teach: true, .. } if player == s));
+    assert!(asked);
+    sim.input(s, Input::Mentor(M::Learn(m)));
+    assert_eq!(sim.world_state().mentors["Pupil"].mentor, "Master");
+    assert_eq!(sim.world_state().students_of("Master"), ["Pupil"]);
+    sim.input(m, Input::Mentor(M::Expel("Pupil".into())));
+    assert!(sim.world_state().mentors.is_empty());
+}

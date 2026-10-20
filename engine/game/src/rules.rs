@@ -308,6 +308,12 @@ pub trait Rules: std::any::Any {
     /// Experience needed to rise from `level` to the next; `None` at the top level.
     fn level_exp(&self, level: u32) -> Option<u64>;
 
+    /// How long `level` takes at a steady pace, in the units time is given in (TQ's
+    /// up_lev_time); `None` when the game doesn't say.
+    fn level_time(&self, _level: u32) -> Option<u64> {
+        None
+    }
+
     /// Damage of one hit, 0 for a miss.
     fn hit(&self, attacker: &Fighter, target: &Fighter, rng: &mut Rng) -> u32;
 

@@ -70,6 +70,15 @@ pub struct WorldState {
     /// Maps made while playing (players' homes), by their new id.
     #[serde(default)]
     pub map_copies: BTreeMap<u32, c3_script::MapCopyView>,
+    /// Each student's mentor, by the student's name.
+    #[serde(default)]
+    pub mentors: BTreeMap<String, crate::Mentorship>,
+    /// What each mentor's students gave it, to claim.
+    #[serde(default)]
+    pub mentor_pools: BTreeMap<String, crate::Gifts>,
+    /// What each student gave its mentor (and its mentor's mentor): (mentor, student).
+    #[serde(default)]
+    pub mentor_gifts: BTreeMap<(String, String), crate::Gifts>,
     /// Trade partners: each pair of names (the smaller first) and since when (unix seconds).
     #[serde(default)]
     pub partners: BTreeMap<(String, String), i64>,
@@ -154,6 +163,41 @@ impl WorldState {
                     self.friends.insert(pair);
                 } else {
                     self.friends.remove(&pair);
+                }
+            }
+            WorldChange::Mentorship {
+                student,
+                mentor,
+                on,
+                left,
+            } => {
+                if *on {
+                    let link = crate::Mentorship {
+                        mentor: mentor.clone(),
+                        left: *left,
+                    };
+                    self.mentors.insert(student.clone(), link);
+                } else {
+                    self.mentors.remove(student);
+                    self.mentor_gifts.retain(|(_, s), _| s != student);
+                }
+            }
+            WorldChange::MentorGift {
+                mentor,
+                student,
+                time,
+                bless,
+                items,
+            } => {
+                let add = |g: &mut crate::Gifts| {
+                    g.time = (g.time + time).max(0);
+                    g.bless = (g.bless + bless).max(0);
+                    g.items = (g.items + items).max(0);
+                };
+                add(self.mentor_pools.entry(mentor.clone()).or_default());
+                if !student.is_empty() {
+                    let key = (mentor.clone(), student.clone());
+                    add(self.mentor_gifts.entry(key).or_default());
                 }
             }
             WorldChange::Partnership { a, b, on, since } => {
@@ -361,6 +405,14 @@ impl WorldState {
                 }
             }
         }
+    }
+
+    /// Player `name`'s students (those who left it but may come back too).
+    pub fn students_of(&self, name: &str) -> Vec<String> {
+        (self.mentors.iter())
+            .filter(|(_, m)| m.mentor == name)
+            .map(|(s, _)| s.clone())
+            .collect()
     }
 
     /// Whether players `a` and `b` are trade partners.

@@ -121,6 +121,8 @@ pub enum Input {
         #[serde(default)]
         author: String,
     },
+    /// Mentors and students: teaching, learning, leaving, sending away, claiming.
+    Mentor(crate::MentorAction),
     /// Trade partners: asking, turning down, ending.
     Partner(crate::PartnerAction),
     /// Booths: opening one, setting out wares, buying from one.
@@ -178,6 +180,7 @@ impl Sim {
             Input::Friend(action) => self.friend_action(id, action),
             Input::Booth(action) => self.booth_action(id, action),
             Input::Partner(action) => self.partner_action(id, action),
+            Input::Mentor(action) => self.mentor_action(id, action),
             Input::TakeDown { board, author } => self.take_down(id, board, &author),
             Input::Emote(emote) => {
                 if self.players.get(&id).is_some_and(|p| p.is_alive()) {

@@ -297,6 +297,27 @@ pub enum WorldChange {
         #[serde(default)]
         pk: i64,
     },
+    /// `student`'s mentor `mentor` (`left`: the unix hour it left it, 0 while it learns), or
+    /// no longer (`on`).
+    Mentorship {
+        student: String,
+        mentor: String,
+        on: bool,
+        #[serde(default)]
+        left: i64,
+    },
+    /// What `student` gave `mentor` (taken, when negative; `student` empty: the mentor's claim).
+    MentorGift {
+        mentor: String,
+        #[serde(default)]
+        student: String,
+        #[serde(default)]
+        time: i64,
+        #[serde(default)]
+        bless: i64,
+        #[serde(default)]
+        items: i64,
+    },
     /// Players `a` and `b` trade partners since `since` (unix seconds), or no longer (`on`).
     Partnership {
         a: String,

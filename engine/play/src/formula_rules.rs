@@ -74,6 +74,10 @@ impl Rules for FormulaRules {
         }
     }
 
+    fn level_time(&self, level: u32) -> Option<u64> {
+        self.inner.level_time(level)
+    }
+
     fn level_exp(&self, level: u32) -> Option<u64> {
         match self.formula("level_exp", |f| f.int("level_exp", (i64::from(level),))) {
             Some(exp) => (exp > 0).then_some(exp as u64),

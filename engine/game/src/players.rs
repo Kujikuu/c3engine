@@ -1117,6 +1117,7 @@ impl Sim {
         };
         p.exp += amount;
         self.events.push(Event::ExpGained { player: id, amount });
+        self.share_exp(id, amount);
         loop {
             let p = self.players.get_mut(&id).expect("levelling");
             let Some(need) = self.rules.level_exp(p.level) else {

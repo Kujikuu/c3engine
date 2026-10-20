@@ -873,7 +873,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] UI 304 CDlgAutoRunToggle5065 (auto-path HUD button): the 3 audit mismatches fixed (303 itself is its own item)
   - [ ] UI 325 mentor HUD button: 3 of 5 audit mismatches fixed
     - [x] always shown, btn-dssy alone (no Dialog531 frame, no Button532)
-    - [ ] its click opens the mentor contribution 319 (needs the mentor system)
+    - [x] its click opens the mentor contribution 319
     - [ ] tooltip StrRes 100220
   - [x] UI 328 CDlgEquipTie5065 (item-lock button): the 2 audit mismatches fixed (329 itself is its own item)
   - [ ] UI 272 CDlgInsHelp (instant help): 1 of 8 audit mismatches fixed
@@ -1181,10 +1181,18 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 334 CDlgFurnishment5065 (item-bind list): draft only, 5 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 380 CDlgQuestList5065 / 381 CDlgQuestTrack5065: draft only (non-native additions), 7 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 215 CDlgHelp: draft only, 2 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 312 CDlgSchoolList (mentor): draft only, 9 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 313 / 314 / 316 mentor state pages, 315 grand-student list: draft only, 4 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 317 CDlgMentorNotice5065 / 318 CDlgMentorConfirm5065: draft only, 4 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 319 / 320 / 322 / 323 / 324 mentor contribution pages: missing, all mismatches (docs/conquer_ui_audit.md)
+  - [ ] Mentors (adapters spec §5, Guide.dll): `gameplay.mentor` (Conquer: level 70, gaps 30/20/10 by rebirths, cq_tutor_type students, cq_student_type shares, 50,000 silver and 72 hours to leave); offer / ask / answer, leave, expel; a student's exp gives its mentor and its mentor's mentor time at its level (flushed each minute), claimed as experience (TQ's AwardTimeExp, `Rules::level_time`), blessed hours or +1 stones; the Conquer front carries MsgMentor 2065, the relations (2066) and the claims (2067)
+    - [x] engine, UI and front for the above
+    - [ ] blessed hours from prayer items and item points from +N drops (no hooks yet), battle power shares (no battle power yet), a mentor taking back a student who left (actions 5/6), the timers and notices of actions 10-23
+  - [ ] UI 312 CDlgSchoolList (mentor): 7 of 9 audit mismatches fixed
+    - [x] Dialogteacher, the mentor's name and leave days (100187), detail button (313), students in yellow with detail buttons (314), Follow / Betray shown by whether there is a mentor (100188 asked first), Take In under the limit, Dismiss (100254), contribution (319), friend / enemy / business pages; closing hides 313, 314 and 319
+    - [ ] the mentor's face, list clicks opening the grand-student list 315
+  - [ ] UI 313 / 314 / 316 mentor state pages, 315 grand-student list: 313 and 314 done (DialogStateBg, title, name, spouse, level, profession, PK, guild, rank; Betray / Dismiss)
+    - [ ] 313's follow date and shared battle power, 314's contributions, 315 and 316
+  - [ ] UI 317 CDlgMentorNotice5065 / 318 CDlgMentorConfirm5065: 318 done (Dialog15, StrRes 100195 / 100196 with the asker's name, OK / Cancel)
+    - [ ] 317's notices (actions 10-17)
+  - [ ] UI 319 / 320 / 322 / 323 / 324 mentor contribution pages: 319 done (dssy-lqgxBG, amounts as exp balls / hours / stones, claim buttons enabled with something to claim, the top giver of each kind); opened from 312 and the 325 HUD button
+    - [ ] 320 (online page), 322-324 (rankings, history, second generation)
   - [ ] Trade partners (social spec §3): asked and asked back, 20 at most, on trial for `partner_probation_secs` (Conquer's 3 days), ended by either side (an offline one told by leave words), leave words to partners; the Conquer front lists them with their trial minutes and online state (MsgBusiness 2046) and takes asks, refusals and ends
     - [x] engine, UI and front
     - [ ] what a formal partnership grants: trading no-trade items, a spouse's NPC storage (needs item monopoly flags and NPC-owned storages)
