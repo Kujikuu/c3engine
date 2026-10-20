@@ -274,6 +274,40 @@ pub fn conquer_settings() -> ProjectSettings {
         bump_cost: 5,
         bump_places: 5,
     };
+    // Dice (tq_re spec systems/dice.md): DiceKing's kind 19; 50 s of betting, the roll 2 s
+    // after, the next round 8 s on; chips of 100, 1000, 10000, 30000 a round; Small (sum to
+    // 10) and Big (11 up) pay 2, triples 216, the sums 4-17 72 down to 8 and back (g_aPayFor);
+    // a win over 60000 told around the winner (STR_WIN_BET_sd).
+    {
+        use c3_core::settings::{DiceBet, DiceWin};
+        let mut bets = vec![
+            DiceBet {
+                wins: DiceWin::SumAtMost(10),
+                pays: 2,
+            },
+            DiceBet {
+                wins: DiceWin::SumAtLeast(11),
+                pays: 2,
+            },
+        ];
+        bets.extend((1..=6).map(|n| DiceBet {
+            wins: DiceWin::Triple(n),
+            pays: 216,
+        }));
+        let sums = [72, 36, 21, 14, 10, 8, 8, 8, 8, 10, 14, 21, 36, 72];
+        bets.extend((4..=17).zip(sums).map(|(n, pays)| DiceBet {
+            wins: DiceWin::Sum(n),
+            pays,
+        }));
+        s.gameplay.dice = c3_core::settings::DiceSettings {
+            kinds: vec![19],
+            chips: vec![100, 1000, 10_000],
+            most: 30_000,
+            bets,
+            notice_over: 60_000,
+            ..Default::default()
+        };
+    }
     // Offline training (Training.dll): 90 credits at most, 10 minutes each, counted by 15,
     // 1.25 level-time units a minute, for the heaven-blessed (StrRes 11001).
     s.gameplay.offline_training = c3_core::settings::OfflineTraining {

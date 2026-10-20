@@ -109,6 +109,7 @@ impl Event {
             | Event::ItemLocked { player, .. }
             | Event::Withdrawn { player, .. }
             | Event::Training { player, .. }
+            | Event::Dice { player, .. }
             | Event::ChestChanged { player, .. }
             | Event::BoothOffered { player, .. }
             | Event::Chat {

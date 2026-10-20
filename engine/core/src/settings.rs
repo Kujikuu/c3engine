@@ -420,6 +420,56 @@ impl NpcCombatSettings {
     }
 }
 
+/// Dice tables (TQ's sic-bo): NPCs of `kinds` keep one. A round takes bets for
+/// `bet_seconds`, rolls three dice `roll_seconds` after it closes, and opens the next
+/// `next_seconds` after the roll. A chip is one of `chips`, and a player's bets in a round total at
+/// most `most`. Bet `n` is `bets[n]`. A win above `notice_over` is told to those around the
+/// winner (0: never).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DiceSettings {
+    pub kinds: Vec<u32>,
+    pub bet_seconds: u32,
+    pub roll_seconds: u32,
+    pub next_seconds: u32,
+    pub chips: Vec<u64>,
+    pub most: u64,
+    pub bets: Vec<DiceBet>,
+    pub notice_over: u64,
+}
+
+impl Default for DiceSettings {
+    fn default() -> Self {
+        Self {
+            kinds: Vec::new(),
+            bet_seconds: 50,
+            roll_seconds: 2,
+            next_seconds: 8,
+            chips: Vec::new(),
+            most: 0,
+            bets: Vec::new(),
+            notice_over: 0,
+        }
+    }
+}
+
+/// A dice bet: when it wins, and what it pays a stake (the stake included).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiceBet {
+    pub wins: DiceWin,
+    pub pays: u32,
+}
+
+/// When a dice bet wins: the three dice's sum at most or at least a number, all three on a
+/// number, or the sum exactly a number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiceWin {
+    SumAtMost(u32),
+    SumAtLeast(u32),
+    Triple(u32),
+    Sum(u32),
+}
+
 /// Offline training (TQ's training ground, Training.dll): each minute online banks a credit
 /// (up to `most_credit`) worth `minutes_a_credit` training minutes, counted in `step`s; a
 /// player holding `attribute` (when a state ends, unix seconds: TQ's heaven blessing; empty:
@@ -508,6 +558,9 @@ pub struct GameplaySettings {
     /// Offline training (off while `most_credit` is 0).
     #[serde(default)]
     pub offline_training: OfflineTraining,
+    /// Dice tables (off while `kinds` is empty).
+    #[serde(default)]
+    pub dice: DiceSettings,
     /// The numbers every player keeps (strength, rebirths...), for scripts and formulas.
     #[serde(rename = "attribute", skip_serializing_if = "Vec::is_empty")]
     pub attributes: Vec<AttributeDef>,
@@ -663,6 +716,7 @@ impl Default for GameplaySettings {
             broadcast: BroadcastSettings::default(),
             nobility: NobilitySettings::default(),
             offline_training: OfflineTraining::default(),
+            dice: DiceSettings::default(),
             attributes: Vec::new(),
             item_attributes: Vec::new(),
             sockets: Vec::new(),

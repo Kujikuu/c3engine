@@ -66,6 +66,8 @@ pub struct Sim {
     pub(crate) world_events: bool,
     /// Trades open, and who asked whom to trade.
     pub(crate) trades: Vec<crate::trades::Trade>,
+    /// The dice tables, by their NPCs.
+    pub(crate) dice: std::collections::BTreeMap<u32, crate::dice::DiceTable>,
     pub(crate) trade_asks: std::collections::BTreeMap<EntityId, EntityId>,
     /// The map's traps, and the one a player is setting off while its event runs.
     pub(crate) traps: Vec<c3_scene::Trap>,
@@ -157,6 +159,7 @@ impl Sim {
             dying_at: None,
             world_events: true,
             trades: Vec::new(),
+            dice: Default::default(),
             trade_asks: std::collections::BTreeMap::new(),
             traps: Vec::new(),
             trap_now: None,
@@ -252,6 +255,7 @@ impl Sim {
         self.tick_timers();
         self.tick_transforms();
         self.tick_trades();
+        self.tick_dice();
         self.prune_booths();
         self.flush_gifts();
         self.tell_broadcasts();

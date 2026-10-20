@@ -17,6 +17,12 @@ impl Sim {
         let Some(n) = self.npcs.iter().find(|n| n.id == npc) else {
             return;
         };
+        // A dice table offers a seat.
+        let kind = n.kind;
+        if self.settings.dice.kinds.contains(&kind) {
+            self.offer_dice(id, npc);
+            return;
+        }
         // An NPC of a kind that opens a window opens it.
         let window = self
             .settings

@@ -281,6 +281,12 @@ pub enum Event {
         player: EntityId,
         npc: u32,
     },
+    /// Dice table `npc`'s news for `player`.
+    Dice {
+        player: EntityId,
+        npc: u32,
+        news: crate::dice::DiceNews,
+    },
     /// Offline training news for `player`.
     Training {
         player: EntityId,

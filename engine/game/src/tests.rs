@@ -2820,3 +2820,111 @@ fn offline_training_banks_online_minutes_and_pays_levels_on_return() {
     let p = sim.player(ann).unwrap();
     assert_eq!((p.level, p.training_since, p.training_credit), (5, 0, 6));
 }
+
+#[test]
+fn a_dice_round_takes_chips_rolls_and_pays_by_the_table_rules() {
+    use crate::{DiceAction as D, DiceNews as N};
+    use c3_core::settings::{DiceBet, DiceSettings, DiceWin};
+    let table = Npc {
+        id: 77,
+        kind: 19,
+        cell: (5, 5),
+        ..shopkeeper()
+    };
+    let mut sim = Sim::new(Grid::new(20, 20), vec![table], vec![], rules(), 3);
+    sim.set_settings(GameplaySettings {
+        dice: DiceSettings {
+            kinds: vec![19],
+            chips: vec![100, 1000],
+            most: 1100,
+            bets: vec![
+                DiceBet {
+                    wins: DiceWin::SumAtMost(10),
+                    pays: 2,
+                },
+                DiceBet {
+                    wins: DiceWin::SumAtLeast(11),
+                    pays: 2,
+                },
+            ],
+            ..Default::default()
+        },
+        ..GameplaySettings::default()
+    });
+    let ann = sim.add_player("Ann", (6, 6), 1);
+    sim.set_money(ann, 5000);
+    sim.take_events();
+    let news = |sim: &mut Sim| {
+        (sim.take_events().into_iter())
+            .filter_map(|e| match e {
+                Event::Dice { news, .. } => Some(news),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    sim.input(ann, Input::Talk(77));
+    assert_eq!(news(&mut sim), [N::Offered]);
+    sim.input(ann, Input::Dice(D::Join(77)));
+    assert_eq!(news(&mut sim)[1], N::Open { seconds: 50 });
+    sim.input(
+        ann,
+        Input::Dice(D::Chip {
+            npc: 77,
+            bet: 1,
+            money: 1000,
+        }),
+    );
+    sim.input(
+        ann,
+        Input::Dice(D::Chip {
+            npc: 77,
+            bet: 0,
+            money: 500,
+        }),
+    );
+    sim.input(
+        ann,
+        Input::Dice(D::Chip {
+            npc: 77,
+            bet: 0,
+            money: 1000,
+        }),
+    );
+    sim.input(
+        ann,
+        Input::Dice(D::Chip {
+            npc: 77,
+            bet: 0,
+            money: 100,
+        }),
+    );
+    assert_eq!(
+        sim.player(ann).unwrap().money,
+        3900,
+        "a size not a chip, and over the most, refused"
+    );
+    sim.advance(50_000);
+    assert!(news(&mut sim).contains(&N::Closed));
+    sim.input(
+        ann,
+        Input::Dice(D::Chip {
+            npc: 77,
+            bet: 0,
+            money: 100,
+        }),
+    );
+    assert_eq!(news(&mut sim), [N::Missed]);
+    sim.advance(2_000);
+    let told = news(&mut sim);
+    let Some(N::Rolled { dice }) = told.first() else {
+        panic!("rolled: {told:?}");
+    };
+    let sum: u32 = dice.iter().map(|&d| u32::from(d)).sum();
+    let won = if sum >= 11 { 2000 } else { 200 };
+    assert_eq!(sim.player(ann).unwrap().money, 3900 + won);
+    sim.advance(8_000);
+    assert!(
+        news(&mut sim).contains(&N::Open { seconds: 50 }),
+        "the next round"
+    );
+}
