@@ -25,6 +25,12 @@ pub struct Guild {
     pub enemies: Vec<u32>,
     /// Members by name, and their rank (the game's numbers).
     pub members: BTreeMap<String, i64>,
+    /// What its leader tells its members.
+    #[serde(default)]
+    pub announcement: String,
+    /// What each member has given it, by name.
+    #[serde(default)]
+    pub contributions: BTreeMap<String, i64>,
 }
 
 /// The state all maps share.
@@ -128,6 +134,21 @@ impl WorldState {
             WorldChange::GuildFund { guild, amount } => {
                 if let Some(g) = self.guild_mut(*guild) {
                     g.fund = g.fund.saturating_add(*amount).max(0);
+                }
+            }
+            WorldChange::GuildNotice { guild, text } => {
+                if let Some(g) = self.guild_mut(*guild) {
+                    g.announcement = text.clone();
+                }
+            }
+            WorldChange::Contribution {
+                guild,
+                name,
+                amount,
+            } => {
+                if let Some(g) = self.guild_mut(*guild) {
+                    let given = g.contributions.entry(name.clone()).or_default();
+                    *given = given.saturating_add(*amount);
                 }
             }
             WorldChange::Member { guild, name, rank } => {

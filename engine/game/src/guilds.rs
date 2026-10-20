@@ -65,6 +65,24 @@ impl Sim {
         self.events.push(Event::Notice { player: id, text });
     }
 
+    /// Player `id`, leading a guild, sets its announcement (a line, 255 characters at most).
+    pub fn guild_notice(&mut self, id: EntityId, text: &str) {
+        let Some(name) = self.players.get(&id).map(|p| p.name.clone()) else {
+            return;
+        };
+        let leads = (self.world.guild_of(&name))
+            .map(|(g, _)| g)
+            .filter(|g| self.world.guilds[g].leader == name);
+        let Some(guild) = leads else {
+            return self.message(id, "Only a guild's leader does that.");
+        };
+        let text: String = text.replace(['\r', '\n'], " ").chars().take(255).collect();
+        self.change_world(WorldChange::GuildNotice {
+            guild: guild.into(),
+            text,
+        });
+    }
+
     fn guild_action(&mut self, id: EntityId, action: GuildAction) -> Result<String, String> {
         let me = self.players.get(&id).ok_or("No such player")?;
         let my_name = me.name.clone();
@@ -159,9 +177,15 @@ impl Sim {
                     return Err("You don't have that much.".into());
                 }
                 p.money -= amount;
+                let amount = i64::try_from(amount).unwrap_or(i64::MAX);
                 self.change_world(WorldChange::GuildFund {
                     guild: guild.into(),
-                    amount: i64::try_from(amount).unwrap_or(i64::MAX),
+                    amount,
+                });
+                self.change_world(WorldChange::Contribution {
+                    guild: guild.into(),
+                    name: my_name,
+                    amount,
                 });
                 Ok(format!("You gave {amount} to the guild."))
             }

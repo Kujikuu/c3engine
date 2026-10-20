@@ -256,6 +256,8 @@ pub struct ControlsView<'a> {
 /// The game UI's chat line and whisper name fields.
 const CHAT_TEXT: &str = "chat.text";
 pub(crate) const CHAT_NAME: &str = "chat.name";
+/// The announcement a guild's leader types.
+const GUILD_NOTICE: &str = "guild.notice";
 /// The amount typed in the yes/no prompt (dropping money).
 const PROMPT_AMOUNT: &str = "prompt.amount";
 /// The chat bar's list of names (TQ's CDlgListBox, hidden once a name is picked).
@@ -388,6 +390,7 @@ impl GameUi {
             "team_join" => Input::Team(T::Apply(player)),
             "team_kick" => Input::Team(T::Kick(player)),
             "guild_invite" => Input::Guild(G::Invite(player)),
+            "guild_apply" => Input::Guild(G::Apply(player)),
             _ => return None,
         };
         Some(UiAction::Game(input))
@@ -507,9 +510,40 @@ impl GameUi {
                     self.gui_state.steps.push((group.to_owned(), step, max));
                 }
             }
-            _ if action.starts_with("guild_tab:") => {
-                self.gui_state.guild_tab = action.trim_start_matches("guild_tab:").to_owned();
+            // A line of the game's own told the player (`tell:ini/StrRes.ini:10341`).
+            _ if action.starts_with("tell:") => {
+                let (file, key) = action["tell:".len()..].rsplit_once(':').unwrap_or_default();
+                let line = (self.gui.as_ref())
+                    .and_then(|g| g.names.get(file)?.get(key).cloned())
+                    .unwrap_or_default();
+                if !line.is_empty() {
+                    self.system(line, style::BAD);
+                }
             }
+            // An edit's text cleared (`clear:guild.notice`).
+            _ if action.starts_with("clear:") => {
+                self.gui_state.fields.remove(&action["clear:".len()..]);
+            }
+            // The guild: money given (the prompt's amount), its announcement set, the member
+            // picked sent out.
+            "guild_donate" => {
+                let typed = self.gui_state.fields.remove(PROMPT_AMOUNT);
+                if let Some(amount) = typed.and_then(|t| t.trim().parse::<u64>().ok()) {
+                    let donate = c3_game::GuildAction::Donate(amount);
+                    actions.push(UiAction::Game(c3_game::Input::Guild(donate)));
+                }
+            }
+            "guild_notice" => {
+                let text = self
+                    .gui_state
+                    .fields
+                    .remove(GUILD_NOTICE)
+                    .unwrap_or_default();
+                if !text.trim().is_empty() {
+                    actions.push(UiAction::Game(c3_game::Input::GuildNotice(text)));
+                }
+            }
+            "guild_kick_picked" => self.gui_state.guild_kicking = true,
             // The money typed offered: none is refused (StrRes 10045).
             "trade_money" => {
                 let amount: u64 = (self.gui_state.fields.get("trade.amount"))
@@ -1059,6 +1093,7 @@ impl GameUi {
                 let working = gui.open_uses("work.");
                 let mut work = Vec::new();
                 let mut picked_target = None;
+                let mut picked_guild_row = None;
                 // What happens to the item held: picked up, put down (or dropped).
                 let mut held = data.state.held.clone();
                 for event in gui.show(ui.ctx(), view.rect, &data, icons) {
@@ -1089,6 +1124,10 @@ impl GameUi {
                                     .map(|id| (false, *id)),
                             );
                         }
+                        // A guild member's row picked (for Delete).
+                        gui::GuiEvent::Item { list, index } if list == "guild.member_rows" => {
+                            picked_guild_row = Some(index);
+                        }
                         // A listed name picked fills the chat bar's name; the list hides.
                         gui::GuiEvent::Item { list, index } if list == CHAT_TARGETS => {
                             picked_target = data.state.chat_bar.targets.get(index).cloned();
@@ -1114,6 +1153,22 @@ impl GameUi {
                     .collect();
                 self.gui_state.focus = None;
                 self.gui_state.held = held;
+                if std::mem::take(&mut self.gui_state.guild_kicking) {
+                    let data = gui_data::HeroData {
+                        view,
+                        player,
+                        state: &self.gui_state,
+                    };
+                    let name = data.picked_guild_member();
+                    let here = name.and_then(|n| view.sim.players().find(|p| p.name == n));
+                    match here {
+                        Some(p) => {
+                            let kick = c3_game::GuildAction::Kick(p.id);
+                            actions.push(UiAction::Game(c3_game::Input::Guild(kick)));
+                        }
+                        None => self.system("They aren't here.", style::BAD),
+                    }
+                }
                 if std::mem::take(&mut self.gui_state.kicking) {
                     let data = gui_data::HeroData {
                         view,
@@ -1146,6 +1201,11 @@ impl GameUi {
                         Some((s, _)) => self.gui_state.picked_skill = Some(s),
                         None => {}
                     }
+                }
+                if let Some(row) = picked_guild_row {
+                    self.gui_state
+                        .views
+                        .insert("guild_pick".into(), row.to_string());
                 }
                 if let Some(name) = picked_target {
                     self.gui_state.fields.insert(CHAT_NAME.into(), name);

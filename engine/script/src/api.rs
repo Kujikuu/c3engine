@@ -1937,6 +1937,8 @@ fn apply_guild_change(p: &mut PlayerState, change: &WorldChange) {
         | WorldChange::Bounty { .. }
         | WorldChange::Police { .. }
         | WorldChange::GuildLeader { .. }
+        | WorldChange::GuildNotice { .. }
+        | WorldChange::Contribution { .. }
         | WorldChange::MapCopy { .. }
         | WorldChange::Online { .. }
         | WorldChange::Deliver { .. }

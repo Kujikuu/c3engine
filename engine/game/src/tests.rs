@@ -1773,6 +1773,7 @@ fn guild_leaders_invite_kick_and_members_give() {
     assert_eq!(sim.world_state().guild_of("Comer"), Some((7, member_rank)));
     sim.input(comer, Input::Guild(GuildAction::Donate(200)));
     assert_eq!(sim.world_state().guilds[&7].fund, 200);
+    assert_eq!(sim.world_state().guilds[&7].contributions["Comer"], 200);
     assert_eq!(sim.player(comer).unwrap().money, 300);
     sim.input(lead, Input::Guild(GuildAction::Leave));
     assert!(
@@ -1783,7 +1784,7 @@ fn guild_leaders_invite_kick_and_members_give() {
     assert_eq!(sim.world_state().guild_of("Comer"), None);
     assert_eq!(
         sim.take_world_changes().len(),
-        4,
+        5,
         "each change goes to the host"
     );
 }

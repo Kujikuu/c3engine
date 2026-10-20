@@ -14,8 +14,6 @@ pub(crate) struct GuiState {
     pub trade: Option<TradeView>,
     /// Bag items put on a workbench (compose, gems), in its slots' order.
     pub work: Vec<u32>,
-    /// What the guild list shows: `members` (also when empty), `allies`, `enemies`.
-    pub guild_tab: String,
     /// Invites and asks to join a team are taken at once (the team dialog's auto check).
     pub auto_team: bool,
     /// The minimap rolled up.
@@ -35,14 +33,18 @@ pub(crate) struct GuiState {
     pub picking: Option<(String, bool)>,
     /// The typed answer's button was pressed.
     pub answering: bool,
-    /// The team dialog's Kick was pressed (for the member picked).
+    /// The team dialog's Kick was pressed (for the member picked), and the guild's Delete.
     pub kicking: bool,
+    pub guild_kicking: bool,
     /// The item picked up from a grid: its list and slot.
     pub held: Option<(String, usize)>,
     /// View-number steps asked for (`view_step:`): the group, the step and the binding that
     /// bounds it.
     pub steps: Vec<(String, i64, String)>,
 }
+
+/// The guild members a page lists (CDlgKnightage's MEMBER_PAGE_SIZE).
+const GUILD_PAGE: usize = 10;
 
 /// The most items a workbench holds.
 pub(crate) const WORK_SLOTS: usize = 5;
@@ -110,6 +112,24 @@ impl HeroData<'_> {
         let rules = self.view.sim.rules();
         (self.player.skills.iter().copied())
             .filter(move |&s| rules.skill(s).is_some_and(|t| t.group == group))
+    }
+
+    /// The hero's guild's members by name (its leader first), none outside a guild.
+    pub(crate) fn guild_members(&self) -> Vec<String> {
+        let world = self.view.sim.world_state();
+        let Some(g) = (world.guild_of(&self.player.name)).and_then(|(id, _)| world.guilds.get(&id))
+        else {
+            return Vec::new();
+        };
+        let others = g.members.keys().filter(|m| **m != g.leader).cloned();
+        std::iter::once(g.leader.clone()).chain(others).collect()
+    }
+
+    /// The guild member picked on the member page (`view:guild_pick:<row>`), by name.
+    pub(crate) fn picked_guild_member(&self) -> Option<String> {
+        let row: usize = self.state.views.get("guild_pick")?.parse().ok()?;
+        let first = self.view_number("guild_member_page");
+        self.guild_members().into_iter().nth(first + row)
     }
 
     /// The hero's team, the leader first: as a server sends it, else as the local game has it.
@@ -302,6 +322,17 @@ impl GuiData for HeroData<'_> {
                 self.team().get(n)?.look.into()
             }
             "team.picked_member" => u8::from(self.picked_member().is_some()).into(),
+            // The hero is in a guild; its rank and what it gave; how many members it has.
+            "guild.in" => u8::from(self.view.sim.world_state().guild_of(&p.name).is_some()).into(),
+            "guild.rank_value" => self.view.sim.world_state().guild_of(&p.name)?.1 as f64,
+            "guild.contribution" => {
+                let world = self.view.sim.world_state();
+                let (id, _) = world.guild_of(&p.name)?;
+                let given = world.guilds.get(&id)?.contributions.get(&p.name).copied();
+                given.unwrap_or(0) as f64
+            }
+            "guild.member_total" => self.guild_members().len() as f64,
+            "guild.picked_member" => u8::from(self.picked_guild_member().is_some()).into(),
             // The hero's PK mode is `<mode>` (`hero.pk_mode.free|peace|team|arrest`).
             _ if key.starts_with("hero.pk_mode.") => {
                 let mode = key.strip_prefix("hero.pk_mode.")?;
@@ -434,9 +465,8 @@ impl GuiData for HeroData<'_> {
                 let n: usize = key.strip_prefix("skill.")?.parse().ok()?;
                 Some(self.player.skills.get(n)?.to_string())
             }
-            "storage.amount" | "trade.amount" | "dialogue.typed" | "prompt.amount" => {
-                Some(self.state.fields.get(key).cloned().unwrap_or_default())
-            }
+            "storage.amount" | "trade.amount" | "dialogue.typed" | "prompt.amount"
+            | "guild.notice" => Some(self.state.fields.get(key).cloned().unwrap_or_default()),
             // Team member `n`'s name (the leader first), empty past the team's end.
             _ if key.starts_with("team.member.") => {
                 let n: usize = key.strip_prefix("team.member.")?.parse().ok()?;
@@ -458,6 +488,21 @@ impl GuiData for HeroData<'_> {
                     "guild.rank" => rank.to_string(),
                     "guild.members" => g.members.len().to_string(),
                     "guild.fund" => g.fund.to_string(),
+                    "guild.announcement" => g.announcement.clone(),
+                    // The `n`th allied or enemy guild's name (`guild.ally.0`).
+                    _ if key.starts_with("guild.ally.") || key.starts_with("guild.enemy.") => {
+                        let (side, n) = key.strip_prefix("guild.")?.split_once('.')?;
+                        let ids = if side == "ally" {
+                            &g.allies
+                        } else {
+                            &g.enemies
+                        };
+                        let other = ids.get(n.parse::<usize>().ok()?)?;
+                        world
+                            .guilds
+                            .get(other)
+                            .map_or_else(String::new, |o| o.name.clone())
+                    }
                     _ => return None,
                 })
             }
@@ -539,24 +584,23 @@ impl GuiData for HeroData<'_> {
             // The names listed to talk to (the chat bar's list).
             "chat.targets" => (self.state.chat_bar.targets.clone(), None),
             // The hero's guild's members, or its allies or enemies (the guild tab picked).
-            "guild.member_names" => {
+            // The guild's members on the page shown (`view:guild_member_page`), 10 a page:
+            // each name and level, as CDlgKnightage lists them; the one picked marked.
+            "guild.member_rows" => {
                 let world = self.view.sim.world_state();
-                let guild = world
-                    .guild_of(&self.player.name)
-                    .and_then(|(id, _)| world.guilds.get(&id));
-                let Some(g) = guild else {
-                    return (Vec::new(), None);
-                };
-                let named = |ids: &[u32]| -> Vec<String> {
-                    let names = ids.iter().filter_map(|id| world.guilds.get(id));
-                    names.map(|o| o.name.clone()).collect()
-                };
-                let rows = match self.state.guild_tab.as_str() {
-                    "allies" => named(&g.allies),
-                    "enemies" => named(&g.enemies),
-                    _ => g.members.keys().cloned().collect(),
-                };
-                (rows, None)
+                let first = self.view_number("guild_member_page");
+                let rows = (self
+                    .guild_members()
+                    .into_iter()
+                    .skip(first)
+                    .take(GUILD_PAGE))
+                .map(|name| {
+                    let level = world.levels.get(&name).copied().unwrap_or(0);
+                    format!("{name:<19}{level}")
+                })
+                .collect();
+                let picked = (self.state.views.get("guild_pick")).and_then(|v| v.parse().ok());
+                (rows, picked)
             }
             // The answers picked by a click (not typed), as TQ's CDlgTask lists them.
             "dialogue.choices" => {

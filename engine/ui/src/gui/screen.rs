@@ -355,7 +355,7 @@ fn set(control: &Control, data: &dyn GuiData) -> bool {
 /// Whether a `when`-style expression holds (a check's lit frame takes one too). A binding is
 /// set when its number is not 0, or, without a number, when its text is not empty.
 fn expression(text: &str, data: &dyn GuiData) -> bool {
-    let is_set = |w: &str| match data.number(w) {
+    let is_set = |w: &str| match w.parse::<f64>().ok().or_else(|| data.number(w)) {
         Some(v) => v != 0.0,
         None => data.text(w).is_some_and(|t| !t.is_empty()),
     };

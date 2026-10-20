@@ -232,6 +232,17 @@ pub enum WorldChange {
         guild: i64,
         amount: i64,
     },
+    /// Guild `guild`'s announcement is now `text`.
+    GuildNotice {
+        guild: i64,
+        text: String,
+    },
+    /// Member `name` of guild `guild` gave `amount` more (its contribution).
+    Contribution {
+        guild: i64,
+        name: String,
+        amount: i64,
+    },
     /// Player `name` in guild `guild` at `rank` (0: out of it).
     Member {
         guild: i64,

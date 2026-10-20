@@ -1020,7 +1020,19 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] right-aligned at y 768-223, as wide as its skills
     - [x] a Kongfu-only skill list (`skill_in.kongfu.N`)
     - [ ] paging 1279/1280 past 10
-  - [ ] UI 133 CDlgKnightage (guild): partial, 20 mismatches (docs/conquer_ui_audit.md)
+  - [ ] UI 133 CDlgKnightage (guild): 16 of 20 audit mismatches fixed
+    - [x] one page at a time (attributes, announcement, editing, allies, enemies, members) with Dialog28 / Image80 / Image81; opens on the announcement
+    - [x] 1039 the hero's contribution, 1040 the rank title (StrRes); guilds keep members' contributions (`Guild::contributions`, `WorldChange::Contribution`)
+    - [x] the announcement shown (StrRes 100158 when none) and edited by the leader (`Input::GuildNotice`, `WorldChange::GuildNotice`), OK / Cancel
+    - [x] allies and enemies in their five statics
+    - [x] Leave / Members and Apply / Edit by rank (Button87/89/81, Button82/88/89); a member leaves only after giving 20,000 (StrRes 10341) and is asked first; Apply picks the guild to join
+    - [x] Donate asks an amount (confirm mode 9, StrRes 10010)
+    - [x] members 10 a page with level, paged; a row picked; the leader's Delete (disabled until one is picked) asks first (10360)
+    - [x] buttons disabled without a guild; closing hides 257; guild join/invite asks (158)
+    - [ ] members' online state in the list
+    - [ ] clicking a member opens 257 with its details
+    - [ ] help 1667 (topic 8)
+    - [ ] slide-in, sounds, y 58
   - [ ] UI 257 CDlgFacState (guild member info): draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 160 CDlgFriend (friends): draft only, 12 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 269 CDlgEnemy (enemies): draft only, 8 mismatches (docs/conquer_ui_audit.md)

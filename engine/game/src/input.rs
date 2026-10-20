@@ -111,6 +111,8 @@ pub enum Input {
     SetPkMode(c3_core::settings::PkMode),
     /// Show emote `n` (the game's action number: a wave, a bow, sitting down).
     Emote(u32),
+    /// A guild's leader sets what it tells its members.
+    GuildNotice(String),
     /// Say `text` on `channel` (to player `to` when whispering).
     Chat {
         channel: crate::ChatChannel,
@@ -160,6 +162,7 @@ impl Sim {
             Input::CloseShop => self.close_shop(id),
             Input::Revive => self.revive(id),
             Input::SetPkMode(mode) => self.set_pk_mode(id, mode),
+            Input::GuildNotice(text) => self.guild_notice(id, &text),
             Input::Emote(emote) => {
                 if self.players.get(&id).is_some_and(|p| p.is_alive()) {
                     self.events.push(Event::Emoted { player: id, emote });
