@@ -270,9 +270,10 @@ fn skills_and_statuses(t: &Table) -> (Table, Table, BTreeMap<i64, i64>) {
             _ if r.int("ground") != 0 => "ground",
             _ => "enemy",
         };
-        // XP skills need the full XP bar (battle M.11); others may cost stamina.
+        // XP skills (use_xp 1) need the full XP bar (battle M.11); weapon skills (use_xp 2:
+        // FastBlade, ScentSword) and others may cost stamina.
         let cost = match (r.int("use_xp"), r.int("use_ep")) {
-            (xp, _) if xp != 0 => ("xp", 100),
+            (1, _) => ("xp", 100),
             (_, ep) if ep > 0 => ("stamina", ep),
             _ => ("", 0),
         };

@@ -817,7 +817,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [ ] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136)
     - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
     - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills
-    - [ ] XP skills picked from 189 (XpSkillType) into the skill box
+    - [x] XP skills picked from 189 shown as XpSkillType in the skill box; the box's Magic0 art replaced by the skill picked
     - [ ] radar toggle transition (the client rolls it)
     - [ ] screen move 1023 (free camera, ON_MAIN_SCREENMOVE) and view equipment 1016 (next player clicked opens 258)
     - [x] PK button image by PK mode (Button47/49/48/412)
@@ -849,6 +849,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the opener does nothing without skills
     - [ ] right-aligned and sized by skill count (x = 1024 - n*50 - 18)
     - [ ] paging 1275/1276 past 10 skills
+    - [x] XP skills left out of the strip (`skill_not.xp.N`)
     - [ ] skills listed as GetMagicByIndex does (no dwScreenRepresent 3, no transform magics while transformed; Kongfu skills in 214)
     - [ ] disabled skills covered (Image0) and not pickable
     - [ ] hover tooltip and drag to the quick bar
@@ -1003,11 +1004,12 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] the main bar's PK button shows the mode
     - [x] 140/188 no longer close it (window model)
     - [ ] PK-cycle hotkey (user action 40)
-  - [ ] UI 189 CDlgXp (XP / revive strip): 2 of 6 audit mismatches fixed
+  - [ ] UI 189 CDlgXp (XP / revive strip): 3 of 6 audit mismatches fixed
     - [x] death revive mode: shown while the hero is dead at (906, 595), 118 wide; XpSkillType0 revives (`revive` action)
     - [x] placed bottom right as the client moves it, not by GUI.ini
     - [ ] XpSkillType5 revive-here (needs Blessed and a revive-here map; StrRes 10484/10485), and the 20 s ghost gate message (100033)
-    - [ ] XP-full mode: the XP skills as XpSkillType<type>, picked into the skill box or cast at once, shown on XP full and hidden when it empties
+    - [x] XP-full mode: the XP skills (`skill_by.xp.N`) as XpSkillType<type>; one aimed at the hero cast at once, another picked into the skill box (`use_skill:`), shown on XP full
+    - [ ] the strip as wide as its XP skills (MoveActionStrip), hidden when XP empties mid-pick
     - [ ] paging 1277/1278
     - [ ] land, abort-transform and booth-close modes
     - [ ] checked live with a dead hero

@@ -29,9 +29,10 @@ pub(crate) struct GuiState {
     /// The yes/no question shown.
     pub prompt: Option<crate::prompt::Prompt>,
     /// The skill picked for the right button (a type), and a pick waiting for the hero's
-    /// skills (`pick_skill:<n>`).
+    /// skills: the binding naming the skill, and whether a skill aimed at its caster is
+    /// cast at once (`use_skill:`) rather than picked (`pick_skill:`).
     pub picked_skill: Option<u32>,
-    pub picking: Option<usize>,
+    pub picking: Option<(String, bool)>,
     /// The typed answer's button was pressed.
     pub answering: bool,
     /// The team dialog's Kick was pressed (for the member picked).
@@ -332,6 +333,15 @@ impl GuiData for HeroData<'_> {
             // How many items list `<list>` holds (`count.shop.items`).
             _ if key.starts_with("count.") => self.items(key.strip_prefix("count.")?).len() as f64,
             "skill.picked" => u8::from(self.state.picked_skill.is_some()).into(),
+            // The skill picked costs attribute `<attr>` (`skill.picked_by.xp`: an XP skill).
+            _ if key.starts_with("skill.picked_by.") => {
+                let attr = key.strip_prefix("skill.picked_by.")?;
+                let skill = self
+                    .state
+                    .picked_skill
+                    .and_then(|s| self.view.sim.rules().skill(s));
+                u8::from(skill.is_some_and(|t| t.cost_attribute == attr)).into()
+            }
             // The hero has skills (the strip opens only then).
             "hero.has_skills" => u8::from(!p.skills.is_empty()).into(),
             _ if key.starts_with("prompt.kind.") => {
@@ -401,6 +411,21 @@ impl GuiData for HeroData<'_> {
             }
             // The skill picked for the right button (its type).
             "skill.picked" => self.state.picked_skill.map(|s| s.to_string()),
+            // The hero's `n`th skill that costs attribute `<attr>` (`skill_by.xp.0`: its first
+            // XP skill), or that does not (`skill_not.xp.0`).
+            _ if key.starts_with("skill_by.") || key.starts_with("skill_not.") => {
+                let (by, rest) = key.split_once('.')?;
+                let (attr, n) = rest.rsplit_once('.')?;
+                let n: usize = n.parse().ok()?;
+                let rules = self.view.sim.rules();
+                let costs = |s: &u32| rules.skill(*s).is_some_and(|t| t.cost_attribute == attr);
+                let mut skills = self
+                    .player
+                    .skills
+                    .iter()
+                    .filter(|s| costs(s) == (by == "skill_by"));
+                Some(skills.nth(n)?.to_string())
+            }
             // The hero's skill `n` (its type), none past the last.
             _ if key.starts_with("skill.") => {
                 let n: usize = key.strip_prefix("skill.")?.parse().ok()?;

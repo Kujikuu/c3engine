@@ -692,9 +692,11 @@ impl GameUi {
             "team_kick_picked" => self.gui_state.kicking = true,
             // The typed answer sent (its button, Enter in its box).
             "answer_typed" => self.gui_state.answering = true,
-            // The hero's skill `n` picked for the right button (`pick_skill:<n>`).
-            _ if action.starts_with("pick_skill:") => {
-                self.gui_state.picking = action["pick_skill:".len()..].parse().ok();
+            // The skill a binding names picked for the right button (`pick_skill:skill.3`), or
+            // used: cast at once when aimed at its caster, else picked (`use_skill:`).
+            _ if action.starts_with("pick_skill:") || action.starts_with("use_skill:") => {
+                let (how, binding) = action.split_once(':').unwrap_or_default();
+                self.gui_state.picking = Some((binding.to_owned(), how == "use_skill"));
             }
             // An action asked first (`ask:<kind>:<actions>`; leaving a guild).
             _ if action.starts_with("ask:") => {
@@ -1128,8 +1130,22 @@ impl GameUi {
                 }
                 self.gui_state.steps.clear();
                 self.gui_state.views.extend(steps);
-                if let Some(n) = self.gui_state.picking.take() {
-                    self.gui_state.picked_skill = player.skills.get(n).copied();
+                if let Some((binding, cast)) = self.gui_state.picking.take() {
+                    let data = gui_data::HeroData {
+                        view,
+                        player,
+                        state: &self.gui_state,
+                    };
+                    let skill = gui::GuiData::text(&data, &binding).and_then(|t| t.parse().ok());
+                    let mine = |s: u32| view.sim.rules().skill(s).map(|t| t.target);
+                    match skill.map(|s| (s, mine(s))) {
+                        Some((s, Some(c3_game::SkillTarget::Myself))) if cast => {
+                            let slot = player.skills.iter().position(|&k| k == s);
+                            actions.extend(slot.map(UiAction::Cast));
+                        }
+                        Some((s, _)) => self.gui_state.picked_skill = Some(s),
+                        None => {}
+                    }
                 }
                 if let Some(name) = picked_target {
                     self.gui_state.fields.insert(CHAT_NAME.into(), name);
