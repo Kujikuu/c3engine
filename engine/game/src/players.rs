@@ -100,6 +100,7 @@ impl Sim {
                 team: None,
                 mates: Vec::new(),
                 profession: 0,
+                merchant: 0,
                 pk: 0,
                 pk_mode: self.settings.pk.start_mode,
                 mark: crate::NameMark::Good,

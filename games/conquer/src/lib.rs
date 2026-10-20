@@ -13,6 +13,7 @@ mod magic;
 pub mod module;
 pub mod npc;
 pub mod npc_logic;
+pub mod protection;
 pub mod protocol;
 pub mod rule_blueprint;
 pub mod rules;

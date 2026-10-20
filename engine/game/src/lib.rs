@@ -28,6 +28,7 @@ mod npc_fights;
 mod partners;
 mod players;
 mod portals;
+mod protection;
 mod pvp;
 mod quests;
 mod regions;
@@ -66,6 +67,7 @@ pub use nobility::{Donation, Noble, rank_by_value};
 pub use npc_fights::{npc_destroyed_event, npc_life_flag};
 pub use partners::{MAX_PARTNERS, PartnerAction};
 pub use players::JumpRefused;
+pub use protection::MERCHANT;
 pub use remote::{EntityState, Viewer, WorldUpdate};
 pub use rng::Rng;
 pub use rules::{

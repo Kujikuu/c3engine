@@ -253,6 +253,22 @@ pub enum UiAction {
     EdgeLook(bool),
 }
 
+/// What a protected item was refused for (TQ's CDlgBusinessTip5065 modes 0-6, `protect.mode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProtectionTip {
+    Booth,
+    /// Worked as a minor part (composed).
+    Work,
+    Drop,
+    /// Crafted.
+    Craft,
+    Sell,
+    /// Traded to one who isn't a trade partner (a partnership may be offered).
+    Trade,
+    /// Traded to a trade partner still on trial.
+    TrialPartner,
+}
+
 /// What the statue window asks for (TQ's CDlgEffigy).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffigyAction {
@@ -553,6 +569,16 @@ impl GameUi {
     /// Whether the game UI shows a model control of `key` (its figure is wanted).
     pub fn shows_model(&self, key: &str) -> bool {
         self.gui.as_ref().is_some_and(|g| g.shows_model(key))
+    }
+
+    /// A protected item was held back from what it was asked for: the game UI's tip (mode
+    /// `protect.mode`, offering a partnership with `offer`), else a line in chat.
+    pub fn protection_tip(&mut self, tip: ProtectionTip, offer: Option<EntityId>) {
+        if self.gui.as_ref().is_some_and(|g| g.shows_while("protect.open")) {
+            self.gui_state.protect_tip = Some((tip, offer));
+        } else {
+            self.system("That item is protected: it can't go.", style::BAD);
+        }
     }
 
     pub fn viewed(&self) -> Option<EntityId> {
@@ -1192,6 +1218,14 @@ impl GameUi {
             }
             "effigy_place" => actions.push(UiAction::Effigy(EffigyAction::Place)),
             "effigy_close" => actions.push(UiAction::Effigy(EffigyAction::Close)),
+            // The protection tip: OK, or offering the trade's other side a partnership.
+            "protect_ok" => self.gui_state.protect_tip = None,
+            "protect_partner" => {
+                if let Some((_, Some(other))) = self.gui_state.protect_tip.take() {
+                    let ask = c3_game::PartnerAction::Ask(other);
+                    actions.push(UiAction::Game(c3_game::Input::Partner(ask)));
+                }
+            }
             "dice_cancel" => {
                 if let Some(d) = &mut self.gui_state.dice {
                     d.chip = 0;

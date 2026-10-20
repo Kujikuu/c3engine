@@ -1314,7 +1314,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [ ] UI 327 CDlgBusinessState: 3 of 4 audit mismatches fixed
     - [x] GeneralShuxingBG1, the partner's name, level, profession, PK, guild, rank, spouse and assessment icon; Delete asks first (StrRes 11146)
     - [ ] the partner's face (the engine has no faces), placed beside 326 (205 < 242)
-  - [ ] UI 331 CDlgBusinessTip5065: draft only, 4 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Item protection, merchants and the lock lists (tq_re spec systems/business.md)
+    - [x] protected items (§3): the game's rules name them (`Rules::protected`, `protects_work`; Conquer `protection.rs`: of each kind the elite or super piece fitting the class and scoring highest among all worn and carried, a Trojan's two one-handers, a related kind more than 4 higher taking it away; composing refuses protected minors, fusing any); refused for a booth, dropping (This item cannot be dropped.), selling (… cannot be sold.), work, and trading but to a formal partner or with a GM (… cannot be traded!); merchants exempt (`Player::merchant`, saved)
+    - [ ] merchant accounts (§4): applying (MsgInteract 33), cancelling (34), the 5-day wait (35), the login offer and grant, attribute 39; dialog 332
+    - [ ] dialog 333 (unlocking items and trial partners at login) and 334 (lock suggestions); the front's MsgItemLock / MsgBusiness parts they need
+  - [x] UI 331 CDlgBusinessTip5065: the 4 audit mismatches fixed: opened when the hero would let go of a protected item (the session checks before sending: booth 0, compose 1, drop 2, craft 3, sell 4, trade 5 / 6), For_BusinessBG, the mode's StrRes text (11301 / 11303 / 11302 / 11310 / 11309 / 11300) in 0xe7c997, OK, and on a trade with one not a partner "become trade partners" (asks it), else OK centred
   - [ ] UI 332 CDlgBusinessConfirm: draft only, 4 mismatches (docs/conquer_ui_audit.md)
   - [ ] UI 333 CDlgBusinessShare5065: draft only, 3 mismatches (docs/conquer_ui_audit.md)
   - [ ] Nobility (adapters spec §2, Peerage.dll): `gameplay.nobility` (Conquer: from level 70, 3,000,000 at least or a CP each 50,000, a board of 60: 3 Kings, to 15 Princes, to 50 Dukes, then Earls / Barons / Knights by amount); donations on the world state, ranks by place then amount, a rise announced (En_Res notices); the Conquer front carries MsgPeerage 2064 (donation result, board pages, the hero's standing, a rank's price)

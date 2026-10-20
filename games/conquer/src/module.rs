@@ -68,7 +68,9 @@ pub struct ConquerGameRules;
 
 impl GameRules for ConquerGameRules {
     fn rules(&self, tables: Option<&Path>) -> (Box<dyn Rules>, Vec<String>) {
-        c3_play::data_rules::DataGameRules.rules(tables)
+        let (rules, problems) = c3_play::data_rules::DataGameRules.rules(tables);
+        let rules = crate::protection::ConquerRules::new(rules);
+        (Box::new(rules), problems)
     }
 }
 

@@ -23,6 +23,8 @@ pub(crate) struct GuiState {
     pub exp_gain: Option<(u64, std::time::Instant)>,
     /// Screen move is on.
     pub screen_move: bool,
+    /// The protection tip shown: what was refused, and whom a partnership may be offered.
+    pub protect_tip: Option<(crate::ProtectionTip, Option<c3_game::EntityId>)>,
     /// The radar's mode, showing, and grow or shrink; whether it was set from the player's
     /// record yet.
     pub radar: crate::radar_box::RadarState,
@@ -619,6 +621,22 @@ impl GuiData for HeroData<'_> {
             "hero.running" => f64::from(u8::from(p.running)),
             "ui.radar" => f64::from(u8::from(self.state.radar.visible)),
             "ui.screen_move" => f64::from(u8::from(self.state.screen_move)),
+            // The protection tip: shown, its mode (TQ's 0-6), whether it offers a partnership.
+            "protect.open" => f64::from(u8::from(self.state.protect_tip.is_some())),
+            "protect.mode" => {
+                use crate::ProtectionTip as T;
+                let mode = match self.state.protect_tip?.0 {
+                    T::Booth => 0,
+                    T::Work => 1,
+                    T::Drop => 2,
+                    T::Craft => 3,
+                    T::Sell => 4,
+                    T::Trade => 5,
+                    T::TrialPartner => 6,
+                };
+                f64::from(mode)
+            }
+            "protect.offer" => f64::from(u8::from(self.state.protect_tip?.1.is_some())),
             // Its tip: StrRes 10073 while off, 10074 on.
             "ui.screen_move_tip" => 10073.0 + f64::from(u8::from(self.state.screen_move)),
             "ui.radar_crop" => f64::from(u8::from(

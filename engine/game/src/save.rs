@@ -45,6 +45,9 @@ pub struct PlayerSave {
     /// The profession chosen when it was made (0: none).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub profession: u32,
+    /// Merchant state (0 none, the YYYYMMDD it becomes one, 255 one).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub merchant: u32,
     /// PK points.
     #[serde(default, skip_serializing_if = "is_zero_signed")]
     pub pk: i32,
@@ -197,6 +200,7 @@ impl PlayerSave {
             texts: BTreeMap::new(),
             look: Default::default(),
             profession: 0,
+            merchant: 0,
             pk: 0,
             attributes: BTreeMap::new(),
             record: None,
@@ -258,6 +262,7 @@ impl Sim {
         p.texts = save.texts.clone();
         p.look = save.look;
         p.profession = save.profession;
+        p.merchant = save.merchant;
         p.pk = save.pk;
         p.attributes = save.attributes.clone();
         p.record = save.record;
@@ -299,6 +304,7 @@ impl Sim {
             texts: p.texts.clone(),
             look: p.look,
             profession: p.profession,
+            merchant: p.merchant,
             pk: p.pk,
             attributes: p.attributes.clone(),
             record: p.record,

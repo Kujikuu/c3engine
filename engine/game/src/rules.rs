@@ -341,6 +341,18 @@ pub trait Rules: std::any::Any {
     /// What a monster of `kind` drops.
     fn drops(&self, kind: u32, rng: &mut Rng) -> Vec<Drop>;
 
+    /// Whether `owner`'s `item` is protected: kept from being let go of (see
+    /// [`Sim::item_protected`]; TQ's strongest elite piece of each kind). None by default.
+    fn protected(&self, _sim: &crate::Sim, _owner: &crate::Player, _item: &crate::Item) -> bool {
+        false
+    }
+
+    /// Whether combine work `kind` refuses a protected item at place `at` of its list (TQ's
+    /// compose minors, every item a craft takes). None by default.
+    fn protects_work(&self, _kind: u32, _at: usize) -> bool {
+        false
+    }
+
     /// What a monster of `kind` may drop and how likely, for editors (`drops` rolls it).
     fn loot(&self, _kind: u32) -> Loot {
         Loot::default()

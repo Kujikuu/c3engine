@@ -755,6 +755,14 @@ impl Session {
         let (x, y) = self.sim.player(self.hero).map_or((0, 0), |p| p.cell);
         let action = (action.replace("{hero}", &self.hero.0.to_string()))
             .replace("{cell}", &format!("{x},{y}"));
+        // Dropping the `n`th bag item as a drag to the ground would (`drop_bag:0`).
+        if let Some(n) = action.strip_prefix("drop_bag:").and_then(|n| n.parse::<usize>().ok()) {
+            let item = self.sim.player(self.hero).and_then(|p| Some(p.bag.get(n)?.id));
+            if let Some(item) = item {
+                self.act(UiAction::Game(Input::Drop(item)));
+            }
+            return;
+        }
         // Talking to NPC `id` as a click on it would (`talk:9999`).
         if let Some(npc) = action.strip_prefix("talk:").and_then(|n| n.parse().ok()) {
             return self.input(Input::Talk(npc));
@@ -1228,7 +1236,55 @@ impl Session {
             | UiAction::EdgeLook(_)
             | UiAction::SetPrefs(_) => return,
         };
+        if let Some((tip, offer)) = self.protection_tip(&input) {
+            return self.ui.protection_tip(tip, offer);
+        }
         self.input(input);
+    }
+
+    /// Whether `input` lets go of a protected item the hero may not (TQ's client checks it
+    /// first and shows CDlgBusinessTip5065): what it was, and the trade's other side when a
+    /// partnership may be offered.
+    fn protection_tip(&self, input: &Input) -> Option<(c3_ui::ProtectionTip, Option<EntityId>)> {
+        use c3_game::BoothAction;
+        use c3_ui::ProtectionTip as T;
+        let hero = self.hero;
+        let held = |item: u32| self.sim.item_protected(hero, item);
+        let rules = self.sim.rules();
+        let tip = match input {
+            Input::Booth(BoothAction::Add { item, .. }) if held(*item) => T::Booth,
+            Input::Drop(item) if held(*item) => T::Drop,
+            Input::Sell { item, .. } if held(*item) => T::Sell,
+            Input::Combine { kind, items, .. } => {
+                let held_back = (items.iter().enumerate())
+                    .any(|(at, item)| rules.protects_work(*kind, at) && held(*item));
+                match (held_back, rules.protects_work(*kind, 0)) {
+                    (false, _) => return None,
+                    (true, true) => T::Craft,
+                    (true, false) => T::Work,
+                }
+            }
+            Input::TradeItem(item) if held(*item) => {
+                let me = self.sim.player(hero)?;
+                let other = self
+                    .sim
+                    .trade_partner(hero)
+                    .and_then(|o| self.sim.player(o))?;
+                let gm = self.settings.gameplay.is_gm(&me.name)
+                    || self.settings.gameplay.is_gm(&other.name);
+                if gm || self.sim.formal_partners(&me.name, &other.name) {
+                    return None;
+                }
+                return Some(
+                    match self.sim.world_state().are_partners(&me.name, &other.name) {
+                        true => (T::TrialPartner, None),
+                        false => (T::Trade, Some(other.id)),
+                    },
+                );
+            }
+            _ => return None,
+        };
+        Some((tip, None))
     }
 }
 

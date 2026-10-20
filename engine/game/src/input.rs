@@ -185,6 +185,12 @@ impl Sim {
             self.message(id, why);
             return;
         }
+        if let Some(why) = self.protected_refusal(id, &input) {
+            if let Some(why) = why {
+                self.message(id, why);
+            }
+            return;
+        }
         match input {
             Input::Walk(cell) => self.walk(id, cell),
             Input::Jump(cell) => self.jump(id, cell),

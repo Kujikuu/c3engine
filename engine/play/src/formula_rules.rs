@@ -53,6 +53,14 @@ impl Rules for FormulaRules {
         self.inner.monster(kind)
     }
 
+    fn protected(&self, sim: &c3_game::Sim, owner: &c3_game::Player, item: &c3_game::Item) -> bool {
+        self.inner.protected(sim, owner, item)
+    }
+
+    fn protects_work(&self, kind: u32, at: usize) -> bool {
+        self.inner.protects_work(kind, at)
+    }
+
     fn item(&self, kind: u32) -> Option<&ItemType> {
         self.inner.item(kind)
     }

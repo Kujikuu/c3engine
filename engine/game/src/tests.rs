@@ -100,6 +100,11 @@ impl Rules for TestRules {
     fn kill_exp(&self, _attacker: &Fighter, _target: &Fighter) -> u64 {
         10
     }
+    /// A player named "Guarded" keeps its charms.
+    fn protected(&self, _sim: &Sim, owner: &Player, item: &Item) -> bool {
+        owner.name == "Guarded" && item.kind == CHARM
+    }
+
     fn drops(&self, _kind: u32, _rng: &mut Rng) -> Vec<Drop> {
         vec![Drop::Money(5), Drop::Item(POTION)]
     }
@@ -2967,4 +2972,20 @@ fn jumps_keep_to_range_height_and_footing() {
         sim.can_jump(hero, (9, 2)),
         Err(crate::JumpRefused::Transformed)
     );
+}
+
+#[test]
+fn protected_items_stay_unless_a_merchant() {
+    let mut sim = Sim::new(Grid::new(20, 20), vec![shopkeeper()], vec![], rules(), 8);
+    let hero = sim.add_player("Guarded", (3, 3), 1);
+    sim.give_item(hero, CHARM);
+    let charm = sim.player(hero).unwrap().bag[0].id;
+    assert!(sim.item_protected(hero, charm));
+    sim.input(hero, Input::Drop(charm));
+    assert_eq!(sim.player(hero).unwrap().bag.len(), 1, "not dropped");
+    // A merchant's items aren't protected.
+    sim.players.get_mut(&hero).unwrap().merchant = crate::MERCHANT;
+    assert!(!sim.item_protected(hero, charm));
+    sim.input(hero, Input::Drop(charm));
+    assert!(sim.player(hero).unwrap().bag.is_empty(), "dropped");
 }

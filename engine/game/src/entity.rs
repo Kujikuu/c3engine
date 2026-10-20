@@ -210,6 +210,10 @@ pub struct Player {
     /// The profession chosen when it was made (as the game numbers them; 0: none).
     #[serde(default)]
     pub profession: u32,
+    /// Merchant state: 0 none, the day (YYYYMMDD) it becomes one, or `MERCHANT`: one (its
+    /// items are never protected).
+    #[serde(default)]
+    pub merchant: u32,
     /// PK points: what killing other players has earned (game-defined).
     #[serde(default)]
     pub pk: i32,
