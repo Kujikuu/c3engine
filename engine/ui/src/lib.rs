@@ -15,6 +15,7 @@ mod chat_bar;
 mod conversations;
 mod destinations;
 mod dialogue;
+mod dice;
 pub mod fonts;
 pub mod front;
 pub mod gui;
@@ -1081,6 +1082,35 @@ impl GameUi {
                 }
             }
             "chest_close" => self.gui_state.chest = None,
+            // The dice table: a chip picked, a chip put on a bet, leaving.
+            _ if action.starts_with("dice_chip:") => {
+                if let (Some(d), Ok(chip)) = (
+                    &mut self.gui_state.dice,
+                    action["dice_chip:".len()..].parse(),
+                ) {
+                    d.chip = chip;
+                }
+            }
+            _ if action.starts_with("dice_bet:") => {
+                let bet = action["dice_bet:".len()..].parse::<u8>();
+                if let (Some(d), Ok(bet)) = (&mut self.gui_state.dice, bet)
+                    && d.chip > 0
+                {
+                    d.last = Some(usize::from(bet));
+                    let chip = c3_game::DiceAction::Chip {
+                        npc: d.npc,
+                        bet,
+                        money: d.chip,
+                    };
+                    actions.push(UiAction::Game(c3_game::Input::Dice(chip)));
+                }
+            }
+            "dice_leave" => {
+                if let Some(d) = &self.gui_state.dice {
+                    let leave = c3_game::Input::Dice(c3_game::DiceAction::Leave(d.npc));
+                    actions.push(UiAction::Game(leave));
+                }
+            }
             // The private chat windows: a tray icon's conversation shown, Send, Close (its
             // icon goes), Minimize, its player blacklisted, the windows hidden.
             _ if action.starts_with("pm_open:") => {
@@ -1999,6 +2029,23 @@ impl GameUi {
                         p.name = amount.to_string();
                     }
                     self.gui_state.prompt = told;
+                }
+                // A dice table's news: a seat offered (or leaving asked, StrRes 10394 / 10395),
+                // the table as it goes, its lines told.
+                Event::Dice { player, npc, news } if *player == hero => {
+                    let seated = self.gui_state.dice.as_ref().is_some_and(|d| d.npc == *npc);
+                    if *news == c3_game::DiceNews::Offered {
+                        use c3_game::{DiceAction as D, Input};
+                        let (kind, act) = match seated {
+                            true => ("dice_leave", D::Leave(*npc)),
+                            false => ("dice_join", D::Join(*npc)),
+                        };
+                        self.ask(kind, "", Input::Dice(act));
+                    }
+                    let me = sim.player(hero).map_or("", |p| p.name.as_str());
+                    if let Some(line) = dice::news(&mut self.gui_state.dice, me, *npc, news) {
+                        self.system(line, style::GOLD);
+                    }
                 }
                 // A bag chest opened (CDlgPortableChest5065).
                 Event::ChestOpened { player, chest } if *player == hero => {

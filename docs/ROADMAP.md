@@ -1234,8 +1234,13 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] help (CDlgHelp 215)
   - [ ] UI 241 CDlgEffigy (statue placement): draft only, 9 mismatches (docs/conquer_ui_audit.md)
   - [x] UI 242 CDlgLay (place an NPC): the 6 audit mismatches fixed: an NPC the game asks to place (`Event::PlacementAsked`) follows the pointer (`GameUi::placement`, SimView's preview actor) until a click puts it; the placing window (`place.fixed`, Dialog36 on the left) turns it (1367 / 1368), puts it (1668: `Input::Place`) or lets it go (1671, 1701, 1702); help 34; without the game's window it goes where the hero stands, as before; GMs `/lay LOOK`; scripted shots run their `--act`s after the first frame and take `{cell}`
-  - [ ] UI 262 CDlgDice: draft only, 9 mismatches (docs/conquer_ui_audit.md)
-  - [ ] UI 267 CDlgDiceList: draft only, 3 mismatches (docs/conquer_ui_audit.md)
+  - [ ] Dice tables (tq_re spec systems/dice.md): `gameplay.dice` (Conquer: DiceKing's kind 19, 50 s / 2 s / 8 s, chips 100 / 1000 / 10000, 30000 a round, g_aPayFor), engine/game dice.rs (a seat offered on talking, a round started by a seat, one record a player and bet, cancel all, the roll told to those near, payouts by rule, a win over 60000 told around)
+    - [x] engine and UI
+    - [ ] the front (MsgName 17 / 18 / 19, MsgDice 1113, the NPC's dice animation); the countdown shown; a player's bets lost when it logs off at a closed table
+  - [ ] UI 262 CDlgDice: 7 of 9 audit mismatches fixed
+    - [x] seated by DiceKing's question (StrRes 10394; 10395 to leave); Dialog43 two down; each bet's chips as piles (`piles=`: Button435 / 434 / 433, CMyImage::ShowMoney); the chip picked (+4,+4) put on a bet clicked; the last bet's own and total (1420 / 1421) and the chip (1632); Exit (1415); the players (1422)
+    - [ ] the hover showing a bet's chips and the chip's size, Hide / Resume (1416 / 1633), the chip cursor, right-click cancel all
+  - [x] UI 267 CDlgDiceList: the 3 audit mismatches fixed: opened by 1422; Dialog44 two down; who sits and what each last won (`%s  %d`) in yellow
   - [ ] Offline training (adapters spec §1, Training.dll): `gameplay.offline_training` (Conquer: 90 credits of 10 minutes, steps of 15, 1.25 level-time units a minute, for the heaven-blessed `blessing_until`); engine/game training.rs: minutes online bank the credit (saved), Start on leaving, `Query` (TQ's Window and Simulate through the levels table's `time`), `Claim` (levels raised, the rest banked); Esc asks the game's own exit question (StrRes 11000, `Gui::asks`) with OfflineTG; the front's MsgTraining 2044 / MsgTrainingInfo 2043; GMs `/train MINUTES`, `/attribute NAME N`
     - [x] engine, UI and front
     - [ ] the training map (601) at login and the record map after claiming; maps where it is refused (`type & 0x8000`: 11056); the mentor's time share of what it gave; anti-addiction percent

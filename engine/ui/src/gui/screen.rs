@@ -525,6 +525,37 @@ impl Painter<'_, '_> {
         data: &dyn GuiData,
         events: &mut Vec<GuiEvent>,
     ) {
+        // A number shown as piles (CMyImage::ShowMoney): a column each unit, a picture each.
+        if !control.piles.is_empty() {
+            let mut left = data.number(&control.value).unwrap_or(0.0).max(0.0) as u64;
+            let mut column = 0.0;
+            for (section, unit) in &control.piles {
+                let count = left / unit.max(&1);
+                left -= count * unit;
+                let Some(picture) = self.frame(self.skin.frames(section), 0) else {
+                    continue;
+                };
+                if count == 0 {
+                    continue;
+                }
+                for line in 0..count {
+                    let y = line as f32 * 8.0;
+                    if y + 16.0 > size.y.max(16.0) {
+                        break;
+                    }
+                    self.draw(picture, at + Vec2::new(column * 16.0, y), None, None);
+                }
+                column += 1.0;
+            }
+            if self.live && !control.action.is_empty() {
+                let rect = Rect::from_min_size(self.screen(at.x, at.y), size * self.place.scale);
+                let id = (self.ui.scope_id()).with(("gui piles", control.parent, control.id));
+                if self.ui.interact(rect, id, egui::Sense::click()).clicked() {
+                    clicked(control, events);
+                }
+            }
+            return;
+        }
         // A bound picture: its section is `ani` followed by what the binding reads (`Face`
         // and a face number).
         let section = match control.value.is_empty() {

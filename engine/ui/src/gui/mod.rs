@@ -281,6 +281,10 @@ pub struct Control {
     pub indent: Option<i32>,
     pub tips: String,
     pub foot: String,
+    /// An image showing its binding's number as piles of pictures, the largest unit first
+    /// (`piles=Button435:10000,Button434:1000,Button433:100`: TQ's chips, a column each unit,
+    /// one picture 8 pixels above another).
+    pub piles: Vec<(String, u64)>,
     /// Moved down by what a binding reads, times a step (`dy=autorun.open_row*32`).
     pub dy: String,
     /// A dialog's opening: `always`, or empty when actions open it.
@@ -464,6 +468,12 @@ impl Control {
             tips: text("tips"),
             foot: text("foot"),
             dy: text("dy"),
+            piles: (text("piles").split(','))
+                .filter_map(|p| {
+                    let (section, unit) = p.split_once(':')?;
+                    Some((section.trim().to_owned(), unit.trim().parse().ok()?))
+                })
+                .collect(),
             open: text("open"),
             slot: text("slot"),
             clears: text("clears"),
@@ -622,10 +632,11 @@ impl Gui {
             && (dialog.open.eq_ignore_ascii_case("always") || self.open.contains(&dialog.id))
     }
 
-    /// Whether a dialog shows while `binding` is set (the game's window is then this UI's).
+    /// Whether a dialog shows while `binding` is set, alone or with other terms (`a&!b`): the
+    /// game's window is then this UI's.
     pub fn shows_while(&self, binding: &str) -> bool {
         self.dialogs()
-            .any(|d| d.when.split('|').any(|w| w == binding))
+            .any(|d| (d.when.split('|')).any(|alt| alt.split('&').any(|w| w == binding)))
     }
 
     /// Opens dialog `id`, closing the dialog in the part of the screen it takes and in the

@@ -83,6 +83,8 @@ pub(crate) struct GuiState {
     pub purchase_asked: Option<String>,
     /// The lock window's bind pressed.
     pub lock_binding: bool,
+    /// The dice table the hero sits at.
+    pub dice: Option<crate::dice::DiceView>,
     /// The private conversations (Chat.dll's), and the window's Send pressed.
     pub conversations: crate::conversations::Conversations,
     pub pm_sending: bool,
@@ -767,6 +769,24 @@ impl GuiData for HeroData<'_> {
                     "flash" => u8::from(c.flashing && blink).into(),
                     _ => return None,
                 }
+            }
+            // The dice table: seated, what lies on bet `n` (`dice.total.3`), and on the bet
+            // last chipped on (everyone's, the hero's), the chip picked.
+            "dice.open" => u8::from(self.state.dice.is_some()).into(),
+            "dice.chip" => self.state.dice.as_ref()?.chip as f64,
+            "dice.last_total" | "dice.last_mine" => {
+                let d = self.state.dice.as_ref()?;
+                let at = d.last?;
+                let money = if key == "dice.last_total" {
+                    d.totals[at]
+                } else {
+                    d.mine[at]
+                };
+                money as f64
+            }
+            _ if key.starts_with("dice.total.") => {
+                let n: usize = key["dice.total.".len()..].parse().ok()?;
+                *self.state.dice.as_ref()?.totals.get(n)? as f64
             }
             // The auto-path menu: how many headings, and the row of the one open.
             "autorun.count" => crate::destinations::roots(self.view).len() as f64,
@@ -1605,6 +1625,22 @@ impl GuiData for HeroData<'_> {
                     }
                 });
                 (names.collect(), None)
+            }
+            // Who sits at the dice table and what each last won (DlgDiceList's `%s  %d`).
+            "dice.rows" => {
+                let players = self
+                    .state
+                    .dice
+                    .as_ref()
+                    .map(|d| d.players.clone())
+                    .unwrap_or_default();
+                (
+                    players
+                        .iter()
+                        .map(|(n, won)| format!("{n}  {won}"))
+                        .collect(),
+                    None,
+                )
             }
             // The names whose lines are never heard (the blacklist).
             "blacklist.rows" => {
