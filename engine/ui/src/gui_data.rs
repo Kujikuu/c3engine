@@ -16,6 +16,8 @@ pub(crate) struct GuiState {
     pub work: Vec<u32>,
     /// What the guild list shows: `members` (also when empty), `allies`, `enemies`.
     pub guild_tab: String,
+    /// Each view group's view (`view:<group>:<name>`; a status page's base or details).
+    pub views: std::collections::HashMap<String, String>,
 }
 
 /// The most items a workbench holds.
@@ -113,6 +115,17 @@ impl GuiData for HeroData<'_> {
             // The NPC whose shop is open (0: none).
             "hero.shop" => p.shop.unwrap_or(0).into(),
             "hero.profession" => p.profession.into(),
+            // 1 while view group `<group>` shows view `<name>` (`view.<group>.<name>`).
+            _ if key.starts_with("view.") => {
+                let (group, name) = key.strip_prefix("view.")?.split_once('.')?;
+                u8::from(self.state.views.get(group).is_some_and(|v| v == name)).into()
+            }
+            // A number the game shows of the hero (`hero.shown.<name>`, its rules' `shown`).
+            _ if key.starts_with("hero.shown.") => {
+                let name = key.strip_prefix("hero.shown.")?;
+                let shown = self.view.sim.shown(p.id);
+                shown.iter().find(|(n, _)| n == name).map_or(0, |(_, v)| *v) as f64
+            }
             // Any of the hero's attributes (`hero.attr.strength`), 0 when it has none.
             _ => {
                 let name = key.strip_prefix("hero.attr.")?;
@@ -124,6 +137,11 @@ impl GuiData for HeroData<'_> {
     fn text(&self, key: &str) -> Option<String> {
         match key {
             "hero.name" => Some(self.player.name.clone()),
+            // The hero's text variable `<name>` (its spouse: `hero.text.mate`).
+            _ if key.starts_with("hero.text.") => {
+                let name = key.strip_prefix("hero.text.")?;
+                Some(self.player.texts.get(name).cloned().unwrap_or_default())
+            }
             // The hero's skill `n` (its type), none past the last.
             _ if key.starts_with("skill.") => {
                 let n: usize = key.strip_prefix("skill.")?.parse().ok()?;

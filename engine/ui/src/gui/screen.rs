@@ -193,8 +193,10 @@ fn clicked(control: &Control, events: &mut Vec<GuiEvent>) {
 
 /// Whether one of `control`'s `when` bindings (`|` between them) is set (not 0).
 fn set(control: &Control, data: &dyn GuiData) -> bool {
-    (control.when.split('|').filter(|w| !w.is_empty()))
-        .any(|w| data.number(w).is_some_and(|v| v != 0.0))
+    (control.when.split('|').filter(|w| !w.is_empty())).any(|w| match w.strip_prefix('!') {
+        Some(w) => data.number(w).is_none_or(|v| v == 0.0),
+        None => data.number(w).is_some_and(|v| v != 0.0),
+    })
 }
 
 /// Where a dialog's origin lands: scaled, and kept to its side of the screen.
@@ -407,8 +409,10 @@ impl Painter<'_, '_> {
             }
             ControlKind::Text => {
                 let mut text = expand(&control.text, data);
-                // Shown as its name when the control names a file of them.
-                if let Some(name) = self.names.get(&control.names).and_then(|t| t.get(&text)) {
+                // Shown as its name when the control names a file of them (the value first
+                // turned into the file's key by the control's map).
+                let key = control.map_value(&text);
+                if let Some(name) = self.names.get(&control.names).and_then(|t| t.get(&key)) {
                     text = name.clone();
                 }
                 let [r, g, b] = control.color;

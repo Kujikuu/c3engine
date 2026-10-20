@@ -187,9 +187,12 @@ pub struct Control {
     pub fill: Fill,
     /// Text with `{binding}`s in it.
     pub text: String,
-    /// A file of `value,name` lines (TQ's `ProfessionalName.ini`): the text, worked out, is
-    /// shown as the name it maps to.
+    /// A file of `value,name` (or `value=name`) lines (TQ's `ProfessionalName.ini`,
+    /// `StrRes.ini`): the text, worked out, is shown as the name it maps to.
     pub names: String,
+    /// `value:key` pairs between spaces turning the text into the names file's key first
+    /// (`*:key` for any other value).
+    pub map: String,
     /// Text colour, `rrggbb`.
     pub color: [u8; 3],
     pub size: f32,
@@ -219,6 +222,23 @@ pub struct Control {
 }
 
 impl Control {
+    /// `value` as the names file's key, by the control's map (unchanged when it has none).
+    pub fn map_value(&self, value: &str) -> String {
+        let mut other = None;
+        for pair in self.map.split_whitespace() {
+            let Some((from, to)) = pair.split_once(':') else {
+                continue;
+            };
+            if from == value {
+                return to.to_owned();
+            }
+            if from == "*" {
+                other = Some(to);
+            }
+        }
+        other.unwrap_or(value).to_owned()
+    }
+
     fn parse(section: &ini::Section) -> Option<Self> {
         let (parent, id) = ini::ids(&section.name)?;
         let text = |key: &str| section.get(key).unwrap_or_default().to_owned();
@@ -257,6 +277,7 @@ impl Control {
             fill,
             text: text("text"),
             names: text("names"),
+            map: text("map"),
             color,
             size: section.int("size").unwrap_or(12).max(4) as f32,
             action: text("action"),
@@ -326,7 +347,8 @@ impl Gui {
             };
             let table = (String::from_utf8_lossy(&bytes).lines())
                 .filter_map(|line| {
-                    let (value, name) = line.trim().split_once(',')?;
+                    let line = line.trim();
+                    let (value, name) = line.split_once(',').or_else(|| line.split_once('='))?;
                     Some((value.trim().to_owned(), name.trim().to_owned()))
                 })
                 .collect();

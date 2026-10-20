@@ -51,6 +51,8 @@ pub enum Input {
         item: u32,
         target: u32,
     },
+    /// Spend attribute points: so many on each attribute (the settings' point attributes).
+    SpendPoints(Vec<(String, u32)>),
     /// Propose marriage to player `target`; accept the proposal of player `from`.
     Propose(EntityId),
     AcceptProposal(EntityId),
@@ -151,6 +153,7 @@ impl Sim {
             Input::Wear { item, slot } => self.wear_in(id, item, slot),
             Input::UseOn { item, target } => self.use_item_on(id, item, target),
             Input::Combine { kind, items, value } => self.combine(id, kind, &items, value),
+            Input::SpendPoints(points) => self.spend_points(id, &points),
             Input::Propose(target) => self.propose(id, target),
             Input::AcceptProposal(from) => self.accept_proposal(id, from),
             Input::Place { cell, direction } => self.place_asked(id, cell, direction),

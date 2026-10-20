@@ -170,6 +170,11 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.socket_item_base = 700_000;
     // TQ's rank of a plain guild member.
     s.gameplay.guild_member_rank = 50;
+    // Attribute points spent on the four attributes (MsgAllot).
+    s.gameplay.points_attribute = "attribute_points".into();
+    s.gameplay.point_attributes = ["strength", "agility", "vitality", "spirit"]
+        .map(String::from)
+        .to_vec();
     // Deputies (90) invite too; a guild needs 100,000 in its fund to take members, and has
     // 800 at most (syndicate §2).
     s.gameplay.guild_invite_rank = 90;

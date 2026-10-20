@@ -445,6 +445,11 @@ pub struct GameplaySettings {
     /// The most members a guild has (0: no limit).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub guild_max_members: u32,
+    /// The attribute holding points a player spends on `point_attributes` (empty: none).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub points_attribute: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub point_attributes: Vec<String>,
     /// The rank a player joining a guild gets (the game's rank numbers).
     #[serde(default = "guild_member_rank")]
     pub guild_member_rank: u32,
@@ -502,6 +507,8 @@ impl Default for GameplaySettings {
             storage_size: storage_size(),
             guild_member_rank: guild_member_rank(),
             guild_invite_rank: 0,
+            points_attribute: String::new(),
+            point_attributes: Vec::new(),
             guild_join_min_fund: 0,
             guild_max_members: 0,
             team_exp_range: 0,

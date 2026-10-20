@@ -145,6 +145,7 @@ pub fn rules_blueprint() -> Blueprint {
     exp(&mut bp.events, next_lane(450.0));
     can_wear(&mut bp.events, next_lane(500.0));
     may_marry(&mut bp.events, next_lane(200.0));
+    shown(&mut bp.events, next_lane(300.0));
     level_up(&mut bp.events, next_lane(300.0));
     death(&mut bp.events, next_lane(700.0));
     revive(&mut bp.events, next_lane(200.0));
@@ -508,6 +509,51 @@ fn exp(g: &mut Graph, top: f32) {
                 names.define(w, name, text);
             }
             names.write(w, EXP)
+        },
+    );
+}
+
+/// What the status window's details show (the client's CDlgQuery_Role::SetRoleInfo):
+/// attack with Dragon gems' percent, defence, magic attack with Phoenix gems', magic defence.
+fn shown(g: &mut Graph, top: f32) {
+    formula(
+        g,
+        top,
+        "formula.shown",
+        &["player"],
+        Some("player"),
+        |w, names| {
+            let fields = [
+                (
+                    "attack_min",
+                    "attack_min + socket_gem_attack * attack_min / 100",
+                ),
+                (
+                    "attack_max",
+                    "attack_max + socket_gem_attack * attack_max / 100",
+                ),
+                ("defence", "defence"),
+                (
+                    "magic_attack",
+                    "gear_magic_atk + socket_gem_magic * gear_magic_atk / 100",
+                ),
+                ("magic_defence", "gear_magic_def"),
+            ];
+            let mut record = Operand::Pin {
+                node: w.node("record.new", &[]),
+                pin: "value".into(),
+            };
+            for (field, formula) in fields {
+                let value = names.write(w, formula);
+                let put = w.node("record.put", &[("field", text(field))]);
+                w.feed(&record, put, "record");
+                w.feed(&value, put, "value");
+                record = Operand::Pin {
+                    node: put,
+                    pin: "value".into(),
+                };
+            }
+            record
         },
     );
 }

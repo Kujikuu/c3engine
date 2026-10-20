@@ -1065,6 +1065,16 @@ impl Rules for DataRules {
         }
     }
 
+    fn shown(&self, player: &Fighter) -> Vec<(String, i64)> {
+        self.formula("shown", |f| f.map("shown", (fighter_map(player),)))
+            .map(|map| {
+                (map.iter())
+                    .filter_map(|(k, v)| Some((k.to_string(), v.as_int().ok()?)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn may_marry(&self, a: &Fighter, b: &Fighter) -> bool {
         self.formula("may_marry", |f| {
             f.int("may_marry", (fighter_map(a), fighter_map(b)))

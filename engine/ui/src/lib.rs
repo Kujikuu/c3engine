@@ -340,6 +340,21 @@ impl GameUi {
                 self.system(format!("Click a player ({what})."), style::GOLD);
                 self.pick = Some(what.to_owned());
             }
+            // Spend an attribute point (`spend:<attribute>`).
+            _ if action.starts_with("spend:") => {
+                let attribute = action.trim_start_matches("spend:").to_owned();
+                actions.push(UiAction::Game(c3_game::Input::SpendPoints(vec![(
+                    attribute, 1,
+                )])));
+            }
+            // Show view `<name>` of view group `<group>` (`view:<group>:<name>`).
+            _ if action.starts_with("view:") => {
+                if let Some((group, name)) = action.trim_start_matches("view:").split_once(':') {
+                    self.gui_state
+                        .views
+                        .insert(group.to_owned(), name.to_owned());
+                }
+            }
             _ if action.starts_with("guild_tab:") => {
                 self.gui_state.guild_tab = action.trim_start_matches("guild_tab:").to_owned();
             }

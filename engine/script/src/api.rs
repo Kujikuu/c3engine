@@ -634,6 +634,13 @@ fn more(engine: &mut Engine, shared: &Shared) {
         })
     });
     engine.register_fn(
+        "record_put",
+        |mut record: rhai::Map, field: &str, value: i64| {
+            record.insert(field.into(), value.into());
+            record
+        },
+    );
+    engine.register_fn(
         "around",
         |text: &str, before: &str, after: &str| match text {
             "" => String::new(),

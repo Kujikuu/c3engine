@@ -454,6 +454,11 @@ impl Sim {
     }
 
     /// Player `id` as one side of a fight (see [`crate::Fighter::facts`]).
+    /// The numbers the game shows of player `id` (rules `shown`).
+    pub fn shown(&self, id: EntityId) -> Vec<(String, i64)> {
+        self.rules.shown(&self.player_fighter(id))
+    }
+
     pub(crate) fn player_fighter(&self, id: EntityId) -> crate::Fighter {
         let Some(p) = self.players.get(&id) else {
             return crate::Fighter::default();
@@ -865,6 +870,30 @@ impl Sim {
             }
         }
         (1, center)
+    }
+
+    /// Player `id` spends attribute points: all of `points` when it has that many and each
+    /// goes to one of the settings' point attributes, else none.
+    pub fn spend_points(&mut self, id: EntityId, points: &[(String, u32)]) {
+        let pool = self.settings.points_attribute.clone();
+        let allowed = |a: &String| self.settings.point_attributes.contains(a);
+        let total: u64 = points.iter().map(|(_, n)| u64::from(*n)).sum();
+        if pool.is_empty() || total == 0 || !points.iter().all(|(a, _)| allowed(a)) {
+            return;
+        }
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        let have = p.attributes.get(&pool).copied().unwrap_or(0);
+        if (have.max(0) as u64) < total {
+            return;
+        }
+        p.attributes.insert(pool, have - total as i64);
+        for (attribute, n) in points {
+            *p.attributes.entry(attribute.clone()).or_default() += i64::from(*n);
+        }
+        self.refresh_stats(id);
+        self.events.push(Event::Dressed { player: id });
     }
 
     /// Whether player `id` may pick up `ground`: anyone's once unprotected; while protected,

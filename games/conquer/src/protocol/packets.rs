@@ -149,6 +149,7 @@ pub const PACKAGE_STORAGE: u8 = 10;
 /// Setting a gem in a socket or taking it out (items spec §6.1).
 pub const GEM_EMBED: u16 = 1027;
 pub const FUSE: u16 = 1028;
+pub const ALLOT: u16 = 1024;
 /// Composing +N: the main item, two minors and the gems (items spec §7.1).
 pub const COMPOSE: u16 = 2036;
 pub const NPC_INFO: u16 = 2030;
@@ -803,6 +804,8 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// Attribute points spent: strength, agility, vitality, spirit (MsgAllot).
+    Allot([u8; 4]),
     /// A MsgName asked for: its type and number (the guild member list's page, 11).
     Name {
         kind: u8,
@@ -928,6 +931,7 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 item: r.u32()?,
             }
         }
+        ALLOT => Request::Allot([r.u8()?, r.u8()?, r.u8()?, r.u8()?]),
         NAME => {
             let data = r.u32()?;
             Request::Name {

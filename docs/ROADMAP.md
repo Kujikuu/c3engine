@@ -708,8 +708,11 @@ run on the server and the local session alike, and are edited through c3-edit wi
         dialog's role page shows name, level, PK, attributes and points (screenshot)
   - [x] Status: the profession's name from the client's ProfessionalName.ini (`names=` on a
         text control: a file of value,name lines read in place)
-  - [ ] Status: spouse, guild and rank, the details view, adding
-        points, the weapon skill and equipment pages' contents
+  - [x] Status: spouse, guild and its title (StrRes.ini by `map=`), the details view
+        (`view:` actions, `!` in `when`, the rules' `shown`: attack and magic with Dragon and
+        Phoenix gems), adding points (`spend:`, `Input::SpendPoints`, MsgAllot 1024)
+        (screenshot)
+  - [ ] Status: the weapon skill and equipment pages' contents
   - [x] Dialogs the game opens (`when=<binding>`, in place of the engine's window): an
         NPC's shop (152) with its wares (`shop.items`, a click buys) and the bag beside it;
         bag clicks use, wear or sell (screenshot: shop and bag); GM `/shop NPC`

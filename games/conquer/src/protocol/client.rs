@@ -1402,6 +1402,16 @@ impl ConquerClient {
             }
             // The guild member list, a page of 10 (syndicate §2.3): after member `data` (-1: from
             // the start), online members while it is one, then offline ones from the start.
+            Request::Allot(points) => {
+                let names = ["strength", "agility", "vitality", "spirit"];
+                let spent: Vec<(String, u32)> = (names.iter().zip(points))
+                    .filter(|(_, n)| *n > 0)
+                    .map(|(a, n)| ((*a).to_owned(), u32::from(n)))
+                    .collect();
+                if !spent.is_empty() {
+                    inputs.push(Input::SpendPoints(spent));
+                }
+            }
             Request::Name {
                 kind: pk::NAME_MEMBER_LIST,
                 data,

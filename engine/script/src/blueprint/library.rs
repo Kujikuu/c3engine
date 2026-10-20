@@ -216,6 +216,15 @@ pub fn returns(function: &str) -> Option<PinType> {
 
 /// Every node, in palette order.
 pub const NODES: &[NodeDef] = &[
+    pure("record.new", "Empty record", "Formulas", &[], Record, "#{}"),
+    pure(
+        "record.put",
+        "Record with a number",
+        "Formulas",
+        &[("record", Record), ("field", Text), ("value", Number)],
+        Record,
+        "record_put({record}, {field}, {value})",
+    ),
     action(
         "player.deliver_text",
         "Set another player's text",
@@ -932,6 +941,12 @@ pub const NODES: &[NodeDef] = &[
         "Healing of a skill",
         "skill_heal",
         &[("healer", Record), ("skill", Record)],
+    ),
+    formula(
+        "formula.shown",
+        "Numbers shown of a player (a record)",
+        "shown",
+        &[("player", Record)],
     ),
     formula(
         "formula.may_marry",

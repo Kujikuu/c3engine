@@ -363,6 +363,11 @@ pub trait Rules: std::any::Any {
         skill.power
     }
 
+    /// The numbers a game shows of `player` (a status window's), by name.
+    fn shown(&self, _player: &Fighter) -> Vec<(String, i64)> {
+        Vec::new()
+    }
+
     /// Whether `a` may marry `b` (both single and near, which the engine checks).
     fn may_marry(&self, _a: &Fighter, _b: &Fighter) -> bool {
         true
