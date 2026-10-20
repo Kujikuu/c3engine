@@ -435,6 +435,16 @@ pub struct GameplaySettings {
     /// none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub spouse_text: String,
+    /// The rank from which a guild's member invites and takes in applicants (0: its leader
+    /// alone).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub guild_invite_rank: u32,
+    /// The fund a guild needs to take a member in (0: none).
+    #[serde(default)]
+    pub guild_join_min_fund: i64,
+    /// The most members a guild has (0: no limit).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub guild_max_members: u32,
     /// The rank a player joining a guild gets (the game's rank numbers).
     #[serde(default = "guild_member_rank")]
     pub guild_member_rank: u32,
@@ -491,6 +501,9 @@ impl Default for GameplaySettings {
             sockets: Vec::new(),
             storage_size: storage_size(),
             guild_member_rank: guild_member_rank(),
+            guild_invite_rank: 0,
+            guild_join_min_fund: 0,
+            guild_max_members: 0,
             team_exp_range: 0,
             loot_protection_seconds: 0.0,
             team_never_shared: Vec::new(),

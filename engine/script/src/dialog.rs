@@ -282,10 +282,12 @@ pub enum WorldChange {
     Delivered {
         to: String,
     },
-    /// Player `name` online on map `map` (0: logged out).
+    /// Player `name` online on map `map` (0: logged out), of `level` (0: unchanged).
     Online {
         name: String,
         map: i64,
+        #[serde(default)]
+        level: i64,
     },
     /// Bounty `id` set as `view` (`None`: removed).
     Bounty {

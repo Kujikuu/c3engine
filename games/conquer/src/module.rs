@@ -170,6 +170,11 @@ pub fn conquer_settings() -> ProjectSettings {
     s.gameplay.socket_item_base = 700_000;
     // TQ's rank of a plain guild member.
     s.gameplay.guild_member_rank = 50;
+    // Deputies (90) invite too; a guild needs 100,000 in its fund to take members, and has
+    // 800 at most (syndicate §2).
+    s.gameplay.guild_invite_rank = 90;
+    s.gameplay.guild_join_min_fund = 100_000;
+    s.gameplay.guild_max_members = 800;
     // Teammates within 32 cells of a kill share it (battle §4); a spouse is `mate`.
     s.gameplay.team_exp_range = 32;
     // A killer's loot is its own for 30 s (monsters §6.9); teams never share DragonBalls or

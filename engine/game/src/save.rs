@@ -202,6 +202,7 @@ impl Sim {
         self.change_world(c3_script::WorldChange::Online {
             name: save.name.clone(),
             map,
+            level: i64::from(save.level.max(1)),
         });
         let bag: Vec<Item> = save.bag.iter().map(|&s| self.saved_item(s)).collect();
         let worn: Vec<Item> = save.equipment.iter().map(|&s| self.saved_item(s)).collect();
@@ -290,7 +291,11 @@ impl Sim {
     pub fn remove_player(&mut self, id: EntityId) {
         self.script_event(id, "on_logout", Vec::new());
         if let Some(name) = self.players.get(&id).map(|p| p.name.clone()) {
-            self.change_world(c3_script::WorldChange::Online { name, map: 0 });
+            self.change_world(c3_script::WorldChange::Online {
+                name,
+                map: 0,
+                level: 0,
+            });
         }
         // Logging out leaves the team.
         if let Some(leader) = self.players.get(&id).and_then(|p| p.team) {

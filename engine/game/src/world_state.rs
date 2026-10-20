@@ -49,6 +49,9 @@ pub struct WorldState {
     /// The players online on every map, by name: the game map each is on.
     #[serde(default, skip_serializing)]
     pub online: BTreeMap<String, u32>,
+    /// Each player's level when last on a map, by name.
+    #[serde(default)]
+    pub levels: BTreeMap<String, u32>,
     /// The maps' names by game id (the host's list).
     #[serde(default, skip_serializing)]
     pub map_names: BTreeMap<u32, String>,
@@ -192,14 +195,21 @@ impl WorldState {
             WorldChange::Delivered { to } => {
                 self.deliveries.remove(to);
             }
-            WorldChange::Online { name, map } => match u32::try_from(*map) {
-                Ok(map) if map != 0 => {
-                    self.online.insert(name.clone(), map);
+            WorldChange::Online { name, map, level } => {
+                if let Ok(level) = u32::try_from(*level)
+                    && level > 0
+                {
+                    self.levels.insert(name.clone(), level);
                 }
-                _ => {
-                    self.online.remove(name);
+                match u32::try_from(*map) {
+                    Ok(map) if map != 0 => {
+                        self.online.insert(name.clone(), map);
+                    }
+                    _ => {
+                        self.online.remove(name);
+                    }
                 }
-            },
+            }
             WorldChange::MapCopy { id, copy } => {
                 if let Ok(id) = u32::try_from(*id) {
                     self.map_copies.insert(id, copy.clone());

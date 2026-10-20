@@ -362,6 +362,8 @@ pub struct ConquerClient {
     guild: Option<Option<(u32, u8, u32, u32)>>,
     /// The guild names the client was told, by id.
     guild_names: BTreeMap<u32, String>,
+    /// The hero's guild's members (by rank, then level): name, level, online.
+    roster: Vec<(String, u32, bool)>,
     /// The guild of each player in view that has one.
     seen_guilds: HashMap<EntityId, u32>,
 }
@@ -698,7 +700,21 @@ impl ConquerClient {
         let Some(p) = self.hero.and_then(|h| sim.player(h)) else {
             return Vec::new();
         };
-        let guilds = &sim.world_state().guilds;
+        let world = sim.world_state();
+        let guilds = &world.guilds;
+        self.roster = guild_of(sim, p)
+            .and_then(|(id, _)| guilds.get(&id))
+            .map(|g| {
+                let mut members: Vec<(String, u32, bool, i64)> = (g.members.iter())
+                    .map(|(name, &rank)| {
+                        let level = world.levels.get(name).copied().unwrap_or(0);
+                        (name.clone(), level, world.online.contains_key(name), rank)
+                    })
+                    .collect();
+                members.sort_by(|a, b| b.3.cmp(&a.3).then(b.1.cmp(&a.1)));
+                members.into_iter().map(|(n, l, o, _)| (n, l, o)).collect()
+            })
+            .unwrap_or_default();
         let info = guild_of(sim, p).and_then(|(id, rank)| {
             let g = guilds.get(&id)?;
             Some(pk::GuildInfo {
@@ -729,6 +745,32 @@ impl ConquerClient {
             pk::name(pk::NAME_GUILD, info.id, name),
             pk::guild_info(&info),
         ]
+    }
+
+    /// A page of the guild member list after member `after` (`u32::MAX`: the first page).
+    fn member_page(&self, after: u32) -> Vec<u8> {
+        const PAGE: usize = 10;
+        let start = if after == u32::MAX {
+            0
+        } else {
+            after as usize + 1
+        };
+        let from_online = after == u32::MAX || self.roster.get(after as usize).is_some_and(|m| m.2);
+        let pick = |online: bool, from: usize| {
+            (self.roster.iter().enumerate().skip(from))
+                .filter(move |(_, m)| m.2 == online)
+                .map(|(_, m)| format!("{} {} {}", m.0, m.1, u8::from(m.2)))
+        };
+        let mut lines: Vec<String> = Vec::new();
+        if from_online {
+            lines.extend(pick(true, start).take(PAGE));
+            let more = PAGE - lines.len();
+            lines.extend(pick(false, 0).take(more));
+        } else {
+            lines.extend(pick(false, start).take(PAGE));
+        }
+        let list: Vec<&str> = lines.iter().map(String::as_str).collect();
+        pk::names(pk::NAME_MEMBER_LIST, after, &list)
     }
 
     /// The hero's team list, when it changed (members, their life); left, an empty team.
@@ -1123,6 +1165,9 @@ impl ConquerClient {
             Event::GuildInvited { player, inviter } if Some(*player) == hero => {
                 vec![pk::guild(pk::guild::INVITE_JOIN, Ids::player(*inviter))]
             }
+            Event::GuildApplied { player, applicant } if Some(*player) == hero => {
+                vec![pk::guild(pk::guild::APPLY_JOIN, Ids::player(*applicant))]
+            }
             // Someone asks to join the hero's team: the client asks the hero.
             Event::TeamApplied { player, applicant } if Some(*player) == hero => {
                 vec![pk::team(pk::team::APPLY, Ids::player(*applicant))]
@@ -1343,7 +1388,7 @@ impl ConquerClient {
                 let player = ids.entity(id);
                 let action = match (a, player) {
                     (pk::guild::INVITE_JOIN, Some(e)) => Some(G::Invite(e)),
-                    (pk::guild::APPLY_JOIN, Some(e)) => Some(G::Join(e)),
+                    (pk::guild::APPLY_JOIN, Some(e)) => Some(G::Apply(e)),
                     (pk::guild::LEAVE, _) => Some(G::Leave),
                     (pk::guild::KICK, Some(e)) => Some(G::Kick(e)),
                     (pk::guild::DONATE, _) => Some(G::Donate(id.into())),
@@ -1354,6 +1399,14 @@ impl ConquerClient {
                     _ => None,
                 };
                 inputs.extend(action.map(Input::Guild));
+            }
+            // The guild member list, a page of 10 (syndicate §2.3): after member `data` (-1: from
+            // the start), online members while it is one, then offline ones from the start.
+            Request::Name {
+                kind: pk::NAME_MEMBER_LIST,
+                data,
+            } => {
+                out.push(self.member_page(data));
             }
             Request::Team { action: a, id } => {
                 let other = ids.entity(id);

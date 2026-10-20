@@ -99,6 +99,7 @@ impl Event {
             | Event::TeamInvited { player, .. }
             | Event::TeamApplied { player, .. }
             | Event::GuildInvited { player, .. }
+            | Event::GuildApplied { player, .. }
             | Event::StorageChanged { player, .. } => Some(player),
             _ => None,
         }

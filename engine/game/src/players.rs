@@ -1081,7 +1081,14 @@ impl Sim {
             p.exp -= need;
             p.level += 1;
             let level = p.level;
+            let name = p.name.clone();
             self.events.push(Event::LeveledUp { player: id, level });
+            let map = self.map_ids.first().copied().map_or(0, i64::from);
+            self.change_world(c3_script::WorldChange::Online {
+                name,
+                map,
+                level: i64::from(level),
+            });
             self.refresh_stats(id);
             let p = self.players.get_mut(&id).expect("levelling");
             p.life = p.stats.max_life;

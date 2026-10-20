@@ -11,9 +11,12 @@ use serde::{Deserialize, Serialize};
 /// What a player does about guilds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GuildAction {
-    /// The leader asks a player (here) into its guild; the player joins the inviter's guild.
+    /// A leader (or officer) asks a player (here) into its guild, or takes in one who asked;
+    /// the player joins the inviter's guild.
     Invite(EntityId),
     Join(EntityId),
+    /// Ask a guild's leader or officer (here) to be taken in; join when it invited the player.
+    Apply(EntityId),
     Leave,
     /// The leader sends a member (here) out.
     Kick(EntityId),
@@ -25,6 +28,37 @@ pub enum GuildAction {
 }
 
 impl Sim {
+    /// The guild player `name` may invite into (its leader, or a member of the settings'
+    /// invite rank).
+    fn inviting_guild(&self, name: &str) -> Option<u32> {
+        let (guild, rank) = self.world.guild_of(name)?;
+        let leads = self.world.guilds[&guild].leader == name;
+        let officer = self.settings.guild_invite_rank > 0
+            && rank >= i64::from(self.settings.guild_invite_rank);
+        (leads || officer).then_some(guild)
+    }
+
+    /// Player `id` (`name`) taken into `guild` at the members' rank, when the guild's fund
+    /// and size allow (the settings' limits).
+    fn take_in(&mut self, guild: u32, id: EntityId, name: &str) -> Result<(), String> {
+        let g = &self.world.guilds[&guild];
+        if g.fund < self.settings.guild_join_min_fund {
+            return Err("The guild's fund is too low to take members in.".into());
+        }
+        let most = self.settings.guild_max_members as usize;
+        if most > 0 && g.members.len() >= most {
+            return Err("The guild is full.".into());
+        }
+        self.guild_invites.remove(&id);
+        self.guild_applies.remove(&id);
+        self.change_world(WorldChange::Member {
+            guild: guild.into(),
+            name: name.to_owned(),
+            rank: self.settings.guild_member_rank.into(),
+        });
+        Ok(())
+    }
+
     /// Player `id` acts on guilds; told how it went.
     pub fn guild(&mut self, id: EntityId, action: GuildAction) {
         let text = self.guild_action(id, action).unwrap_or_else(|why| why);
@@ -39,10 +73,17 @@ impl Sim {
         let name_of = |s: &Sim, e: EntityId| s.players.get(&e).map(|p| p.name.clone());
         match action {
             GuildAction::Invite(other) => {
-                let guild = leads.ok_or("Only a guild's leader invites.")?;
+                let guild = self
+                    .inviting_guild(&my_name)
+                    .ok_or("You can't invite players.")?;
                 let name = name_of(self, other).ok_or("They aren't here.")?;
                 if self.world.guild_of(&name).is_some() {
                     return Err(format!("{name} is in a guild already."));
+                }
+                // One who asked to join comes in.
+                if self.guild_applies.get(&other) == Some(&guild) {
+                    self.take_in(guild, other, &name)?;
+                    return Ok(format!("{name} joined the guild."));
                 }
                 self.guild_invites.insert(other, guild);
                 self.events.push(Event::GuildInvited {
@@ -60,13 +101,27 @@ impl Sim {
                 if mine.is_some() {
                     return Err("You are in a guild already.".into());
                 }
-                self.guild_invites.remove(&id);
-                self.change_world(WorldChange::Member {
-                    guild: guild.into(),
-                    name: my_name,
-                    rank: self.settings.guild_member_rank.into(),
-                });
+                self.take_in(guild, id, &my_name)?;
                 Ok(format!("You joined {}.", self.world.guilds[&guild].name))
+            }
+            GuildAction::Apply(other) => {
+                if mine.is_some() {
+                    return Err("You are in a guild already.".into());
+                }
+                let name = name_of(self, other).ok_or("They aren't here.")?;
+                let guild = self
+                    .inviting_guild(&name)
+                    .ok_or("They can't take you in.")?;
+                if self.guild_invites.get(&id) == Some(&guild) {
+                    self.take_in(guild, id, &my_name)?;
+                    return Ok(format!("You joined {}.", self.world.guilds[&guild].name));
+                }
+                self.guild_applies.insert(id, guild);
+                self.events.push(Event::GuildApplied {
+                    player: other,
+                    applicant: id,
+                });
+                Ok(format!("You asked {name} to take you in."))
             }
             GuildAction::Leave => {
                 let guild = mine.ok_or("You are in no guild.")?;

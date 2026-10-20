@@ -792,7 +792,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
   - [x] Guild actions (engine `GuildAction`, MsgSyndicate 1, 2, 3, 4, 7 to 11): the
         leader invites, kicks and names allies and enemies; members join, leave and
         donate; the hero's guild info follows its fund and members
-  - [ ] The guild member list (MsgName 11) and applying to a guild's leader
+  - [x] The guild member list (MsgName 11: pages of 10, name, level and online, by rank and level; levels kept on the world state) and applying to a guild's leader or deputy (MsgSyndicate 1, `GuildAction::Apply`; deputies of rank 90 invite; TQ's 100,000 fund and 800 members)
   - [ ] Each of the above checked with the real Conquer.exe
 
 ## M13: Any game of the kind (Eudemons-like or the user's own)

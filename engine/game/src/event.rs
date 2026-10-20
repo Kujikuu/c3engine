@@ -107,6 +107,11 @@ pub enum Event {
         player: EntityId,
         inviter: EntityId,
     },
+    /// `applicant` asks to join the guild of `player` (who may take it in).
+    GuildApplied {
+        player: EntityId,
+        applicant: EntityId,
+    },
     /// `applicant` asks to join the team player `player` leads.
     TeamApplied {
         player: EntityId,

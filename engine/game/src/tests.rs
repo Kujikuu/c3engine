@@ -2105,3 +2105,49 @@ fn a_killer_s_loot_is_its_own_and_its_team_s_as_the_team_shares() {
         .ground_item(potion)
         .is_none()));
 }
+
+#[test]
+fn players_apply_to_a_guild_s_officer_and_are_taken_in() {
+    use crate::{GuildAction, Input};
+    use c3_script::WorldChange;
+    let mut sim = Sim::new(Grid::new(30, 30), vec![], vec![], rules(), 9);
+    let mut settings = sim.settings().clone();
+    settings.guild_invite_rank = 90;
+    settings.guild_join_min_fund = 1000;
+    sim.set_settings(settings);
+    let lead = sim.add_player("Lead", (5, 5), 1);
+    let deputy = sim.add_player("Deputy", (6, 5), 1);
+    let comer = sim.add_player("Comer", (7, 5), 1);
+    sim.change_world(WorldChange::CreateGuild {
+        id: 7,
+        name: "Wolves".into(),
+        leader: "Lead".into(),
+        rank: 100,
+        fund: 0,
+        master: 0,
+    });
+    sim.change_world(WorldChange::Member {
+        guild: 7,
+        name: "Deputy".into(),
+        rank: 90,
+    });
+    sim.input(comer, Input::Guild(GuildAction::Apply(deputy)));
+    assert!(sim.take_events().contains(&Event::GuildApplied {
+        player: deputy,
+        applicant: comer
+    }));
+    // A poor guild takes no one; with the fund, the deputy takes the applicant in.
+    sim.input(deputy, Input::Guild(GuildAction::Invite(comer)));
+    assert_eq!(
+        sim.world_state().guild_of("Comer"),
+        None,
+        "the fund is too low"
+    );
+    sim.change_world(WorldChange::GuildFund {
+        guild: 7,
+        amount: 5000,
+    });
+    sim.input(deputy, Input::Guild(GuildAction::Invite(comer)));
+    assert_eq!(sim.world_state().guild_of("Comer").map(|g| g.0), Some(7));
+    let _ = lead;
+}

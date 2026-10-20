@@ -358,6 +358,17 @@ pub fn login_reply(token: u32, data: u32, ip: &str, port: u32) -> Vec<u8> {
 
 /// A chat line from `speaker` to `hearer`.
 /// MsgName of `kind` with `data` (a cell as x | y << 16, or a role id) and one name.
+/// MsgName of `kind` with several strings.
+pub fn names(kind: u8, data: u32, list: &[&str]) -> Vec<u8> {
+    packet(NAME, |w| {
+        w.u32(data).u8(kind);
+        strings(w, list);
+    })
+}
+
+/// MsgName's guild member list (strings `name level online`).
+pub const NAME_MEMBER_LIST: u8 = 11;
+
 pub fn name(kind: u8, data: u32, text: &str) -> Vec<u8> {
     packet(NAME, |w| {
         w.u32(data).u8(kind);
@@ -792,6 +803,11 @@ pub enum Request {
     Compose {
         items: Vec<u32>,
     },
+    /// A MsgName asked for: its type and number (the guild member list's page, 11).
+    Name {
+        kind: u8,
+        data: u32,
+    },
     /// Items fused into a +1 stone (`kind` 0; TQ knows no other).
     Fuse {
         kind: u16,
@@ -910,6 +926,13 @@ pub fn parse(bytes: &[u8]) -> Result<Request, PacketError> {
                 action,
                 kind,
                 item: r.u32()?,
+            }
+        }
+        NAME => {
+            let data = r.u32()?;
+            Request::Name {
+                kind: r.u8()?,
+                data,
             }
         }
         FUSE => {
