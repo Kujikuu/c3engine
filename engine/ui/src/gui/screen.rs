@@ -759,6 +759,10 @@ impl Painter<'_, '_> {
                             list: control.value.clone(),
                             index,
                         });
+                        // A list with an action runs it for the row clicked too.
+                        if !control.action.is_empty() {
+                            clicked(control, events);
+                        }
                     }
                 }
             }

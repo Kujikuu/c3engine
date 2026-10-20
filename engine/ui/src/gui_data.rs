@@ -489,6 +489,19 @@ impl GuiData for HeroData<'_> {
                     "guild.members" => g.members.len().to_string(),
                     "guild.fund" => g.fund.to_string(),
                     "guild.announcement" => g.announcement.clone(),
+                    // The member picked: its name, level, rank and what it gave.
+                    _ if key.starts_with("guild.picked.") => {
+                        let name = self.picked_guild_member()?;
+                        match key.strip_prefix("guild.picked.")? {
+                            "name" => name.clone(),
+                            "level" => world.levels.get(&name).copied().unwrap_or(0).to_string(),
+                            "rank" => g.members.get(&name)?.to_string(),
+                            "contribution" => {
+                                g.contributions.get(&name).copied().unwrap_or(0).to_string()
+                            }
+                            _ => return None,
+                        }
+                    }
                     // The `n`th allied or enemy guild's name (`guild.ally.0`).
                     _ if key.starts_with("guild.ally.") || key.starts_with("guild.enemy.") => {
                         let (side, n) = key.strip_prefix("guild.")?.split_once('.')?;
