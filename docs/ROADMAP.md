@@ -817,7 +817,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] life orb's mana latch: the client keeps the whole-orb life until mana is first above 0, then never goes back (`hero.mana_seen`)
     - [x] XP orb's 500 ms mode-2 flash on an XP change (DlgMain.cpp 849-864; `hero.attr_age.<name>`: ms since an attribute changed)
     - [x] stamina x1.5 while Blessed, and extra stamina 1027 (Progress47) above 99 (DlgMain.cpp 703-709, 757-762; progress `min=`, `clock.unix`) (screenshot)
-    - [ ] stamina up to 150 while Blessed in the rules (the attribute's most is 100, so 1027 never shows yet)
+    - [x] stamina up to 150 while Blessed in the rules, and its regeneration: 3 every 2 s, 10 a second sitting, none transformed (attribute `raised_max` / `regen`, `Player::emote` held until it moves or fights; MaxEnergy 0045422f, OnTimer 0041d7a2); the front's MsgUserAttrib 9
+    - [ ] no stamina gained while flying (no flying status in the engine yet)
     - [ ] life/mana forecast (value vs current, two-pass draw; MyProgress.cpp 105-136)
     - [ ] quick bar 1021 (1x10 at 91,101): items, skills and emotes dragged in, F1-F10, use effects
     - [x] skill box 1022 shows the skill picked from 188 (MagicSkillType) and the right button casts it (`cast_picked`, "Mouse Right"); opens 188 only with skills

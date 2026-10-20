@@ -140,6 +140,11 @@ fn xp(p: &Player) -> u64 {
     u64::try_from(p.attributes.get("xp").copied().unwrap_or(0).max(0)).unwrap_or(0)
 }
 
+/// The hero's stamina (the `stamina` attribute, 100 when at its default).
+fn stamina(p: &Player) -> u64 {
+    u64::try_from(p.attributes.get("stamina").copied().unwrap_or(100).max(0)).unwrap_or(0)
+}
+
 /// A player's status bits: dead, a ghost, a full XP bar, and its name's colour.
 fn status(p: &Player, rules: &dyn Rules) -> u32 {
     let dead = if p.is_alive() { 0 } else { pk::STATUS_DEAD };
@@ -917,6 +922,7 @@ impl ConquerClient {
             (attr::MONEY, p.money),
             (attr::EXP, p.exp),
             (attr::XP, xp(p)),
+            (attr::STAMINA, stamina(p)),
             (attr::LEVEL, p.level.into()),
         ]
     }

@@ -721,7 +721,7 @@ impl Sim {
                 .collect(),
             attributes: self.attributes_of(p),
             attribute_limits: (self.settings.attributes.iter())
-                .map(|a| (a.name.clone(), (a.min, a.max)))
+                .map(|a| (a.name.clone(), (a.min, Self::attribute_max(p, a))))
                 .collect(),
             record: p
                 .record

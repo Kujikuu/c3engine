@@ -528,6 +528,8 @@ pub mod attr {
     pub const MAX_MANA: u32 = 3;
     pub const MONEY: u32 = 4;
     pub const EXP: u32 = 5;
+    /// Stamina (physical force, `_USERATTRIB_PP`).
+    pub const STAMINA: u32 = 9;
     pub const LEVEL: u32 = 13;
     pub const SPIRIT: u32 = 14;
     pub const VITALITY: u32 = 15;

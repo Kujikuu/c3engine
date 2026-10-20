@@ -8,7 +8,7 @@ use crate::protocol::FRONT_KIND;
 use crate::rules::SLOT_NAMES;
 use c3_assets::Image;
 use c3_audio::MusicRegion;
-use c3_core::settings::AttributeDef;
+use c3_core::settings::{AttributeDef, AttributeRegen, RaisedMax};
 use c3_game::{EntityId, Player, Rules, Sim, SkillType};
 use c3_play::{
     Act, Character, CharacterMotions, GameModule, GameRules, Look, LookKind, Looks, PartModel,
@@ -115,6 +115,7 @@ pub fn conquer_settings() -> ProjectSettings {
         default,
         min: Some(0),
         max,
+        ..Default::default()
     };
     s.gameplay.attributes = vec![
         attribute("strength", "Raises attack", 0, None),
@@ -129,7 +130,22 @@ pub fn conquer_settings() -> ProjectSettings {
         ),
         attribute("rebirths", "Times reborn (metempsychosis)", 0, Some(2)),
         attribute("virtue", "Earned by mentoring new players", 0, None),
-        attribute("stamina", "Spent by XP skills and jumping", 100, Some(100)),
+        // Stamina: 150 at most while heaven-blessed (MaxEnergy 0045422f); 3 every 2 s, 10 a
+        // second sitting (pose 250), not transformed (OnTimer 0041d7a2).
+        AttributeDef {
+            raised_max: Some(RaisedMax {
+                until: "blessing_until".into(),
+                max: 150,
+            }),
+            regen: Some(AttributeRegen {
+                amount: 3,
+                every_ms: 2000,
+                sitting: 250,
+                sitting_amount: 10,
+                sitting_every_ms: 1000,
+            }),
+            ..attribute("stamina", "Spent by XP skills and jumping", 100, Some(100))
+        },
         attribute("xp", "Fills toward an XP skill", 0, Some(100)),
         attribute(
             "lock_key",

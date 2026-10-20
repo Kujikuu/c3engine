@@ -14,9 +14,10 @@ fn take_one(bag: &mut Vec<Item>, slot: usize) {
 use crate::event::Event;
 use crate::sim::Sim;
 use crate::{EntityId, distance, ms};
+use c3_core::settings::AttributeDef;
 use c3_scene::CellPos;
 use c3_scene::path::{self, PathRules};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 /// Why a jump can't be made.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +123,8 @@ impl Sim {
                 revive_at_ms: None,
                 ghost: false,
                 transform: None,
+                emote: None,
+                regen_at: BTreeMap::new(),
                 storage: std::collections::BTreeMap::new(),
                 chests: std::collections::BTreeMap::new(),
                 training_credit: 0,
@@ -133,6 +136,49 @@ impl Sim {
         );
         self.index.insert(id, cell);
         self.events.push(Event::Appeared(id));
+    }
+
+    /// Attribute `def`'s most for player `p` now: raised while its `raised_max` time is to
+    /// come.
+    pub(crate) fn attribute_max(p: &Player, def: &AttributeDef) -> Option<i64> {
+        let raised = def.raised_max.as_ref().filter(|r| {
+            let until = p.attributes.get(&r.until).copied().unwrap_or(0);
+            until > chrono::Utc::now().timestamp()
+        });
+        raised.map(|r| r.max).or(def.max)
+    }
+
+    /// Grows player `id`'s regenerating attributes that are due, up to their most.
+    fn regenerate(&mut self, id: EntityId) {
+        let now = self.now_ms;
+        let Some(p) = self.players.get_mut(&id) else {
+            return;
+        };
+        if p.transform.is_some() {
+            return;
+        }
+        for def in &self.settings.attributes {
+            let Some(regen) = &def.regen else {
+                continue;
+            };
+            let sitting = regen.sitting != 0 && p.emote == Some(regen.sitting);
+            let (amount, every) = match sitting {
+                true => (regen.sitting_amount, regen.sitting_every_ms),
+                false => (regen.amount, regen.every_ms),
+            };
+            let have = p.attributes.get(&def.name).copied().unwrap_or(def.default);
+            let most = Self::attribute_max(p, def).unwrap_or(i64::MAX);
+            if amount <= 0 || have >= most {
+                continue;
+            }
+            let last = p.regen_at.get(&def.name).copied().unwrap_or(0);
+            if now.saturating_sub(last) < every.max(1) {
+                continue;
+            }
+            p.regen_at.insert(def.name.clone(), now);
+            p.attributes
+                .insert(def.name.clone(), (have + amount).min(most));
+        }
     }
 
     pub(crate) fn living(&mut self, id: EntityId) -> Option<&mut Player> {
@@ -190,6 +236,7 @@ impl Sim {
         p.cell = to;
         p.path.clear();
         p.task = Task::Idle;
+        p.emote = None;
         self.index.moved(id, from, to);
         self.events.push(Event::Jumped { id, to });
         self.close_booth(id);
@@ -875,7 +922,12 @@ impl Sim {
         if self.is_stunned(id) {
             return;
         }
-        let p = &self.players[&id];
+        self.regenerate(id);
+        let p = self.players.get_mut(&id).expect("ticking");
+        // Moving or fighting stands it up.
+        if p.task != Task::Idle {
+            p.emote = None;
+        }
         match p.task.clone() {
             Task::Idle => {}
             Task::Walk => {

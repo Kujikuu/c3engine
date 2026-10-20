@@ -809,6 +809,45 @@ fn older_saves_name_items_by_type() {
 }
 
 #[test]
+fn attributes_regenerate_faster_sitting_and_higher_blessed() {
+    use c3_core::settings::{AttributeDef, AttributeRegen, RaisedMax};
+    let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
+    let mut settings = sim.settings().clone();
+    settings.attributes = vec![AttributeDef {
+        name: "stamina".into(),
+        default: 100,
+        max: Some(100),
+        raised_max: Some(RaisedMax {
+            until: "blessed_until".into(),
+            max: 150,
+        }),
+        regen: Some(AttributeRegen {
+            amount: 3,
+            every_ms: 2000,
+            sitting: 250,
+            sitting_amount: 10,
+            sitting_every_ms: 1000,
+        }),
+        ..Default::default()
+    }];
+    sim.set_settings(settings);
+    let hero = sim.add_player("Hero", (5, 5), 5);
+    let stamina = |sim: &Sim| sim.player(hero).unwrap().attributes["stamina"];
+    sim.players.get_mut(&hero).unwrap().attributes.insert("stamina".into(), 0);
+    sim.advance(4_000);
+    assert_eq!(stamina(&sim), 6, "3 every 2 s");
+    sim.input(hero, Input::Emote(250));
+    sim.advance(3_000);
+    assert_eq!(stamina(&sim), 36, "10 a second sitting");
+    sim.advance(60_000);
+    assert_eq!(stamina(&sim), 100, "no more than the most");
+    let until = chrono::Utc::now().timestamp() + 3600;
+    (sim.players.get_mut(&hero).unwrap().attributes).insert("blessed_until".into(), until);
+    sim.advance(60_000);
+    assert_eq!(stamina(&sim), 150, "half again while blessed");
+}
+
+#[test]
 fn skills_may_cost_an_attribute() {
     let mut sim = Sim::new(Grid::new(20, 20), vec![], vec![], rules(), 3);
     let hero = sim.add_player("Hero", (5, 5), 5);

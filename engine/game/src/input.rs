@@ -245,7 +245,8 @@ impl Sim {
             Input::ChangeFace(face) => self.change_face(id, face),
             Input::TakeDown { board, author } => self.take_down(id, board, &author),
             Input::Emote(emote) => {
-                if self.players.get(&id).is_some_and(|p| p.is_alive()) {
+                if let Some(p) = self.living(id) {
+                    p.emote = Some(emote);
                     self.events.push(Event::Emoted { player: id, emote });
                 }
             }

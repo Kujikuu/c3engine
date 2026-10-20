@@ -826,6 +826,37 @@ pub struct AttributeDef {
     /// Highest value; more is cut off. `None`: no limit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max: Option<i64>,
+    /// A higher most while another attribute holds a time yet to come (TQ's heaven blessing:
+    /// stamina up to 150).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raised_max: Option<RaisedMax>,
+    /// Gained over time while under its most (TQ's stamina).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regen: Option<AttributeRegen>,
+}
+
+/// An attribute's most while attribute `until` (unix seconds) is later than now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct RaisedMax {
+    pub until: String,
+    pub max: i64,
+}
+
+/// What an attribute gains: `amount` every `every_ms`, or `sitting_amount` every
+/// `sitting_every_ms` while the player holds emote `sitting`; none while transformed (TQ's
+/// stamina, the server's OnTimer: 3 every 2 s, sitting 10 a second).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct AttributeRegen {
+    pub amount: i64,
+    pub every_ms: u64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub sitting: u32,
+    #[serde(skip_serializing_if = "is_zero_i64")]
+    pub sitting_amount: i64,
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub sitting_every_ms: u64,
 }
 
 /// Crime and PK points (TQ's blue, red and black names): attacking a player of good name
