@@ -599,8 +599,11 @@ impl GameUi {
     /// (`page:<page id>`).
     fn gui_event(&mut self, event: gui::GuiEvent, actions: &mut Vec<UiAction>) {
         let action = match event {
+            // A control's own click sound (`sound=none`: silent).
             gui::GuiEvent::Sound(path) => {
-                actions.push(UiAction::PlaySound(path));
+                if path != "none" {
+                    actions.push(UiAction::PlaySound(path));
+                }
                 self.own_sound = true;
                 return;
             }
@@ -679,9 +682,13 @@ impl GameUi {
                     actions.push(UiAction::Cast(slot));
                 }
             }
+            // The next player clicked is for `<what>`; the engine says so unless the game's UI
+            // has its own words (`note:`).
             _ if action.starts_with("pick:") => {
                 let what = action.trim_start_matches("pick:");
-                self.system(format!("Click a player ({what})."), style::GOLD);
+                if self.gui.is_none() {
+                    self.system(format!("Click a player ({what})."), style::GOLD);
+                }
                 self.pick = Some(what.to_owned());
             }
             // Spend an attribute point (`spend:<attribute>`).
@@ -710,14 +717,20 @@ impl GameUi {
                     self.gui_state.steps.push((group.to_owned(), step, max));
                 }
             }
-            // A line of the game's own told the player (`tell:ini/StrRes.ini:10341`).
-            _ if action.starts_with("tell:") => {
-                let (file, key) = action["tell:".len()..].rsplit_once(':').unwrap_or_default();
+            // A line of the game's own told the player: a refusal (`tell:ini/StrRes.ini:10341`)
+            // or a note (`note:ini/StrRes.ini:10065`).
+            _ if action.starts_with("tell:") || action.starts_with("note:") => {
+                let (file, key) = action[5..].rsplit_once(':').unwrap_or_default();
                 let line = (self.gui.as_ref())
                     .and_then(|g| g.names.get(file)?.get(key).cloned())
                     .unwrap_or_default();
+                let color = if action.starts_with("tell:") {
+                    style::BAD
+                } else {
+                    style::GOLD
+                };
                 if !line.is_empty() {
-                    self.system(line, style::BAD);
+                    self.system(line, color);
                 }
             }
             // A view group flipped between `1` and none (`flip:oven_check`: a check box).

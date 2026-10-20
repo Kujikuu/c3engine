@@ -828,8 +828,8 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] screen move's tip 10073 / 10074 by its state (`tip=` reads bindings in its key)
     - [x] the exp strip's overlay while pointed at (CGameMap::ShowExp): StrRes 100135's rate to three places at [ExpShowPos] 275,675 and the last gain at 365,675 for 2 s, green with a black edge (`pointed=`, `edge=`)
     - [ ] a cursed hero's 10483 in its place (no curse status yet)
-    - [ ] trade 1010: dead-hero refusal (StrRes 10712) and the 10065 prompt
-    - [ ] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024
+    - [x] trade 1010: the 10065 prompt (`note:`; 10712, the dead hero's refusal, isn't in 5065's StrRes, so the client shows nothing either); the friend and partner Add buttons' 10345 / 11145 the same way; `pick:` says nothing itself when the game has its own UI
+    - [x] button sounds as the client: BtnClick on most, DropMoney on 1010, none on 1011/1024 (`sound=none`)
     - [ ] actions 1009, PK 1013 and friends 1026 open 140 / 191 / 160, still drafts
   - [ ] UI 145 CDlgTalk (chat bar): 10 of 16 audit mismatches fixed (docs/conquer_ui_audit.md)
     - [x] line 1542 takes 88 characters, name 1544 15, the name red while listed (`limit=`, `mark=`)

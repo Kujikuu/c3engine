@@ -237,7 +237,7 @@ pub struct Control {
     pub size: f32,
     /// What a click asks the game for.
     pub action: String,
-    /// A sound (an asset path) a click plays in place of the UI's click.
+    /// A sound (an asset path) a click plays in place of the UI's click (`none`: silent).
     pub sound: String,
     /// What a right click on a dialog asks for (`right=dice_cancel`).
     pub right: String,
