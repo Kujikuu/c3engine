@@ -1254,7 +1254,7 @@ run on the server and the local session alike, and are edited through c3-edit wi
     - [x] engine and UI
     - [x] the front: MsgName 17 / 18 sit and leave, 17 / 18 / 19 told back (seated, gone, a win); MsgDice 1113 both ways (chips and their confirms, cancels, betting open with the seconds left and closed, the roll's four dice); STR_MISS_BET whispered by the table (channel 2000); the NPC's kind 19 in MsgNpcInfo for the client's own question
     - [x] a player gone at the roll loses its bets unpaid
-    - [ ] the NPC's dice animation in the engine's own client (CDiceView: the three dice on the table, `_VAR_DICE0..2`)
+    - [x] the table as players see it (CDiceView, `GameModule::dice_table`, engine/play dice_table.rs): the desk and three dice by the NPC at DiceView.cpp's offsets, the dice drawn on the desk; a roll spins each die three to four seconds, bobbing, then it rests on its face
     - [ ] the countdown shown (DiceManager::Show: the seconds left in 3D effect digits, CImageStringEx, 150% yellow at 150 from the right, 450 down)
   - [ ] UI 262 CDlgDice: 8 of 9 audit mismatches fixed
     - [x] seated by DiceKing's question (StrRes 10394; 10395 to leave); Dialog43 two down; each bet's chips as piles (`piles=`: Button435 / 434 / 433, CMyImage::ShowMoney); the chip picked (+4,+4) put on a bet clicked; the last bet's own and total (1420 / 1421) and the chip (1632); Exit (1415); the players (1422)

@@ -26,6 +26,20 @@ pub enum Act {
     Jump,
 }
 
+/// A dice table's look by its NPC: a desk and three dice, each die a spinning and a resting
+/// model (the resting one shows face `n` on frame `n - 1`), placed by map-pixel offsets
+/// from the NPC; the dice `rise` above the ground, drawn at `dice_zoom` percent.
+#[derive(Debug, Clone)]
+pub struct DiceTableLook {
+    pub desk: crate::character::Look,
+    pub desk_offset: (f32, f32),
+    pub rolling: crate::character::Look,
+    pub resting: crate::character::Look,
+    pub dice_offsets: [(f32, f32); 3],
+    pub rise: f32,
+    pub dice_zoom: f32,
+}
+
 /// How an emote plays (see [`Looks::emote_play`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmotePlay {
@@ -248,6 +262,11 @@ pub trait GameModule {
         let _ = (key, map_ids);
         None
     }
+    /// How the game's dice tables look by their NPCs (TQ's CDiceView); none: just the NPC.
+    fn dice_table(&self) -> Option<DiceTableLook> {
+        None
+    }
+
     /// The picture on the ground under each role (TQ's `SimpleShadow`); none: no shadows.
     fn role_shadow(&self) -> Option<Image> {
         None

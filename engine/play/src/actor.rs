@@ -83,6 +83,17 @@ pub struct Actor {
     pub zoom_percent: f32,
     /// Runs instead of walking (the client's Run toggle).
     pub running: bool,
+    /// Drawn this far (map pixels) from its cell, and this high above the ground (a dice
+    /// table's desk and dice).
+    pub offset: Vec2,
+    pub rise: f32,
+    /// Sorted in the painter's order as if this far from where it is drawn (dice drawn over
+    /// their desk).
+    pub order_offset: Vec2,
+    /// Shown on this frame of its model, not animated (a resting die's face).
+    pub hold_frame: Option<u32>,
+    /// Not drawn.
+    pub hidden: bool,
     character: Character,
     look: Look,
     /// Per model (body, then attachments): `None` = not uploaded yet.
@@ -159,6 +170,11 @@ impl Actor {
             direction: direction % 8,
             zoom_percent: look.zoom_percent,
             running: false,
+            offset: Vec2::ZERO,
+            rise: 0.0,
+            order_offset: Vec2::ZERO,
+            hold_frame: None,
+            hidden: false,
             textures: vec![None; 1 + character.attachments.len()],
             part_effects: (0..=character.attachments.len())
                 .map(|_| Vec::new())
@@ -276,13 +292,15 @@ impl Actor {
 
     /// How high above the ground the actor is drawn at `now_ms` (mid-jump).
     pub fn lift(&self, now_ms: u64) -> f32 {
-        match &self.step {
-            Some(s) if s.peak > 0.0 => {
-                let t = now_ms.saturating_sub(s.started_ms) as f32 / s.duration_ms.max(1) as f32;
-                s.peak * (std::f32::consts::PI * t.min(1.0)).sin()
+        self.rise
+            + match &self.step {
+                Some(s) if s.peak > 0.0 => {
+                    let t =
+                        now_ms.saturating_sub(s.started_ms) as f32 / s.duration_ms.max(1) as f32;
+                    s.peak * (std::f32::consts::PI * t.min(1.0)).sin()
+                }
+                _ => 0.0,
             }
-            _ => 0.0,
-        }
     }
 
     /// Whether the actor is stepping or has steps planned.
@@ -502,7 +520,7 @@ impl Actor {
 
     /// World position of the feet at `now_ms`.
     pub fn position(&self, scene: &Scene, now_ms: u64) -> Vec2 {
-        let world = |c| Vec2::from(scene.cell_to_world(c));
+        let world = |c| Vec2::from(scene.cell_to_world(c)) + self.offset;
         match &self.step {
             Some(s) => {
                 let t = now_ms.saturating_sub(s.started_ms) as f32 / s.duration_ms.max(1) as f32;
@@ -514,7 +532,7 @@ impl Actor {
 
     /// Cell the actor is drawn on (draw order), following it mid-step.
     pub fn draw_cell(&self, scene: &Scene, now_ms: u64) -> CellPos {
-        let p = self.position(scene, now_ms);
+        let p = self.position(scene, now_ms) + self.order_offset;
         scene.world_to_cell((p.x, p.y))
     }
 
@@ -541,6 +559,9 @@ impl Actor {
     /// Body animation frame at `now_ms`: actions loop from their start; attachments use the
     /// same frame (`C3DRole::SetFrame`).
     fn frame(&self, now_ms: u64) -> f32 {
+        if let Some(frame) = self.hold_frame {
+            return frame as f32;
+        }
         let elapsed = now_ms.saturating_sub(self.playing.started_ms) as f32;
         let frames = self.character.body.model.frame_count().max(1) as f32;
         let frame = elapsed / self.playing.frame_ms.max(1) as f32;
@@ -652,6 +673,9 @@ pub fn pose_actor(
     now_ms: u64,
     eye: glam::Vec3,
 ) {
+    if actors[a].hidden {
+        return;
+    }
     let role = actors[a].pose(scene, tilt_deg, now_ms).transform();
     for part in actors[a].drawables() {
         let actor = &mut actors[a];

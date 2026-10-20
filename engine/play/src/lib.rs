@@ -20,6 +20,7 @@ pub mod character;
 pub mod controls;
 pub mod cursor;
 pub mod data_rules;
+pub mod dice_table;
 pub mod formula_rules;
 pub mod game;
 pub mod input;

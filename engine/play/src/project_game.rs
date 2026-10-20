@@ -233,6 +233,10 @@ impl GameModule for ProjectGame {
         self.game.role_shadow()
     }
 
+    fn dice_table(&self) -> Option<crate::module::DiceTableLook> {
+        self.game.dice_table()
+    }
+
     fn skill_media(&self, skill: &SkillType) -> (Option<String>, Option<String>) {
         self.game.skill_media(skill)
     }

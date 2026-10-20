@@ -583,6 +583,26 @@ impl GameModule for ConquerModule {
         self.content.role_shadow()
     }
 
+    /// CDiceView: the desk (3DSimpleObj 999) 30 left and 40 down of DiceKing, the dice
+    /// spinning (998) and resting (997) at (-30, 30), (-20, 34), (-10, 38), 20 up at 1.2
+    /// scale (DiceView.cpp SetPos).
+    fn dice_table(&self) -> Option<c3_play::module::DiceTableLook> {
+        let model = |id: u32| Look {
+            kind: LookKind::Model,
+            body: id,
+            ..Look::default()
+        };
+        Some(c3_play::module::DiceTableLook {
+            desk: model(9_999_000),
+            desk_offset: (-30.0, 40.0),
+            rolling: model(9_998_000),
+            resting: model(9_997_000),
+            dice_offsets: [(-30.0, 30.0), (-20.0, 34.0), (-10.0, 38.0)],
+            rise: 20.0,
+            dice_zoom: 160.0,
+        })
+    }
+
     fn click_effect(&self) -> Option<String> {
         Some(CLICK_EFFECT.to_owned())
     }

@@ -21,6 +21,8 @@ pub struct SimView {
     npcs: HashMap<u32, usize>,
     /// Actor index of what is being placed (TQ's mouse NPC).
     preview: Option<usize>,
+    /// The dice tables' desks and dice.
+    dice: crate::dice_table::DiceTables,
 }
 
 impl SimView {
@@ -40,6 +42,7 @@ impl SimView {
         for npc in sim.npcs() {
             if let Some(index) = world.add_npc(npc) {
                 view.npcs.insert(npc.id, index);
+                view.dress_dice(sim, npc, index, world);
             }
         }
         let others: Vec<EntityId> = (sim.players().map(|p| p.id))
@@ -171,10 +174,20 @@ impl SimView {
                     }
                 }
                 Event::Dressed { player } => self.dress(sim, player, world),
-                Event::NpcMoved { .. } | Event::NpcArrived(_) => self.npc_event(event, world),
+                Event::NpcMoved { .. } | Event::NpcArrived(_) => self.npc_event(event, sim, world),
+                // A roll the hero sees: the table's dice spin, then rest on their faces.
+                Event::Dice {
+                    npc,
+                    news: c3_game::DiceNews::Rolled { dice },
+                    ..
+                } => {
+                    let seed = world.now_ms().wrapping_mul(2_654_435_761) ^ u64::from(npc);
+                    self.dice.rolled(npc, dice, world, seed);
+                }
                 _ => {}
             }
         }
+        self.dice.tick(world);
     }
 
     /// Gives player `id`'s actor the look of what it wears.
@@ -225,6 +238,23 @@ impl SimView {
         self.remove_actor(index, world);
     }
 
+    /// Dresses `npc` (at actor `index`) as a dice table when its kind keeps one.
+    fn dress_dice(&mut self, sim: &Sim, npc: &c3_scene::Npc, index: usize, world: &mut World) {
+        if sim.settings().dice.kinds.contains(&npc.kind) {
+            self.dice.add(npc.id, index, world);
+        }
+    }
+
+    /// Takes `npc`'s actor away, with its dice table's.
+    fn remove_npc(&mut self, npc: u32, world: &mut World) {
+        for i in self.dice.remove(npc) {
+            self.remove_actor(i, world);
+        }
+        if let Some(i) = self.npcs.remove(&npc) {
+            self.remove_actor(i, world);
+        }
+    }
+
     /// Removes actor `index`; the actor that took its place (the last) is followed.
     fn remove_actor(&mut self, index: usize, world: &mut World) {
         let last = world.actors.len() - 1;
@@ -235,6 +265,7 @@ impl SimView {
         let moved = (self.actors.values_mut())
             .chain(self.npcs.values_mut())
             .chain(self.preview.iter_mut())
+            .chain(self.dice.indices_mut())
             .find(|i| **i == last);
         if let Some(moved) = moved {
             *moved = index;
@@ -269,7 +300,7 @@ impl SimView {
     }
 
     /// An NPC moved, left or came.
-    fn npc_event(&mut self, event: &Event, world: &mut World) {
+    fn npc_event(&mut self, event: &Event, sim: &Sim, world: &mut World) {
         match event {
             Event::NpcMoved {
                 npc,
@@ -279,17 +310,12 @@ impl SimView {
                     world.actors[i].place(*cell);
                 }
             }
-            Event::NpcMoved { npc, cell: None } => {
-                if let Some(i) = self.npcs.remove(npc) {
-                    self.remove_actor(i, world);
-                }
-            }
+            Event::NpcMoved { npc, cell: None } => self.remove_npc(*npc, world),
             Event::NpcArrived(npc) => {
-                if let Some(i) = self.npcs.remove(&npc.id) {
-                    self.remove_actor(i, world);
-                }
+                self.remove_npc(npc.id, world);
                 if let Some(i) = world.add_npc(npc) {
                     self.npcs.insert(npc.id, i);
+                    self.dress_dice(sim, npc, i, world);
                 }
             }
             _ => {}
